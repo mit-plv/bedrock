@@ -72,8 +72,8 @@ Lemma firstn_S_upd : forall n ls1 ls2 v, (n < length ls2)%nat -> length ls1 = le
   auto.
 Qed.
 
-Lemma evalInstrs_cons_fwd : forall i is stn st st_new, 
-  evalInstrs stn st (i :: is) = Some st_new -> exists st', 
+Lemma evalInstrs_cons_fwd : forall i is stn st st_new,
+  evalInstrs stn st (i :: is) = Some st_new -> exists st',
     evalInstr stn st i = Some st' /\ evalInstrs stn st' is = Some st_new.
   Transparent evalInstrs.
   simpl; intros.

@@ -232,7 +232,7 @@ Qed.
 Hint Extern 1 (length _ = 0) =>
   match goal with
     | [ H : _ <= _ |- _ ] => eapply wle_goodSize in H; [ omega | | ];
-      eapply goodSize_weaken; eauto      
+      eapply goodSize_weaken; eauto
   end.
 
 Hint Rewrite responseAll_nil using solve [ auto ] : Server.

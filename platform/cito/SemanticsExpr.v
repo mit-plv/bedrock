@@ -1,9 +1,9 @@
 Require Import IL Memory String.
 Require Import SyntaxExpr.
 
-Set Implicit Arguments. 
+Set Implicit Arguments.
 
-Fixpoint eval vs expr := 
+Fixpoint eval vs expr :=
   match expr with
     | Var str => vs str
     | Const w => w

@@ -180,8 +180,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply append_inj_2; eauto.
     Qed.
 
-    Lemma link_all_ok : 
-      forall (ms : list GoodModule), 
+    Lemma link_all_ok :
+      forall (ms : list GoodModule),
         let linked := link_all (List.map compile ms) in
         let module_names := List.map impl_MName ms in
         let linked_module_names := to_set module_names in
@@ -257,7 +257,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite compile_module_Imports.
       eapply to_blm_Compat.
       eapply Compat_empty.
-      
+
       rewrite H3.
       rewrite compile_module_Modules.
       repeat rewrite of_list_cons.

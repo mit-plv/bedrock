@@ -3,7 +3,7 @@ Require Import SyntaxExpr.
 Require Import GLabel.
 Export SyntaxExpr.
 
-Inductive Stmt : Set := 
+Inductive Stmt : Set :=
   | Skip : Stmt
   | Seq : Stmt -> Stmt -> Stmt
   | If : Expr -> Stmt -> Stmt -> Stmt

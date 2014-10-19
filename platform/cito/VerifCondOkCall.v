@@ -83,14 +83,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Transparent funcs_ok.
     Ltac unfold_funcs_ok :=
-      match goal with 
+      match goal with
         | H : interp _ (funcs_ok _ _) |- _ => generalize H; intro is_funcs_ok; unfold funcs_ok in H
       end.
     Opaque funcs_ok.
 
     Ltac specialize_funcs_ok :=
       match goal with
-        | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
+        | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ =>
           specialize (Imply_sound (H _ _ _) (Inj_I _ _ H2)); propxFo
       end.
 
@@ -120,7 +120,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
     Opaque CompileStmtImplMake.InvMake2.funcs_ok.
 
-    Lemma verifCond_ok : 
+    Lemma verifCond_ok :
       forall o e l k (pre : assert),
         let s := Syntax.Call o e l in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
@@ -269,7 +269,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hide_map.
       repeat hiding ltac:(step auto_ext).
       rewrite length_upd_sublist; eauto.
-      
+
       (* vc 6 *)
       eapply syn_req_Call_f; eauto.
 
@@ -443,7 +443,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       post.
       Ltac specialize_funcs_ok' :=
         match goal with
-          | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ => 
+          | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ =>
             specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
         end.
 
@@ -454,7 +454,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Imply_sound.
       eauto.
       hiding ltac:(step auto_ext).
-      
+
       hide_upd_sublist.
       set (arr := map _ _) in *.
       set (avars := ArgVars _) in *.
@@ -636,7 +636,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step auto_ext).
 
       hiding ltac:(step hints_heap_empty_bwd).
-      
+
       rewrite fold_second in *.
       simpl in *.
       openhyp.

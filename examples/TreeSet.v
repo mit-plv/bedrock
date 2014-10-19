@@ -222,7 +222,7 @@ Definition bstM := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [
         Return "tmp"
       }
     };;
-    
+
     Fail (* Unreachable! *)
   end with bfunction "remove"("s", "k", "prev", "tmp") [removeS]
     "prev" <- "s";;

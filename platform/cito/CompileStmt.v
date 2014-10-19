@@ -40,10 +40,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Wrap.
     Definition compile : cmd imports modName.
       refine (
-          Wrap imports imports_global modName 
-               (do_compile s k) 
-               (fun _ => postcond vars temp_size k rv_postcond) 
-               (verifCond vars temp_size s k rv_postcond) 
+          Wrap imports imports_global modName
+               (do_compile s k)
+               (fun _ => postcond vars temp_size k rv_postcond)
+               (verifCond vars temp_size s k rv_postcond)
                _ _).
       eapply post_ok.
       eapply verifCond_ok.

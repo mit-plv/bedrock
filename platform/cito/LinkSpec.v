@@ -35,7 +35,7 @@ Module Make (Import E : ADT).
          spec = Internal ispec /\
          List.In m modules /\
          List.In f (Functions m) /\
-         ispec = f /\ 
+         ispec = f /\
          lbl = (MName m, FName f)) \/
       (exists fspec,
          spec = Foreign fspec /\
@@ -47,16 +47,16 @@ Module Make (Import E : ADT).
         Labels stn lbl <> None.
 
     Definition stn_injective (stn : settings) :=
-      forall lbl1 lbl2 p, 
-        label_in lbl1 -> 
-        label_in lbl2 -> 
-        Labels stn lbl1 = Some p -> 
-        Labels stn lbl2 = Some p -> 
+      forall lbl1 lbl2 p,
+        label_in lbl1 ->
+        label_in lbl2 ->
+        Labels stn lbl1 = Some p ->
+        Labels stn lbl2 = Some p ->
         lbl1 = lbl2.
 
     Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
-      forall p spec, 
-        fs stn p = Some spec <-> 
+      forall p spec,
+        fs stn p = Some spec <->
         exists lbl : glabel,
           Labels stn lbl = Some p /\
           label_mapsto lbl spec.
@@ -67,15 +67,15 @@ Module Make (Import E : ADT).
       fs_good_to_use fs stn.
 
     Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
-        
-    Definition module_exports_IFS m := 
+
+    Definition module_exports_IFS m :=
       List.map (func_export_IFS m) (Functions m).
 
     Require Import ListFacts1.
 
     Definition exports_IFS :=
       to_map
-        (app_all 
+        (app_all
            (List.map module_exports_IFS modules)).
 
     Section fs.
@@ -86,7 +86,7 @@ Module Make (Import E : ADT).
 
       Definition is_label_map_to_word lbl p :=
         match labels lbl with
-          | Some p' => 
+          | Some p' =>
             if weq p p' then
               true
             else
@@ -109,7 +109,7 @@ Module Make (Import E : ADT).
       Definition fs (p : W) : option Callee :=
         match is_export p with
           | Some spec => Some (Internal spec)
-          | None => 
+          | None =>
             match is_import p with
               | Some spec => Some (Foreign spec)
               | None => None
@@ -136,10 +136,10 @@ Module Make (Import E : ADT).
       Variable imps : t ForeignFuncSpec.
 
       Notation fs := (fs modules imps).
-      
+
       Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| env_good_to_use modules imps (fst st) fs |] ---> spec_without_funcs_ok f fs st)%PropX.
 
-      Definition foreign_func_spec id spec : assert := 
+      Definition foreign_func_spec id spec : assert :=
         st ~> name_marker id /\ ExX, foreign_spec _ spec st.
 
       Definition imports := mapi (foreign_func_spec) imps.
@@ -151,9 +151,9 @@ Module Make (Import E : ADT).
         let lbl := (MName module, FName f) in
         (lbl, func_spec lbl f).
 
-      Definition module_exports m := 
+      Definition module_exports m :=
         of_list
-          (List.map 
+          (List.map
              (func_export m)
              (Functions m)).
 
@@ -163,9 +163,9 @@ Module Make (Import E : ADT).
 
       Definition func_impl_export m (f : GoodFunction) := (impl_label (MName m) (FName f), spec f).
 
-      Definition module_impl_exports m := 
+      Definition module_impl_exports m :=
         of_list
-          (List.map 
+          (List.map
              (func_impl_export m)
              (Functions m)).
 

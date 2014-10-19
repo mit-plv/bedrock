@@ -1,7 +1,7 @@
 Require Import SyntaxExpr.
 
 (* The depth of stack actually used by compileExpr *)
-Fixpoint depth expr := 
+Fixpoint depth expr :=
   match expr with
     | Var _ => 0
     | Const _ => 0

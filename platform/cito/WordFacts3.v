@@ -187,7 +187,7 @@ Lemma wneg_natToW_pow2_minus : forall n:nat, goodSize n ->
   unfold wneg.
   rewrite NToWord_nat.
   rewrite N2Nat.inj_sub.
-  rewrite Npow2_nat.  
+  rewrite Npow2_nat.
   rewrite natToWordToN.
   rewrite Nat2N.id.
   reflexivity.
@@ -198,7 +198,7 @@ Lemma wordToNat_wminus : forall n m:W, n <= m ->
                                        wordToNat (m ^- n) = wordToNat m - wordToNat n.
   intros.
   destruct_all_words.
-  
+
   assert (natToW (pow2 32 + (w - w0)) = (natToW (w - w0))).
   rewrite plus_comm.
   rewrite <- natToW_plus_pow2.

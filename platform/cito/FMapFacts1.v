@@ -21,7 +21,7 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
 
     Notation eqke := (@eq_key_elt elt).
     Notation eqk := (@eq_key elt).
-    
+
     Definition to_map := of_list.
 
     Definition keys m := List.map (@fst _ _) (elements m).
@@ -289,7 +289,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Notation eqke := (@eq_key_elt elt).
     Notation eqk := (@eq_key elt).
-    
+
     Require Import GeneralTactics.
     Require Import GeneralTactics2.
 
@@ -518,7 +518,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       unfold Proper; unfold respectful; intros.
       destruct x; destruct y; unfold eq_key in *; simpl in *; subst; eauto.
     Qed.
-    
+
     Lemma diff_In : forall ls1 ls2 x, InKey x (diff_map ls1 ls2) -> InKey x ls1 /\ ~ InKey x ls2.
       unfold InKey.
       unfold diff_map.
@@ -823,7 +823,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       inversion H; subst; eauto.
       eauto.
     Qed.
-    
+
     Lemma NoDup_app_find_list : forall ls1 ls2 k v, NoDupKey (ls1 ++ ls2) -> find_list k ls1 = Some v -> find_list k (ls1 ++ ls2) = Some v.
       unfold find_list.
       intros.

@@ -134,7 +134,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       P ===> R * any
       -> P * Q ===> R * any.
       intros.
-      eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].      
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].
       eapply Himp_trans; [ apply Himp_star_assoc | ].
       apply Himp_star_frame; try apply Himp_refl.
       apply any_easy.
@@ -172,7 +172,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
     repeat constructor; simpl; intuition.
     symmetry; apply wordToNat_natToWord_idempotent; auto.
-    
+
     Lemma saved_vars_irrel : forall x v args pairs vs,
       saved_vars vs args pairs
       -> ~In x args
@@ -262,7 +262,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     unfold array at 1; simpl.
     sepLemma.
     rewrite <- wplus_assoc.
-    rewrite <- natToWord_plus.    
+    rewrite <- natToWord_plus.
     unfold natToW; rewrite natToWord_wordToNat.
     sepLemma.
     etransitivity; [ apply ptsto32m'_out | ].
@@ -387,7 +387,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     apply WordMap.elements_2 in H4.
     apply Properties.F.add_mapsto_iff in H4; intuition subst.
     tauto.
-    apply InA_In; apply WordMap.elements_1; auto.    
+    apply InA_In; apply WordMap.elements_1; auto.
   Qed.
 
   Lemma not_in_empty : forall w,

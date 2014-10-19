@@ -22,7 +22,7 @@ Fixpoint string_lt (s1 s2 : string) : bool :=
   end.
 
 Section CompSpec.
-  Variables (A : Type) (eq lt : A -> A -> Prop) 
+  Variables (A : Type) (eq lt : A -> A -> Prop)
     (x y : A) (c : comparison).
 
   Hypothesis H : CompSpec eq lt x y c.
@@ -103,10 +103,10 @@ Section hide_hints.
     -> string_lt s2 s1 = true.
     induction s1; destruct s2; simpl; intuition; rewr.
   Qed.
-    
+
   Hint Resolve string_lt_sym.
 
-  
+
 
   Definition label'_lt (l1 l2 : label') : bool :=
     match l1, l2 with
@@ -195,7 +195,7 @@ Module LabelKey.
               then Datatypes.Eq
               else Gt
           else Gt.
-    
+
     Lemma label_eq : forall x y : label, fst x = fst y
       -> snd x = snd y
       -> x = y.

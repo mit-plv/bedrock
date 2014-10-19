@@ -8,17 +8,17 @@ Ltac think' ext solver :=
             | [ H : inr _ = inr _ |- _ ] => inversion H ; clear H ; subst
             | [ H : _ |- _ ] => erewrite H in * |- by solver
             | [ H : _ |- _ ] => erewrite H by solver
-            | [ H : andb _ _ = true |- _ ] => 
+            | [ H : andb _ _ = true |- _ ] =>
               apply andb_true_iff in H ; destruct H
-            | [ H : orb _ _ = false |- _ ] => 
+            | [ H : orb _ _ = false |- _ ] =>
               apply orb_false_iff in H ; destruct H
-            | [ H : Equivalence.equiv _ _ |- _ ] => 
+            | [ H : Equivalence.equiv _ _ |- _ ] =>
               unfold Equivalence.equiv in H ; subst
             | [ H : _ /\ _ |- _ ] => destruct H
             | [ H : exists x, _ |- _ ] => destruct H
             | [ H : context [ match ?X with _ => _ end ] |- _ ] =>
               ((consider X ; try congruence); [ intros ]) ||
-                (consider X ; solve [ congruence | solver ]) 
+                (consider X ; solve [ congruence | solver ])
           end || (progress ext)).
 
 Ltac think := think' idtac ltac:(eauto).

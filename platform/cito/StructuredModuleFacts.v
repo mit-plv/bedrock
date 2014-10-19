@@ -17,16 +17,16 @@ Require Import ListFacts2.
 Section TopSection.
 
   Definition importsMap' (imports : list import) base :=
-    List.fold_left 
-      (fun m p => 
+    List.fold_left
+      (fun m p =>
          let '(modl, f, pre) := p in
          LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
 
   Require Import ConvertLabel.
 
-  Lemma importsMap_spec' : 
-    forall imps2 imps1 base, 
-      NoDupKey (imps1 ++ imps2) -> 
+  Lemma importsMap_spec' :
+    forall imps2 imps1 base,
+      NoDupKey (imps1 ++ imps2) ->
       (forall (k : glabel), LabelMap.LabelMap.find (k : label) base = find_list k imps1) ->
       forall (k : glabel), LabelMap.LabelMap.find (k : label) (importsMap' imps2 base) = find_list k (imps1 ++ imps2).
     induction imps2; simpl.
@@ -77,18 +77,18 @@ Section TopSection.
     intros.
     unfold find_list.
     eauto.
-  Qed.        
+  Qed.
 
   Definition fullImports' impsMap modName (functions : list (function modName)) : LabelMap.LabelMap.t assert :=
-    List.fold_left 
-      (fun m p => 
+    List.fold_left
+      (fun m p =>
          let '(f, pre, _) := p in
          LabelMap.LabelMap.add (modName, Global f) pre m) functions impsMap.
 
   Definition func_to_import mn (f : function mn) : import:= ((mn, fst (fst f)), snd (fst f)).
 
-  Lemma fullImports_spec' : 
-    forall mn (fns : list (function mn)) imps impsMap, 
+  Lemma fullImports_spec' :
+    forall mn (fns : list (function mn)) imps impsMap,
       let fns' := List.map (@func_to_import _) fns in
       let whole := imps ++ fns' in
       NoDupKey whole ->
@@ -157,7 +157,7 @@ Section TopSection.
   Open Scope clm_scope.
 
   Require Import GeneralTactics.
-  
+
   Lemma importsMap_of_list : forall ls, NoDupKey ls -> importsMap ls === of_list ls.
     intros.
     hnf.
@@ -220,7 +220,7 @@ Section TopSection.
   Require Import Setoid.
   Require Import Morphisms.
 
-  Lemma importsOk_f_Proper : 
+  Lemma importsOk_f_Proper :
     forall m,
       Proper (Logic.eq ==> Logic.eq ==> iff ==> iff)
              (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
@@ -238,7 +238,7 @@ Section TopSection.
 
   Lemma importsOk_f_transpose_neqkey :
     forall m,
-      LabelMapFacts.transpose_neqkey 
+      LabelMapFacts.transpose_neqkey
         iff
         (fun (l : LabelMap.LabelMap.key) (pre : assert) (P : Prop) =>
            match LabelMap.LabelMap.find (elt:=assert) l m with

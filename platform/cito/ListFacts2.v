@@ -31,12 +31,12 @@ Section TopSection.
     induction ls; simpl; intuition.
   Qed.
 
-  Fixpoint fold_right_2 A (f : A -> A -> A) def ls := 
+  Fixpoint fold_right_2 A (f : A -> A -> A) def ls :=
     match ls with
       | nil => def
       | x :: nil => x
       | x :: xs => f x (fold_right_2 f def xs)
     end.
-  
+
 End TopSection.
 

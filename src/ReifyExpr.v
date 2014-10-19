@@ -2,8 +2,8 @@ Require Import List.
 Require Import EqdepClass.
 Require Import Word.
 Require Import Bool Folds.
-Require Import Reflection. 
-Require Import Expr. 
+Require Import Reflection.
+Require Import Expr.
 
 
 (** Tactics **)
@@ -17,37 +17,37 @@ Ltac lift_signature s nt :=
   constr:(@Sig nt d r den).
 
 Ltac lift_signatures fs nt :=
-  let f sig := 
-    lift_signature sig nt 
+  let f sig :=
+    lift_signature sig nt
   in
   map_tac (signature nt) f fs.
 *)
 
-Definition default_type (T : Type) : type. 
-Proof. 
+Definition default_type (T : Type) : type.
+Proof.
   refine ({| Impl := T
              ; Eqb := fun _ _ => false
              ; Eqb_correct := _
-          |}). abstract (discriminate). 
-Defined. 
+          |}). abstract (discriminate).
+Defined.
 
 (* (* TODO: remove this type-class... *) *)
 (* Global Instance SemiDec_nat : SemiDec nat.  *)
 (* constructor. intros. *)
 (* destruct (Peano_dec.eq_nat_dec a b). refine (Some e). refine (None).  *)
 (* Defined.  *)
-      
-Definition type_of_ReificationHint T : ReificationHint.Pkg T -> type. 
-intros [Eqb EqbH]; apply (@Typ T Eqb EqbH). 
-Defined. 
+
+Definition type_of_ReificationHint T : ReificationHint.Pkg T -> type.
+intros [Eqb EqbH]; apply (@Typ T Eqb EqbH).
+Defined.
 
 Global Instance ReificationHintNat : ReificationHint.Pkg nat :=
-           ReificationHint.mk_Pkg EqNat.beq_nat EqNat.beq_nat_true. 
+           ReificationHint.mk_Pkg EqNat.beq_nat EqNat.beq_nat_true.
 
-Ltac build_default_type T := 
+Ltac build_default_type T :=
   match goal with
-    | [ |- _ ] => let C := constr:(_ : ReificationHint.Pkg T) in 
-                 let t := constr:(type_of_ReificationHint C) in 
+    | [ |- _ ] => let C := constr:(_ : ReificationHint.Pkg T) in
+                 let t := constr:(type_of_ReificationHint C) in
                    t
     | [ |- _ ] => constr:(default_type T)
   end.
@@ -55,7 +55,7 @@ Ltac build_default_type T :=
 Ltac extend_type T types :=
   match T with
     | Prop => types
-    | _ => 
+    | _ =>
       let rec find types :=
         match types with
           | nil => constr:(false)
@@ -111,10 +111,10 @@ Ltac collectTypes_expr isConst e Ts K :=
             collectTypes_expr isConst a Ts ltac:(fun Ts => bt_args b Ts  K)
         end
       in
-      let cc _ Ts' args := 
-        let T := 
-          match e with 
-            | fun x : VarType _ => _ => 
+      let cc _ Ts' args :=
+        let T :=
+          match e with
+            | fun x : VarType _ => _ =>
               match type of e with
                 | _ -> ?T => T
               end
@@ -141,7 +141,7 @@ Ltac collectAllTypes_func Ts T :=
       let t := constr:(t : Type) in
       let Ts := cons_uniq t Ts in
       collectAllTypes_func Ts T
-    | forall x , _ => 
+    | forall x , _ =>
         (** Can't reflect types for dependent function **)
       fail 100 "can't reflect types for dependent function!"
     | ?t =>
@@ -163,15 +163,15 @@ Ltac collectAllTypes_funcs Ts Fs :=
 Ltac collect_props shouldReflect :=
   let rec collect skip :=
     match goal with
-      | [ H : ?X |- _ ] => 
+      | [ H : ?X |- _ ] =>
         match shouldReflect X with
           | true =>
             match skip with
               | context [H] => fail 1
-              | _ => 
+              | _ =>
                 let skip := constr:((H, skip)) in
                 collect skip
-            end 
+            end
         end
       | _ => skip
     end
@@ -189,20 +189,20 @@ Ltac props_types ls :=
 Ltac props_proof ls :=
   match ls with
     | tt => I
-    | (?H, ?ls) => 
+    | (?H, ?ls) =>
       let rr := props_proof ls in
       constr:(conj H rr)
   end.
-    
+
 (*
 Ltac collectAllTypes_props shouldReflect isConst Ts :=
   let rec collect Ts skip :=
     match goal with
-      | [ H : ?X |- _ ] => 
+      | [ H : ?X |- _ ] =>
         match reflectable shouldReflect X with
           | true =>
             match hcontains H skip with
-              | false => 
+              | false =>
                 let Ts := collectTypes_expr isConst X Ts in
                 let skip := constr:((H, skip)) in
                 collect Ts skip
@@ -224,11 +224,11 @@ Ltac indexOf_nat proj x xs :=
       | ?X :: ?XS =>
         match unifies (proj X) x with
           | true => constr:(0)
-          | false => 
+          | false =>
             let r := search XS in
               constr:(S r)
         end
-      | _ => 
+      | _ =>
         let xs := eval hnf in xs in
         search xs
     end
@@ -242,11 +242,11 @@ Ltac typesIndex x types :=
       | ?X :: ?XS =>
         match unifies (Impl X) x with
           | true => constr:(0)
-          | false => 
+          | false =>
             let r := search XS in
               constr:(S r)
         end
-      | _ => 
+      | _ =>
         let xs := eval hnf in xs in
         search xs
     end
@@ -265,11 +265,11 @@ Ltac reflectType types t :=
       r
     | _ =>
       fail 10000 "couldn't find " t " inside types " types
-  end.  
-      
+  end.
+
 (** essentially this is [map (reflectType types) ts] **)
 Ltac reflectTypes_toList types ts :=
-  match eval hnf in ts with 
+  match eval hnf in ts with
     | nil => constr:(@nil tvar)
     | ?T :: ?TS =>
       let i := typesIndex T types in
@@ -277,10 +277,10 @@ Ltac reflectTypes_toList types ts :=
       constr:(@cons tvar (tvType i) rest)
   end.
 
-(** Build a signature for the given function 
+(** Build a signature for the given function
  ** - types is a list of reflected types, i.e. type [list type]
  ** the type of f can NOT be dependent, i.e. it must be of the
- ** form, 
+ ** form,
  **   _ -> ... -> _
  **)
 Ltac reify_function types f :=
@@ -291,7 +291,7 @@ Ltac reify_function types f :=
       | ?A -> ?B =>
         let A := reflectType types A in
         let dom := constr:(A :: dom) in
-        refl dom B 
+        refl dom B
       | ?R =>
         let R := reflectType types R in
         let dom := eval simpl rev in (rev dom) in
@@ -315,10 +315,10 @@ Ltac getFunction types f funcs' k :=
       | ?F :: _ =>
         guard_unifies f (Denotation F) ;
         k funcs' acc
-      | _ :: ?FS => 
+      | _ :: ?FS =>
         let acc := constr:(S acc) in
         lookup FS acc
-      | _ => 
+      | _ =>
         idtac "had to hnf in funcs" funcs ;
         let funcs := eval hnf in funcs in
         lookup funcs acc
@@ -359,9 +359,9 @@ Ltac getVar idx :=
 Ltac get_or_extend_var types all t v k :=
   let rec doIt rem acc :=
     match rem with
-      | nil => 
+      | nil =>
         (** NOTE: reification as levels **)
-        let all := 
+        let all :=
           eval simpl app in (all ++ (@existT tvar (tvarD types) t v) :: nil)
         in
         k all acc
@@ -432,7 +432,7 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
       | _ =>
         let rec bt_args uvars funcs args k :=
           match args with
-            | tt => 
+            | tt =>
               let v := constr:(@nil (@expr types)) in
               k uvars funcs v
             | (?a, ?b) =>
@@ -444,8 +444,8 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
         in
         let cc f Ts args :=
           getFunction types f funcs ltac:(fun funcs F =>
-            bt_args uvars funcs args ltac:(fun uvars funcs args => 
-              let r := constr:(@Func types F args) in 
+            bt_args uvars funcs args ltac:(fun uvars funcs args =>
+              let r := constr:(@Func types F args) in
               k uvars funcs r))
         in
         match e with
@@ -475,24 +475,24 @@ Ltac reify_expr isConst e types funcs uvars vars k :=
 (** collect all the types in es into a list.
  ** it return a value of type [list Type]
  ** NOTE: this function accepts either a tuple or a list for es
- **) 
-Ltac collectTypes_exprs isConst es Ts K := 
+ **)
+Ltac collectTypes_exprs isConst es Ts K :=
   match es with
     | tt => K Ts
     | nil => K Ts
     | (?e, ?es) =>
-      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
+      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts =>
         collectTypes_exprs ltac:(isConst) es Ts K)
     | ?e :: ?es =>
-      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts => 
+      collectTypes_expr ltac:(isConst) e Ts ltac:(fun Ts =>
         collectTypes_exprs ltac:(isConst) es Ts K)
-    
+
   end.
 
 (** reflect all the expressions in a list.
  ** - k :: env types -> functions types -> list (expr types)
  ** NOTE: this function accepts either a tuple or a list for es
- **) 
+ **)
 Ltac reify_exprs isConst es types funcs uvars vars k :=
   match es with
     | tt => k uvars funcs (@nil (expr types))

@@ -53,7 +53,7 @@ Module Make (Import E : ADT).
     destruct x; simpl in *.
     destruct s; auto.
     erewrite <- Facts.find_m; eauto.
-  Qed.    
+  Qed.
 
   Hint Constructors Semantics.RunsTo.
 
@@ -309,10 +309,10 @@ Module Make (Import E : ADT).
     eauto.
   Qed.
 
-  Lemma heap_merge_store_out : 
-    forall h pairs outs, 
-      good_inputs h pairs -> 
-      let h1 := make_heap pairs in 
+  Lemma heap_merge_store_out :
+    forall h pairs outs,
+      good_inputs h pairs ->
+      let h1 := make_heap pairs in
       let triples := make_triples pairs outs in
       WordMap.Equal (heap_merge (heap_diff h h1) (fold_left store_out triples h1))
       (fold_left store_out triples h).
@@ -462,7 +462,7 @@ Module Make (Import E : ADT).
       simpl in *.
       eauto.
     Qed.
-      
+
     apply get_pair'; auto.
     destruct H; auto.
     apply WordMap.mem_2 in H1.

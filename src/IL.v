@@ -59,7 +59,7 @@ Qed.
 
 (** * Syntax *)
 
-(* Machine registers 
+(* Machine registers
  * There aren't many, since we'll use stack-allocated variables in most cases.
  * This is one of many decisions to trade off constant-factor performance for formalism simplicity in this early work. *)
 Inductive reg :=
@@ -338,13 +338,13 @@ Proof.
 
   repeat rewrite (rewrite_weq (refl_equal _)) in *.
   repeat match goal with
-           | [ |- context [ weq ?X ?Y ] ] => 
+           | [ |- context [ weq ?X ?Y ] ] =>
              let Z := fresh in destruct (weq X Y) as [ Z | ? ]; [ exfalso; generalize Z; W_neq | ]
          end.
   intros. rewrite <- H. rewrite implode_explode. reflexivity.
 Qed.
 
-Theorem ReadWriteNe : forall stn m m' k v k', 
+Theorem ReadWriteNe : forall stn m m' k v k',
   separated k' k ->
   WriteWord stn m k v = Some m' ->
   ReadWord stn m' k' = ReadWord stn m k'.
@@ -372,15 +372,15 @@ Proof.
        if weq k (k ^+ $ (2))
        then Some b0
        else if weq k (k ^+ $ (3)) then Some b else m k)); try congruence.
-  intro. intros. inversion H7; clear H7. 
+  intro. intros. inversion H7; clear H7.
   revert H4; revert H5; revert H1; revert H9.
   repeat match goal with
-    | [ |- context [ weq ?X ?Y ] ] => 
-      let Z := fresh in destruct (weq X Y) as [ Z | ? ]; 
-        [ exfalso ; (apply H in Z || (rewrite H2 in Z; apply H in Z) || (rewrite H3 in Z; apply H in Z) || (rewrite H2 in Z; rewrite H3 in Z; apply H in Z)); auto; omega |  ]  
+    | [ |- context [ weq ?X ?Y ] ] =>
+      let Z := fresh in destruct (weq X Y) as [ Z | ? ];
+        [ exfalso ; (apply H in Z || (rewrite H2 in Z; apply H in Z) || (rewrite H3 in Z; apply H in Z) || (rewrite H2 in Z; rewrite H3 in Z; apply H in Z)); auto; omega |  ]
   end.
   reflexivity.
-Qed.  
+Qed.
 
 (* Machine states *)
 Record state := {
@@ -408,13 +408,13 @@ Section settings.
       match lv with
         | LvReg r => Some {| Regs := rupd (Regs st) r v;
           Mem := Mem st |}
-        | LvMem l => 
+        | LvMem l =>
           let a := evalLoc l in
           match WriteWord stn (Mem st) a v with
             | None => None
             | Some m' => Some {| Regs := Regs st ; Mem := m' |}
           end
-        | LvMem8 l => 
+        | LvMem8 l =>
           let a := evalLoc l in
           match WriteByte (Mem st) a (WtoB v) with
             | None => None

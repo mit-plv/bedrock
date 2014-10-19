@@ -12,7 +12,7 @@ Theorem t0 : forall a b, a =*> b ===> a =*> b.
 Qed.
 
 Theorem t1 : forall a b c d, a =*> b * c =*> d ===> c =*> d * a =*> b.
-  sepLemma. 
+  sepLemma.
 Qed.
 
 Theorem t2 : forall P : nat -> Prop, (Ex x, [| P x |]) ===> Ex x, [| P x |].
@@ -31,7 +31,7 @@ Theorem t4 : forall A (R : A -> A -> Prop),
 Qed.
 
 (** Unification **)
-Theorem t5 : forall p1 P2 V, exists p2, exists v, 
+Theorem t5 : forall p1 P2 V, exists p2, exists v,
   (p1 =*> P2 * P2 =*> V) ===> (p1 =*> p2 * p2 =*> v).
   intros. do 2 eexists.
   sepLemma.
@@ -43,7 +43,7 @@ Theorem t6 : forall p1 P2 V, exists p2, exists v,
   sepLemma.
 Qed.
 
-Theorem t7 : forall p1 P2 V, exists p2, exists v, 
+Theorem t7 : forall p1 P2 V, exists p2, exists v,
   (p1 =*> P2 * P2 =*> V) ===> (p2 =*> v * p1 =*> p2).
   intros. do 2 eexists.
   sepLemma.

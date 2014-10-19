@@ -200,7 +200,7 @@ Section Compiler.
     apply temp_in_chunk_offset in H; destruct H; intuition.
     apply tempOf_inj in H1.
     omega.
-  Qed.    
+  Qed.
 
   Lemma goodFunc_NoDup : forall f,
     goodFunc f

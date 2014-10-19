@@ -6,7 +6,7 @@ Import StringSet.
 Require Import FSetProperties.
 Module Import SSP := Properties StringSet.
 
-Set Implicit Arguments. 
+Set Implicit Arguments.
 
 Section ExprComp.
 
@@ -23,7 +23,7 @@ Section ExprComp.
     (locals vars vs 0 (sp ^+ $8) *
      array temps (sp ^+ $8 ^+ $(4 * length vars)))%Sep.
 
-  Definition new_pre : assert := 
+  Definition new_pre : assert :=
     x ~> ExX, Ex vs, Ex temps,
     ![^[is_state x#Sp vs temps] * #0]x /\
     [| length temps = temp_size |].
@@ -34,7 +34,7 @@ Section ExprComp.
 
   Local Open Scope nat.
 
-  Definition runs_to expr base x_pre x := 
+  Definition runs_to expr base x_pre x :=
     forall specs other vs temps,
       interp specs (![is_state x_pre#Sp vs temps * other ] x_pre)
       -> length temps = temp_size
@@ -44,8 +44,8 @@ Section ExprComp.
         length changed <= depth expr /\
         Regs x Rv = eval vs expr.
 
-  Definition post expr base (pre : assert) := 
-    st ~> Ex st_pre, 
+  Definition post expr base (pre : assert) :=
+    st ~> Ex st_pre,
     pre (fst st, st_pre) /\
     [| runs_to expr base (fst st, st_pre) (snd st) |].
 
@@ -53,7 +53,7 @@ Section ExprComp.
 
   Require Import FreeVarsExpr.
 
-  Definition syn_req expr base := 
+  Definition syn_req expr base :=
     Subset (free_vars expr) (of_list vars) /\
     base + depth expr <= temp_size.
 
@@ -82,9 +82,9 @@ Section ExprComp.
       | Var str => Strline (Assign (LvReg Rv) (RvLval (var_slot str)) :: nil)
       | Const w => Strline (Assign (LvReg Rv) (RvImm w) :: nil)
       | Binop op a b => Seq (
-        do_compile a base :: 
-        Strline(Assign (temp_slot base) (RvLval (LvReg Rv)) :: nil) :: 
-        do_compile b (S base) :: 
+        do_compile a base ::
+        Strline(Assign (temp_slot base) (RvLval (LvReg Rv)) :: nil) ::
+        do_compile b (S base) ::
         (Strline (IL.Binop (LvReg Rv) (RvLval (temp_slot base)) op (RvLval (LvReg Rv)) :: nil)) :: nil)
       | TestE te a b => Seq (do_compile a base ::
         Strline( Assign (temp_slot base) (RvLval (LvReg Rv)) :: nil ) ::
@@ -139,7 +139,7 @@ Section ExprComp.
 
       Require Import SetoidListFacts.
 
-      Lemma In_to_set : 
+      Lemma In_to_set :
         forall x ls,
           StringSet.In x (SSP.of_list ls)
           -> List.In x ls.
@@ -694,7 +694,7 @@ Section ExprComp.
         unfold natToW.
         words.
       Qed.
-      
+
       rewrite evalCond_temp in *.
       clear_fancy.
       generalize dependent H3; generalize dependent H4; generalize dependent H5.
@@ -735,7 +735,7 @@ Section ExprComp.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
-      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.      
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
         (S base) x5)); eauto.
@@ -780,7 +780,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -790,7 +790,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -861,7 +861,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -871,7 +871,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -941,7 +941,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -951,7 +951,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1023,7 +1023,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1033,7 +1033,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1136,7 +1136,7 @@ Section ExprComp.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
-      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.      
+      generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base (eval vs expr1))
         (S base) x5)); eauto.
@@ -1181,7 +1181,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1191,7 +1191,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1262,7 +1262,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1272,7 +1272,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1342,7 +1342,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1352,7 +1352,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1427,7 +1427,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1437,7 +1437,7 @@ Section ExprComp.
       change (goodSize base).
       apply goodSize_weaken with (length (upd_sublist
         (Array.upd (upd_sublist temps base x4) base
-          (eval vs expr1)) (S base) x5)); eauto.      
+          (eval vs expr1)) (S base) x5)); eauto.
       rewrite length_upd_sublist.
       rewrite upd_length.
       rewrite length_upd_sublist.
@@ -1482,7 +1482,7 @@ Section ExprComp.
           destruct x; eapply postOk in H; auto; destruct H; intuition; descend; eauto
       end).
 
-    unfold verifCond, syn_req; wrap0.    
+    unfold verifCond, syn_req; wrap0.
 
     Lemma verifCondOk : forall expr base pre,
       imply pre new_pre
@@ -1511,7 +1511,7 @@ Section ExprComp.
       apply IHexpr1; auto.
       do 2 intro.
       apply H0.
-      apply StringFacts.union_iff; auto.      
+      apply StringFacts.union_iff; auto.
       assert (max (depth expr1) (S (depth expr2)) >= depth expr1) by apply Max.le_max_l; omega.
 
       apply postOk in H2.

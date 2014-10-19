@@ -28,7 +28,7 @@ Section LocalsProver.
       | _ => e
     end.
 
-  Definition localsProve (_ : unit) (goal : expr types) := 
+  Definition localsProve (_ : unit) (goal : expr types) :=
     match goal with
       | Equal _ x y => expr_seq_dec (localsSimplify x) (localsSimplify y)
       | _ => false

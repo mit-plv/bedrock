@@ -6,18 +6,18 @@ Ltac clear_imports :=
           Him : LabelMap.t assert |- _ =>
           repeat match goal with
                      H : context [ Him ] |- _ => clear H
-                 end; 
+                 end;
             clear Him
       end.
 
-Ltac open_Some := 
+Ltac open_Some :=
   match goal with
       H : Some _ = Some _ |- _ => injection H; clear H; intros
   end.
 
-Ltac cond_solver :=  
+Ltac cond_solver :=
   match goal with
-      H : evalCond _ _ _ _ _ = Some ?T |- wneb _ _ = ?T => 
+      H : evalCond _ _ _ _ _ = Some ?T |- wneb _ _ = ?T =>
       unfold evalCond in *; simpl in *; open_Some; rewriter_r; f_equal
   end.
 
@@ -36,7 +36,7 @@ Ltac not_exist t :=
 
 Ltac assert_new t := not_exist t; assert t.
 
-Ltac cond_gen := 
+Ltac cond_gen :=
   try
     match goal with
       | H_interp : interp _ (![_](_, ?ST)), H_eval : evalInstrs _ ?ST ?INST = _ |- _ =>
@@ -46,11 +46,11 @@ Ltac cond_gen :=
         end; [ clear H_eval .. | cond_gen ]
     end.
 
-Ltac HypothesisParty H := 
+Ltac HypothesisParty H :=
   match type of H with
-    | interp _ (![ _ ](_, ?x)) => 
-      repeat 
-        match goal with 
+    | interp _ (![ _ ](_, ?x)) =>
+      repeat
+        match goal with
           | [H0: evalInstrs _ x _ = _, H1: evalInstrs _ _ _ = _ |- _] => not_eq H0 H1; generalize dependent H1
           | [H0: evalInstrs _ x _ = _, H1: interp _ _ |- _] => not_eq H H1; generalize dependent H1
         end
@@ -87,14 +87,14 @@ Qed.
 
 Ltac post_step := repeat first [ rewrite pack_pair' in * | rewrite fold_second in * | rewrite fold_first in *].
 
-Ltac fold_length := 
+Ltac fold_length :=
   change (fix length (l : list string) : nat :=
             match l with
               | nil => 0
               | _ :: l' => S (length l')
             end) with (@length string) in *.
 
-Ltac not_mem_rv INST := 
+Ltac not_mem_rv INST :=
   match INST with
     | context [LvMem ?LOC] =>
       match LOC with
@@ -125,8 +125,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   (* transit *)
 
-  Ltac eapply_cancel h specs st := 
-    let HP := fresh in 
+  Ltac eapply_cancel h specs st :=
+    let HP := fresh in
     let Hnew := fresh in
     evar (HP : HProp); assert (interp specs (![HP] st)) as Hnew;
     [ | eapply h in Hnew; [ | clear Hnew .. ] ]; unfold HP in *; clear HP;
@@ -140,7 +140,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   (* eval_instrs *)
 
   Ltac clear_bad H_interp s :=
-    repeat 
+    repeat
       match goal with
         | H : Regs ?ST Rv = _  |- _ => not_eq ST s; generalize H; clear H
         | H : context [Safe _ _ _] |- _ => not_eq H H_interp; generalize H; clear H
@@ -155,19 +155,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Module Import InvMake2 := Make M.
 
-  Ltac pre_eval_auto := 
-    repeat 
+  Ltac pre_eval_auto :=
+    repeat
       match goal with
         | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
           match INST with
-              context [ Rv ] => 
+              context [ Rv ] =>
               match goal with
                   H_rv : Regs ST Rv = _ |- _ => not_mem_rv INST; post_step; generalize dependent H_rv
               end
           end
         | H_eval : evalInstrs _ ?ST ?INST = _, H_interp : interp _ (![?P] (_, ?ST)) |- _ =>
           match P with
-              context [ is_heap _ ?HEAP ] => 
+              context [ is_heap _ ?HEAP ] =>
               match goal with
                   H_heap : HEAP = _ |- _ => post_step; generalize dependent H_heap
               end
@@ -201,8 +201,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac eval_instrs hints :=
     match goal with
       | H: interp _ (![_](_, ?ST)), H_eval: evalInstrs _ ?ST _ = _ |- _  =>
-        cond_gen; 
-          [ .. | 
+        cond_gen;
+          [ .. |
             let P := fresh "P" in
             try match goal with
                   | [ _ : context[Safe ?fs _ _] |- _ ] => set (P := Safe fs) in *
@@ -263,7 +263,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
            end.
 
   Ltac destruct_state :=
-    repeat 
+    repeat
       match goal with
         | [ x : State |- _ ] => destruct x; simpl in *
         | [ x : (settings * state)%type |- _ ] => destruct x; simpl in *
@@ -277,8 +277,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac rearrange_stars HEAD :=
     match goal with
         H : interp ?SPECS (![?P] ?ST) |- _ =>
-        let OTHER := fresh in 
-        evar (OTHER : HProp); 
+        let OTHER := fresh in
+        evar (OTHER : HProp);
           assert (interp SPECS (![HEAD * OTHER] ST));
           unfold OTHER in *; clear OTHER;
           [ hiding ltac:(step auto_ext) | .. ]

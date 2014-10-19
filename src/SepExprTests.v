@@ -27,10 +27,10 @@ Module SepExprTests (B : Heap).
       end.
 
     Definition nat_type : Expr.type :=
-      {| Expr.Impl := nat 
+      {| Expr.Impl := nat
        ; Expr.Eq := fun x y => match equiv_dec x y with
                                  | left pf => Some pf
-                                 | _ => None 
+                                 | _ => None
                                end
        |}.
 
@@ -51,7 +51,7 @@ Module SepExprTests (B : Heap).
 
     Import SepExpr Sep Expr ExprUnify DepList.
 
-    Ltac simplifier := cbv beta iota zeta delta [CancelSep sepCancel hash hash' liftSHeap sheapSubstU liftExpr 
+    Ltac simplifier := cbv beta iota zeta delta [CancelSep sepCancel hash hash' liftSHeap sheapSubstU liftExpr
       SepExpr.FM.add SepExpr.FM.fold SepExpr.FM.map SepExpr.FM.find SepExpr.FM.remove
         SepExpr.FM.empty SepExpr.FM.insert_at_right
         other pures impures star_SHeap SHeap_empty
@@ -59,14 +59,14 @@ Module SepExprTests (B : Heap).
         Expr.Impl Expr.Eq
         List.map List.length List.app fold_left_2_opt List.fold_right List.nth_error
         starred sheapD exprD
-        exprSubstU 
+        exprSubstU
         Compare_dec.lt_eq_lt_dec Compare_dec.lt_dec Peano_dec.eq_nat_dec
         nat_rec nat_rect forallEach env exists_subst multimap_join equiv_dec seq_dec
         Domain Range
-        EqDec_tvar tvar_rec tvar_rect 
+        EqDec_tvar tvar_rec tvar_rect
         lookupAs sumbool_rec sumbool_rect
         fst snd
-        eq_rec_r eq_rec eq_rect Logic.eq_sym f_equal get_Eq value 
+        eq_rec_r eq_rec eq_rect Logic.eq_sym f_equal get_Eq value
         nat_eq_eqdec
         eq_summary eq_summarize eq_prove
         sexprD Compare_dec.le_dec Compare_dec.le_gt_dec Compare_dec.le_lt_dec
@@ -91,43 +91,43 @@ Module SepExprTests (B : Heap).
       sep.
     Qed.
 
-    Theorem t2 : forall a b c, 
+    Theorem t2 : forall a b c,
       @ST.himp a b c (ST.star (star_all_back (@h a b) 15 15) (star_all_back (@f a b) 15 15))
                      (ST.star (star_all (@f a b) 15) (star_all (@h a b) 15)).
       sep.
     Qed.
 
-    Theorem t3 : forall a b c, @ST.himp a b c 
+    Theorem t3 : forall a b c, @ST.himp a b c
       (ST.star (f _ _ 2) (f _ _ 1))
       (f _ _ 1).
       sep.
     Abort.
 
-    Theorem t4 : forall a b c, @ST.himp a b c 
+    Theorem t4 : forall a b c, @ST.himp a b c
       (ST.ex (fun y : nat => ST.ex (fun x : bool => ST.star (f _ _ (g x 1 2)) (f _ _ 1) )))
       (f _ _ 1).
       sep.
     Abort.
 
-    Theorem t5 : forall a b c, @ST.himp a b c 
+    Theorem t5 : forall a b c, @ST.himp a b c
       (ST.ex (fun y : nat => f _ _ y))
       (f _ _ 1).
       sep.
     Abort.
 
-    Theorem t6 : forall a b c, @ST.himp a b c 
+    Theorem t6 : forall a b c, @ST.himp a b c
       (f _ _ 1)
       (ST.ex (fun y : nat => f _ _ y)).
       sep.
     Qed.
 
-    Theorem t7 : forall a b c, @ST.himp a b c 
+    Theorem t7 : forall a b c, @ST.himp a b c
       (ST.star (f _ _ (g true 0 1)) (f _ _ (g true 1 2)))
       (ST.ex (fun y : nat => ST.star (f _ _ (g true 0 y)) (ST.ex (fun z : nat => f _ _ (g true 1 z))))).
       sep.
     Qed.
 
-    Theorem t8 : forall a b c, @ST.himp a b c 
+    Theorem t8 : forall a b c, @ST.himp a b c
       (ST.star (f _ _ (g true 0 1)) (f _ _ (g true 1 2)))
       (ST.ex (fun y : nat => ST.star (f _ _ (g true 1 y)) (ST.ex (fun z : nat => f _ _ (g true 0 z))))).
       sep.

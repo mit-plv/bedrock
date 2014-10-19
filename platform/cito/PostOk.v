@@ -42,7 +42,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Lemma post_ok : 
+    Lemma post_ok :
       forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
              (x : settings * state),
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
@@ -191,7 +191,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (List.In s vars) by (eapply syn_req_Label_in; eauto).
       assert (
           evalInstrs s0 x0
-                     (IL.Assign 
+                     (IL.Assign
                         (LvMem (Imm (Regs x0 Sp ^+ $8 ^+ $(variablePosition vars s))))
                         (RvImm x) :: nil) =
           Some s1
@@ -261,7 +261,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (List.In s vars) by (eapply syn_req_Assign_in; eauto).
       assert (
           evalInstrs s0 x0
-                     (IL.Assign 
+                     (IL.Assign
                         (LvMem (Imm (Regs x0 Sp ^+ $8 ^+ $(variablePosition vars s))))
                         Rv :: nil) =
           Some s1

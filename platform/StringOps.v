@@ -53,7 +53,7 @@ Section Params.
     change (goodSize offset); eapply goodSize_weaken; eauto.
     instantiate (1 := len'); auto.
   Qed.
-  
+
   Implicit Arguments bound_narrow [len len' pos offset spacing].
 
   Ltac evalu :=

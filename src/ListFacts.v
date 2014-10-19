@@ -21,7 +21,7 @@ Lemma rw_skipn_app : forall T (ls ls' : list T) n,
   length ls = n ->
   skipn n (ls ++ ls') = ls'.
 Proof.
-  clear. induction ls; destruct n; simpl in *; intros; auto; congruence. 
+  clear. induction ls; destruct n; simpl in *; intros; auto; congruence.
 Qed.
 Lemma length_equal_map_rev : forall T U (F : T -> U) ls ls',
   map F ls' = rev ls ->
@@ -67,7 +67,7 @@ Lemma app_len_2 : forall T (a b c d : list T),
   a = c /\ b = d.
 Proof.
   clear. induction a; destruct c; simpl; intuition; subst; auto;
-  simpl in *; try rewrite app_length in H0; 
+  simpl in *; try rewrite app_length in H0;
     try solve [ try generalize dependent (length d); intros; exfalso; omega ].
   inversion H. subst. f_equal. eapply IHa in H3; eauto. intuition.
   inversion H. eapply IHa in H3; intuition.

@@ -24,13 +24,13 @@ Definition body := (
        /\ h' = h]
     While (0 < "n") {
       "ret" <- "ret" * "n";;
-      "n" <- "n" - 1                          
+      "n" <- "n" - 1
     }
   )%stmtex.
 
 Definition f := (
   cfunction "fact"("n")
-    body            
+    body
   end
 )%Citofuncs.
 
@@ -93,7 +93,7 @@ Hint Rewrite fact_step using solve [ eauto 2 ] : sepFormula.
 Definition dummy_gf : GoodFunction.
   refine (to_good_function f _).
   good_module.
-Defined.    
+Defined.
 
 Definition spec_op := hd dummy_gf (Functions gm).
 

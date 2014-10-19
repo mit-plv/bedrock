@@ -47,7 +47,7 @@ Section AssumptionProver.
   Qed.
 
   Lemma assumptionLearnCorrect : forall uvars vars sum,
-    assumptionValid uvars vars sum -> forall hyps, 
+    assumptionValid uvars vars sum -> forall hyps,
     AllProvable fs uvars vars hyps ->
     assumptionValid uvars vars (assumptionLearn sum hyps).
   Proof.

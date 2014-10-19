@@ -4,7 +4,7 @@ Require Import DecidableTypeEx.
 Require Import FSetInterface.
 
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
-  
+
   Require Import FSetProperties.
   Module Import P := WProperties_fun E M.
   Import FM.

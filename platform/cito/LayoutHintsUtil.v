@@ -148,7 +148,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import WordMap.
   Require Import FMapFacts.
   Module Properties := Properties WordMap.
-  
+
   Lemma preserve_store : forall k v pairs h,
     List.Forall (fun p => match snd p with
                             | inl _ => True
@@ -207,7 +207,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     unfold heap_upd in H0.
     apply Properties.F.add_mapsto_iff in H0; intuition subst; auto.
   Qed.
-  
+
   Lemma store_keys'' : forall k v pairs h,
     WordMap.MapsTo k v h
     -> ~In k (map fst (filter (fun p => Semantics.is_adt (snd p)) pairs))

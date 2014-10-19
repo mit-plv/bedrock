@@ -135,7 +135,7 @@ Module BedrockHeap.
   Proof.
     intuition eauto.
   Qed.
-    
+
   Theorem mem_set_acc : forall m p,
     mem_acc m p <->
     forall v, exists m', mem_set m p v = Some m'.
@@ -151,8 +151,8 @@ Module BedrockHeap.
     unfold mem_acc. intros; destruct (m p); eauto. right.
     intro. destruct H; congruence.
   Qed.
-    
-  Theorem mem_get_set_eq : forall m p v' m', 
+
+  Theorem mem_get_set_eq : forall m p v' m',
     mem_set m p v' = Some m' ->
     mem_get m' p = Some v'.
   Proof.
@@ -161,8 +161,8 @@ Module BedrockHeap.
     inversion H; clear H; subst.
     destruct (weq p p); auto. congruence.
   Qed.
-    
-  Theorem mem_get_set_neq : forall m p p' v' m', 
+
+  Theorem mem_get_set_neq : forall m p p' v' m',
     p <> p' ->
     mem_set m p' v' = Some m' ->
     mem_get m' p = mem_get m p.
@@ -186,7 +186,7 @@ Module BedrockHeap.
     rewrite H. eauto.
 
     destruct (m p); try congruence.
-    inversion H1; subst. 
+    inversion H1; subst.
     destruct (weq p0 p); eauto.
   Qed.
 
@@ -281,7 +281,7 @@ Definition hvarB sos (x : settings * smem -> propX W (settings * state) sos) : h
 Notation "![ x ]" := (hvarB x) : Sep_scope.
 
 Fixpoint arrayOf sos (p : W) (c : list W) : hpropB sos :=
-  match c with 
+  match c with
     | nil => [| True |]
     | a :: b => p =*> a * arrayOf sos (p ^+ $4) b
   end%Sep.
@@ -337,7 +337,7 @@ as sepFormula_himp_imply.
   unfold sepFormula_def.
   unfold PropXRel.PropX_imply.
   intros. unfold interp.
-  eapply PropX.Imply_I. 
+  eapply PropX.Imply_I.
 
   specialize (H (fst y0) (memoryIn (Mem (snd y0)))). eapply PropX.Imply_E.
   eapply PropXTac.valid_weaken. eapply H. firstorder.

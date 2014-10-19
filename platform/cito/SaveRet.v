@@ -1,6 +1,6 @@
 Require Import AutoSep.
 
-Set Implicit Arguments. 
+Set Implicit Arguments.
 
 Section TopLevel.
 
@@ -11,26 +11,26 @@ Section TopLevel.
   Definition is_state sp vs : HProp :=
     locals vars vs 0 (sp ^+ $8).
 
-  Definition new_pre : assert := 
+  Definition new_pre : assert :=
     x ~> ExX, Ex vs,
     ![^[is_state x#Sp vs] * #0]x.
 
   Require Import Semantics.
 
-  Definition runs_to x_pre x := 
+  Definition runs_to x_pre x :=
     forall specs other vs,
       interp specs (![is_state x_pre#Sp vs * other ] x_pre) ->
       Regs x Sp = x_pre#Sp /\
       interp specs (![is_state (Regs x Sp) (upd_option vs var x_pre#Rv) * other ] (fst x_pre, x)).
 
-  Definition post (pre : assert) := 
-    st ~> Ex st_pre, 
+  Definition post (pre : assert) :=
+    st ~> Ex st_pre,
     pre (fst st, st_pre) /\
     [| runs_to (fst st, st_pre) (snd st) |].
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-  Definition syn_req := 
+  Definition syn_req :=
     match var with
       | Some x => List.In x vars
       | None => True
@@ -140,4 +140,4 @@ Section TopLevel.
     abstract (unfold verifCond; wrap0; eauto using verifCondOk).
  Defined.
 
-End TopLevel.  
+End TopLevel.

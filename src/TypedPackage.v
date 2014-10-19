@@ -20,13 +20,13 @@ Module Type Package.
   Record TypeEnv : Type :=
   { Types : Repr type
   ; Funcs : forall ts, Repr (signature (repr CE.core (repr Types ts)))
-  ; Preds : forall ts, 
+  ; Preds : forall ts,
     Repr (SEP.predicate (repr CE.core (repr Types ts)) CE.pc CE.st)
   }.
 
   Section Apps.
     Variable TE : TypeEnv.
-    
+
     Definition applyTypes (ls : list type) : list type :=
       repr CE.core (repr (Types TE) ls).
     Definition applyFuncs ts (ls : functions (applyTypes ts)) : functions (applyTypes ts) :=
@@ -35,7 +35,7 @@ Module Type Package.
       repr (Preds TE ts) ls.
   End Apps.
 
-  
+
   (** These are reducible by [simpl] **)
   Definition applyTypes_red TE (ls : list type) : list type :=
     match TE with
@@ -62,13 +62,13 @@ Module Type Package.
        |})
     in
     ret res.
-    
+
 End Package.
 
 Module Type AlgoTypes (SEP : SepExpr) (CE : CoreEnv).
   Parameter AlgoImpl  : list type -> Type.
-  Parameter AlgoProof : forall ts : list type, 
-    functions (repr CE.core ts) -> 
+  Parameter AlgoProof : forall ts : list type,
+    functions (repr CE.core ts) ->
     SEP.predicates (repr CE.core ts) CE.pc CE.st ->
     AlgoImpl ts -> Type.
 End AlgoTypes.
@@ -110,15 +110,15 @@ Module Make (SEP' : SepExpr) (CE' : CoreEnv) <: Package with Module SEP := SEP' 
       | {| Types := ts' ; Preds := ps |} => fun ls =>
         repr (ps ts) ls
     end.
-    
+
 End Make.
 
 Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
 
   Record TypedPackage : Type :=
-  { Env   : P.TypeEnv 
+  { Env   : P.TypeEnv
   ; Algos : forall ts, A.AlgoImpl ts
-  ; Algos_correct : forall ts (fs : functions (P.applyTypes Env ts)) ps, 
+  ; Algos_correct : forall ts (fs : functions (P.applyTypes Env ts)) ps,
     @A.AlgoProof (repr (P.Types Env) ts) (P.applyFuncs Env ts fs) (P.applyPreds Env ts ps) (Algos _)
   }.
 
@@ -131,10 +131,10 @@ Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
       let res := constr:(
         let nenv := nenv' in
         let types := P.Types nenv in
-        {| Env   := nenv 
+        {| Env   := nenv
          ; Algos := fun ts => composite (Algos l (P.applyTypes nenv ts)) (Algos r (Env.repr types ts))
          ; Algos_correct := fun ts fs ps =>
-           composite_correct 
+           composite_correct
              (Algos_correct l (P.applyTypes nenv ts) (P.applyFuncs nenv fs) (P.applyPreds nenv ps))
              (Algos_correct r (P.applyTypes nenv ts) (P.applyFuncs nenv fs) (P.applyPreds nenv ps))
          |})
@@ -166,7 +166,7 @@ Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
         |} in
         ret res)).
 **)
-  
+
   Ltac refine_glue_pack l r :=
     let reduce_repr e := e in
     let opaque v k := k v in
@@ -178,13 +178,13 @@ Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
               let types := repr_combine tl tr in
               let funcs := fun ts => repr_combine (fl (repr types ts)) (fr (repr types ts)) in
               let preds := fun ts => repr_combine (pl (repr types ts)) (pr (repr types ts)) in
-              @Build_TypedPackage CT PC ST SAT READ WRITE 
+              @Build_TypedPackage CT PC ST SAT READ WRITE
                 types funcs preds
                 (fun ts => AllAlgos_composite (al (repr types ts)) (ar (repr types ts)))
-                _ 
-               ); 
-          (subst; abstract exact (fun ts fs ps => AllAlgos_correct_composite 
-                  (acl (repr (repr_combine tl tr) ts) 
+                _
+               );
+          (subst; abstract exact (fun ts fs ps => AllAlgos_correct_composite
+                  (acl (repr (repr_combine tl tr) ts)
                        (repr (repr_combine (fl (repr (repr_combine tl tr) ts)) (fr (repr (repr_combine tl tr) ts))) fs)
                        (repr (repr_combine (pl (repr (repr_combine tl tr) ts)) (pr (repr (repr_combine tl tr) ts))) ps))
                   (acr (repr (repr_combine tl tr) ts)
@@ -194,17 +194,17 @@ Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
   end.
 
 (*
-Ltac hlist_from_tuple tpl acc := 
+Ltac hlist_from_tuple tpl acc :=
   match tpl with
     | tt => acc
-    | (?L, ?R) => 
+    | (?L, ?R) =>
       let acc := hlist_from_tuple R acc in
       hlist_from_tuple L acc
     | _ => constr:(@HCons _ _ _ _ tpl acc)
   end.
 *)
 
-(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with 
+(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with
  ** the result.
  **)
 Ltac glue_packs packs k :=
@@ -217,8 +217,8 @@ Ltac glue_packs packs k :=
         | ?L :: ?R =>
           glue_packs R ltac:(fun R => glue_pack L)
         | (?L, ?R) =>
-          glue_packs L ltac:(fun L => 
-          glue_packs R ltac:(fun R => 
+          glue_packs L ltac:(fun L =>
+          glue_packs R ltac:(fun R =>
             glue_pack L R k))
       end
   end.

@@ -75,12 +75,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition func_spec_IFS id (spec : InternalFuncSpec) := func_spec id spec.
 
-    Definition bimports_base : list import := 
-      elements 
-        (mapi foreign_func_spec imports) ++ 
-      elements 
+    Definition bimports_base : list import :=
+      elements
+        (mapi foreign_func_spec imports) ++
+      elements
         (mapi func_spec_IFS exports).
-    
+
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap.
@@ -103,7 +103,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         Variable f : GoodFunction.
 
         Section body.
-          
+
           Variable im : LabelMap.t assert.
 
           Variable im_g : importsGlobal im.
@@ -112,7 +112,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
           Definition tgt := impl_label mod_name (FName f).
 
-          Definition body := 
+          Definition body :=
             @Seq_ _ im_g mod_name
                   (AssertStar_ im mod_name accessible_labels (CompileFuncSpecMake.spec f))
                   (Goto_ im_g mod_name tgt).
@@ -126,9 +126,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Notation Func_to_impl_import := func_impl_export.
 
-      Definition bimports : list import := 
+      Definition bimports : list import :=
         bimports_base ++ List.map (Func_to_impl_import m) (Functions m).
-      
+
       Definition stubs := List.map make_stub (Functions m).
 
       Definition bexports := List.map (@func_to_import _) stubs.
@@ -310,9 +310,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Notation get_module_exports := module_exports_IFS.
 
-      Lemma NoDupKey_app_all : 
-        forall ls : list GoodModule, 
-          List.NoDup (List.map MName ls) -> 
+      Lemma NoDupKey_app_all :
+        forall ls : list GoodModule,
+          List.NoDup (List.map MName ls) ->
           NoDupKey (app_all (List.map get_module_exports ls)).
         clear.
         induction ls; simpl; intros.
@@ -399,11 +399,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation is_export := (LinkSpecMake.is_export modules).
       Notation is_import := (LinkSpecMake.is_import imports).
 
-      Lemma fs_internal : 
-        forall stn p spec, 
-          fs stn p = Some (Internal spec) -> 
-          exists lbl : glabel, 
-            find lbl exports = Some spec /\ 
+      Lemma fs_internal :
+        forall stn p spec,
+          fs stn p = Some (Internal spec) ->
+          exists lbl : glabel,
+            find lbl exports = Some spec /\
             Labels stn lbl = Some p.
       Proof.
         intros.
@@ -444,7 +444,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         discriminate.
       Qed.
 
-      Lemma augment_elim : 
+      Lemma augment_elim :
         forall imps specs stn (lbls : list glabel),
           augment imps specs stn lbls ->
           (forall x, List.In x lbls -> LabelMap.LabelMap.find (x : Labels.label) imps <> None) ->
@@ -542,7 +542,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         simpl.
         eapply GoodModule_NoDup_labels.
       Qed.
-      
+
       Lemma NoDup_union : NoDupKey (bimports_diff_bexports ++ bexports).
         unfold bimports_diff_bexports.
         eapply NoDupKey_app.
@@ -585,7 +585,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
 
       Lemma accessible_labels_subset_fullImports :
-        forall x : glabel, 
+        forall x : glabel,
           List.In x accessible_labels ->
           LabelMap.LabelMap.find (x : Labels.label) full_imports <> None.
       Proof.
@@ -611,7 +611,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
-      
+
       Lemma exports_fullImports : forall (l : glabel) spec, find l exports = Some spec -> LabelMap.LabelMap.find (l : label) full_imports = Some (func_spec l spec).
         intros.
         rewrite fullImports_eq_bimports.
@@ -620,7 +620,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma tgt_fullImports : forall f, List.In f (Functions m) -> LabelMap.LabelMap.find (tgt f : Labels.label) full_imports = Some (CompileFuncSpecMake.spec f).
         intros.
-        rewrite fullImports_eq_bimports. 
+        rewrite fullImports_eq_bimports.
         unfold bimports, bimports_base.
         eapply NoDup_app_find_list_2.
         eapply NoDupKey_bimports.
@@ -638,10 +638,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
 
       Lemma fs_foreign :
-        forall stn p spec, 
-          fs stn p = Some (Foreign spec) -> 
-          exists lbl : glabel, 
-            find lbl imports = Some spec /\ 
+        forall stn p spec,
+          fs stn p = Some (Foreign spec) ->
+          exists lbl : glabel,
+            find lbl imports = Some spec /\
             Labels stn lbl = Some p.
       Proof.
         intros.
@@ -694,7 +694,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold keys in *; eapply In_fst_elements_In.
         eapply In_find_not_None; eauto.
       Qed.
-      
+
       Lemma imports_fullImports : forall (l : glabel) spec, find l imports = Some spec -> LabelMap.LabelMap.find (l : label) full_imports = Some (foreign_func_spec l spec).
         intros.
         rewrite fullImports_eq_bimports.
@@ -733,7 +733,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply imports_fullImports; eauto.
       Qed.
 
-      Lemma fs_funcs_ok : 
+      Lemma fs_funcs_ok :
         forall specs stn,
           augment full_imports specs stn accessible_labels ->
           interp specs (funcs_ok stn fs).
@@ -885,7 +885,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports_diff_bexports.
         eapply NotIn_NameNotInImports.
-        eapply module_name_not_in_bimports_diff_bexports.        
+        eapply module_name_not_in_bimports_diff_bexports.
       Qed.
 
       Lemma no_dup_func_names : NoDupFuncNames stubs.
@@ -896,7 +896,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         destruct m; simpl in *.
         eauto.
       Qed.
-      
+
       Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = MName m.
         intros.
         eapply In_to_map in H.
@@ -1341,7 +1341,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite H0.
         destruct (weq p p); intuition.
       Qed.
-      
+
       Lemma is_import_iff : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> forall p v, is_import stn p = Some v <-> exists (lbl : glabel), MapsTo lbl v imports /\ Labels stn lbl = Some p.
         intro.
         intro.
@@ -1439,7 +1439,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         openhyp; subst.
         left.
         descend; eauto.
-        
+
         (* introduction *)
         openhyp.
 
@@ -1492,7 +1492,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite H0 in H; intuition.
       Qed.
 
-      Lemma augment_elim_2 : 
+      Lemma augment_elim_2 :
         forall imps specs stn (lbls : list glabel),
           augment imps specs stn lbls ->
           (forall x, List.In x lbls -> LabelMap.find (x : Labels.label) imps <> None) ->
@@ -1629,7 +1629,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply augment_env_good_to_use; eauto.
 
         erewrite tgt_fullImports; eauto.
-      Qed.        
+      Qed.
 
       (* Interface *)
 

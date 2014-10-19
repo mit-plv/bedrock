@@ -29,7 +29,7 @@ Lemma smem_eta : forall ls (sm sm' : smem' ls),
   eapply Forall_weaken'; eauto.
   simpl; intros.
   destruct (H.addr_dec x x0); subst; tauto.
-Qed.  
+Qed.
 
 Lemma get_emp' : forall w ls,
   smem_get' ls w (smem_emp' ls) = None.
@@ -99,7 +99,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
   2: elimtype False; apply H4; eauto.
   case_eq (smem_get (base ^+ $3) sm); intros.
   2: elimtype False; apply H3; eauto.
-  
+
   Fixpoint smem_clear ls (sm : smem' ls) (w : W) : smem' ls :=
     match sm with
       | HNil => HNil
@@ -314,7 +314,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
     tauto.
     instantiate (1 := a); congruence.
     congruence.
-    
+
     case_eq (smem_get x sm1); intros.
     erewrite join_Some.
     erewrite join_Some.
@@ -333,16 +333,16 @@ Theorem materialize_allocated' : forall specs stn size base sm,
   apply split_a_semp_a.
   replace (base ^+ $0) with base in H7 by words.
   congruence.
-  
+
   autorewrite with get; assumption.
   autorewrite with get; assumption.
   autorewrite with get; assumption.
-  
+
   split.
   exists (implode stn (b, b0, b1, b2)).
   split.
   unfold smem_get_word.
-  
+
   unfold H.footprint_w.
   autorewrite with get.
   reflexivity.
@@ -350,7 +350,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
   intuition idtac.
   autorewrite with get.
   reflexivity.
-  
+
   apply simplify_fwd.
   eapply Imply_sound; [ apply allocated_shift_base | ].
   instantiate (1 := 0).
@@ -358,7 +358,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
   W_eq.
   eauto.
   apply IHsize.
-  
+
   intros.
   destruct (weq w base); subst.
   autorewrite with get; reflexivity.
@@ -419,7 +419,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
     -> u <> v.
     congruence.
   Qed.
-  
+
   apply wordToNat_ninj'.
   rewrite wordToNat_wplus.
   rewrite wordToNat_natToWord_idempotent.

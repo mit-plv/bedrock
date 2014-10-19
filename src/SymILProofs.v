@@ -58,21 +58,21 @@ Module SymIL_Correct.
 
     Hint Resolve stateD_interp : sym_eval_hints.
 
-    Ltac t_correct := 
+    Ltac t_correct :=
       simpl; intros;
         unfold IL_stn_st, IL_mem_satisfies, IL_ReadWord, IL_WriteWord in *;
-          repeat (simpl in *; 
+          repeat (simpl in *;
             match goal with
               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
               | [ H : prod _ _ |- _ ] => destruct H
-              | [ H : match ?X with 
+              | [ H : match ?X with
                         | Some _ => _
-                        | None => _ 
+                        | None => _
                       end |- _ ] =>
                 revert H; case_eq X; intros; try contradiction
-              | [ H : match ?X with 
+              | [ H : match ?X with
                         | Some _ => _
-                        | None => _ 
+                        | None => _
                       end = _ |- _ ] =>
                 revert H; case_eq X; intros; try congruence
               | [ H : _ = _ |- _ ] => rewrite H
@@ -87,20 +87,20 @@ Module SymIL_Correct.
       stateD funcs preds meta_env vars_env cs stn_st ss ->
       sym_locD fs meta_env vars_env loc = Some locD ->
       evalLoc (snd stn_st) locD = res' ->
-      sym_evalLoc loc ss = res -> 
+      sym_evalLoc loc ss = res ->
       exprD funcs meta_env vars_env res tvWord = Some res'.
     Proof.
       destruct loc; unfold stateD; destruct ss; destruct SymRegs; destruct p; intros; destruct stn_st; simpl in *;
-        t_correct; try solve [ eauto 
-                             | destruct r; simpl in *; 
+        t_correct; try solve [ eauto
+                             | destruct r; simpl in *;
                                repeat match goal with
                                         | [ H : _ = _ |- _ ] => rewrite H
                                         | [ |- _ ] => subst funcs
                                       end; eauto ].
     Qed.
-    
+
     Hypothesis Valid_facts : Valid PC meta_env vars_env facts.
-    
+
     Lemma sym_evalRval_correct : forall rv ss res stn_st rvD cs,
       stateD funcs preds meta_env vars_env cs stn_st ss ->
       sym_rvalueD funcs meta_env vars_env rv = Some rvD ->
@@ -110,8 +110,8 @@ Module SymIL_Correct.
         exprD funcs meta_env vars_env res tvWord = Some val.
     Proof.
       Opaque stateD sym_locD.
-      destruct rv; t_correct. 
-      { destruct s; t_correct. 
+      destruct rv; t_correct.
+      { destruct s; t_correct.
         { erewrite <- (@sym_evalLoc_correct (SymReg _ r)). f_equal. eauto. simpl.
           Transparent sym_locD. simpl. reflexivity. Opaque sym_locD. reflexivity. reflexivity. }
         { eapply (MEVAL.ReadCorrect meval_correct) with (cs := cs) in H2; eauto with sym_eval_hints.
@@ -122,13 +122,13 @@ Module SymIL_Correct.
           t_correct. } }
       { congruence. }
     Qed.
-          
+
     Lemma sym_evalLval_correct : forall lv stn_st lvD cs val ss ss' valD,
       stateD funcs preds meta_env vars_env cs stn_st ss ->
       sym_lvalueD funcs meta_env vars_env lv = Some lvD ->
       sym_evalLval Prover meval facts lv val ss = Some ss' ->
       exprD funcs meta_env vars_env val tvWord = Some valD ->
-      exists st', 
+      exists st',
         evalLvalue (fst stn_st) (snd stn_st) lvD valD = Some st' /\
         stateD funcs preds meta_env vars_env cs (fst stn_st, st') ss'.
     Proof.
@@ -142,28 +142,28 @@ Module SymIL_Correct.
       { eapply (@sym_evalLoc_correct s) in H0; eauto.
         simpl.
         match goal with
-          | [ H : MEVAL.swrite_word _ _ _ _ _ _ = _ |- _ ] => 
+          | [ H : MEVAL.swrite_word _ _ _ _ _ _ = _ |- _ ] =>
             eapply (MEVAL.WriteCorrect meval_correct) with (cs := cs) (stn_m := (s0,s1)) in H; eauto with sym_eval_hints
         end.
         simpl in *.
         destruct (WriteWord s0 (Mem s1) (evalLoc s1 l) valD); try contradiction. t_correct.
         Transparent stateD. destruct ss; destruct SymRegs; destruct p. simpl in *. Opaque stateD. intuition. subst.
-        generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX. 
+        generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX.
         rewrite sepFormula_eq in H3. unfold sepFormula_def in H3. simpl in *.
-        specialize (@XXX _ _ _ funcs preds meta_env vars_env cs _ _ _ H3). 
+        specialize (@XXX _ _ _ funcs preds meta_env vars_env cs _ _ _ H3).
         apply AllProvable_app' in H6. apply AllProvable_app; intuition auto. }
       { eapply (@sym_evalLoc_correct s) in H0; eauto.
         simpl.
         match goal with
-          | [ H : MEVAL.swrite_byte _ _ _ _ _ _ = _ |- _ ] => 
+          | [ H : MEVAL.swrite_byte _ _ _ _ _ _ = _ |- _ ] =>
             eapply (MEVAL.WriteByteCorrect meval_correct) with (cs := cs) (stn_m := (s0,s1)) in H; eauto with sym_eval_hints
         end.
         simpl in *.
         destruct (WriteByte (Mem s1) (evalLoc s1 l) (WtoB valD)); try contradiction. t_correct.
         Transparent stateD. destruct ss; destruct SymRegs; destruct p. simpl in *. Opaque stateD. intuition. subst.
-        generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX. 
+        generalize SH.sheapD_pures. unfold SEP.ST.satisfies. intro XXX.
         rewrite sepFormula_eq in H3. unfold sepFormula_def in H3. simpl in *.
-        specialize (@XXX _ _ _ funcs preds meta_env vars_env cs _ _ _ H3). 
+        specialize (@XXX _ _ _ funcs preds meta_env vars_env cs _ _ _ H3).
         apply AllProvable_app' in H6. apply AllProvable_app; intuition auto. }
     Qed.
 
@@ -191,7 +191,7 @@ Module SymIL_Correct.
                    (eapply sym_evalLval_correct in H; think); [ simpl in * ]
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => progress (simpl in * )
-                 | [ b : binop |- _ ] => 
+                 | [ b : binop |- _ ] =>
                    destruct b; unfold fPlus, fMinus, fMult in *; simpl in *
                end; t_correct.
     Qed.
@@ -202,14 +202,14 @@ Module SymIL_Correct.
       sym_rvalueD funcs meta_env vars_env l = Some lD ->
       match Structured.evalCond rD t lD (fst stn_st) (snd stn_st) with
         | None =>
-          forall res, 
+          forall res,
             match sym_assertTest Prover meval facts r t l ss res with
               | Some _ => False
               | None => True
             end
         | Some res' =>
           match sym_assertTest Prover meval facts r t l ss res' with
-            | Some b => 
+            | Some b =>
               Provable funcs meta_env vars_env b
             | None => True
           end
@@ -225,11 +225,11 @@ Module SymIL_Correct.
                    (eapply sym_evalLval_correct in H; think); [ simpl in * ]
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => progress (simpl in * )
-                 | [ |- context [ evalRvalue ?A ?B ?C ] ] => 
+                 | [ |- context [ evalRvalue ?A ?B ?C ] ] =>
                    case_eq (evalRvalue A B C); intros
-                 | [ |- context [ evalTest ?A ?B ?C ] ] => 
+                 | [ |- context [ evalTest ?A ?B ?C ] ] =>
                    case_eq (evalTest A B C); intros
-                 | [ b : binop |- _ ] => 
+                 | [ b : binop |- _ ] =>
                    destruct b; unfold fPlus, fMinus, fMult in *; simpl in *
                end; t_correct; simpl in *;
       try destruct res;
@@ -239,12 +239,12 @@ Module SymIL_Correct.
                end; auto;
         unfold Provable; destruct t;
         repeat match goal with
-                 | [ |- match match ?X with 
-                                | Some _ => match ?Y with _ => _ end 
+                 | [ |- match match ?X with
+                                | Some _ => match ?Y with _ => _ end
                                 | _ => _
                               end with _ => _ end ] =>
                    (case_eq X; trivial; case_eq Y; trivial); []
-                                   
+
                  | [ H : exists x, _ |- _ ] => destruct H
                  | [ H : _ /\ _ |- _ ] => destruct H
                  | [ H : sym_rvalueD _ _ _ _ = _ |- _ ] =>
@@ -253,11 +253,11 @@ Module SymIL_Correct.
                    (eapply sym_evalLval_correct in H; think); [ simpl in * ]
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => progress (simpl in * )
-                 | [ |- context [ evalRvalue ?A ?B ?C ] ] => 
+                 | [ |- context [ evalRvalue ?A ?B ?C ] ] =>
                    case_eq (evalRvalue A B C); intros
-                 | [ |- context [ evalTest ?A ?B ?C ] ] => 
+                 | [ |- context [ evalTest ?A ?B ?C ] ] =>
                    Reflection.consider (evalTest A B C); intros
-                 | [ b : binop |- _ ] => 
+                 | [ b : binop |- _ ] =>
                    destruct b; unfold fPlus, fMinus, fMult in *; simpl in *
                  | [ |- _ ] => progress t_correct
                end; unfold IL.weqb, IL.wneb, wltb, wleb in *; simpl in *;
@@ -298,21 +298,21 @@ Module SymIL_Correct.
     Variable meval_correct : MEVAL.MemEvaluator_correct meval funcs preds tvWord tvWord
       (@IL_mem_satisfies ts) (@IL_ReadWord ts) (@IL_WriteWord ts) (@IL_ReadByte ts) (@IL_WriteByte ts).
 
-    Ltac t_correct := 
+    Ltac t_correct :=
       simpl; intros;
         unfold IL_stn_st, IL_mem_satisfies, IL_ReadWord, IL_WriteWord in *;
-          repeat (simpl in *; 
+          repeat (simpl in *;
             match goal with
               | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
               | [ H : prod _ _ |- _ ] => destruct H
-              | [ H : match ?X with 
+              | [ H : match ?X with
                         | Some _ => _
-                        | None => _ 
+                        | None => _
                       end |- _ ] =>
               revert H; case_eq X; intros; try contradiction
-              | [ H : match ?X with 
+              | [ H : match ?X with
                         | Some _ => _
-                        | None => _ 
+                        | None => _
                       end = _ |- _ ] =>
               revert H; case_eq X; intros; try congruence
               | [ H : _ = _ |- _ ] => rewrite H
@@ -325,24 +325,24 @@ Module SymIL_Correct.
         stateD funcs preds meta_env var_env cs stn_st ss ->
         sym_instrsD funcs meta_env var_env is = Some isD ->
         match evalInstrs (fst stn_st) (snd stn_st) isD with
-          | Some st' => 
+          | Some st' =>
             match sym_evalInstrs Prover meval facts is ss with
               | inl ss' => stateD funcs preds meta_env var_env cs (fst stn_st, st') ss'
-              | inr (ss', is') => 
+              | inr (ss', is') =>
                 match sym_instrsD funcs meta_env var_env is' with
                   | None => False
-                  | Some is'D => 
+                  | Some is'D =>
                     exists st'', stateD funcs preds meta_env var_env cs (fst stn_st, st'') ss' /\
                       evalInstrs (fst stn_st) st'' is'D = Some st'
                 end
             end
-          | None => 
+          | None =>
             match sym_evalInstrs Prover meval facts is ss with
               | inl ss' => False
-              | inr (ss', is') => 
+              | inr (ss', is') =>
                 match sym_instrsD funcs meta_env var_env is' with
                   | None => False
-                  | Some is'D => 
+                  | Some is'D =>
                     exists st'', stateD funcs preds meta_env var_env cs (fst stn_st, st'') ss' /\
                       evalInstrs (fst stn_st) st'' is'D = None
                 end
@@ -356,20 +356,20 @@ Module SymIL_Correct.
                end; simpl; destruct stn_st; simpl in *; eauto.
       t_correct. simpl in *.
       case_eq (evalInstr s s0 i); intros.
-      case_eq (sym_evalInstr Prover meval facts a ss); intros.      
+      case_eq (sym_evalInstr Prover meval facts a ss); intros.
 
       destruct (@sym_evalInstr_correct' ts fs preds Prover PC meval meval_correct facts meta_env var_env
         H a (s,s0) i cs ss s2 H0 H1 H4). simpl in *. intuition.
       rewrite H6 in H3. inversion H3; clear H3; subst.
       specialize (IHis (s, s1)). simpl in *. eapply IHis; eauto.
-      
-      simpl. rewrite H1. rewrite H2. simpl. 
+
+      simpl. rewrite H1. rewrite H2. simpl.
       case_eq (evalInstrs s s1 l); intros; exists s0; simpl; rewrite H3; eauto.
 
-      case_eq (sym_evalInstr Prover meval facts a ss); intros. 
+      case_eq (sym_evalInstr Prover meval facts a ss); intros.
       Focus 2. simpl. rewrite H1. rewrite H2. exists s0; simpl; rewrite H3; intuition.
 
-      
+
 
       edestruct (@sym_evalInstr_correct' ts fs preds Prover PC meval meval_correct facts meta_env var_env
         H a (s,s0) i cs ss); eauto.
@@ -415,9 +415,9 @@ Module SymIL_Correct.
     Lemma stateD_addToPures : forall U G cs ss stn_st P,
       stateD funcs preds U G cs stn_st ss ->
       Provable funcs U G P ->
-      stateD funcs preds U G cs stn_st 
+      stateD funcs preds U G cs stn_st
       {| SymMem := SymMem ss
-        ; SymRegs := SymRegs ss 
+        ; SymRegs := SymRegs ss
         ; SymPures := P :: SymPures ss |}.
     Proof.
       Transparent stateD.
@@ -434,8 +434,8 @@ Module SymIL_Correct.
       eauto with stateD_solver.
 
     Opaque repr stateD.
-    Ltac split_congruence := 
-      repeat match goal with 
+    Ltac split_congruence :=
+      repeat match goal with
                | [ H : prod _ _ |- _ ] => destruct H
              end; congruence.
 
@@ -452,7 +452,7 @@ Module SymIL_Correct.
              end; subst.
       rewrite <- app_nil_r with (l := uvars). repeat erewrite exprD_weaken by eassumption.
       intuition. destruct SymMem; auto. erewrite SH.SE_FACTS.sexprD_weaken in H0. eassumption.
-      eapply AllProvable_weaken; eauto. 
+      eapply AllProvable_weaken; eauto.
     Qed.
     Lemma stateD_weaken_uvars : forall uvars vars cs stn_st ss' env,
       stateD funcs preds uvars vars cs stn_st ss' ->
@@ -467,7 +467,7 @@ Module SymIL_Correct.
              end; subst.
       rewrite <- app_nil_r with (l := vars). repeat erewrite exprD_weaken by eassumption.
       intuition. destruct SymMem; auto. erewrite SH.SE_FACTS.sexprD_weaken in H0. eassumption.
-      eapply AllProvable_weaken; eauto. 
+      eapply AllProvable_weaken; eauto.
     Qed.
     Hint Resolve stateD_weaken_vars stateD_weaken_uvars : stateD_solver.
     Require ListFacts.
@@ -479,7 +479,7 @@ Module SymIL_Correct.
       forall B D,
         sym_locD X (A ++ B) (C ++ D) Y = Some Z.
     Proof.
-      clear. destruct Y; simpl; intros; think; auto; 
+      clear. destruct Y; simpl; intros; think; auto;
       erewrite exprD_weaken; eauto.
     Qed.
 
@@ -491,7 +491,7 @@ Module SymIL_Correct.
       clear. destruct Y; simpl; intros; think; auto.
       erewrite sym_locD_weaken; eauto.
       erewrite sym_locD_weaken; eauto.
-    Qed.      
+    Qed.
     Lemma sym_rvalueD_weaken : forall ts X A C Y Z,
       sym_rvalueD (types' := ts) X A C Y = Some Z ->
       forall B D,
@@ -527,7 +527,7 @@ Module SymIL_Correct.
       istreamD X (A ++ B) (C ++ D) Y Z P L.
     Proof.
       clear. induction Y; simpl; intros; think; auto.
-      repeat match goal with 
+      repeat match goal with
                | [ H : match ?X with _ => _ end |- _ ] =>
                  consider X; intros
                | [ H : _ /\ _ |- _ ] => destruct H
@@ -558,7 +558,7 @@ Module SymIL_Correct.
     Lemma sym_evalStream_quant_append : forall path facts qs uvars vars ss res,
       sym_evalStream Prover meval learnHook facts path qs uvars vars ss = res ->
       match res with
-        | Safe qs' _ 
+        | Safe qs' _
         | SafeUntil qs' _ _ => exists qs'', qs' = appendQ qs'' qs
 (*        | Unsafe qs'  *)
       end.
@@ -570,12 +570,12 @@ Module SymIL_Correct.
       { destruct a. destruct p. consider (sym_evalInstrs Prover meval facts l ss); intros; try congruence.
         eapply IHpath; eauto. destruct p. subst. exists QBase. auto.
         destruct s. destruct o. consider (sym_assertTest Prover meval facts s t s0 ss b); intros.
-        repeat match goal with 
+        repeat match goal with
                  | [ H : match ?X with (_,_) => _ end = _ |- _ ] => destruct X; try congruence
                end.
         eapply IHpath in H0. destruct res; auto; destruct H0; rewrite <- appendQ_assoc in H0; eauto.
-        subst; auto. exists QBase; auto.        
-        repeat match goal with 
+        subst; auto. exists QBase; auto.
+        repeat match goal with
                  | [ H : match ?X with _ => _ end = _ |- _ ] => destruct X; try congruence
                end; subst;
         try eapply IHpath; eauto.
@@ -584,12 +584,12 @@ Module SymIL_Correct.
     Qed.
 
     Hint Extern 1 (@eq (list tvar) _ _) =>
-      simpl; repeat (rewrite app_nil_r in * || rewrite typeof_env_app in * || rewrite app_ass || 
+      simpl; repeat (rewrite app_nil_r in * || rewrite typeof_env_app in * || rewrite app_ass ||
         (f_equal; []) || (f_equal; [ solve [ reflexivity | assumption ] | ] || reflexivity || assumption)) : env_resolution.
-      
+
     Definition NO_MORE_COND : Prop := True.
 
-    Ltac sym_eval_prover IHpath := 
+    Ltac sym_eval_prover IHpath :=
       repeat match goal with
                | [ H : Valid _ (?A ++ ?b) (?C ++ ?d) _
                  , H' : sym_instrsD ?X ?A ?C ?Y = ?Z |- _ ] =>
@@ -616,47 +616,47 @@ Module SymIL_Correct.
                | [ |- _ ] => solve [ congruence | eauto with stateD_solver ]
                | [ H : ?X -> _ , H' : ?X |- _ ] =>
                  match type of X with
-                   | Prop => 
+                   | Prop =>
                      specialize (H H')
                  end
                | [ H   : sym_evalInstrs _ _ ?F ?is ?S = _
-                 , H'  : evalInstrs ?stn ?st _ = _ 
+                 , H'  : evalInstrs ?stn ?st _ = _
                  , H'' : sym_instrsD _ ?U ?G _ = Some ?isD
-                 , Hst : stateD _ _ _ _ _ _ _ 
-                 |- _ ] => 
+                 , Hst : stateD _ _ _ _ _ _ _
+                 |- _ ] =>
                ( eapply sym_evalInstrs_correct with (stn_st := (stn,st)) (facts := F) (ss := S) in H'' ; eauto ;
-                 simpl in H'' ) ; [ clear Hst ] 
-               | [ H : Structured.evalCond ?l ?A ?r ?B ?C = _ 
+                 simpl in H'' ) ; [ clear Hst ]
+               | [ H : Structured.evalCond ?l ?A ?r ?B ?C = _
                  , Hst : stateD _ _ ?U ?G ?cs _ _
                  , H' : sym_rvalueD _ _ _ _ = Some ?l
                  , H'' : sym_rvalueD _ _ _ _ = Some ?r |- _ ] =>
-               match goal with 
+               match goal with
                  | [ H : NO_MORE_COND |- _ ] => fail 1
                  | _ =>
                    (generalize Hst; eapply sym_assertTest_correct' with (meta_env := U) (vars_env := G) (t := A) (rD := l) (lD := r) (stn_st := (B,C)) in Hst; eauto using sym_rvalueD_weaken) ; [ intro; simpl in Hst ; assert NO_MORE_COND by (exact I) ]
                end
                | [ H : learnHook _ ?U' ?G' ?SS ?f ?F = (?A, ?B)
-                 , H' : stateD _ _ ?U ?G _ _ _ 
-                 , LC : MEVAL.LearnHook_correct _ _ _ _ 
+                 , H' : stateD _ _ ?U ?G _ _ _
+                 , LC : MEVAL.LearnHook_correct _ _ _ _
                  , PC : ProverT_correct _ _ |- _ ] =>
                  (cutrewrite (U' = typeof_env U) in H; [ | rewrite typeof_env_app; f_equal; auto ] ;
                   cutrewrite (G' = typeof_env G) in H; [ | rewrite typeof_env_app; f_equal; auto ] ;
-                  eapply (@MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC U G) with 
+                  eapply (@MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC U G) with
                     (new_facts := F) (ss := SS) (ss' := A) (quant := B) in H ;
-                  eauto using Learn_correct, AllProvable_cons, AllProvable_nil with stateD_solver) ; [ clear H' ] 
+                  eauto using Learn_correct, AllProvable_cons, AllProvable_nil with stateD_solver) ; [ clear H' ]
                | [ H : quantD _ _ _ _ |- quantD _ _ _ _ ] =>
                  eapply quantD_impl; [ eapply H | clear H ; simpl; intros ]
                | [ |- quantD _ _ (appendQ _ ?X) _ ] =>
                  apply quantD_app
                | [ H : appendQ _ _ = appendQ _ _ |- _ ] => apply appendQ_proper in H; subst
 
-               | [ H : appendQ ?A ?B = appendQ _ (appendQ _ ?B) |- _ ] => 
+               | [ H : appendQ ?A ?B = appendQ _ (appendQ _ ?B) |- _ ] =>
                  rewrite <- appendQ_assoc in H; apply appendQ_proper in H; subst
                | [ H : context [ Safe (appendQ (appendQ ?A ?B) ?C) _ ] |- _ ] =>
                  rewrite appendQ_assoc with (a := A) (b := B) (c := C) in H
                | [ H : context [ SafeUntil (appendQ (appendQ ?A ?B) ?C) _ _ ] |- _ ] =>
                  rewrite appendQ_assoc with (a := A) (b := B) (c := C) in H
-                 
+
                | [ H : sym_evalStream _ _ _ _ _ (appendQ _ ?X) _ _ _ = Safe (appendQ ?Y ?X) _ |- _ ] =>
                  match Y with
                    | appendQ _ _ => fail 1
@@ -677,15 +677,15 @@ Module SymIL_Correct.
                    | appendQ _ _ => fail 1
                    | _ => rewrite <- appendQ_assoc in H; destruct (sym_evalStream_quant_append _ _ _ _ _ _ H); subst
                  end
-               | [ H : EqNat.beq_nat ?X ?Y = true |- _ ] => 
+               | [ H : EqNat.beq_nat ?X ?Y = true |- _ ] =>
                  symmetry in H; apply EqNat.beq_nat_eq in H
-               | [ H : Folds.all2 _ _ _ = true |- _ ] => 
+               | [ H : Folds.all2 _ _ _ = true |- _ ] =>
                  eapply all2_tvar_seq_dec_true in H
-               | [ H : sym_evalStream _ _ _ _ _ ?QS _ _ _ = _ 
+               | [ H : sym_evalStream _ _ _ _ _ ?QS _ _ _ = _
                  , H' : stateD _ _ ?Uall ?Gall _ (_, ?st) _
                  , H'' : istreamD _ _ _ _ _ ?st _
                  |- _ ] =>
-               let t := change (QS) with (appendQ QBase QS) in H at 1 ; 
+               let t := change (QS) with (appendQ QBase QS) in H at 1 ;
                  eapply IHpath with (env_q := QS) (qs := QBase) (meta_env := Uall) (vars_env := Gall) in H;
                    simpl; subst; intuition (eauto using istreamD_weaken, Valid_weaken with env_resolution) in
                solve [ t ] || (t; [])
@@ -693,8 +693,8 @@ Module SymIL_Correct.
                  specialize (H true); unfold sym_assertTest in H
                | [ H : match ?X with | IL.Eq => _ | _ => _ end = None |- _ ] =>
                  destruct X; congruence
-               | [ H : exists x : state, _ |- exists y : state, _ ] => 
-                 let s := fresh "st" in 
+               | [ H : exists x : state, _ |- exists y : state, _ ] =>
+                 let s := fresh "st" in
                  solve [ destruct H as [ s ? ] ; exists s ; intuition ]
                | [ H : match ?X with _ => _ end |- _ ] =>
                  (revert H; case_eq X; intros; try contradiction)
@@ -722,7 +722,7 @@ Module SymIL_Correct.
               stateD funcs preds meta_env vars_env cs (stn, st') ss'
           end).
     Proof.
-      Opaque stateD. 
+      Opaque stateD.
       induction path; simpl; intros; sym_eval_prover IHpath; try contradiction.
     Qed.
 
@@ -741,7 +741,7 @@ Module SymIL_Correct.
           stateD funcs preds meta_env vars_env cs (stn, st') ss' /\
           istreamD funcs meta_env vars_env is' stn st' sound_or_safe).
     Proof.
-      induction path; simpl; intros; sym_eval_prover IHpath; try contradiction. 
+      induction path; simpl; intros; sym_eval_prover IHpath; try contradiction.
     Qed.
 
     Lemma appendQ_QBase_r : forall a, appendQ a QBase = a.
@@ -777,7 +777,7 @@ Module SymIL_Correct.
         rewrite appendQ_assoc.
         intro. eapply H0 in H; eauto. }
       { destruct (sym_evalStream_quant_append _ _ _ _ _ _ H).
-        generalize (@evalStream_correct_SafeUntil sound_or_safe cs stn path facts ss qs (appendQ x qs) s i uvars vars QBase); 
+        generalize (@evalStream_correct_SafeUntil sound_or_safe cs stn path facts ss qs (appendQ x qs) s i uvars vars QBase);
           subst.
         repeat rewrite appendQ_QBase_r. intro. eapply H0 in H; eauto. }
     Qed.

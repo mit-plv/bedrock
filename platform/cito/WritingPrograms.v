@@ -29,9 +29,9 @@ Infix "<" := (TestE IL.Lt) : expr_scope.
 Infix "<=" := (TestE IL.Le) : expr_scope.
 
 Notation "var <== a [ i ]" := (ReadAt var a%expr i%expr) (at level 60, a at level 0, i at level 0): stmnt_scope.
-Notation "'inCase' ( cond ) {{ trueStmnt }} 'else' {{ falseStmnt }}" := (Conditional cond%expr trueStmnt falseStmnt) (no associativity, at level 55, format 
+Notation "'inCase' ( cond ) {{ trueStmnt }} 'else' {{ falseStmnt }}" := (Conditional cond%expr trueStmnt falseStmnt) (no associativity, at level 55, format
  "'[hv' 'inCase'  ( cond )  {{ '/  ' trueStmnt '/' '}}' 'else' {{ '/  ' falseStmnt '/' }} ']'"): stmnt_scope.
-Notation "'While' ( cond ) {{ body }}" := (Loop cond%expr body) (no associativity, at level 55, format 
+Notation "'While' ( cond ) {{ body }}" := (Loop cond%expr body) (no associativity, at level 55, format
  "'[hv' 'While'  ( cond )  {{ '/  ' body '/' '}}' ']'"): stmnt_scope.
 
 Notation "'If' cond { trueStmnt } 'else' { falseStmnt }" := (Conditional cond%expr trueStmnt falseStmnt)
@@ -67,7 +67,7 @@ Definition ForFromTo (i:string) (from: Expr) (to:Expr) body :=
     body;:(i.++)
   }}.
 
-Notation "'For' i 'from' from 'to' to {{ body }}" := (ForFromTo i from to body) (no associativity, at level 55, format 
+Notation "'For' i 'from' from 'to' to {{ body }}" := (ForFromTo i from to body) (no associativity, at level 55, format
  "'[hv' 'For' i 'from' from 'to' to  {{ '/  ' body '/' '}}' ']'"): stmnt_scope.
 
 Definition ForTo (i:string) (To: Expr) body :=
@@ -138,7 +138,7 @@ Lemma use_loop_invariant' : forall functions cond body (inv : st -> Prop) loop s
       | [ H : While (_) {{_}} = While (_) {{_}} |- _ ] => inversion H; clear H; subst
     end; eauto.
 Qed.
-  
+
 Lemma use_loop_invariant : forall functions (inv : st -> Prop) cond body s s',
   RunsTo functions (While (cond) {{ body }}) s s'
   -> inv s
@@ -188,9 +188,9 @@ Ltac evalRTwith respect:=
                                                      | [ x : _ |- _ ] => subst x
                                                    end
              end
-         end. 
+         end.
 
-Ltac evalRT:= 
+Ltac evalRT:=
   repeat match goal with
            | [ H : RunsTo _ _ ?E _ |- _ ] =>
              match E with
@@ -223,10 +223,10 @@ Ltac compare_keys:= eauto.
 (*Ill put the hints in a tactics while I get how to solve the subgoals.*)
 Ltac updSimpl:= unfold upd, sel;
   simpl;
-  repeat (first [ 
+  repeat (first [
      rewrite upd_length
-    | rewrite sel_upd_eq 
-    | rewrite sel_upd_ne 
+    | rewrite sel_upd_eq
+    | rewrite sel_upd_ne
     | rewrite upd_sel_equiv
     | rewrite WDict.sel_upd_eq
     | rewrite WDict.sel_upd_ne

@@ -31,8 +31,8 @@ Module Make (Import E : ADT).
         r = ret_w.
 
     Definition match_ret vs rvar rvalue :=
-      match rvar with 
-        | Some x => rvalue = sel vs x 
+      match rvar with
+        | Some x => rvalue = sel vs x
         | None => True
       end.
 

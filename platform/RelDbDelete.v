@@ -559,11 +559,11 @@ Section Delete.
     my_descend; my_step.
     my_descend; my_step.
     my_descend; my_step.
-    
+
     v.
     v.
   Qed.
-    
+
   Hint Immediate Delete_post Delete_vcs.
 
   Definition Delete : chunk.

@@ -164,45 +164,45 @@ Definition hints : TacPackage.
   (store_pair_inl_bwd, store_pair_inr_bwd).
 Defined.
 
-Definition SimpleCell_newSpec : ForeignFuncSpec := 
+Definition SimpleCell_newSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => args = nil;
     PostCond := fun args ret => args = nil /\ ret = inr (Cell 0)
   |}.
 
-Definition SimpleCell_deleteSpec : ForeignFuncSpec := 
+Definition SimpleCell_deleteSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists n, args = inr (Cell n) :: nil;
     PostCond := fun args ret => exists n r, args = (inr (Cell n), None) :: nil /\ ret = inl r
   |}.
 
-Definition SimpleCell_readSpec : ForeignFuncSpec := 
+Definition SimpleCell_readSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists n, args = inr (Cell n) :: nil;
     PostCond := fun args ret => exists n, ret = inl n /\ args = (inr (Cell n), Some (Cell n)) :: nil
   |}.
 
-Definition SimpleCell_writeSpec : ForeignFuncSpec := 
+Definition SimpleCell_writeSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists n n', args = inr (Cell n) :: inl n' :: nil;
     PostCond := fun args ret => exists n n' r, args = (inr (Cell n), Some (Cell n')) :: (inl n', None) :: nil
       /\ ret = inl r
   |}.
 
-Definition ArraySeq_newSpec : ForeignFuncSpec := 
+Definition ArraySeq_newSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists len, args = inl len :: nil /\ goodSize (2 + wordToNat len);
     PostCond := fun args ret => exists len ws, args = (inl len, None) :: nil /\ ret = inr (Arr ws)
       /\ length ws = wordToNat len
   |}.
 
-Definition ArraySeq_deleteSpec : ForeignFuncSpec := 
+Definition ArraySeq_deleteSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists ws, args = inr (Arr ws) :: nil;
     PostCond := fun args ret => exists ws r, args = (inr (Arr ws), None) :: nil /\ ret = inl r
   |}.
 
-Definition ArraySeq_readSpec : ForeignFuncSpec := 
+Definition ArraySeq_readSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists ws n, args = inr (Arr ws) :: inl n :: nil
       /\ n < natToW (length ws);
@@ -210,7 +210,7 @@ Definition ArraySeq_readSpec : ForeignFuncSpec :=
       /\ args = (inr (Arr ws), Some (Arr ws)) :: (inl n, None) :: nil
   |}.
 
-Definition ArraySeq_writeSpec : ForeignFuncSpec := 
+Definition ArraySeq_writeSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists ws n v, args = inr (Arr ws) :: inl n :: inl v :: nil
       /\ n < natToW (length ws);
@@ -218,33 +218,33 @@ Definition ArraySeq_writeSpec : ForeignFuncSpec :=
       :: (inl n, None) :: (inl v, None) :: nil /\ ret = inl r
   |}.
 
-Definition ListSet_newSpec : ForeignFuncSpec := 
+Definition ListSet_newSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => args = nil;
     PostCond := fun args ret => args = nil /\ ret = inr (FSet WordSet.empty)
   |}.
 
-Definition ListSet_deleteSpec : ForeignFuncSpec := 
+Definition ListSet_deleteSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists s, args = inr (FSet s) :: nil;
     PostCond := fun args ret => exists s r, args = (inr (FSet s), None) :: nil /\ ret = inl r
   |}.
 
-Definition ListSet_memSpec : ForeignFuncSpec := 
+Definition ListSet_memSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
     PostCond := fun args ret => exists s n, ret = inl (WordSet.mem n s : W)
       /\ args = (inr (FSet s), Some (FSet s)) :: (inl n, None) :: nil
   |}.
 
-Definition ListSet_addSpec : ForeignFuncSpec := 
+Definition ListSet_addSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
     PostCond := fun args ret => exists s n r, args = (inr (FSet s), Some (FSet (WordSet.add n s)))
       :: (inl n, None) :: nil /\ ret = inl r
   |}.
 
-Definition ListSet_sizeSpec : ForeignFuncSpec := 
+Definition ListSet_sizeSpec : ForeignFuncSpec :=
   {|
     PreCond := fun args => exists s, args = inr (FSet s) :: nil;
     PostCond := fun args ret => exists s, ret = inl (WordSet.cardinal s : W)
@@ -304,7 +304,7 @@ Theorem ok0 : moduleOk m0.
   do_delegate2 (@nil string).
 
   (* delete *)
-  
+
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
@@ -467,7 +467,7 @@ Theorem ok0 : moduleOk m0.
   do_delegate2 (@nil string).
 
   (* delete *)
-  
+
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).

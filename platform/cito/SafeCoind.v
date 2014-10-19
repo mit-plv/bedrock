@@ -5,35 +5,35 @@ Section Safe_coind.
 
   Variable R : (W -> option Callee) -> Stmt -> State -> Prop.
 
-  Hypothesis SeqCase : 
-    forall fs a b v, 
-      R fs (Syntax.Seq a b) v -> 
-      R fs a v /\ 
+  Hypothesis SeqCase :
+    forall fs a b v,
+      R fs (Syntax.Seq a b) v ->
+      R fs a v /\
       forall v', RunsTo fs a v v' -> R fs b v'.
 
-  Hypothesis IfCase : 
-    forall fs cond t f v, 
-      R fs (Syntax.If cond t f) v -> 
-      wneb (eval (fst v) cond) $0 = true /\ R fs t v \/ 
+  Hypothesis IfCase :
+    forall fs cond t f v,
+      R fs (Syntax.If cond t f) v ->
+      wneb (eval (fst v) cond) $0 = true /\ R fs t v \/
       wneb (eval (fst v) cond) $0 = false /\ R fs f v.
 
-  Hypothesis WhileCase : 
-    forall fs cond body v, 
-      R fs (Syntax.While cond body) v -> 
-      (wneb (eval (fst v) cond) $0 = true /\ 
-       R fs body v /\ 
-       (forall v', RunsTo fs body v v' -> R fs (While cond body) v')) \/ 
+  Hypothesis WhileCase :
+    forall fs cond body v,
+      R fs (Syntax.While cond body) v ->
+      (wneb (eval (fst v) cond) $0 = true /\
+       R fs body v /\
+       (forall v', RunsTo fs body v v' -> R fs (While cond body) v')) \/
       (wneb (eval (fst v) cond) $0 = false).
 
-  Hypothesis CallCase : 
+  Hypothesis CallCase :
     forall fs var f args v,
       let vs := fst v in
       let heap := snd v in
       R fs (Syntax.Call var f args) v ->
       (exists spec,
          fs (eval vs f) = Some (Internal spec) /\
-         (forall vs_arg, 
-            map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+         (forall vs_arg,
+            map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args
             -> R fs (Body spec) (vs_arg, heap))) \/
       (exists spec pairs,
          fs (eval vs f) = Some (Foreign spec) /\

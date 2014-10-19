@@ -49,7 +49,7 @@ Lemma allocated_out'' : forall p len offset,
   sepLemmaLhsOnly.
   apply himp_ex_c; exists (x :: x0); sepLemma.
   destruct offset; sepLemma.
-Qed.      
+Qed.
 
 Lemma allocated_out' : forall p len offset,
   allocated p offset len ===> Ex ws, ptsto32m nil p offset ws * [| length ws = len |].

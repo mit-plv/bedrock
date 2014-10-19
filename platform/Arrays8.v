@@ -112,7 +112,7 @@ Lemma materialize_array8'' : forall p v,
   apply injL; intuition.
   propxFo.
   unfold smem_get_word, H.footprint_w in *.
-  
+
   Require Import Bootstrap.
 
   repeat match type of H0 with
@@ -161,7 +161,7 @@ Qed.
 Lemma materialize_array8' : forall p sz offset,
   allocated p offset sz ===> Ex bs, array8 bs (p ^+ $(offset)) * [| (length bs = sz * 4)%nat |].
   induction sz; simpl; intuition.
-  
+
   sepLemma.
   instantiate (1 := nil); auto.
   sepLemma.
@@ -331,7 +331,7 @@ Lemma skipn_length : forall A (ls : list A) n,
   (n <= length ls)%nat
   -> length (skipn n ls) = length ls - n.
   induction ls; destruct n; simpl; intuition.
-Qed.  
+Qed.
 
 Theorem buffer_split : forall len p n,
   (n <= len)%nat

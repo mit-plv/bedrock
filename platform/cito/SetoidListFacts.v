@@ -29,7 +29,7 @@ Lemma InA_eq_In_iff : forall elt (ls : list elt) (x : elt), InA eq x ls <-> List
   eauto.
 Qed.
 
-Lemma InA_weaken : 
+Lemma InA_weaken :
   forall A (P : A -> A -> Prop) (x : A) (ls : list A),
     InA P x ls ->
     forall (P' : A -> A -> Prop) x',

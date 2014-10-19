@@ -52,14 +52,14 @@ Proof.
   destruct offset'; auto.
   W_eq.
   rewrite H0; clear H0.
-  
+
   match goal with
     | [ H : ?X = _ |- context[(?Y =*> _)%Sep] ] => change Y with X; rewrite H
   end.
   intro. apply himp_star_frame. apply himp_ex. reflexivity.
   eapply IHlen. repeat rewrite natToW_plus.
-  repeat rewrite (wplus_comm (natToW 4)). 
-  repeat rewrite wplus_assoc. 
+  repeat rewrite (wplus_comm (natToW 4)).
+  repeat rewrite wplus_assoc.
   unfold natToW in *. rewrite H. reflexivity.
 Qed.
 
@@ -104,7 +104,7 @@ Proof.
     replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.
     unfold allocated at 1 2; fold allocated.
     unfold empB, starB, exB. intro.
-    rewrite heq_star_assoc.    
+    rewrite heq_star_assoc.
     repeat rewrite heq_ex_star.
     apply himp_ex. intros.
     apply himp_star_frame. reflexivity.
@@ -126,7 +126,7 @@ Proof.
     replace (offset + 4 * S len') with ((4 + offset) + 4 * len') by omega.
     unfold allocated at 1 3; fold allocated.
     unfold empB, starB, exB. intro.
-    rewrite heq_star_assoc.    
+    rewrite heq_star_assoc.
     repeat rewrite heq_ex_star.
     apply himp_ex. intros.
     apply himp_star_frame. reflexivity.

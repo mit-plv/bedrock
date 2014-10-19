@@ -38,8 +38,8 @@ Section TopSection.
   Require Import GoodModuleFacts.
   Require Import ListFacts3.
 
-  Definition GoodFunc_bool f := 
-    let body := Body f in 
+  Definition GoodFunc_bool f :=
+    let body := Body f in
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
     let all_vars := ArgVars f ++ local_vars in
     NoDup_bool string_bool (ArgVars f) &&

@@ -50,8 +50,8 @@ Definition bedrock_type_listB : type :=
    ; Expr.Eqb_correct := @ILEnv.all_false_compare _ |}.
 
 Definition types_r : Env.Repr Expr.type :=
-  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-    let lst := 
+  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+    let lst :=
       Some ILEnv.bedrock_type_W ::
       Some ILEnv.bedrock_type_setting_X_state ::
       None ::
@@ -117,8 +117,8 @@ Section parametric.
   Defined.
 
   Definition funcs_r : Env.Repr (signature types) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         Some (ILEnv.wplus_r types) ::
         None ::
         None ::
@@ -199,8 +199,8 @@ Section correctness.
   Defined.
 
   Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         None :: None :: None :: Some ssig :: nil
       in Env.listOptToRepr lst (SEP.Default_predicate _ _ _).
 
@@ -273,7 +273,7 @@ Section correctness.
     end.
     rewrite H0 in H5.
     destruct H1.
-    eapply smem_get_disjoint; eauto.    
+    eapply smem_get_disjoint; eauto.
   Qed.
 
   Lemma array_boundAlt : forall tht cs bs base stn m,
@@ -345,7 +345,7 @@ Section correctness.
       sym_read P facts args pe = Some ve ->
       Valid PE uvars vars facts ->
       exprD funcs uvars vars pe wordT = Some p ->
-      match 
+      match
         applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
         with
         | None => False
@@ -477,11 +477,11 @@ Section correctness.
         | None => False
         | Some p => ST.satisfies cs p stn st
       end ->
-      match 
+      match
         applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args' _ (SEP.SDenotation ssig)
         with
         | None => False
-        | Some pr => 
+        | Some pr =>
           match ST.HT.smem_set p (WtoB v) st with
             | None => False
             | Some sm' => ST.satisfies cs pr stn sm'
@@ -528,11 +528,11 @@ Section correctness.
 End correctness.
 
 Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
-  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
+  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in
     @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 3.
 
 Theorem MemEvaluator_correct types' funcs' preds'
-  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
+  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1)
   (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
   (IL.settings * IL.state) (tvType 0) (tvType 0)
   (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types'))
@@ -549,7 +549,7 @@ Qed.
 Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte :=
 
-  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte
   types_r
   funcs_r

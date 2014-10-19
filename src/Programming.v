@@ -532,7 +532,7 @@ Section PropX.
   Qed.
 
   Ltac hyp := eapply Env; simpl; eauto.
-  
+
   Theorem existsL : forall A (p : A -> _),
     (forall x, interp specs (p x ---> P))
     -> interp specs ((Exists p) ---> P).

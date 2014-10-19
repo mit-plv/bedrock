@@ -14,7 +14,7 @@ Definition ProverCorrect types (fs : functions types) (summary : Type)
   (prover : summary -> expr types -> bool) : Prop :=
   forall vars uvars sum,
     valid uvars vars sum ->
-    forall goal, 
+    forall goal,
       prover sum goal = true ->
       ValidProp fs uvars vars goal ->
       Provable fs uvars vars goal.
@@ -30,7 +30,7 @@ Record ProverT_correct (types : list type) (P : ProverT types) (funcs : function
 { Valid : env types -> env types -> Facts P -> Prop
 ; Valid_weaken : forall u g f ue ge,
   Valid u g f -> Valid (u ++ ue) (g ++ ge) f
-; Summarize_correct : forall uvars vars hyps, 
+; Summarize_correct : forall uvars vars hyps,
   AllProvable funcs uvars vars hyps ->
   Valid uvars vars (Summarize P hyps)
 ; Learn_correct : forall uvars vars facts,
@@ -44,7 +44,7 @@ Record ProverPackage : Type :=
 { ProverTypes : Repr type
 ; ProverFuncs : forall ts, Repr (signature (repr ProverTypes ts))
 ; Prover : forall ts, ProverT (repr ProverTypes ts)
-; Prover_correct : forall ts fs, 
+; Prover_correct : forall ts fs,
   ProverT_correct (Prover ts) (repr (ProverFuncs ts) fs)
 }.
 
@@ -79,7 +79,7 @@ Ltac t1 := match goal with
                               | None => _
                               | Some _ => _
                             end] ] => destruct E
-             | [ |- context[if ?E then _ else _] ] => 
+             | [ |- context[if ?E then _ else _] ] =>
                consider E; intro
              | [ |- context[match ?E with
                               | nil => _
@@ -98,7 +98,7 @@ Ltac t1 := match goal with
                                | nil => _
                                | _ :: _ => _
                              end] |- _ ] => destruct E
-             | [ H : context[if ?E then _ else _] |- _ ] => 
+             | [ H : context[if ?E then _ else _] |- _ ] =>
                revert H; consider E; try do 2 intro
              | [ _ : context[match ?E with
                                | left _ => _
@@ -146,7 +146,7 @@ Section composite.
   Variable pr_correct : ProverT_correct pr funcs.
 
   Theorem composite_ProverT_correct : ProverT_correct composite_ProverT funcs.
-    
+
     refine (
       {| Valid := fun uvars vars (facts : Facts composite_ProverT) =>
         let (fl,fr) := facts in

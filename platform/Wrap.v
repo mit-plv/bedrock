@@ -65,7 +65,7 @@ End Wrap.
 
 Section WrapC.
   Variable body : chunk.
-  
+
   Definition assertC := bool
     -> (W -> W)
     -> list string

@@ -25,38 +25,38 @@ Module Make (Import E : ADT).
     Require Import IL.
 
     Definition PreserveGoodSize (opt : Optimizer) :=
-      forall stmt argvars retvar, 
+      forall stmt argvars retvar,
         let size s := List.length (get_local_vars s argvars retvar) + depth s in
-        goodSize (size stmt) -> 
+        goodSize (size stmt) ->
         goodSize (size (opt stmt retvar)).
 
     Require Import CompileStmtSpec.
     Require Import List.
 
     Definition PreserveSynReq (opt : Optimizer) :=
-      forall stmt argvars retvar, 
+      forall stmt argvars retvar,
         let vars s := argvars ++ get_local_vars s argvars retvar in
         let stmt' := opt stmt retvar in
         syn_req (vars stmt) (depth stmt) stmt ->
         syn_req (vars stmt') (depth stmt') stmt'.
 
-    Definition GoodOptimizer opt := 
+    Definition GoodOptimizer opt :=
       PreserveRunsTo opt /\
-      PreserveSafe opt /\ 
+      PreserveSafe opt /\
       PreserveGoodSize opt /\
       PreserveSynReq opt.
 
     Require Import GoodFunc.
     Require Import SyntaxFunc.
     Definition PreserveGoodSize' (opt : Optimizer) :=
-      forall f, 
-        GoodFunc f -> 
+      forall f,
+        GoodFunc f ->
         let s := opt (Body f) (RetVar f) in
         goodSize (length (get_local_vars s (ArgVars f) (RetVar f)) + depth s).
 
     Definition PreserveSynReq' (opt : Optimizer) :=
-      forall f, 
-        GoodFunc f -> 
+      forall f,
+        GoodFunc f ->
         let s := opt (Body f) (RetVar f) in
         syn_req (ArgVars f ++ get_local_vars s (ArgVars f) (RetVar f)) (depth s) s.
 
@@ -116,7 +116,7 @@ Module Make (Import E : ADT).
       eauto.
     Qed.
 
-    Lemma GoodOptimizer_trans : 
+    Lemma GoodOptimizer_trans :
       forall a b,
         GoodOptimizer a ->
         GoodOptimizer b ->

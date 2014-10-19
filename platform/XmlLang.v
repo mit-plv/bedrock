@@ -550,7 +550,7 @@ Section compileProgram.
     -> NoDup (addTo ls1 ls2).
     induction ls1; simpl; intuition.
     generalize (member_means a ls2); destruct (member a ls2); intuition.
-  Qed.    
+  Qed.
 
   Hint Immediate NoDup_addTo.
 
@@ -617,7 +617,7 @@ Section compileProgram.
   Qed.
 
   Hint Immediate Forall_removeTable'.
-  
+
   Lemma unusedTable : forall tab suff, underscore_free tab
     -> forall xm avs ts,
       xwf avs ts xm
@@ -802,7 +802,7 @@ Section compileProgram.
               _ : context[locals_call _ _ _ _ _ _ ?M] |- _ ] => replace N with M in * by (simpl; omega)
           end; try rewrite inBounds_sel in *; try rewrite inputOk_sel in *;
       unfold lvalIn, regInL, immInR in *; prep_locals.
-  
+
   Ltac my_descend := unfold localsInvariant in *;
     repeat match goal with
              | [ H : @In string _ _ |- _ ] => clear H
@@ -1933,7 +1933,7 @@ Section compileProgram.
     Qed.
 
     Hint Immediate inBounds_swizzle''''.
-    
+
     Lemma Weaken_cursors_eauto : forall V V' t,
       (forall x, x <> (Name t ++ "_row")%string
         -> x <> (Name t ++ "_data")%string
@@ -2005,7 +2005,7 @@ Section compileProgram.
       XmlSearch.allCdatas (compilePat p) = cdataify (allCdatas p).
       clear; induction p; simpl; intuition;
         rewrite cdataify_app; congruence.
-    Qed.        
+    Qed.
 
     Lemma allCdatas_cdataify : forall x p,
       In x (XmlSearch.allCdatas (compilePat p))
@@ -2449,7 +2449,7 @@ Section compileProgram.
         * [| length bsO' = length bsO |]
         * [| R <= V "olen" |] * mallocHeap 0.
 
-    Infix ";;" := SimpleSeq : SP_scope.    
+    Infix ";;" := SimpleSeq : SP_scope.
 
     Fixpoint compileProgram' (pr : program) : chunk :=
       match pr with
@@ -2816,7 +2816,7 @@ Section compileProgram.
       induction pr0; simpl; intuition eauto.
       apply In_addTo_or in H; destruct H; eauto.
     Qed.
-    
+
     Hint Immediate no_clash_cursorsOf.
 
     Lemma no_clash_both' : forall pr0,
@@ -2824,7 +2824,7 @@ Section compileProgram.
       -> False.
       clear; intros; apply in_app_or in H; destruct H; eauto.
     Qed.
-  End no_clash.    
+  End no_clash.
 
   Lemma no_clash_both : forall pr0 s,
     In s (cdatasOf pr0 ++ cursorsOf pr0)

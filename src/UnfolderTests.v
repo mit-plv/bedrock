@@ -33,7 +33,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
       Impl := nat;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
@@ -41,7 +41,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
       Impl := bool;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
@@ -49,7 +49,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
       Impl := unit;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
@@ -146,7 +146,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
         Types PcType StateType Hints Lhs Rhs
         equiv_dec ExprUnify.exprUnifyArgs ExprUnify.fold_left_2_opt
         ExprUnify.exprUnify exprSubstU sheapSubstU EqDec_tvar tvar_rec tvar_rect sumbool_rec sumbool_rect
-        eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq 
+        eq_rec_r eq_rec eq_rect eq_sym f_equal ExprUnify.get_Eq
         nth_error value error Eq liftExpr Decidables.seq_dec ExprUnify.Subst_lookup SHeap_empty
         exists_subst ExprUnify.env_of_Subst fst snd tvarD sexprD
         Impl sheapD starred fold_right applyD
@@ -164,7 +164,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
         assumptionProver EquivDec_nat EquivDec_bool substV Impl_
         SEP.hash'
         Prover.Prove Provers.reflexivityProver
-        Prover.Summarize 
+        Prover.Summarize
         Provers.reflexivityProve expr_seq_dec
     ].
 
@@ -224,7 +224,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
     (** Backward time! *)
 
     Hypothesis Hb_f : forall cs, ST.himp cs (ST.emp _ _) (f 0).
-  
+
     Definition hints_Hb_f : U.hints.
       prepare tt Hb_f ltac:(fun x => refine x).
     Defined.
@@ -318,7 +318,7 @@ Module Make (ST : SepTheoryX.SepTheoryXType).
     Theorem test_Hf1' : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj False)) (f 0)) (ST.emp _ _).
       Time unfolder hints_Hf1'.
     Abort.
-    
+
 
     Theorem test_Hf1'_bad : forall cs, ST.himp cs (ST.star (ST.inj (PropX.Inj True)) (f 0)) (ST.emp _ _).
       Time unfolder hints_Hf1'.

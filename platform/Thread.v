@@ -153,7 +153,7 @@ Lemma exitize_locals : forall xx ns vs res sp,
   Qed.
 
   eapply Himp_trans; [ apply switchedy | ].
-  
+
   Lemma swatchedy : forall P Q R : HProp,
     P * (Q * R) ===> P * Q * R.
     sepLemma.

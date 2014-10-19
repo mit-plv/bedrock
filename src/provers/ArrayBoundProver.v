@@ -62,7 +62,7 @@ Section ArrayBoundProver.
       | (i, a) :: summ' => (expr_seq_dec i (fst fact) && expr_seq_dec a (snd fact)) || hypMatches fact summ'
     end.
 
-  Definition boundProve (summ : boundSummary) (goal : expr types) := 
+  Definition boundProve (summ : boundSummary) (goal : expr types) :=
     match factIn goal with
       | None => false
       | Some fact => hypMatches fact summ
@@ -158,7 +158,7 @@ Section ArrayBoundProver.
     destruct (equiv_dec (Range s) tvProp); auto.
     destruct s; simpl in e2.
     hnf in e2; subst.
-    
+
     simpl applyD.
     duh'.
     destruct e0; auto.
@@ -203,10 +203,10 @@ Section ArrayBoundProver.
       exists i, exprD funcs uvars vars (fst p) wordT = Some i
         /\ exists a, exprD funcs uvars vars (snd p) listWT = Some a
           /\ i < $(length a).
-    
+
     Definition boundValid (summ : boundSummary) :=
       List.Forall pairValid summ.
-    
+
     Theorem boundLearn1Correct : forall sum,
       boundValid sum
       -> forall hyp, Provable funcs uvars vars hyp

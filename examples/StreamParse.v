@@ -283,7 +283,7 @@ Section Parse.
     W_eq.
 
 
-    specialize (bexpTrue_bound _ H H0 H1 _ _ H3).    
+    specialize (bexpTrue_bound _ H H0 H1 _ _ H3).
     rewrite H4; intros.
     rewrite H6 in H8.
     eapply wle_goodSize in H8.
@@ -417,7 +417,7 @@ Section Parse.
     repeat rewrite sel_upd_ne by congruence.
     assumption.
     instantiate (1 := S offset).
-    repeat rewrite sel_upd_ne by congruence.    
+    repeat rewrite sel_upd_ne by congruence.
     match goal with
       | [ H : (?U <= ?X)%nat |- (?V <= ?X)%nat ] => replace V with U; auto; omega
     end.
@@ -755,7 +755,7 @@ Section Parse.
     repeat rewrite sel_upd_ne by auto; eauto.
     repeat rewrite sel_upd_ne by auto; reflexivity.
     rewrite <- H20.
-    
+
     injection H15; clear H15; intros; subst.
     injection H10; clear H10; intros; subst.
     assert (evalInstrs stn s0

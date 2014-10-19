@@ -31,8 +31,8 @@ Section TopSection.
 
   Lemma find_spec : forall (f : t -> bool) ls a, find f ls = Some a -> f a = true /\ In a ls.
     induction ls; simpl; intuition; try discriminate;
-    (destruct (sumbool_of_bool (f a)); 
-     [rewrite e in H; injection H; intros; subst; eauto | 
+    (destruct (sumbool_of_bool (f a));
+     [rewrite e in H; injection H; intros; subst; eauto |
       rewrite e in H; eapply IHls in H; openhyp; eauto]).
   Qed.
 
@@ -110,7 +110,7 @@ Section TopSection.
     inversion H0; subst.
     econstructor.
     intuition.
-    contradict H3. 
+    contradict H3.
     eapply in_map_iff in H1.
     openhyp.
     eapply H in H1.

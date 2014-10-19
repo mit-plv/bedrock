@@ -26,7 +26,7 @@ Module Type SepLemma.
 
     Definition WellTyped_lemma tfuncs tpreds (l : lemma) : bool :=
       allb (fun x => is_well_typed tfuncs nil (Foralls l) x tvProp) (Hyps l) &&
-      SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Lhs l) && 
+      SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Lhs l) &&
       SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Rhs l).
 
     Variable funcs : functions types.
@@ -63,9 +63,9 @@ Module Type SepLemma.
         (forall specs, SE.himp funcs preds meta_base (var_base ++ env) specs (Lhs lem) (Rhs lem))).
 
     (** Lemmas **)
-    Axiom forallEachR_sem : forall vs P, 
+    Axiom forallEachR_sem : forall vs P,
       forallEachR vs P <-> (forall e, map (@projT1 _ _) e = vs -> P e).
-    
+
     Axiom implyEach_instantiate : forall HYPS U G,
       AllProvable funcs U G HYPS ->
       forall cc,
@@ -80,7 +80,7 @@ End SepLemma.
 
 Module Make (SE : SepExpr) : SepLemma with Module SE := SE.
   Module SE := SE.
-  
+
   Section typed.
     Variable types : list type.
     Variables pcType stateType : tvar.
@@ -98,7 +98,7 @@ Module Make (SE : SepExpr) : SepLemma with Module SE := SE.
 
     Definition WellTyped_lemma tfuncs tpreds (l : lemma) : bool :=
       allb (fun x => is_well_typed tfuncs nil (Foralls l) x tvProp) (Hyps l) &&
-      SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Lhs l) && 
+      SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Lhs l) &&
       SE.WellTyped_sexpr tfuncs tpreds nil (Foralls l) (Rhs l).
 
     Variable funcs : functions types.
@@ -155,11 +155,11 @@ Module Make (SE : SepExpr) : SepLemma with Module SE := SE.
       induction HYPS; simpl; intros; auto;
         repeat match goal with
                  | [ H : _ /\ _ |- _ ] => destruct H
-                 | [ H : _ && _ = _ |- _ ] => 
+                 | [ H : _ && _ = _ |- _ ] =>
                    apply andb_true_iff in H; destruct H
                end.
       eapply IHHYPS; eauto.
-    Qed. 
+    Qed.
 
     Lemma implyEach_sem : forall cc U G es,
       implyEach es U G cc <-> (AllProvable funcs U G es -> cc).

@@ -58,7 +58,7 @@ Section module.
     induction fs as [ | [ ] ]; simpl; intuition.
     apply IHfs; red; intros.
     apply LabelFacts.add_mapsto_iff in H0; intuition; subst; simpl; eauto.
-  Qed.    
+  Qed.
 
   Theorem fullImportsGlobal : importsGlobal fullImports.
     apply fullImportsGlobal'; apply importsMapGlobal.
@@ -300,7 +300,7 @@ Section module.
     Qed.
 
     Hint Extern 1 (_ >= _) => nomega.
-    
+
     Lemma MapsTo_blocks : forall k v fs Base,
       LabelMap.MapsTo k v (blocks fs Base)
       -> exists f, exists pre, exists c, In (f, pre, c) fs
@@ -343,7 +343,7 @@ Section module.
       apply LabelMap.add_1; auto.
 
       apply MapsTo_union in H2; intuition.
-    
+
       apply ungetLocal in H0; destruct H0; intuition; subst.
       do 4 esplit.
       eauto.
@@ -501,7 +501,7 @@ Section module.
       destruct a as [ [ ] ]; simpl in *.
       eapply IHl0; [ | eassumption ].
       destruct b0; destruct b; simpl in *; intuition congruence.
-      
+
       intros.
       apply LabelFacts.add_mapsto_iff in H2; intuition; subst.
       congruence.
@@ -555,7 +555,7 @@ Section module.
 
       apply LabelFacts.add_mapsto_iff in H; intuition.
 
-      apply LabelFacts.add_mapsto_iff in H; intuition; subst.      
+      apply LabelFacts.add_mapsto_iff in H; intuition; subst.
 
       do 2 right; exists O; exists b; intuition.
       do 2 f_equal; nomega.
@@ -595,10 +595,10 @@ Section module.
     apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     eapply importsNotThis'; eauto.
     apply LabelFacts.add_mapsto_iff in H1; intuition; subst.
-    eapply importsNotThis'; eauto.    
+    eapply importsNotThis'; eauto.
     apply MapsTo_union in H2; intuition.
     apply ungetLocal in H0; destruct H0; intuition; subst.
-    eapply importsNotThis'; eauto.    
+    eapply importsNotThis'; eauto.
     eapply IHl0 in NoSelfImport; eauto.
     eexists; eauto.
 
@@ -717,7 +717,7 @@ Section module.
       eapply LabelMap.add_3 in H1.
       eauto.
       auto.
-    Qed.      
+    Qed.
 
     Lemma importsMap_global : forall l pre,
       LabelMap.MapsTo l pre importsMap -> exists g, snd l = Global g.
@@ -742,7 +742,7 @@ Section module.
       destruct (LabelKey.eq_dec (modName, Global s) (mn, Global g)).
       generalize e; intro e'.
       eapply LabelMap.add_1 in e'.
-      
+
       Lemma MapsTo_func : forall A (m : LabelMap.t A) k v v',
         LabelMap.MapsTo k v m
         -> LabelMap.MapsTo k v' m
@@ -807,7 +807,7 @@ Section module.
     simpl.
     intros.
     apply StringSet.singleton_2.
-    
+
     Lemma blocks_modName : forall mn l pre_bl funcs start,
       LabelMap.MapsTo (mn, l) pre_bl (blocks funcs start)
       -> modName = mn.

@@ -89,7 +89,7 @@ Module Make (Import E : ADT).
     Definition strengthen_diff_f specs env_ax k v a :=
       a /\
       (find k specs = Some (Foreign v) \/
-       exists op, 
+       exists op,
          find k specs = Some (Internal op) /\
          strengthen_op_ax op v env_ax).
 
@@ -161,10 +161,10 @@ Module Make (Import E : ADT).
     Definition equal_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := sub_domain m1 m2 /\ sub_domain m2 m1.
 
     Definition is_pointer_of_label specs (stn : glabel -> option W) w : option Callee :=
-      fold (fun k v res => 
+      fold (fun k v res =>
               match res with
                 | Some _ => res
-                | None => 
+                | None =>
                   match stn k with
                     | Some w' => if weq w w' then Some v else None
                     | None => None
@@ -344,8 +344,8 @@ Module Make (Import E : ADT).
     (*
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
-    Lemma make_specs_equal : 
-      forall modules imports, 
+    Lemma make_specs_equal :
+      forall modules imports,
         List.NoDup (List.map GName modules) ->
         ListFacts1.Disjoint (List.map GName modules) (List.map fst2 (elements imports)) ->
         specs_equal (make_specs modules imports) modules imports.

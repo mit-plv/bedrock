@@ -9,9 +9,9 @@ Definition has_extra_stack sp offset e_stack e_stack_real :=
    (sp ^+ $8 ^+ $(4 * offset)) =?> e_stack_real)%Sep.
 
 Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
-  (ExX, 
+  (ExX,
    Cptr p #0 /\
-   Al st : state, 
+   Al st : state,
            AlX : settings * smem,
                  a (stn, st) ---> #1 (stn, st))%PropX.
 
@@ -85,14 +85,14 @@ Module Make (Import E : ADT).
          let stn := fst st in
          let env := (from_bedrock_label_map (Labels stn), fs stn) in
          [| Safe env (Body spec) v |] /\
-         (st#Rp, stn) 
+         (st#Rp, stn)
            @@@ (
-             st' ~> Ex v', Ex rp', 
+             st' ~> Ex v', Ex rp',
              (* the callee needn't have the right extra stack size recorded in the end, but the extra stack should be there *)
              Ex e_stack',
              ![^[ is_state st'#Sp rp' e_stack' e_stack (ArgVars spec) v' nil * mallocHeap 0] * #1] st' /\
-             [| exists vs', 
-                RunsTo env (Body spec) v (vs', snd v') /\ 
+             [| exists vs',
+                RunsTo env (Body spec) v (vs', snd v') /\
                 st'#Rv = sel vs' (RetVar spec) /\
                 st'#Sp = st#Sp |]))%PropX.
 
@@ -104,7 +104,7 @@ Module Make (Import E : ADT).
          [| disjoint_ptrs pairs /\
             good_scalars pairs /\
             PreCond spec (map snd pairs) |] /\
-         (st#Rp, stn) 
+         (st#Rp, stn)
            @@@ (
              st' ~> Ex args', Ex addr, Ex ret, Ex rp', Ex outs,
              let t := decide_ret addr ret in
@@ -121,22 +121,22 @@ Module Make (Import E : ADT).
                 st'#Rv = ret_w /\
                 st'#Sp = st#Sp |]))%PropX.
 
-      Definition funcs_ok stn (fs : settings -> W -> option Callee) : PropX W (settings * state) := 
+      Definition funcs_ok stn (fs : settings -> W -> option Callee) : PropX W (settings * state) :=
         ((Al i, Al spec,
-          [| fs stn i = Some (Internal spec) |] 
+          [| fs stn i = Some (Internal spec) |]
             ---> cptr_AlX i stn (internal_spec _ fs spec)) /\
-         (Al i, Al spec, 
-          [| fs stn i = Some (Foreign spec) |] 
+         (Al i, Al spec,
+          [| fs stn i = Some (Foreign spec) |]
             ---> cptr_AlX i stn (foreign_spec _ spec)))%PropX.
 
       Section vars.
 
         Variable vars : list string.
-        
+
         Variable temp_size : nat.
 
-        Definition inv_template rv_precond rv_postcond s : assert := 
-          st ~> Ex fs, 
+        Definition inv_template rv_precond rv_postcond s : assert :=
+          st ~> Ex fs,
           let stn := fst st in
           funcs_ok stn fs /\
           ExX, Ex v, Ex temps, Ex rp, Ex e_stack,
@@ -145,7 +145,7 @@ Module Make (Import E : ADT).
           [| Safe env s v /\
              length temps = temp_size /\
              rv_precond st#Rv v |] /\
-          (rp, stn) 
+          (rp, stn)
             @@@ (
               st' ~> Ex v', Ex temps',
               ![^[is_state st'#Sp rp e_stack e_stack vars v' temps' * mallocHeap 0] * #1] st' /\
@@ -155,7 +155,7 @@ Module Make (Import E : ADT).
                  rv_postcond st'#Rv (fst v') |]).
 
         Definition inv := inv_template (fun _ _ => True).
-        
+
       End vars.
 
     End TopSection.

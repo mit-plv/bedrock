@@ -136,7 +136,7 @@ Lemma exitize_locals : forall xx yy ns vs res sp,
   Qed.
 
   eapply Himp_trans; [ apply switchedy | ].
-  
+
   Lemma swatchedy : forall P Q R : HProp,
     P * (Q * R) ===> P * Q * R.
     sepLemma.
@@ -462,7 +462,7 @@ Theorem ok : moduleOk m.
   eapply Himp_trans; [ | apply starB_substH_bwd ].
   unfold substH; simpl.
   match goal with
-    | [ |- (?P ===> ?Q)%Sep ] => 
+    | [ |- (?P ===> ?Q)%Sep ] =>
       replace P with Q; try apply Himp_refl
   end.
   rewrite tqs'_eq; reflexivity.
@@ -496,7 +496,7 @@ Theorem ok : moduleOk m.
   eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
   unfold substH; simpl.
   match goal with
-    | [ |- (_ ===> _ * (?P * _ * _))%Sep ] => 
+    | [ |- (_ ===> _ * (?P * _ * _))%Sep ] =>
       replace P with (tqs' (x0, x2) (x0 %- sel x4 "enq"))
         by (rewrite tqs'_eq; instantiate (1 := (x0, x2)); reflexivity)
   end.
@@ -524,7 +524,7 @@ Theorem ok : moduleOk m.
   eapply Himp_trans; [ apply swotchy; apply starB_substH_fwd | ].
   unfold substH; simpl.
   match goal with
-    | [ |- (_ * _ * _ * ?P * _ * _ ===> _)%Sep ] => 
+    | [ |- (_ * _ * _ * ?P * _ * _ ===> _)%Sep ] =>
       replace P with (tqs' (fst x9, snd x9) (fst x9 %- sel x4 "enq"))
   end.
   sepLemma.

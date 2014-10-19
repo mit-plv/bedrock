@@ -5,7 +5,7 @@ Section PairWF.
   Variables T U : Type.
   Variable RT : T -> T -> Prop.
   Variable RU : U -> U -> Prop.
-  
+
   Inductive R_pair : T * U -> T * U -> Prop :=
   | L : forall l l' r r',
     RT l l' -> R_pair (l,r) (l',r')

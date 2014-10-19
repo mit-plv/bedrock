@@ -55,7 +55,7 @@ Section boot.
 
   Variable stn : settings.
   Variable prog : program.
-  
+
   Hypothesis inj : forall l1 l2 w, Labels stn l1 = Some w
     -> Labels stn l2 = Some w
     -> l1 = l2.

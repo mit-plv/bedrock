@@ -50,7 +50,7 @@ Section ADTSection.
       | TestE op a b => eval_binop_m (inr op) (eval st a) (eval st b)
     end.
 
-  Fixpoint eval_bool st e : option bool := 
+  Fixpoint eval_bool st e : option bool :=
     match eval st e with
       | Some (SCA w) => Some (wneb w $0)
       | _ => None
@@ -62,7 +62,7 @@ Section ADTSection.
   Require Import StringMapFacts.
   Import FMapNotations.
   Open Scope fmap.
-  
+
   Fixpoint add_remove elt k (v : option elt) st :=
     match v with
       | Some v' => add k v' st
@@ -72,7 +72,7 @@ Section ADTSection.
   Require Import List.
 
   Fixpoint add_remove_many elt keys (values : list (option elt)) st :=
-    match keys, values with 
+    match keys, values with
       | k :: keys', v :: values' => add_remove_many keys' values' (add_remove k v st)
       | _, _ => st
     end.
@@ -85,21 +85,21 @@ Section ADTSection.
 
   Fixpoint mapM A B (f : A -> option B) ls :=
     match ls with
-      | x :: xs => 
+      | x :: xs =>
         match f x, mapM f xs with
           | Some y, Some ys => Some (y :: ys)
           | _, _ => None
         end
       | nil => Some nil
     end.
-        
+
   Record AxiomaticSpec :=
     {
       PreCond : list Value -> Prop;
       PostCond : list (Value * option Value) -> Value -> Prop
     }.
 
-  Record OperationalSpec := 
+  Record OperationalSpec :=
     {
       ArgVars : list string;
       RetVar : string;
@@ -125,30 +125,30 @@ Section ADTSection.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall st, RunsTo Skip st st
-    | RunsToSeq : 
+    | RunsToSeq :
         forall a b st st' st'',
-          RunsTo a st st' -> 
-          RunsTo b st' st'' -> 
+          RunsTo a st st' ->
+          RunsTo b st' st'' ->
           RunsTo (Seq a b) st st''
-    | RunsToIfTrue : 
-        forall cond t f st st', 
+    | RunsToIfTrue :
+        forall cond t f st st',
           is_true st cond ->
           RunsTo t st st' ->
           RunsTo (If cond t f) st st'
-    | RunsToIfFalse : 
-        forall cond t f st st', 
+    | RunsToIfFalse :
+        forall cond t f st st',
           is_false st cond ->
            RunsTo f st st' ->
           RunsTo (If cond t f) st st'
-    | RunsToWhileTrue : 
-        forall cond body st st' st'', 
+    | RunsToWhileTrue :
+        forall cond body st st' st'',
           let loop := While cond body in
           is_true st cond ->
           RunsTo body st st' ->
           RunsTo loop st' st'' ->
           RunsTo loop st st''
-    | RunsToWhileFalse : 
-        forall cond body st, 
+    | RunsToWhileFalse :
+        forall cond body st,
           let loop := While cond body in
           is_false st cond ->
           RunsTo loop st st
@@ -184,5 +184,5 @@ Section ADTSection.
           RunsTo (Call x f args) st st'.
 
   End EnvSection.
-          
+
 End ADTSection.

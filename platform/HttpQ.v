@@ -55,7 +55,7 @@ Module Httpq : HTTPQ.
 
   Definition httpq (p : W) :=
     Ex ls, sll ls p * bufs ls.
-  
+
   Theorem httpq_fwd : forall p, httpq p ===> Ex ls, sll ls p * bufs ls.
     unfold httpq; sepLemma.
   Qed.
@@ -308,7 +308,7 @@ Definition m := bimport [[ "io"!"writeAll" @ [writeAllGS sched globalInv],
           PRE[V] httpq (V "q") * sched fs * globalInv fs * mallocHeap 0
           POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * globalInv fs' * mallocHeap 0]
       };;
-      
+
       Return 0
     end
   }}.

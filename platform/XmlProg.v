@@ -80,7 +80,7 @@ Module MyM.
   Theorem buf_size_lower : (nat_of_N buf_size >= 2)%nat.
     generalize (Outbuf_size_lower _ _ _ _ M.Wf).
     unfold buf_size; intros; nomega.
-  Qed.    
+  Qed.
 
   Theorem buf_size_upper : goodSize (4 * nat_of_N buf_size).
     Transparent goodSize.
@@ -558,10 +558,10 @@ Section boot.
     link (XmlLang.ok _ httpq buf_size_lower' buf_size_upper' (WellFormed _ _ _ _ Wf)) ok9;
     apply (UF _ _ _ _ Wf).
   Qed.
-  
+
   Variable stn : settings.
   Variable prog : IL.program.
-  
+
   Hypothesis inj : forall l1 l2 w, Labels stn l1 = Some w
     -> Labels stn l2 = Some w
     -> l1 = l2.

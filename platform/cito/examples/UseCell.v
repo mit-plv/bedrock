@@ -51,7 +51,7 @@ Definition body := (
 
 Definition f := (
   cfunction "use_cell"()
-    body            
+    body
   end
 )%Citofuncs.
 
@@ -73,7 +73,7 @@ Notation " [[ x , .. , y ]] " := (cons x .. (cons y nil) ..).
 Notation "name @ [ p ]" := (name%stmtex, p) (only parsing).
 
 Definition modules := [[ gm ]].
-Definition imports := of_list [[ 
+Definition imports := of_list [[
                                   "ADT"!"SimpleCell_new" @ [SimpleCell_newSpec],
                                   "ADT"!"SimpleCell_write" @ [SimpleCell_writeSpec],
                                   "ADT"!"SimpleCell_read" @ [SimpleCell_readSpec],
@@ -107,7 +107,7 @@ Definition top := bimport [[ ("use_cell"!"use_cell", fspec), "sys"!"printInt" @ 
 Definition dummy_gf : GoodFunction.
   refine (to_good_function f _).
   good_module.
-Defined.    
+Defined.
 
 Definition spec_op := hd dummy_gf (Functions gm).
 

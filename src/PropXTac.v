@@ -137,7 +137,7 @@ Section machine.
       -> interp specs (Substs s (Cptr f a)).
       induction s; simpl; intuition.
     Qed.
-    
+
     Lemma Substs_And : forall G (s : subs G) p1 p2,
       Substs s (And p1 p2) = And (Substs s p1) (Substs s p2).
       induction s; simpl; intuition.

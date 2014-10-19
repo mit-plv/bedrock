@@ -11,10 +11,10 @@ Section TopSection.
   Require Import Depth.
   Require Import WellFormed.
 
-  Definition GoodFunc f := 
-    let body := Body f in 
+  Definition GoodFunc f :=
+    let body := Body f in
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
-    NoDup (ArgVars f) /\ 
+    NoDup (ArgVars f) /\
     NoUninitialized (ArgVars f) (RetVar f) body /\
     wellformed body /\
     goodSize (length local_vars + depth body).
@@ -24,10 +24,10 @@ Section TopSection.
   Require Import GeneralTactics.
   Require Import GetLocalVarsFacts.
 
-  Lemma GoodFunc_syn_req : 
+  Lemma GoodFunc_syn_req :
     forall f,
       GoodFunc f ->
-      let body := Body f in 
+      let body := Body f in
       let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
       let all_vars := ArgVars f ++ local_vars in
       CompileStmtSpec.syn_req all_vars (depth body) body.
@@ -109,7 +109,7 @@ Module Make (Import E : ADT).
       eapply NoUninitialized_RunsTo in H0; eauto.
       destruct H; intuition.
     Qed.
-    
+
   End TopSection.
 
 End Make.

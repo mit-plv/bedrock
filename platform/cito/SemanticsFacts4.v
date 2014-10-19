@@ -19,24 +19,24 @@ Module Make (Import E : ADT).
     Definition Env := ((glabel -> option W) * (W -> option Callee))%type.
 
     Require Import SemanticsExpr.
-  
+
     Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax env_ax :=
       let args := ArgVars spec_op in
       let rvar := RetVar spec_op in
       let s := Body spec_op in
-      (forall ins, 
+      (forall ins,
          PreCond spec_ax ins ->
          length args = length ins) /\
       (forall v,
          TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
          Safe env_ax s v) /\
-      forall v v', 
-        RunsTo env_ax s v v' -> 
+      forall v v',
+        RunsTo env_ax s v v' ->
         TransitSafe spec_ax (map (sel (fst v)) args) (snd v) ->
         TransitTo spec_ax (map (sel (fst v)) args) (snd v) (sel (fst v') rvar) (snd v').
 
-    Definition strengthen (env_op env_ax : Env) := 
-      (forall lbl, fst env_op lbl = fst env_ax lbl) /\ 
+    Definition strengthen (env_op env_ax : Env) :=
+      (forall lbl, fst env_op lbl = fst env_ax lbl) /\
       let fs_op := snd env_op in
       let fs_ax := snd env_ax in
       forall w,
@@ -149,7 +149,7 @@ Module Make (Import E : ADT).
       eapply IHRunsTo2; eauto.
       eapply H9; eapply IHRunsTo1; eauto.
       rewrite H7 in H; discriminate.
-      
+
       (* while false *)
       eauto.
 
@@ -204,7 +204,7 @@ Module Make (Import E : ADT).
       eapply f_equal with (f := @length _) in H5.
       repeat rewrite map_length in *.
       eauto.
-      
+
       (* seq *)
       inversion H; unfold_all; subst.
       descend; eauto.

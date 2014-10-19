@@ -71,7 +71,7 @@ Section specs.
     PRE[V] [| V "fr" %in fs |] * sched fs * mallocHeap 0 * globalInv fs
     POST[_] Ex fs', [| fs %<= fs' |] * sched fs' * mallocHeap 0 * globalInv fs'.
 End specs.
-  
+
 
 Module Make(M : S).
 Import M.
@@ -99,7 +99,7 @@ Module M''.
 
   Definition globalInv (ts : bag) (w : world) : HProp :=
     Ex p, Ex ready, Ex free, Ex wait, Ex waitLen, Ex freeL, Ex waitL,
-    
+
     (* The scheduler entry point *)
     globalSched =*> p * (p ==*> ready, free, wait, waitLen)
 
@@ -268,7 +268,7 @@ Lemma exitize_locals : forall xx yy ns vs res sp,
   Qed.
 
   eapply Himp_trans; [ apply switchedy | ].
-  
+
   Lemma swatchedy : forall P Q R : HProp,
     P * (Q * R) ===> P * Q * R.
     sepLemma.
@@ -1463,7 +1463,7 @@ Lemma sel_In : forall ls n,
   -> goodSize (length ls)
   -> In (Array.sel ls n) ls.
   unfold Array.sel; intros; apply selN_In; nomega.
-Qed.    
+Qed.
 
 Lemma found_queue : forall x ls i b,
   x = Array.sel ls i
@@ -1543,7 +1543,7 @@ Lemma allInOrZero_updN : forall b v ls,
     -> allInOrZero b (Array.updN ls i v).
   induction 1; destruct i; simpl; intuition;
     constructor; auto; apply IHForall; auto.
-Qed.    
+Qed.
 
 Lemma allInOrZero_upd : forall b ls i v,
   allInOrZero b ls

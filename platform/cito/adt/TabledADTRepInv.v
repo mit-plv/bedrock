@@ -22,11 +22,11 @@ Section TableSection.
 
   Fixpoint interp_to_repinv (ty : ADTScheme) : RepInv ty :=
     match ty with
-      | 
-  
+      |
+
   Fixpoint interp_adt (ty : ADTScheme) : Type :=
     match ty with
-      | Primitive name => 
+      | Primitive name =>
         match find name adt_table with
           | Some type => type
           | None => Empty_set
@@ -38,7 +38,7 @@ Section TableSection.
 Require Import RepInv.
 
 Module Make1 (Import T : ADTTable).
-  
+
   Module A := TabledADT T.
 
   Module Make2 <: RepInv A.

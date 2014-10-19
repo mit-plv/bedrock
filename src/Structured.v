@@ -74,7 +74,7 @@ Section imports.
     Blocks : list (assert * block); (* Code blocks *)
 
     PreconditionOk : exists bl, nth_error Blocks (nat_of_N Entry) = Some (Precondition, bl);
-    
+
     BlocksOk : vcs VerifCond
       -> Exit < Base
       -> List.Forall (fun p => blockOk (imps Blocks Base Exit Postcondition) (fst p) (snd p)) Blocks
@@ -259,7 +259,7 @@ Section imports.
     destruct H1.
     destruct k; simpl in *; congruence.
     auto.
-   
+
     apply LabelFacts.add_mapsto_iff in H; intuition; subst.
     eauto.
     apply IHbls in H1.
@@ -436,7 +436,7 @@ Section imports.
     eapply imps_exit in H0.
     eauto using LabelFacts.MapsTo_fun.
   Qed.
-    
+
   Lemma imps_app_1 : forall k v exit post bls2 exit' post' bls1 base,
     LabelMap.MapsTo k v (imps bls1 base exit post)
     -> k <> (modName, Local exit)
@@ -611,7 +611,7 @@ Section imports.
           |}
       |}); abstract struct.
   Defined.
-  
+
   Hint Extern 1 (interp _ _) => progress simpl.
 
   (** * Direct jump *)

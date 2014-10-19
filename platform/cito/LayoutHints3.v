@@ -40,7 +40,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
         eapply Himp_trans; [ apply Himp_star_assoc | ].
         eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply IHls ] | ].
-        
+
         eapply Himp_trans; [ apply Himp_star_assoc' | ].
         eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
         eapply Himp_trans; [ apply Himp_star_assoc | ].
@@ -215,7 +215,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply H8; clear H8; intuition subst.
       eauto.
       apply H3; clear H3; intuition idtac.
-      
+
       eauto.
     Qed.
 
@@ -242,7 +242,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl |
         apply IHls1 ] | ].
       eapply Himp_trans; [ apply Himp_star_assoc' | ].
-      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].      
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
       eapply Himp_trans; [ apply Himp_star_assoc | ].
       apply Himp_star_pure_c; intro.
 

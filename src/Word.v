@@ -186,7 +186,7 @@ Lemma wordToNat_natToWord' : forall sz w, exists k, wordToNat (natToWord sz w) +
   case_eq (mod2 w); intro Hmw.
 
   specialize (IHsz (div2 w)); firstorder.
-  rewrite wordToNat_wordToNat' in *. 
+  rewrite wordToNat_wordToNat' in *.
   exists x; intuition.
   rewrite mult_assoc.
   rewrite (mult_comm x 2).
@@ -196,7 +196,7 @@ Lemma wordToNat_natToWord' : forall sz w, exists k, wordToNat (natToWord sz w) +
   rewrite <- mult_plus_distr_l.
   rewrite H; clear H.
   symmetry; apply div2_odd; auto.
-  
+
   specialize (IHsz (div2 w)); firstorder.
   exists x; intuition.
   rewrite mult_assoc.
@@ -303,7 +303,7 @@ Defined.
 Fixpoint weqb sz (x : word sz) : word sz -> bool :=
   match x in word sz return word sz -> bool with
     | WO => fun _ => true
-    | WS b _ x' => fun y => 
+    | WS b _ x' => fun y =>
       if eqb b (whd y)
       then if @weqb _ x' (wtl y) then true else false
       else false
@@ -323,7 +323,7 @@ Proof.
     eapply Peano_dec.eq_nat_dec.
     split; intros; try congruence.
     inversion H0. apply eqb_false_iff in H. congruence. }
-Qed.    
+Qed.
 
 (** * Combining and splitting *)
 
@@ -380,7 +380,7 @@ Theorem combine_assoc : forall n1 (w1 : word n1) n2 n3 (w2 : word n2) (w3 : word
   rewrite (IHw1 _ _ _ _ (plus_assoc _ _ _)); clear IHw1.
   repeat match goal with
            | [ |- context[match ?pf with refl_equal => _ end] ] => generalize pf
-         end.  
+         end.
   generalize dependent (combine w1 (combine w2 w3)).
   rewrite plus_assoc; intros.
   rewrite (UIP_dec eq_nat_dec e (refl_equal _)).
@@ -448,7 +448,7 @@ Qed.
 Definition sext (sz : nat) (w : word sz) (sz' : nat) : word (sz + sz') :=
   if wmsb w false then
     combine w (wones sz')
-  else 
+  else
     combine w (wzero sz').
 
 Definition zext (sz : nat) (w : word sz) (sz' : nat) : word (sz + sz') :=
@@ -465,7 +465,7 @@ Definition wordBin (f : N -> N -> N) sz (x y : word sz) : word sz :=
 
 Definition wplus := wordBin Nplus.
 Definition wmult := wordBin Nmult.
-Definition wmult' sz (x y : word sz) : word sz := 
+Definition wmult' sz (x y : word sz) : word sz :=
   split2 sz sz (NToWord (sz + sz) (Nmult (wordToN x) (wordToN y))).
 Definition wminus sz (x y : word sz) : word sz := wplus x (wneg y).
 
@@ -478,7 +478,7 @@ Definition wordBinN (f : nat -> nat -> nat) sz (x y : word sz) : word sz :=
 Definition wplusN := wordBinN plus.
 
 Definition wmultN := wordBinN mult.
-Definition wmultN' sz (x y : word sz) : word sz := 
+Definition wmultN' sz (x y : word sz) : word sz :=
   split2 sz sz (natToWord (sz + sz) (mult (wordToNat x) (wordToNat y))).
 
 Definition wminusN sz (x y : word sz) : word sz := wplusN x (wnegN y).
@@ -504,7 +504,7 @@ Theorem wordToN_nat : forall sz (w : word sz), wordToN w = N_of_nat (wordToNat w
 
   rewrite N_of_S.
   rewrite N_of_mult.
-  rewrite <- IHw. 
+  rewrite <- IHw.
   rewrite Nmult_comm.
   reflexivity.
 
@@ -533,7 +533,7 @@ Qed.
 
 Theorem posToWord_nat : forall p sz, posToWord sz p = natToWord sz (nat_of_P p).
   induction p; destruct sz; simpl; intuition; f_equal; try rewrite wzero'_def in *.
-  
+
   rewrite ZL6.
   destruct (ZL4 p) as [? Heq]; rewrite Heq; simpl.
   replace (x + S x) with (S (2 * x)) by omega.
@@ -674,12 +674,12 @@ Theorem drop_sub : forall sz n k,
   rewrite (mult_comm k).
   rewrite <- mult_assoc.
   rewrite div2_minus_2.
-  reflexivity.  
+  reflexivity.
   rewrite mult_assoc.
   rewrite (mult_comm 2).
   rewrite <- mult_assoc.
   auto.
-  
+
   apply div2_bound.
   rewrite mult_assoc.
   rewrite (mult_comm 2).
@@ -825,7 +825,7 @@ Theorem wminus_inv : forall sz (x : word sz), x ^+ ^~ x = wzero sz.
              let Heq := fresh "Heq" in
                destruct (wordToNat_natToWord sz w) as [? [Heq ?]]; rewrite Heq
          end.
-  
+
   replace (wordToNat x + (pow2 sz - wordToNat x - x0 * pow2 sz))
     with (pow2 sz - x0 * pow2 sz).
   rewrite drop_sub; auto with arith.
@@ -958,11 +958,11 @@ Qed.
 
 Ltac word_neq := apply word_neq; let H := fresh "H" in intro H; simpl in H; ring_simplify in H; try discriminate.
 
-Ltac word_contra := match goal with 
+Ltac word_contra := match goal with
                       | [ H : _ <> _ |- False ] => apply H; ring
-                    end. 
+                    end.
 
-Ltac word_contra1 := match goal with 
+Ltac word_contra1 := match goal with
                        | [ H : _ <> _ |- False ] => apply H;
                          match goal with
                            | _ => ring
@@ -974,13 +974,13 @@ Open Scope word_scope.
 
 (** * Signed Logic **)
 Fixpoint wordToZ sz (w : word sz) : Z :=
-  if wmsb w true then 
+  if wmsb w true then
     (** Negative **)
     match wordToN (wneg w) with
       | N0 => 0%Z
       | Npos x => Zneg x
     end
-  else 
+  else
     (** Positive **)
     match wordToN w with
       | N0 => 0%Z
@@ -1004,7 +1004,7 @@ Notation "w1 '<s' w2" := (@wslt _ w1%word w2%word) (at level 70, arguments at ne
 Notation "w1 '<s=' w2" := (~(@wslt _ w2%word w1%word)) (at level 70, arguments at next level) : word_scope.
 
 Definition wlt_dec : forall sz (l r : word sz), {l < r} + {l >= r}.
-  refine (fun sz l r => 
+  refine (fun sz l r =>
     match Ncompare (wordToN l) (wordToN r) as k return Ncompare (wordToN l) (wordToN r) = k -> _ with
       | Lt => fun pf => left _ _
       | _ => fun pf => right _ _
@@ -1013,7 +1013,7 @@ Definition wlt_dec : forall sz (l r : word sz), {l < r} + {l >= r}.
 Defined.
 
 Definition wslt_dec : forall sz (l r : word sz), {l <s r} + {l >s= r}.
-  refine (fun sz l r => 
+  refine (fun sz l r =>
     match Zcompare (wordToZ l) (wordToZ r) as c return Zcompare (wordToZ l) (wordToZ r) = c -> _ with
       | Lt => fun pf => left _ _
       | _ => fun pf => right _ _
@@ -1042,7 +1042,7 @@ Proof.
   destruct (wordToN a); destruct (wordToN (wtl b0)); try congruence.
   destruct (wordToN (wtl b0)); destruct (wordToN a); inversion H.
   destruct (wordToN (wtl b0)); destruct (wordToN a); inversion H.
-  f_equal. eapply IHa. 
+  f_equal. eapply IHa.
   destruct (wordToN a); destruct (wordToN (wtl b0)); try congruence.
 Qed.
 Lemma unique_inverse : forall sz (a b1 b2 : word sz),
@@ -1062,7 +1062,7 @@ Lemma sub_0_eq : forall sz (a b : word sz),
 Proof.
   intros. destruct (weq (wneg b) (wneg a)).
   transitivity (a ^+ (^~ b ^+ b)).
-  rewrite (wplus_comm (^~ b)). rewrite wminus_inv. 
+  rewrite (wplus_comm (^~ b)). rewrite wminus_inv.
   rewrite wplus_comm. rewrite wplus_unit. auto.
   rewrite e. rewrite wplus_assoc. rewrite wminus_inv. rewrite wplus_unit. auto.
   unfold wminus in H.
@@ -1088,8 +1088,8 @@ Hint Resolve word_neq lt_le eq_le sub_0_eq le_neq_lt : worder.
 Ltac shatter_word x :=
   match type of x with
     | word 0 => try rewrite (shatter_word_0 x) in *
-    | word (S ?N) => 
-      let x' := fresh in 
+    | word (S ?N) =>
+      let x' := fresh in
       let H := fresh in
       destruct (@shatter_word_S N x) as [ ? [ x' H ] ];
       rewrite H in *; clear H; shatter_word x'
@@ -1098,11 +1098,11 @@ Ltac shatter_word x :=
 
 (** Uniqueness of equality proofs **)
 Lemma rewrite_weq : forall sz (a b : word sz)
-  (pf : a = b),  
+  (pf : a = b),
   weq a b = left _ pf.
 Proof.
   intros; destruct (weq a b); try solve [ elimtype False; auto ].
-  f_equal. 
+  f_equal.
   eapply UIP_dec. eapply weq.
 Qed.
 

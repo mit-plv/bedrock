@@ -41,7 +41,7 @@ Module M.
     :: {| Name := "topicsWithSubscribers";
       Address := dbaddr 8;
       Schema := "topic" :: "topic_type" :: nil |}
-    
+
     :: nil.
 
   Definition registerNode := (
@@ -345,7 +345,7 @@ Module M.
       end
     end;;
 
-                               
+
     (** ** Name service and system state *)
 
     (* Get the XML-RPC URI for a node name. *)
@@ -432,7 +432,7 @@ Module M.
           end
       end
     end;;
-  
+
     (* Get the master's URI. *)
     RosCommand "getUri"(!string $"caller_id")
     Do

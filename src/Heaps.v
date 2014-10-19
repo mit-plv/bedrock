@@ -5,7 +5,7 @@ Require Import Word.
 Require Import List.
 
 Module Type Heap.
-  
+
   Parameter addr : Type.
 
   Parameter mem : Type.
@@ -27,12 +27,12 @@ Module Type Heap.
     mem_acc m p \/ ~mem_acc m p.
 
   (** mem writes persist **)
-  Parameter mem_get_set_eq : forall m p v' m', 
+  Parameter mem_get_set_eq : forall m p v' m',
     mem_set m p v' = Some m' ->
     mem_get m' p = Some v'.
 
   (** mem writes don't overwrite elsewhere **)
-  Parameter mem_get_set_neq : forall m p p' v' m', 
+  Parameter mem_get_set_neq : forall m p p' v' m',
     p <> p' ->
     mem_set m p' v' = Some m' ->
     mem_get m' p = mem_get m p.
@@ -43,7 +43,7 @@ Module Type Heap.
     (forall p, mem_acc m p -> mem_acc m' p).
 
   Parameter footprint_w : addr -> addr * addr * addr * addr.
-  
+
   Parameter footprint_disjoint : forall p a b c d,
     footprint_w p = (a,b,c,d) ->
     a <> b /\ a <> c /\ a <> d /\ b <> c /\ b <> d /\ c <> d.
@@ -69,15 +69,15 @@ Module HeapTheory (B : Heap).
   Fixpoint disjoint' dom : smem' dom -> smem' dom -> Prop :=
     match dom with
       | nil => fun _ _ => True
-      | a :: b => fun m1 m2 => 
-           (hlist_hd m1 = None \/ hlist_hd m2 = None) 
+      | a :: b => fun m1 m2 =>
+           (hlist_hd m1 = None \/ hlist_hd m2 = None)
         /\ disjoint' _ (hlist_tl m1) (hlist_tl m2)
     end.
   Fixpoint join' dom : smem' dom -> smem' dom -> smem' dom :=
     match dom with
       | nil => fun _ _ => HNil
-      | a :: b => fun m1 m2 => 
-        HCons 
+      | a :: b => fun m1 m2 =>
+        HCons
         match hlist_hd m1 with
           | None => hlist_hd m2
           | Some x => Some x
@@ -88,25 +88,25 @@ Module HeapTheory (B : Heap).
   Fixpoint relevant' (ls : list addr) : smem' ls -> list addr :=
     match ls with
       | nil => fun _ => nil
-      | a :: b => fun x => 
+      | a :: b => fun x =>
         match hlist_hd x with
           | None => relevant' _ (hlist_tl x)
           | Some _ => a :: relevant' _ (hlist_tl x)
         end
     end.
-  
+
   Fixpoint smem_get' dom : addr -> smem' dom -> option B :=
-    match dom as dom return addr -> smem' dom -> option B with 
+    match dom as dom return addr -> smem' dom -> option B with
       | nil => fun _ _ => None
       | a :: b => fun a' m =>
-        if addr_dec a a' then 
+        if addr_dec a a' then
           hlist_hd m
         else
           smem_get' b a' (hlist_tl m)
     end.
 
   Fixpoint smem_set' dom : addr -> B -> smem' dom -> option (smem' dom) :=
-    match dom as dom return addr -> B -> smem' dom -> option (smem' dom) with 
+    match dom as dom return addr -> B -> smem' dom -> option (smem' dom) with
       | nil => fun _ _ _ => None
       | a :: b => fun p v m =>
         if addr_dec a p then
@@ -127,7 +127,7 @@ Module HeapTheory (B : Heap).
       | HCons p _ a b =>
         match a with
           | None => True
-          | Some x => 
+          | Some x =>
                B.mem_get m p = Some x /\ mem_acc m p
         end /\ satisfies' _ b m
     end.
@@ -154,7 +154,7 @@ Module HeapTheory (B : Heap).
     let '(a,b,c,d) := footprint_w p in
     let '(av,bv,cv,dv) := explode v in
     match smem_set d dv m with
-      | None => None 
+      | None => None
       | Some m => match smem_set c cv m with
                     | None => None
                     | Some m => match smem_set b bv m with
@@ -167,7 +167,7 @@ Module HeapTheory (B : Heap).
   Definition disjoint (m1 m2 : smem) : Prop :=
     disjoint' _ m1 m2.
 
-  Definition join (m1 m2 : smem) : smem := 
+  Definition join (m1 m2 : smem) : smem :=
     join' _ m1 m2.
 
   Definition split (m ml mr : smem) : Prop :=
@@ -196,29 +196,29 @@ Module HeapTheory (B : Heap).
 
   Ltac simp ext :=
     intros; simpl in *;
-    repeat (instantiate; 
+    repeat (instantiate;
       match goal with
         | [ H : prod _ _ |- _ ] => destruct H
-        | [ H : context [ footprint_w ?X ] |- _ ] => 
+        | [ H : context [ footprint_w ?X ] |- _ ] =>
           destruct (footprint_w X)
         | [ H : Some _ = Some _ |- _ ] =>
           inversion H; clear H; try subst
         | [ H : _ = _ |- _ ] => rewrite H in *
         | [ H : NoDup (_ :: _) |- _ ] =>
           inversion H; clear H; subst
-        | [ H : context [ addr_dec ?A ?B ] |- _ ] => 
+        | [ H : context [ addr_dec ?A ?B ] |- _ ] =>
           destruct (addr_dec A B); subst
-        | [ |- context [ addr_dec ?A ?B ] ] => 
+        | [ |- context [ addr_dec ?A ?B ] ] =>
           destruct (addr_dec A B); subst
-        | [ H : match ?X with 
+        | [ H : match ?X with
                   | Some _ => _
                   | None => _
-                end = _ |- _ ] => 
+                end = _ |- _ ] =>
           generalize dependent H; case_eq X; intros
-        | [ H : match ?X with 
+        | [ H : match ?X with
                   | Some _ => _
                   | None => _
-                end |- _ ] => 
+                end |- _ ] =>
           generalize dependent H; case_eq X; intros
         | [ H : satisfies' (_ :: _) ?M _ |- _ ] =>
           match M with
@@ -230,7 +230,7 @@ Module HeapTheory (B : Heap).
             | HCons _ _ => fail 1
             | _ => rewrite (hlist_eta _ M)
           end
-        | [ H : smem' nil |- _ ] => 
+        | [ H : smem' nil |- _ ] =>
           rewrite (hlist_nil_only _ H) in *
         | [ H : exists x, _ |- _ ] => destruct H
         | [ H : _ /\ _ |- _ ] => destruct H
@@ -240,12 +240,12 @@ Module HeapTheory (B : Heap).
 
   Theorem satisfies_get : forall m m',
     satisfies m m' ->
-    forall p v, 
+    forall p v,
       smem_get p m = Some v ->
       mem_get m' p = Some v.
   Proof.
     unfold satisfies, smem_get, smem.
-    induction all_addr; simp intuition. 
+    induction all_addr; simp intuition.
   Qed.
 
   Lemma satisfies_set_not_in : forall l m sm p v,
@@ -258,7 +258,7 @@ Module HeapTheory (B : Heap).
       simp auto.
       destruct (addr_dec a p); destruct (in_dec addr_dec p l); subst; try solve [ intuition ].
 
-      split; eauto. erewrite mem_get_set_neq; eauto. 
+      split; eauto. erewrite mem_get_set_neq; eauto.
       split; eauto. eapply mem_set_perm; eauto.
   Qed.
 
@@ -274,7 +274,7 @@ Module HeapTheory (B : Heap).
     unfold satisfies, smem_set, smem_get, smem, relevant.
     generalize NoDup_all_addr.
     induction all_addr; simp auto.
-      destruct (proj1 (mem_set_acc _ _) H2 v). rewrite H3. eexists; split; eauto.        
+      destruct (proj1 (mem_set_acc _ _) H2 v). rewrite H3. eexists; split; eauto.
       erewrite mem_get_set_eq; eauto with memory.
 
       Focus.
@@ -288,7 +288,7 @@ Module HeapTheory (B : Heap).
 
   Theorem satisfies_get_word : forall i m m',
     satisfies m m' ->
-    forall p v, 
+    forall p v,
       smem_get_word i p m = Some v ->
       mem_get_word addr mem footprint_w mem_get i p m' = Some v.
   Proof.
@@ -349,13 +349,13 @@ Module HeapTheory (B : Heap).
     forall e p v sm',
       smem_set_word e p v sm = Some sm' ->
       exists m',
-           mem_set_word addr mem footprint_w mem_set e p v m = Some m' 
+           mem_set_word addr mem footprint_w mem_set e p v m = Some m'
         /\ satisfies sm' m'.
   Proof.
     unfold smem_set_word, mem_set_word, smem_get_word; intros.
     simp intuition. destruct (e v); simp intuition.
     repeat match goal with
-             | [ H : satisfies _ _ |- _ ] => 
+             | [ H : satisfies _ _ |- _ ] =>
                eapply satisfies_set in H; eauto; destruct H as [ ? [ ? ? ] ]
              | [ H : _ = _ |- _ ] => rewrite H
            end.
@@ -386,7 +386,7 @@ Module HeapTheory (B : Heap).
     disjoint a b ->
     forall p v a',
     smem_set p v a = Some a' ->
-      disjoint a' b /\ 
+      disjoint a' b /\
       smem_set p v (join a b) = Some (join a' b).
   Proof.
     unfold smem, disjoint, join, smem_set, smem.
@@ -407,11 +407,11 @@ Module HeapTheory (B : Heap).
     disjoint a b ->
     forall i p v a',
     smem_set_word i p v a = Some a' ->
-      disjoint a' b /\ 
+      disjoint a' b /\
       smem_set_word i p v (join a b) = Some (join a' b).
   Proof.
     unfold smem_set_word.
-    intros. destruct (i v); simp fail. 
+    intros. destruct (i v); simp fail.
     repeat match goal with
       | [ H : smem_set _ _ _ = Some _ |- _ ] =>
         eapply split_set in H; [ rewrite (proj2 H) | eauto ]
@@ -419,7 +419,7 @@ Module HeapTheory (B : Heap).
   Qed.
 
   Ltac unfold_all :=
-    unfold smem, split, join, disjoint, smem_emp, semp; 
+    unfold smem, split, join, disjoint, smem_emp, semp;
     unfold smem, split, join, disjoint, smem_emp, semp.
   Ltac break :=
     simpl; intros; try reflexivity;
@@ -427,20 +427,20 @@ Module HeapTheory (B : Heap).
                             | [ H : HCons _ _ = HCons _ _ |- _ ] =>
                               inversion H; clear H
                             | [ H : _ /\ _ |- _ ] => destruct H
-                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] => 
+                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] =>
                               eapply (@Eqdep_dec.inj_pair2_eq_dec _ (list_eq_dec B.addr_dec)) in H
-                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] => 
+                            | [ H : @existT _ _ _ _ = @existT _ _ _ _ |- _ ] =>
                               eapply (@Eqdep_dec.inj_pair2_eq_dec _ B.addr_dec) in H
                             | [ H : _ = _ |- _ ] => rewrite H in *
                           end).
-  
+
   Lemma disjoint_join : forall a b, disjoint a b -> join a b = join b a.
   Proof.
     unfold_all; induction a; break; f_equal; intuition; subst.
       destruct (hlist_hd b0); reflexivity.
       rewrite H1. destruct b; reflexivity.
   Qed.
-    
+
   Lemma disjoint_comm : forall ml mr, disjoint ml mr -> disjoint mr ml.
   Proof.
     unfold_all; induction ml; break; intuition.
@@ -461,7 +461,7 @@ Module HeapTheory (B : Heap).
   Lemma split_comm : forall ml m mr, split m ml mr -> split m mr ml.
   Proof.
     unfold_all. induction ml; break; eauto. edestruct IHml.
-    split; try eassumption. reflexivity. 
+    split; try eassumption. reflexivity.
     intuition; subst. rewrite H3. destruct (hlist_hd mr); auto.
     rewrite H4. rewrite H3. destruct b; auto.
   Qed.
@@ -496,19 +496,19 @@ Module HeapTheory (B : Heap).
   Qed.
   Lemma hlist_nil : forall T (F : T -> Type) (m : hlist F nil), m = HNil.
   Proof.
-    intros. 
+    intros.
     refine (match m as m in hlist _ ls return
               match ls as ls return hlist _ ls -> Type with
                 | nil => fun m => m = HNil
                 | _ :: _ => fun _ => unit
               end m
               with
-              | HNil => _ 
+              | HNil => _
               | _ => tt
             end). reflexivity.
   Qed.
 
-  Lemma split_semp : forall b a c, 
+  Lemma split_semp : forall b a c,
     split a b c -> semp b -> a = c.
   Proof.
     unfold_all. unfold semp, smem_emp. unfold_all.
@@ -525,12 +525,12 @@ Module HeapTheory (B : Heap).
     unfold semp, smem_emp; auto.
   Qed.
 
-  Lemma split_a_semp_a : forall a, 
+  Lemma split_a_semp_a : forall a,
     split a smem_emp a.
   Proof.
     unfold_all. induction a; simpl; intuition. rewrite <- H0. reflexivity.
   Qed.
-     
+
   Lemma cons_not_in : forall T (a : T) b ls,
     a :: b = ls ->
     ~ In a ls ->
@@ -538,7 +538,7 @@ Module HeapTheory (B : Heap).
   Proof.
     intros; subst. exfalso; eapply H0. firstorder.
   Qed.
-  
+
   Lemma relevant_in : forall a l b,
     In a (relevant' l b) ->
     In a l.
@@ -579,7 +579,7 @@ Module HeapTheory (B : Heap).
 
         eapply cons_not_in. symmetry. eassumption.
         eapply relevant_not_in. inversion H; auto.
-        
+
         f_equal; eauto. inversion H. eapply IHl; eauto.
   Qed.
 
@@ -588,10 +588,10 @@ Module HeapTheory (B : Heap).
     Variable m : mem.
 
     Fixpoint memoryIn' (ls : list addr) : smem' ls :=
-      match ls with 
+      match ls with
         | nil => HNil
         | l :: ls => HCons (mem_get m l) (memoryIn' ls)
-      end. 
+      end.
 
     Definition memoryIn : smem := memoryIn' all_addr.
   End memoryIn.
@@ -619,17 +619,17 @@ Module HeapTheory (B : Heap).
     destruct (footprint_w p) as [ [ [ ? ? ] ? ] ? ].
     destruct (ex v) as [ [ [ ? ? ] ? ] ? ].
     repeat match goal with
-             | [ H : match ?X with 
+             | [ H : match ?X with
                        | Some _ => _
-                       | None => _ 
+                       | None => _
                      end = Some _ |- _ ] => revert H; case_eq X; intros; try congruence
-             | [ H : smem_set _ _ _ = Some _ |- _ ] => 
+             | [ H : smem_set _ _ _ = Some _ |- _ ] =>
                eapply smem_set_relevant in H
            end.
     congruence.
   Qed.
 
-  Theorem satisfies_memoryIn : forall m, 
+  Theorem satisfies_memoryIn : forall m,
     satisfies (memoryIn m) m.
   Proof.
     unfold satisfies, memoryIn. generalize all_addr.

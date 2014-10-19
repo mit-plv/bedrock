@@ -74,25 +74,25 @@ Module Make (Import E : ADT).
       firstorder cito'; auto.
 
   Ltac solve_vcs vcs_good :=
-    match goal with 
-      | |- and_all _ _ => eapply vcs_good 
-      | |- _ => idtac 
+    match goal with
+      | |- and_all _ _ => eapply vcs_good
+      | |- _ => idtac
     end.
 
-  Ltac cito_runsto f pre vcs_good := 
+  Ltac cito_runsto f pre vcs_good :=
     intros;
     match goal with
-      | [ H : _ |- _ ] => 
+      | [ H : _ |- _ ] =>
         unfold f, Body, Core in H;
-          eapply sound_runsto' with (p := pre) (s := Body f) in H; 
+          eapply sound_runsto' with (p := pre) (s := Body f) in H;
           solve_vcs vcs_good
           ; simpl in *;
           auto; openhyp; subst; simpl in *; unfold pre, and_lift, or_lift in *; openhyp
     end.
 
-  Ltac cito_safe f pre vcs_good := 
+  Ltac cito_safe f pre vcs_good :=
     intros;
-    unfold f, Body, Core; eapply sound_safe with (p := pre); 
+    unfold f, Body, Core; eapply sound_safe with (p := pre);
     solve_vcs vcs_good
     ; simpl in *; try unfold pre in *; unfold pre, imply_close, and_lift in *; simpl in *;
     auto; openhyp; subst; simpl in *.

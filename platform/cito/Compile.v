@@ -123,7 +123,7 @@ Qed.
 
 Hint Extern 1 (safe_access _ _ _) => apply safe_access_singletonArray; [ simpl; omega | reflexivity ].
 
-Ltac RunsTo0 := 
+Ltac RunsTo0 :=
   match goal with
     | [ H : RunsTo _ _ ?E _ |- _ ] =>
       match E with

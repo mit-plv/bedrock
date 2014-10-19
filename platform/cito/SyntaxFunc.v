@@ -5,7 +5,7 @@ Require Import String.
 Require Import FuncCore.
 Export Syntax FuncCore.
 
-Record Func := 
+Record Func :=
   {
     Name : string;
     Core : FuncCore

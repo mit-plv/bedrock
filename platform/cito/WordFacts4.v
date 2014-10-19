@@ -11,7 +11,7 @@ Require Import Arith.
 Lemma S_minus: forall n, n<>0->S(n-1)=n.
   induction n; simpl; intuition.
 Qed.
-Lemma not0: forall (j i:W), i<j -> wordToNat j <> 0. 
+Lemma not0: forall (j i:W), i<j -> wordToNat j <> 0.
   intros. contradict H. nomega.
 Qed.
 Local Hint Resolve not0: list_ineq.
@@ -65,7 +65,7 @@ Lemma word_minus: forall w:W, (exists j:W, j < w)
   intros.
   destruct H.
   destruct_all_words.
-  rewrite wordToNat_wminus; nomega.  
+  rewrite wordToNat_wminus; nomega.
 Qed.
 
 Lemma minus_plus_one: forall x:W, (exists j:W, j < x)
@@ -108,8 +108,8 @@ Lemma plus1_S : forall n, n + 1 = S n.
 Qed.
 Hint Rewrite plus1_S: N.
 
-Hint Rewrite roundTrip_1: N. 
-Lemma plus_minus_plus_ineq: forall i j x : W, 
+Hint Rewrite roundTrip_1: N.
+Lemma plus_minus_plus_ineq: forall i j x : W,
                               j < x -> i < j
                               -> i ^+ $1 <= j ^- $1 ^+ $1.
   intros; nomega.

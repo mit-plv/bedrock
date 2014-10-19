@@ -84,7 +84,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Ltac incl_tran_cons := eapply incl_tran; [ | eassumption ]; intuition.
 
     Require Import StringSetTactics.
-    
+
     Notation to_set := StringSetFacts.of_list.
 
     Notation get_module_Exports := (LinkSpecMake2.module_exports modules imports).
@@ -252,7 +252,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       symmetry.
       eapply Disjoint_after_diff.
     Qed.
-    
+
     Lemma Compat_exports_total_exports : forall m, List.In m modules -> Compat (get_module_Exports m) total_exports.
       intros.
       eapply Compat_exports_many_exports; eauto.
@@ -395,14 +395,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply compat_imports_many_imports; eauto.
     Qed.
 
-    Lemma combine_imports_exports : 
-      forall a ms, 
-        incl (a :: ms) modules -> 
-        List.NoDup (List.map MName (a :: ms)) -> 
+    Lemma combine_imports_exports :
+      forall a ms,
+        incl (a :: ms) modules ->
+        List.NoDup (List.map MName (a :: ms)) ->
         update_all (List.map get_module_Imports ms) -
         update_all (List.map get_module_Exports ms) - get_module_Exports a +
         (get_module_Imports a - update_all (List.map get_module_Exports ms)) ==
-        get_module_Imports a + 
+        get_module_Imports a +
         update_all (List.map get_module_Imports ms) -
         (get_module_Exports a + update_all (List.map get_module_Exports ms)).
       intros.
@@ -592,8 +592,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition link_all ls := fold_right_2 link dummy ls.
 
-    Lemma link_all_ok : 
-      forall (ms : list GoodModule), 
+    Lemma link_all_ok :
+      forall (ms : list GoodModule),
         let linked := link_all (List.map do_make_module ms) in
         let module_names := List.map MName ms in
         let linked_module_names := to_set module_names in
@@ -675,7 +675,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite make_module_Imports by intuition.
       eapply to_blm_Compat.
       eapply compat_imports_imports with (ms := g :: ms); eauto.
-      
+
       rewrite H3.
       rewrite make_module_Modules by intuition.
       repeat setoid_rewrite of_list_cons.

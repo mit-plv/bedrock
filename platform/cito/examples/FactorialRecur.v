@@ -25,7 +25,7 @@ Definition body := (
 
 Definition f := (
   cfunction "fact"("n")
-    body            
+    body
   end
 )%Citofuncs.
 
@@ -89,7 +89,7 @@ Definition fact_spec : ForeignFuncSpec :=
 
 Definition specs := add ("fact", "fact") (Foreign fact_spec) (empty _).
 
-Definition change_fs (fs : settings -> W -> option Callee) : settings -> W -> option Callee := 
+Definition change_fs (fs : settings -> W -> option Callee) : settings -> W -> option Callee :=
   fun stn w =>
     match fs stn w with
       | Some (Semantics.Internal _) => Some (Foreign fact_spec)
@@ -303,7 +303,7 @@ Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (B
   eapply lt0_true in H3.
   eauto.
   eauto.
-  
+
 Qed.
 
 Lemma body_safe' : forall env v, specs_env_agree specs env -> Safe env (Body f) v.

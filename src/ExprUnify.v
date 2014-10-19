@@ -17,7 +17,7 @@ Module Type SynUnifier.
 
   Section typed.
     Variable types : list type.
-    
+
     (** Predicates **)
     Parameter Subst_WellTyped : tfunctions -> tenv -> tenv -> Subst types -> Prop.
 
@@ -44,15 +44,15 @@ Module Type SynUnifier.
 
     (** The actual unification algorithm **)
     Parameter exprUnify : nat -> expr types -> expr types -> Subst types -> option (Subst types).
-    
+
     (** Substitute meta variables **)
     Parameter exprInstantiate : Subst types -> expr types -> expr types.
 
     Axiom exprInstantiate_WellTyped : forall funcs U G sub,
       Subst_WellTyped funcs U G sub ->
-      forall e t, 
+      forall e t,
         is_well_typed funcs U G e t = is_well_typed funcs U G (exprInstantiate sub e) t.
-    
+
     Axiom exprInstantiate_Extends : forall x y,
       Subst_Extends x y ->
       forall t, exprInstantiate x (exprInstantiate y t) = exprInstantiate x t.
@@ -89,10 +89,10 @@ Module Type SynUnifier.
                                      | Some v => v
                                    end.
 
-    Axiom exprInstantiate_Var : forall a x, 
+    Axiom exprInstantiate_Var : forall a x,
       exprInstantiate a (Var x) = Var x.
 
-    Axiom exprInstantiate_Const : forall a t v, 
+    Axiom exprInstantiate_Const : forall a t v,
       exprInstantiate a (@Const types t v) = (@Const types t v).
 
     (** This is the soundness statement. **)
@@ -121,7 +121,7 @@ Module Type SynUnifier.
       is_well_typed funcs U G e t = true.
 
     (** Semantics interpretation of substitutions **)
-    Parameter Subst_equations : 
+    Parameter Subst_equations :
       forall (funcs : functions types) (U G : env types), Subst types -> Prop.
 
     Axiom Subst_equations_exprInstantiate : forall funcs U G e t sub,
@@ -139,7 +139,7 @@ Module Type SynUnifier.
 
     (** An incremental version of Subst_equations **)
     Section Subst_equations_to.
-      Variable funcs : functions types. 
+      Variable funcs : functions types.
       Variables uenv venv : env types.
       Variable subst : Subst types.
 
@@ -153,16 +153,16 @@ Module Type SynUnifier.
                             | None => False
                             | Some v => projT2 l = v
                           end
-            end /\ Subst_equations_to (S from) ls 
+            end /\ Subst_equations_to (S from) ls
         end.
 
-      Axiom Subst_equations_to_Subst_equations : 
+      Axiom Subst_equations_to_Subst_equations :
         Subst_WellTyped (typeof_funcs funcs) (typeof_env uenv) (typeof_env venv) subst ->
         Subst_equations_to 0 uenv ->
         Subst_equations funcs uenv venv subst.
 
     End Subst_equations_to.
-        
+
   End typed.
 End SynUnifier.
 
@@ -172,9 +172,9 @@ Inductive R_expr (ts : list type) : expr ts -> expr ts -> Prop :=
 | R_Not    : forall e, R_expr e (Not e)
 | R_Func   : forall f args arg,
   In arg args -> R_expr arg (Func f args).
-  
+
 Lemma wf_R_expr' ts : well_founded (@R_expr ts).
-Proof.  
+Proof.
   red; induction a; constructor; inversion 1; try assumption.
 
   subst. clear H0. generalize dependent y. generalize dependent l. clear.
@@ -255,10 +255,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Section Normalization.
       Variable ctx : FM.t (expr types).
-            
+
       Fixpoint normalized (e : expr types) : bool :=
         match e with
-          | Var _ 
+          | Var _
           | Const _ _ => true
           | UVar x => match FM.find x ctx with
                         | None => true
@@ -279,10 +279,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { this : FM.t (expr types) & WellFormed this }.
 
     Definition Subst_WellTyped (funcs : tfunctions) (U G : tenv) (s : Subst) : Prop :=
-      forall k v, FM.MapsTo k v (projT1 s) -> 
+      forall k v, FM.MapsTo k v (projT1 s) ->
         exists t, nth_error U k = Some t /\ is_well_typed funcs U G v t = true.
 
-    Definition subst_empty : FM.t (expr types) := FM.empty _. 
+    Definition subst_empty : FM.t (expr types) := FM.empty _.
 
     Theorem WF_subst_empty : WellFormed subst_empty.
       red; unfold subst_empty; intros. apply FACTS.empty_mapsto_iff in H. exfalso; auto.
@@ -300,7 +300,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Definition subst_lookup (k : nat) (s : FM.t (expr types)) : option (expr types) :=
       FM.find k s.
-    
+
     Definition Subst_lookup k (s : Subst) : option (expr types) :=
       subst_lookup k (projT1 s).
 
@@ -320,7 +320,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         change k with (fst (k,x)). eapply in_map. eapply SetoidList.InA_alt in H2. destruct H2.
         destruct H2. destruct x0. inversion H2. simpl in *; subst. auto. }
       { intros. apply in_map_iff in H. destruct H. destruct x; intuition; subst. exists e.
-        apply FACTS.find_mapsto_iff. apply FACTS.elements_mapsto_iff. 
+        apply FACTS.find_mapsto_iff. apply FACTS.elements_mapsto_iff.
         eapply SetoidList.InA_alt. exists (k0,e). simpl. intuition auto. reflexivity. }
     Qed.
 
@@ -334,11 +334,11 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Variable sub : FM.t (expr types).
 
       Fixpoint subst_exprInstantiate (e : expr types) : expr types :=
-        match e with 
-          | Const _ _ 
+        match e with
+          | Const _ _
           | Var _ => e
           | UVar n => match subst_lookup n sub with
-                        | None => e 
+                        | None => e
                         | Some v => v
                       end
           | Func f args => Func f (map subst_exprInstantiate args)
@@ -346,7 +346,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
           | Not e => Not (subst_exprInstantiate e)
         end.
     End Instantiate.
-    
+
     Definition exprInstantiate (sub : Subst) := subst_exprInstantiate (projT1 sub).
 
     Section Subst_equations.
@@ -368,7 +368,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Definition Subst_Equal (l r : Subst) : Prop :=
       FM.Equal (projT1 l) (projT1 r).
 
-    Local Ltac think := 
+    Local Ltac think :=
       unfold subst_lookup in *; simpl in *; intros;
       repeat (match goal with
                 | [ H : _ && _ = true |- _ ] =>
@@ -412,7 +412,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       }
     Qed.
 
-    Definition subst_set (k : nat) (v : expr types) (s : FM.t (expr types)) 
+    Definition subst_set (k : nat) (v : expr types) (s : FM.t (expr types))
       : option (FM.t (expr types)) :=
       let v' := subst_exprInstantiate s v in
       if mentionsU k v'
@@ -421,7 +421,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
            let s := FM.map (subst_exprInstantiate s) s in
            Some s.
 
-    
+
     Lemma wf_instantiate_normalized : forall s e,
       WellFormed s ->
       normalized s (subst_exprInstantiate s e) = true.
@@ -441,7 +441,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       mentionsU k e = false ->
       subst_exprInstantiate (FM.add k e' s) e = subst_exprInstantiate s e.
     Proof.
-      induction e; simpl; intros; think; auto. 
+      induction e; simpl; intros; think; auto.
       { f_equal. revert H0. induction H; simpl; intros; think; auto. }
     Qed.
 
@@ -449,9 +449,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       normalized (FM.map F s) e = normalized s e.
     Proof.
       induction e; simpl; intros; think; auto.
-        generalize true. induction H; simpl; intros; think; auto. 
+        generalize true. induction H; simpl; intros; think; auto.
     Qed.
-    
+
     Lemma normalized_add : forall k v s e,
       mentionsU k e = false ->
       normalized (FM.add k v s) e = normalized s e.
@@ -465,10 +465,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         subst_exprInstantiate s v = v.
     Proof.
       induction v; simpl; auto.
-        { unfold subst_lookup. destruct (FM.find x s); auto; congruence. }          
+        { unfold subst_lookup. destruct (FM.find x s); auto; congruence. }
         { generalize true at 1. intros. f_equal. generalize dependent l.
           induction 1; simpl; intros; auto.
-          apply andb_true_iff in H1. intuition. f_equal; eauto. }            
+          apply andb_true_iff in H1. intuition. f_equal; eauto. }
         { intros. apply andb_true_iff in H; f_equal; firstorder. }
         { intros; f_equal; auto. }
     Qed.
@@ -516,7 +516,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Lemma Subst_set_unroll : forall u E sub sub',
       Subst_set u E sub = Some sub' ->
       mentionsU u (exprInstantiate sub E) = false /\
-      projT1 sub' = 
+      projT1 sub' =
         (FM.map
           (subst_exprInstantiate
             (FM.add u (exprInstantiate sub E) (projT1 sub)))
@@ -528,7 +528,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       end.
       simpl in *.
       generalize (subst_set u E (projT1 sub)) at 2 3. destruct o; intros; try congruence.
-      unfold subst_set in *. 
+      unfold subst_set in *.
       inversion H; clear H; subst. simpl in *.
       unfold exprInstantiate.
       destruct (mentionsU u (subst_exprInstantiate (projT1 sub) E)); try congruence.
@@ -546,7 +546,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 *)
 
     Definition Subst_Extends (l r : Subst) : Prop :=
-      forall k v, FM.MapsTo k v (projT1 r) -> 
+      forall k v, FM.MapsTo k v (projT1 r) ->
         FM.MapsTo k (exprInstantiate l v) (projT1 l).
 
     Theorem Equiv_Subst_Equal : RelationClasses.Equivalence Subst_Equal.
@@ -555,10 +555,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         reflexivity.
         symmetry; auto.
         etransitivity; eauto.
-    Qed.    
+    Qed.
 
     Lemma normalized_Lt' : forall s s' v,
-      normalized (projT1 s) v = true -> 
+      normalized (projT1 s) v = true ->
       Subst_Extends s s' ->
       normalized (projT1 s') v = true.
     Proof.
@@ -572,7 +572,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         apply andb_true_iff in H2. apply andb_true_iff. intuition. }
       { apply andb_true_iff. apply andb_true_iff in H. intuition. }
     Qed.
-    
+
     Lemma exprInstantiate_Extends : forall x y,
       Subst_Extends x y ->
       forall t, exprInstantiate x (exprInstantiate y t) = exprInstantiate x t.
@@ -590,7 +590,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Qed.
 
     Lemma normalized_Lt : forall s s' w w' v,
-      normalized s' v = true -> 
+      normalized s' v = true ->
       Subst_Extends (@existT _ _ s' w') (@existT _ _ s w) ->
       normalized s v = true.
     Proof.
@@ -638,7 +638,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
 
 
-    (** Unification **) 
+    (** Unification **)
     Section fold_in.
       Variable LS : list (expr types).
       Variable F : forall (l r : expr types), Subst -> In l LS -> option Subst.
@@ -661,7 +661,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     End fold_in.
 
-    Definition exprUnify_recursor bound_l 
+    Definition exprUnify_recursor bound_l
       (recur : forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b bound_l -> expr types -> Subst -> option Subst)
       (r : expr types) (sub : Subst) : option Subst.
     refine (
@@ -670,7 +670,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         -> option Subst
         with
         | (bound,l) =>
-          match l as l , r as r 
+          match l as l , r as r
             return (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound, l) -> expr types -> Subst -> option Subst)
             -> option Subst
             with
@@ -684,8 +684,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                              end v'
                 | right _ => None
               end
-            | Var v , Var v' => fun _ => 
-              if Peano_dec.eq_nat_dec v v' 
+            | Var v , Var v' => fun _ =>
+              if Peano_dec.eq_nat_dec v v'
                 then Some sub
                 else None
             | Func f1 args1 , Func f2 args2 => fun recur =>
@@ -702,16 +702,16 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   None
             | Not e1 , Not e2 => fun recur =>
               recur (bound,e1) _ e2 sub
-            | UVar l , UVar r => 
+            | UVar l , UVar r =>
               if EqNat.beq_nat l r then fun _ => Some sub
-              else 
+              else
                 match Subst_lookup l sub with
                   | None => fun _ => Subst_set l (UVar r) sub
                   | Some l' =>
                     match Subst_lookup r sub with
                       | None => fun _ => Subst_set r l' sub
                       | Some r' =>
-                        match bound as bound return 
+                        match bound as bound return
                           (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,UVar l) -> expr types -> Subst -> option Subst)
                           -> option Subst with
                           | 0 => fun _ => None
@@ -724,7 +724,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | None => fun recur =>
                   Subst_set u r sub
                 | Some l' =>
-                  match bound as bound return 
+                  match bound as bound return
                     (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,UVar u) -> expr types -> Subst -> option Subst)
                     -> option Subst with
                     | 0 => fun _ => None
@@ -736,7 +736,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | None => fun recur =>
                   Subst_set u l sub
                 | Some r' =>
-                  match bound as bound return 
+                  match bound as bound return
                     (forall a_b, R_pair GenRec.R_nat (@R_expr types) a_b (bound,l) -> expr types -> Subst -> option Subst)
                     -> option Subst with
                     | 0 => fun _ => None
@@ -744,7 +744,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   end
               end
             | _ , _ => fun _ => None
-          end 
+          end
       end recur
     ); try solve [ apply GenRec.L ; constructor | apply GenRec.R ; constructor; assumption ].
     Defined.
@@ -763,10 +763,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Variable R : A -> A -> Prop.
       Hypothesis Rwf : well_founded R.
       Variable P : A -> Type.
-      
+
       Variable equ : forall x, P x -> P x -> Prop.
       Hypothesis equ_Equiv : forall x, RelationClasses.Equivalence (@equ x).
-      
+
       Variable F : forall x : A, (forall y : A, R y x -> P y) -> P x.
 
       Lemma Fix_F_equ : forall (x : A) (r : Acc R x),
@@ -777,7 +777,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         simpl in *. reflexivity.
       Qed.
 
-      Lemma Fix_F_inv_equ : 
+      Lemma Fix_F_inv_equ :
         (forall (x : A) (f g : forall y : A, R y x -> P y),
           (forall (y : A) (p : R y x), equ (@f y p) (g y p)) -> equ (@F x f) (@F x g)) ->
         forall (x : A) (r s : Acc R x), equ (Fix_F P F r) (Fix_F P F s).
@@ -814,10 +814,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         exprUnify_recursor).
       clear. intros.
       unfold exprUnify_recursor. destruct x. destruct e; destruct a; auto;
-      repeat match goal with 
+      repeat match goal with
                | _ => reflexivity
                | [ H : _ |- _ ] => rewrite H
-               | [ |- context [ match ?X with 
+               | [ |- context [ match ?X with
                                   | _ => _
                                 end ] ] => destruct X
              end.
@@ -835,13 +835,13 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             (R R_nat (R_expr (ts:=types)) n l1 (Func f0 l) (R_Func f0 l l1 pf))
             r0 s) l' l0 b i).
       induction l'; simpl in *; intros; auto.
-      destruct l1; auto. 
+      destruct l1; auto.
       rewrite H. destruct (g (n, a)); auto.
       eapply H0.
     Qed.
 
     Theorem exprUnify_unroll : forall bound l r sub,
-      exprUnify bound l r sub = 
+      exprUnify bound l r sub =
       match l , r with
         | Const t v , Const t' v' =>
           match equiv_dec t t' with
@@ -853,8 +853,8 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                          end v'
             | right _ => None
           end
-        | Var v , Var v' => 
-          if Peano_dec.eq_nat_dec v v' 
+        | Var v , Var v' =>
+          if Peano_dec.eq_nat_dec v v'
             then Some sub
             else None
         | Func f1 args1 , Func f2 args2 =>
@@ -871,9 +871,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
               None
         | Not e1, Not e2 =>
           exprUnify bound e1 e2 sub
-        | UVar l , UVar r => 
+        | UVar l , UVar r =>
           if EqNat.beq_nat l r then Some sub
-            else 
+            else
               match Subst_lookup l sub with
                 | None => Subst_set l (UVar r) sub
                 | Some l' =>
@@ -924,10 +924,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       destruct l; destruct r; simpl; intros; auto;
         try solve [
           repeat match goal with
-                   | [ |- context [ match ?X with 
-                                      | _ => _ 
+                   | [ |- context [ match ?X with
+                                      | _ => _
                                     end ] ] => destruct X
-                 end; try solve [ auto | 
+                 end; try solve [ auto |
                    unfold exprUnify, Fix ;
                      eapply exprUnify_recursor_inv; eauto ] ].
       Focus 2.
@@ -935,9 +935,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       unfold exprUnify, Fix.
       erewrite exprUnify_recursor_inv; eauto.
       instantiate (1 := (guard 4 (wf_R_pair wf_R_nat (wf_R_expr (ts:=types))) (bound, l1))).
-      match goal with 
-        | [ |- match ?X with 
-                 | _ => _ 
+      match goal with
+        | [ |- match ?X with
+                 | _ => _
                end = _ ] => destruct X
       end; auto.
       erewrite exprUnify_recursor_inv; eauto.
@@ -955,7 +955,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             @Fix_F _ _ (fun _ : nat * expr types => expr types -> Subst -> option Subst)
             exprUnify_recursor (bound, l1) (@Acc_inv (nat * expr types)
               (@R_pair nat (expr types) R_nat (@R_expr types))
-              (bound, @Func types f l) (w (bound, @Func types f l)) 
+              (bound, @Func types f l) (w (bound, @Func types f l))
               (bound, l1)
               (@R nat (expr types) R_nat (@R_expr types) bound l1
                 (@Func types f l) (@R_Func types f l l1 pf))) r0 s) l' l0 sub i =
@@ -982,7 +982,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       unfold exprInstantiate. rewrite subst_exprInstantiate_idem; auto. destruct sub; auto.
     Qed.
 
-    Lemma adf : forall (k : nat) (v : expr types) (x : FM.t (expr types)) 
+    Lemma adf : forall (k : nat) (v : expr types) (x : FM.t (expr types))
      (k0 : FM.key) (v0 : expr types),
      mentionsU k (subst_exprInstantiate x v) = false ->
      ~ FM.E.eq k k0 ->
@@ -1012,7 +1012,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       match goal with
         | [ |- context [ eq_refl ?X ] ] => generalize (eq_refl X)
       end.
-      generalize (subst_set k v (projT1 sub)) at 2 3. intro. 
+      generalize (subst_set k v (projT1 sub)) at 2 3. intro.
       destruct o; intros; try congruence.
         inversion H; clear H; subst.
         destruct sub. unfold Subst_Extends, Subst_lookup, subst_set, exprInstantiate in *; simpl in *.
@@ -1020,7 +1020,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         think. apply FACTS.map_mapsto_iff. case_eq (FM.E.eq_dec k k0); intros.
           rewrite e in H0. exfalso. eapply FACTS.not_find_in_iff in H0. eapply H0. eexists. eapply H2.
 
-          exists v0. split. 
+          exists v0. split.
           2: eapply FACTS.add_mapsto_iff; right; split; eauto.
 
           eapply adf; eauto.
@@ -1040,7 +1040,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         inversion H; eapply Refl_Subst_Extends.
 
       revert H1; case_eq (exprUnify b x e sub); try congruence; intros.
-      eapply Trans_Subst_Extends; eauto. 
+      eapply Trans_Subst_Extends; eauto.
     Qed.
 
     Theorem exprUnify_Extends : forall n l r sub sub',
@@ -1048,17 +1048,17 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_Extends sub' sub.
     Proof.
       induction n; induction l; intros; rewrite exprUnify_unroll in *; destruct r; simpl in *;
-        try solve [ 
+        try solve [
           repeat (congruence || eauto ||
               solve [ eapply Subst_set_Extends; eauto |
                       eapply Trans_Subst_Extends; eauto |
                       apply Refl_Subst_Extends |
                   eapply fold_left_2_opt_exprUnify_Extends'; eauto ] ||
               match goal with
-                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                | [ H : Equivalence.equiv _ _ |- _ ] =>
                   unfold Equivalence.equiv in H; subst
                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (exprUnify A B C D); intros
                 | [ H : match ?X with _ => _ end = _ |- _ ] => revert H; case_eq X; intros
               end) ].
@@ -1087,7 +1087,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Lemma exprInstantiate_extends : forall sub sub' l r,
       exprInstantiate sub l = exprInstantiate sub r ->
-      Subst_Extends sub' sub -> 
+      Subst_Extends sub' sub ->
       exprInstantiate sub' l = exprInstantiate sub' r.
     Proof.
       intros.
@@ -1105,7 +1105,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       map (exprInstantiate sub') l = map (exprInstantiate sub') l0.
     Proof.
       intros.
-      generalize dependent l0. revert sub; revert sub'. 
+      generalize dependent l0. revert sub; revert sub'.
       induction H0; simpl in *; intros; destruct l0; simpl in *; try congruence; auto.
       revert H1. case_eq (exprUnify n x e sub); intros; try congruence.
       f_equal; eauto using exprInstantiate_extends, exprUnify_Extends, fold_left_2_opt_exprUnify_Extends.
@@ -1113,7 +1113,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
 
     Lemma Subst_set_exprInstantiate : forall x e sub sub',
       Subst_set x e sub = Some sub' ->
-      Subst_lookup x sub = None -> 
+      Subst_lookup x sub = None ->
       exprInstantiate sub' (UVar x) = exprInstantiate sub' e.
     Proof.
       unfold Subst_set, Subst_lookup, exprInstantiate; simpl; intros;
@@ -1158,31 +1158,31 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                                      | Some v => v
                                    end.
     Proof. reflexivity. Qed.
-    Lemma exprInstantiate_Var : forall a x, 
+    Lemma exprInstantiate_Var : forall a x,
       exprInstantiate a (Var x) = Var x.
     Proof. reflexivity. Qed.
-    Lemma exprInstantiate_Const : forall a t v, 
+    Lemma exprInstantiate_Const : forall a t v,
       exprInstantiate a (@Const types t v) = (@Const types t v).
     Proof. reflexivity. Qed.
 
-    Hint Rewrite exprInstantiate_Func exprInstantiate_Equal exprInstantiate_Not 
+    Hint Rewrite exprInstantiate_Func exprInstantiate_Equal exprInstantiate_Not
       exprInstantiate_UVar exprInstantiate_Var exprInstantiate_Const : subst_simpl.
 
     Theorem exprInstantiate_WellTyped : forall funcs U G sub,
       Subst_WellTyped funcs U G sub ->
-      forall e t, 
+      forall e t,
         is_well_typed funcs U G e t = is_well_typed funcs U G (exprInstantiate sub e) t.
     Proof.
       unfold exprInstantiate, Subst_WellTyped; induction e; simpl; intros; eauto;
       repeat (match goal with
-                | [ |- context [ FM.find ?X ?Y ] ] => 
+                | [ |- context [ FM.find ?X ?Y ] ] =>
                   case_eq (FM.find X Y); intros
                 | [ |- context [ nth_error ?X ?Y ] ] =>
                   case_eq (nth_error X Y); intros
                 | [ |- context [ equiv_dec ?X ?Y ] ] =>
                   destruct (equiv_dec X Y); intros; unfold equiv in *; try subst
                 | [ |- _ ] => progress (unfold subst_lookup || simpl in *)
-                | [ H : FM.find _ _ = _ |- _ ] => 
+                | [ H : FM.find _ _ = _ |- _ ] =>
                   eapply FACTS.find_mapsto_iff in H
                 | [ H : ?X = _ , H' : ?X = _ |- _ ] =>
                   rewrite H in H'
@@ -1194,12 +1194,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                 | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
               end); try solve [ auto | congruence | symmetry; eapply H; eauto using FACTS.find_mapsto_iff ].
       symmetry. eapply is_well_typed_only; eauto.
-      
+
       intros. generalize dependent (TDomain t0). clear H1. clear - H0.
       induction H0; simpl. reflexivity.
       destruct l0; auto; simpl in *.
       rewrite <- IHForall. rewrite <- H. reflexivity.
-    Qed. 
+    Qed.
 
     Opaque Subst_lookup Subst_set exprInstantiate.
 
@@ -1208,13 +1208,13 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       exprInstantiate sub' l = exprInstantiate sub' r.
     Proof.
       induction n; induction l; intros; rewrite exprUnify_unroll in *; destruct r; simpl in *;
-        try solve [ 
-          repeat (congruence || 
+        try solve [
+          repeat (congruence ||
                   solve [ eauto |
                           eapply exprInstantiate_extends; eauto using exprUnify_Extends |
                           eapply fold_left_2_opt_map_sound'; eauto ] ||
               match goal with
-                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                | [ H : Equivalence.equiv _ _ |- _ ] =>
                   unfold Equivalence.equiv in H; subst
                 | [ |- _ ] => erewrite Subst_set_exprInstantiate by eauto
                 | [ H : _ |- _ ] => erewrite H by eauto
@@ -1223,25 +1223,25 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   specialize (@H _ _ _ _ H')
                 | [ H : Subst_lookup _ _ = _ |- _ ] =>
                   eapply Subst_lookup_Extends in H; [ | solve [ eauto using exprUnify_Extends ] ]
-                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (exprUnify A B C D); intros
                 | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (Subst_lookup X Y); intros
-                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                | [ H : match ?X with _ => _ end = _ |- _ ] =>
                   revert H; Reflection.consider X; intros
                 | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
                 | [ |- Func _ _ = Func _ _ ] => f_equal
-                | [ |- _ ] => 
+                | [ |- _ ] =>
                   rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
               end) ].
-      { repeat (congruence || 
+      { repeat (congruence ||
                   solve [ eauto |
                           eapply exprInstantiate_extends; eauto using exprUnify_Extends |
                           eapply fold_left_2_opt_map_sound'; eauto ] ||
               match goal with
-                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                | [ H : Equivalence.equiv _ _ |- _ ] =>
                   unfold Equivalence.equiv in H; subst
                 | [ |- _ ] => erewrite Subst_set_exprInstantiate by eauto
                 | [ H : _ |- _ ] => erewrite H by eauto
@@ -1250,15 +1250,15 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   specialize (@H _ _ _ _ H')
                 | [ H : Subst_lookup _ _ = _ |- _ ] =>
                   eapply Subst_lookup_Extends in H; [ | solve [ eauto using exprUnify_Extends ] ]
-                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (exprUnify A B C D); intros
                 | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (Subst_lookup X Y); intros
-                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                | [ H : match ?X with _ => _ end = _ |- _ ] =>
                   revert H; Reflection.consider X; intros
                 | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
                 | [ |- Func _ _ = Func _ _ ] => f_equal
-                | [ |- _ ] => 
+                | [ |- _ ] =>
                   rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
@@ -1266,12 +1266,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         eapply Subst_set_Extends in H2; try eassumption.
         erewrite Subst_lookup_Extends; try eassumption.
         reflexivity. }
-      { repeat (congruence || 
+      { repeat (congruence ||
                   solve [ eauto |
                           eapply exprInstantiate_extends; eauto using exprUnify_Extends |
                           eapply fold_left_2_opt_map_sound'; eauto ] ||
               match goal with
-                | [ H : Equivalence.equiv _ _ |- _ ] => 
+                | [ H : Equivalence.equiv _ _ |- _ ] =>
                   unfold Equivalence.equiv in H; subst
                 | [ |- _ ] => erewrite Subst_set_exprInstantiate by eauto
                 | [ H : _ |- _ ] => erewrite H by eauto
@@ -1280,15 +1280,15 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                   specialize (@H _ _ _ _ H')
                 | [ H : Subst_lookup _ _ = _ |- _ ] =>
                   eapply Subst_lookup_Extends in H; [ | solve [ eauto using exprUnify_Extends ] ]
-                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] => 
+                | [ H : match exprUnify ?A ?B ?C ?D with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (exprUnify A B C D); intros
                 | [ H : match Subst_lookup ?X ?Y with _ => _ end = _ |- _ ] =>
                   revert H; case_eq (Subst_lookup X Y); intros
-                | [ H : match ?X with _ => _ end = _ |- _ ] => 
+                | [ H : match ?X with _ => _ end = _ |- _ ] =>
                   revert H; Reflection.consider X; intros
                 | [ |- Equal _ _ _ = Equal _ _ _ ] => f_equal
                 | [ |- Func _ _ = Func _ _ ] => f_equal
-                | [ |- _ ] => 
+                | [ |- _ ] =>
                   rewrite exprInstantiate_Func || rewrite exprInstantiate_Equal ||
                   rewrite exprInstantiate_Not || rewrite exprInstantiate_UVar ||
                   rewrite exprInstantiate_Var || rewrite exprInstantiate_Const
@@ -1299,7 +1299,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Qed.
 
     Transparent Subst_set.
-          
+
     Lemma Subst_set_WellTyped : forall funcs U G u E t sub sub',
       Subst_set u E sub = Some sub' ->
       nth_error U u = Some t ->
@@ -1317,22 +1317,22 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         simpl. change (subst_exprInstantiate x E) with (exprInstantiate (@existT _ _ _ w) E).
         rewrite <- exprInstantiate_WellTyped; eauto. }
       { intuition. eapply H2 in H5. destruct H5; intuition. eexists. split; eauto.
-        revert H6. clear H5. clear H4. clear H3. revert x1. 
+        revert H6. clear H5. clear H4. clear H3. revert x1.
         induction x0; simpl; intros; think;
         repeat (progress simpl ||
           match goal with
             | [ H : _ = _ |- _ ] => rewrite H in *
             | [ H : equiv _ _ |- _ ] => unfold equiv in H; subst; try congruence
-            | [ H : context [ match ?X with 
+            | [ H : context [ match ?X with
                                 | _ => _
-                              end ] |- _ ] => 
+                              end ] |- _ ] =>
             revert H; consider X; intros
             | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => destruct (FM.E.eq_dec X Y); subst
             | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
             | [ |- _ ] => rewrite <- exprInstantiate_WellTyped by assumption
             | [ |- context [ FM.find ?X ?Y ] ] =>
               case_eq (FM.find X Y); intros; try congruence
-            | [ H : FM.find _ _ = Some _ |- _ ] => 
+            | [ H : FM.find _ _ = Some _ |- _ ] =>
               apply FACTS.find_mapsto_iff in H
             | [ H : forall x y, FM.MapsTo x y ?X -> _ , H' : FM.MapsTo _ _ ?X |- _ ] =>
               apply H in H'
@@ -1370,28 +1370,28 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       nth_error G v = Some t ->
       is_well_typed funcs U G (@Var types v) t = true.
     Proof.
-      simpl. intros; rewrite H. consider (tvar_seqb t t); auto. 
+      simpl. intros; rewrite H. consider (tvar_seqb t t); auto.
     Qed.
     Lemma is_well_typed_uvar : forall funcs U G t v,
       nth_error U v = Some t ->
       is_well_typed funcs U G (@UVar types v) t = true.
     Proof.
-      simpl. intros; rewrite H. consider (tvar_seqb t t); auto. 
+      simpl. intros; rewrite H. consider (tvar_seqb t t); auto.
     Qed.
 *)
 
     Hint Extern 1 (is_well_typed _ _ _ _ _ = _) =>
       simpl;
-        repeat match goal with 
+        repeat match goal with
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => rewrite EquivDec_refl_left
                  | [ |- _ ] => rewrite tvar_seqb_refl
                end; reflexivity : exprs.
 (*
-    Hint Resolve is_well_typed_const is_well_typed_var is_well_typed_uvar : exprs. 
+    Hint Resolve is_well_typed_const is_well_typed_var is_well_typed_uvar : exprs.
         Hint Extern 1 (is_well_typed _ _ _ _ _ = true) => simpl; think : exprs.
 *)
-    
+
     Lemma exprUnify_WellTyped_Forall : forall n (l : list (expr types)),
       Forall
       (fun l0 : expr types =>
@@ -1401,7 +1401,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             is_well_typed funcs U G l0 t = true ->
             is_well_typed funcs U G r t = true ->
             Subst_WellTyped funcs U G sub -> Subst_WellTyped funcs U G sub') l ->
-      forall (funcs : tfunctions) (U G : tenv) (sub' : Subst) 
+      forall (funcs : tfunctions) (U G : tenv) (sub' : Subst)
         (l0 : list tvar) (sub : Subst),
         Subst_WellTyped funcs U G sub ->
         forall l1 : list (expr types),
@@ -1414,12 +1414,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       { destruct l0; destruct l1; simpl in *; auto; try congruence. inversion H0; subst; auto. }
       { destruct l1; destruct l0; try congruence. simpl in *.
         repeat match goal with
-                 | [ H : context [ match ?X with 
-                                     | _ => _ 
+                 | [ H : context [ match ?X with
+                                     | _ => _
                                    end ] |- _ ] =>
                  revert H; case_eq X; try congruence; intros
                end. eauto. }
-    Qed.    
+    Qed.
 
     Theorem exprUnify_WellTyped : forall n l r sub sub',
       exprUnify n l r sub = Some sub' ->
@@ -1439,28 +1439,28 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                  | [ H : context [ match ?T with
                                      | tvProp => _
                                      | tvType _ => _
-                                   end ] |- _ ] => (destruct T; try congruence); [ ] 
+                                   end ] |- _ ] => (destruct T; try congruence); [ ]
                  | [ H : context [ match nth_error ?X ?Y with
-                                     | _ => _ 
-                                   end ] |- _ ] => 
+                                     | _ => _
+                                   end ] |- _ ] =>
                  revert H; case_eq (nth_error X Y); intros; try congruence
                  | [ H : context [ match Subst_lookup ?X ?Y with
-                                     | _ => _ 
-                                   end ] |- _ ] => 
+                                     | _ => _
+                                   end ] |- _ ] =>
                  revert H; case_eq (Subst_lookup X Y); intros; try congruence
                  | [ H : (if ?X then _ else _) = _ |- _ ] =>
                    (revert H; Reflection.consider X; intros; try congruence); [ ]
                  | [ H : ?X = _ , H' : ?X = _ |- _ ] => rewrite H in H'
                  | [ H : Some _ = Some _ |- _ ] => inversion H; clear H; subst
-                 | [ H : context [ match exprUnify ?A ?B ?C ?D with _ => _ end ] |- _ ] => 
+                 | [ H : context [ match exprUnify ?A ?B ?C ?D with _ => _ end ] |- _ ] =>
                    revert H; case_eq (exprUnify A B C D); intros; try congruence
                  | [ H : _ && _ = true |- _ ] => eapply andb_true_iff in H; destruct H
                  | [ H : forall a b c d, exprUnify ?n a b c = Some d -> _ , H' : exprUnify ?n _ _ _ = Some _ |- _ ] =>
-                   (eapply H in H'; (eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs)); 
+                   (eapply H in H'; (eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs));
                    instantiate; eauto with exprs
                  | [ H : ?X = ?X , H' : context [ match ?H with _ => _ end ] |- _ ] =>
                    rewrite (EqdepClass.UIP_refl H) in H'
-                 | [ |- _ ] => try unfold equiv in *; progress subst 
+                 | [ |- _ ] => try unfold equiv in *; progress subst
                end);
         try solve [ eauto using Subst_lookup_WellTyped, Subst_set_WellTyped with exprs
               | (eapply Subst_set_WellTyped; eauto); simpl;
@@ -1468,19 +1468,19 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                          | [ H : _ = _ |- _ ] => rewrite H
                          | [ |- _ ] => rewrite EquivDec_refl_left
                          | [ |- _ ] => rewrite tvar_seqb_refl
-                       end; auto 
+                       end; auto
           | eauto using exprUnify_WellTyped_Forall].
       { consider (EqNat.beq_nat x u); intros; subst.
-        inversion H4; clear H4; subst; auto. 
+        inversion H4; clear H4; subst; auto.
         eapply Subst_set_WellTyped; try eassumption.
         simpl. rewrite H1. consider (tvar_seqb t t); auto. }
       { consider (EqNat.beq_nat x u); intros; subst.
-        inversion H5; clear H5; subst; auto. 
-        eapply IHn. eassumption. 3: eassumption. 
+        inversion H5; clear H5; subst; auto.
+        eapply IHn. eassumption. 3: eassumption.
         eapply Subst_lookup_WellTyped; eassumption.
         eapply Subst_lookup_WellTyped; eassumption. }
       { consider (EqNat.beq_nat x u); intros; subst.
-        inversion H4; clear H4; subst; auto. 
+        inversion H4; clear H4; subst; auto.
         eapply Subst_set_WellTyped; try eassumption.
         simpl. rewrite H1. consider (tvar_seqb t t); auto. }
     Qed.
@@ -1494,9 +1494,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       rewrite PROPS.fold_Add with (m1 := FM.remove x (projT1 sub)) (m2 := projT1 sub) (k := x) (e := e) in H0;
         eauto with typeclass_instances.
       repeat match goal with
-               | [ H : match ?X with 
-                         | _ => _ 
-                       end |- _ ] => 
+               | [ H : match ?X with
+                         | _ => _
+                       end |- _ ] =>
                revert H; case_eq X; intros; try contradiction
              end.
       intuition. subst.
@@ -1506,7 +1506,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       case_eq (exprD funcs U G e t); intros; auto.
       exfalso. apply c. unfold equiv; eapply exprD_det with (e := e) (funcs := funcs) (meta_env := U) (var_env := G); congruence.
 
-      
+
       { clear. repeat (red; intros; subst).
         destruct (nth_error U y); intros.
         destruct s. destruct (exprD funcs U G y0 x0); firstorder. firstorder. }
@@ -1527,11 +1527,11 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       exprD funcs U G (exprInstantiate sub e) t = exprD funcs U G e t.
     Proof.
       induction e; simpl; intros; think; autorewrite with subst_simpl in *; symmetry;
-        repeat (simpl in *; 
+        repeat (simpl in *;
           match goal with
             | [ H : context [ match ?X with
                                 | _ => _
-                              end ] |- _ ] => 
+                              end ] |- _ ] =>
             revert H; case_eq X; intros; try congruence
             | [ H : equiv _ _ |- _ ] => unfold equiv in H; subst
                  | [ H : _ |- _ ] => erewrite H by eauto
@@ -1539,14 +1539,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                                | tvProp => _
                                | tvType _ => _
                              end ] ] => destruct X
-            
+
           end); auto; try congruence.
-      { change (FM.find x (projT1 sub)) with (Subst_lookup x sub). 
-        case_eq (Subst_lookup x sub); intros; simpl; auto.        
+      { change (FM.find x (projT1 sub)) with (Subst_lookup x sub).
+        case_eq (Subst_lookup x sub); intros; simpl; auto.
         erewrite Subst_lookup_Subst_equations; eauto. }
       { destruct (nth_error funcs f); auto.
         destruct (equiv_dec (Range s) t); auto. unfold equiv in *. subst.
-        destruct s; simpl in *.  
+        destruct s; simpl in *.
         generalize dependent Domain. induction H; destruct Domain; simpl; auto.
         erewrite H by eauto. intros. destruct (exprD funcs U G x t); auto. }
     Qed.
@@ -1558,7 +1558,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       exists t, nth_error U u = Some t /\
       is_well_typed funcs U G e t = true.
     Proof.
-      unfold Subst_WellTyped, Subst_lookup, subst_lookup. intros. 
+      unfold Subst_WellTyped, Subst_lookup, subst_lookup. intros.
       apply FACTS.find_mapsto_iff in H0. eauto.
     Qed.
 
@@ -1583,7 +1583,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_lookup k sub = Some e ->
       exprInstantiate sub e' = e'' ->
       mentionsU k e'' = false.
-    Proof.      
+    Proof.
       induction e'; simpl in *; intros; think; subst; think; auto.
       { destruct sub. unfold Subst_lookup, subst_lookup in *; simpl in *.
         consider (FM.find x x0); intros; simpl.
@@ -1625,7 +1625,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         apply MFACTS.PROPS.F.find_mapsto_iff in H1. rewrite H1.
         change (exprInstantiate sub' v = v).
         eapply exprInstantiate_instantiated. unfold Subst_lookup, subst_lookup.
-        eassumption. 
+        eassumption.
         rewrite H2. reflexivity. }
       { f_equal. rewrite map_map.
         revert H3; induction H; simpl; intros; think; auto. }
@@ -1639,7 +1639,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
     Proof.
       induction t; simpl; intros; think; auto.
       { consider (FM.find (elt:=expr types) x0 (projT1 x)); intros.
-        apply MFACTS.PROPS.F.find_mapsto_iff in H0. 
+        apply MFACTS.PROPS.F.find_mapsto_iff in H0.
         eapply (projT2 x) in H0.
         eapply WellFormed_Canonical.
         destruct y; destruct x. eapply normalized_Lt. eassumption. eassumption.
@@ -1672,7 +1672,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         apply MFACTS.PROPS.F.find_mapsto_iff in H0.
         apply MFACTS.PROPS.F.map_mapsto_iff in H8. destruct H8. intuition. subst.
         apply MFACTS.PROPS.F.add_mapsto_iff in H9. destruct H9; intuition; subst.
-        { match goal with 
+        { match goal with
           | H : FM.MapsTo ?A ?Y ?B |- FM.MapsTo ?A ?X ?B => cutrewrite (X = Y); auto
           end.
           rewrite subst_exprInstantiate_add_not_mentions by auto.
@@ -1680,7 +1680,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
           2: destruct sub; auto. rewrite H5.
           apply WellFormed_Canonical.
           destruct sub' as [ sub' ? ]; simpl in *. eapply w. eauto. }
-        { match goal with 
+        { match goal with
             | |- FM.MapsTo _ ?X _ => cutrewrite (X = exprInstantiate sub' x); auto
           end.
           eapply Subst_Extends_fin_instantiate; eauto.
@@ -1721,14 +1721,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       FM.Equal (PROPS.diff m m') (PROPS.diff m (FM.map F m')).
     Proof. clear.
       intros; red; intros.
-      consider (FM.find (elt:=T) y (PROPS.diff m m')); 
+      consider (FM.find (elt:=T) y (PROPS.diff m m'));
       consider (FM.find (elt:=T) y (PROPS.diff m (FM.map F m'))); intros; auto;
         repeat match goal with
                  | |- Some _ = None => exfalso
                  | |- None = Some _ => exfalso
-                 | H : FM.find _ (PROPS.diff _ _) = Some _ |- _ => 
+                 | H : FM.find _ (PROPS.diff _ _) = Some _ |- _ =>
                    apply FACTS.find_mapsto_iff in H; apply PROPS.diff_mapsto_iff in H
-                 | H : FM.find ?A (PROPS.diff ?B ?C) = None |- _ => 
+                 | H : FM.find ?A (PROPS.diff ?B ?C) = None |- _ =>
                    apply FACTS.not_find_in_iff in H
                  | H : ~ FM.In _ (PROPS.diff _ _) |- _ => rewrite PROPS.diff_in_iff in H; apply H; clear H; split
                  | H : FM.MapsTo _ _ _ |- _ => apply FACTS.find_mapsto_iff in H
@@ -1754,7 +1754,7 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_Extends sub' sub ->
       Subst_Extends' sub' sub.
     Proof.
-      intros. 
+      intros.
       remember (PROPS.diff (projT1 sub') (projT1 sub)).
       assert (FM.Equal t (PROPS.diff (projT1 sub') (projT1 sub))). subst; reflexivity. clear Heqt. rename H0 into Heqt.
       generalize dependent sub.
@@ -1765,9 +1765,9 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
         { f_equal.
           assert (normalized (projT1 sub') e = true).
           cut (forall k, FM.In k (projT1 sub') -> FM.In k (projT1 sub)).
-          cut (normalized (projT1 sub) e = true). clear. 
+          cut (normalized (projT1 sub) e = true). clear.
           { induction e; simpl; intros; think; auto.
-            { apply FACTS.not_find_in_iff in H. exfalso. apply H. apply H0. 
+            { apply FACTS.not_find_in_iff in H. exfalso. apply H. apply H0.
               exists e. apply FACTS.find_mapsto_iff; auto. }
             { revert H0. induction H; simpl; intros; think; auto. } }
           eapply (projT2 sub). apply FACTS.find_mapsto_iff. eassumption.
@@ -1786,30 +1786,30 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
           destruct H3. apply FACTS.find_mapsto_iff in H3. congruence. }
         { exfalso. clear Heqt. apply FACTS.find_mapsto_iff in H1. eapply H0 in H1.
           apply FACTS.find_mapsto_iff in H1. congruence. } }
-      { generalize (H1 x); intro. 
+      { generalize (H1 x); intro.
         rewrite FACTS.add_o in H3. destruct (FM.E.eq_dec x x); try congruence. clear e0.
         apply FACTS.find_mapsto_iff in H3. rewrite Heqt in *.
         eapply PROPS.diff_mapsto_iff in H3. destruct H3.
-        eapply extends_add_from with (k := x) (v := e) in H2. 
+        eapply extends_add_from with (k := x) (v := e) in H2.
         remember (Subst_set x e sub). destruct o; try contradiction.
         eapply SE_Add with (k := x) (v := e).
         symmetry; eauto. eauto.
-        apply H; eauto. 
-        
+        apply H; eauto.
+
         symmetry in Heqo. eapply Subst_set_unroll in Heqo. destruct Heqo.
-        
+
         rewrite H6. rewrite <- diff_map_2. rewrite <- diff_add. rewrite <- Heqt.
         red. intro. specialize (H1 y). rewrite FACTS.remove_o.
-        rewrite H1. rewrite FACTS.add_o. 
+        rewrite H1. rewrite FACTS.add_o.
         destruct (FM.E.eq_dec x y); subst; auto. apply FACTS.not_find_in_iff; auto.
-        
+
         unfold Subst_lookup, subst_lookup; apply FACTS.find_mapsto_iff. assumption.
         unfold Subst_lookup, subst_lookup; apply FACTS.not_find_in_iff; assumption. }
     Qed.
 
     Lemma Subst_equations_sem : forall funcs U G s,
       Subst_equations funcs U G s <->
-      (forall k e, 
+      (forall k e,
         Subst_lookup k s = Some e ->
         match nth_error U k with
           | None => False
@@ -1822,10 +1822,10 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       unfold Subst_equations, Subst_lookup, subst_lookup. destruct s. simpl in *. clear w.
       cut True; auto. generalize True. intro.
       eapply PROPS.map_induction with (m := x); intros.
-      { split; intros. 
+      { split; intros.
         { rewrite MFACTS.find_Empty in H2; auto. congruence. }
         { rewrite PROPS.fold_Empty; eauto with typeclass_instances. } }
-      { split; intros. 
+      { split; intros.
         { rewrite PROPS.fold_Add in H3; eauto with typeclass_instances.
           repeat match goal with
                    | H : match ?X with _ => _ end |- _ => consider X; intros; try contradiction
@@ -1835,14 +1835,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
           { rewrite H5. simpl. inversion H4. subst; rewrite H6. reflexivity. }
           { eapply H; eauto. }
           { repeat (red; intros; subst);
-            repeat match goal with 
+            repeat match goal with
                      | |- context [ match ?X with _ => _ end ] => destruct X
                    end; intuition. }
           { repeat (red; intros; subst);
-            repeat match goal with 
+            repeat match goal with
                      | |- context [ match ?X with _ => _ end ] => destruct X
                    end; intuition. } }
-          { specialize (H H2). 
+          { specialize (H H2).
             rewrite PROPS.fold_Add; eauto with typeclass_instances.
             generalize (H3 x0 e); intros. rewrite H1 in H4. rewrite FACTS.add_o in H4.
             destruct (FM.E.eq_dec x0 x0); try congruence. specialize (H4 refl_equal).
@@ -1852,11 +1852,11 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
             rewrite FACTS.add_o. destruct (FM.E.eq_dec x0 k); auto. subst. exfalso. apply H0.
             exists e1. apply FACTS.find_mapsto_iff; auto.
             { repeat (red; intros; subst);
-              repeat match goal with 
+              repeat match goal with
                        | |- context [ match ?X with _ => _ end ] => destruct X
                      end; intuition. }
             { repeat (red; intros; subst);
-              repeat match goal with 
+              repeat match goal with
                        | |- context [ match ?X with _ => _ end ] => destruct X
                      end; intuition. } } }
     Qed.
@@ -1932,14 +1932,14 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_Extends sub' sub ->
       Subst_equations funcs U G sub' ->
       Subst_equations funcs U G sub.
-    Proof. 
+    Proof.
       intros. apply extends_as_extension in H.
       induction H.
       { unfold Subst_equations in *. unfold Subst_Equal in *.
         rewrite PROPS.fold_Equal in H0. eassumption. eauto with typeclass_instances.
         { repeat (red; intros; subst). destruct (nth_error U y); auto. destruct s. destruct (exprD funcs U G y0 x0); intuition. }
         { repeat (red; intros; subst);
-            repeat match goal with 
+            repeat match goal with
                      | |- context [ match ?X with _ => _ end ] => destruct X
                    end; intuition. }
         auto. }
@@ -1956,18 +1956,18 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Subst_equations funcs U G sub ->
       Subst_WellTyped (typeof_funcs funcs) (typeof_env U) (typeof_env G) sub.
     Proof.
-      intros. intro; intros. 
+      intros. intro; intros.
       eapply Subst_equations_sem with (k := k) (e := v) in H.
       consider (nth_error U k); intros; try contradiction.
       consider (exprD funcs U G v (projT1 s)); intros; try contradiction. subst.
       unfold typeof_env at 1. erewrite map_nth_error by eassumption. eexists; split. reflexivity.
-      eapply is_well_typed_correct_only in H1; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs. 
+      eapply is_well_typed_correct_only in H1; eauto using typeof_env_WellTyped_env, typeof_funcs_WellTyped_funcs.
       unfold Subst_lookup, subst_lookup. apply FACTS.find_mapsto_iff; auto.
     Qed.
- 
+
     (** An incremental version of Subst_equations **)
     Section Subst_equations_to.
-      Variable funcs : functions types. 
+      Variable funcs : functions types.
       Variables uenv venv : env types.
       Variable subst : Subst.
 
@@ -1981,16 +1981,16 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
                             | None => False
                             | Some v => projT2 l = v
                           end
-            end /\ Subst_equations_to (S from) ls 
+            end /\ Subst_equations_to (S from) ls
         end.
-      
-      Lemma Subst_equations_to_sem : forall ls from, 
+
+      Lemma Subst_equations_to_sem : forall ls from,
         Subst_equations_to from ls ->
         forall n,
           match nth_error ls n with
             | None => True
             | Some v' =>
-              match Subst_lookup (from + n) subst with 
+              match Subst_lookup (from + n) subst with
                 | None => True
                 | Some e => match exprD funcs uenv venv e (projT1 v') with
                               | None => False
@@ -2006,12 +2006,12 @@ Module Unifier (E : OrderedType.OrderedType with Definition t := uvar with Defin
       Qed.
 
 
-      Theorem Subst_equations_to_Subst_equations : 
+      Theorem Subst_equations_to_Subst_equations :
         Subst_WellTyped (typeof_funcs funcs) (typeof_env uenv) (typeof_env venv) subst ->
         Subst_equations_to 0 uenv ->
         Subst_equations funcs uenv venv subst.
       Proof.
-        intros. 
+        intros.
         eapply Subst_equations_sem. intros.
         assert (FM.MapsTo k e (projT1 subst)). apply FACTS.find_mapsto_iff. eapply H1.
         eapply H in H2. destruct H2.

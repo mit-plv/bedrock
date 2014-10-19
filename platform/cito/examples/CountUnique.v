@@ -53,7 +53,7 @@ Definition count_body := (
     "set" <-- DCall "ADT"!"ListSet_new"();;
     Assert [ BEFORE(V, h) AFTER(V', h') exists arr,
       find (V "arr") h = Some (Arr arr) /\
-      V' "len" = length arr /\                                          
+      V' "len" = length arr /\
       (h' === h ** (V' "set" --> FSet empty_set)) /\
       V' "arr" = V "arr" /\
       goodSize (length arr)
@@ -61,8 +61,8 @@ Definition count_body := (
     "i" <- 0;;
     [BEFORE (V, h) AFTER (V', h') exists arr fset,
        find (V "arr") h = Some (Arr arr) /\
-       V' "len" = length arr /\                                          
-       (h' === h ** (V' "set" --> FSet fset)) /\ 
+       V' "len" = length arr /\
+       (h' === h ** (V' "set" --> FSet fset)) /\
        fset =s= to_set (firstn (V' "i") arr) /\
        V' "arr" = V "arr" /\
        goodSize (length arr)
@@ -71,8 +71,8 @@ Definition count_body := (
       "e" <-- DCall "ADT"!"ArraySeq_read" ("arr", "i");;
       Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
          find (V "arr") h = Some (Arr arr) /\
-         V' "len" = length arr /\                                          
-         (h' === h ** (V' "set" --> FSet fset)) /\ 
+         V' "len" = length arr /\
+         (h' === h ** (V' "set" --> FSet fset)) /\
          fset =s= to_set (firstn (V' "i") arr) /\
          V' "i" < V' "len" /\
          V' "e" = Array.sel arr (V' "i") /\
@@ -82,8 +82,8 @@ Definition count_body := (
       DCall "ADT"!"ListSet_add"("set", "e");;
       Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
          find (V "arr") h = Some (Arr arr) /\
-         V' "len" = length arr /\                                          
-         (h' === h ** (V' "set" --> FSet fset)) /\ 
+         V' "len" = length arr /\
+         (h' === h ** (V' "set" --> FSet fset)) /\
          fset =s= to_set (firstn (1 + V' "i") arr) /\
          V' "i" < V' "len" /\
          V' "arr" = V "arr" /\
@@ -94,7 +94,7 @@ Definition count_body := (
     "ret" <-- DCall "ADT"!"ListSet_size"("set");;
     Assert [BEFORE (V, h) AFTER (V', h') exists arr fset,
        find (V "arr") h = Some (Arr arr) /\
-       (h' === h ** (V' "set" --> FSet fset)) /\ 
+       (h' === h ** (V' "set" --> FSet fset)) /\
        V' "ret" = unique_count arr
     ];;
     DCall "ADT"!"ListSet_delete"("set");;
@@ -122,7 +122,7 @@ Definition main_body := (
     Assert [ BEFORE(V, h) AFTER(V', h') exists arr,
       (h' === h ** (V' "arr" --> Arr arr)) /\ V' "ret" = 2 ];;
     DCall "ADT"!"ArraySeq_delete"("arr");;
-    Assert [ BEFORE(V, h) AFTER(V', h') 
+    Assert [ BEFORE(V, h) AFTER(V', h')
       h' == h /\ V' "ret" = 2 ]
 )%stmtex.
 
@@ -149,9 +149,9 @@ Definition modules := [[ gm ]].
 
 Require Import GLabelMapFacts.
 
-Definition imports := 
-  of_list 
-    [[ 
+Definition imports :=
+  of_list
+    [[
         "ADT"!"ArraySeq_new" @ [ArraySeq_newSpec],
         "ADT"!"ArraySeq_write" @ [ArraySeq_writeSpec],
         "ADT"!"ArraySeq_read" @ [ArraySeq_readSpec],
@@ -165,7 +165,7 @@ Definition imports :=
 Definition dummy_gf : GoodFunction.
   refine (to_good_function (cfunction "dummy"() "ret" <- 0 end)%Citofuncs _).
   good_module.
-Defined.    
+Defined.
 
 Definition count := nth 0 (Functions gm) dummy_gf.
 Definition main := nth 1 (Functions gm) dummy_gf.
@@ -387,10 +387,10 @@ Ltac split_all :=
            | |- _ /\ _ => split
          end.
 
-Definition count_pre : assert := 
-  fun _ v0 v => 
-    v0 = v /\ 
-    let vs := fst v in 
+Definition count_pre : assert :=
+  fun _ v0 v =>
+    v0 = v /\
+    let vs := fst v in
     let h := snd v in
     exists arr,
       find (vs "arr") h = Some (Arr arr) /\
@@ -549,7 +549,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   Hint Resolve lt_false lt_true.
 
   rewrite <- H1; eauto.
-  
+
   (* vc6 *)
   intros.
   openhyp.
@@ -665,7 +665,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     eapply IHls.
     eauto.
   Qed.
-  Lemma fold_firstn : 
+  Lemma fold_firstn :
     forall A (ls : list A) n,
       match ls with
         | [[]] => [[]]
@@ -1506,7 +1506,7 @@ Theorem top_ok : moduleOk top.
   NoDup.
   NoDup.
   eauto.
-  
+
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).

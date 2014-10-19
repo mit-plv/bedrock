@@ -20,7 +20,7 @@ Global Instance EquivDec_SemiDec t (EQ : EqDec t (@eq t)) : SemiDec t :=
   match equiv_dec a b with
     | left pf => Some pf
     | right _ => None
-  end 
+  end
 }.
 
 Theorem SemiDec_EquivDec_refl_left : forall T (equ : EqDec T (@eq T)),
@@ -41,16 +41,16 @@ refine (
 Defined.
 
 Global Instance EquivDec_nat : EqDec nat (@eq nat) :=
-  Peano_dec.eq_nat_dec.  
+  Peano_dec.eq_nat_dec.
 
 Global Instance SemiDec_option T (S : SemiDec T) : SemiDec (option T) :=
 { seq_dec := fun a b =>
   match a as a, b as b return option (a = b) with
     | None , None => Some (refl_equal _)
-    | Some x , Some y => 
+    | Some x , Some y =>
       match seq_dec x y with
         | None => None
-        | Some pf => 
+        | Some pf =>
           match pf in _ = t return option (Some x = Some t) with
             | refl_equal => Some (refl_equal _)
           end
@@ -63,13 +63,13 @@ Global Instance SemiDec_list T (S : SemiDec T) : SemiDec (list T) :=
 { seq_dec := fix seq_dec' a b : option (a = b) :=
   match a as a, b as b return option (a = b) with
     | nil , nil => Some (refl_equal _)
-    | x :: xs , y :: ys => 
+    | x :: xs , y :: ys =>
       match seq_dec x y with
         | None => None
-        | Some pf => 
+        | Some pf =>
           match seq_dec' xs ys with
             | None => None
-            | Some pf' => 
+            | Some pf' =>
               match pf in _ = t , pf' in _ = t' return option (x :: xs = t :: t') with
                 | refl_equal , refl_equal => Some (refl_equal _)
               end
@@ -86,7 +86,7 @@ Class Comparable (t : Type) : Type :=
 { cmp_dec : forall a b : t, dcomp a b }.
 Class SemiComparable (t : Type) : Type :=
 { scmp_dec : forall a b : t, option (dcomp a b) }.
-Global Instance Comparable_SemiComparable t (SC : Comparable t) 
+Global Instance Comparable_SemiComparable t (SC : Comparable t)
   : SemiComparable t :=
 { scmp_dec := fun a b => Some (cmp_dec a b) }.
 

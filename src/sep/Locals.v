@@ -94,8 +94,8 @@ Definition bedrock_type_vals : type :=
    ; Eqb_correct := @ILEnv.all_false_compare _ |}.
 
 Definition types_r : Env.Repr type :=
-  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-    let lst := 
+  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+    let lst :=
       (@Some type ILEnv.bedrock_type_W) ::
       (@Some type ILEnv.bedrock_type_setting_X_state) ::
       None ::
@@ -172,8 +172,8 @@ Section parametric.
   Defined.
 
   Definition funcs_r : Env.Repr (signature types) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         Some (ILEnv.wplus_r types) ::
         None ::
         Some (ILEnv.wmult_r types) ::
@@ -352,8 +352,8 @@ Section correctness.
   Defined.
 
   Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         None :: None :: Some ssig :: nil
       in Env.listOptToRepr lst (SEP.Default_predicate _ _ _).
 
@@ -405,7 +405,7 @@ Section correctness.
   Proof.
     destruct e; simpl deref; intuition; try discriminate.
     deconstruct.
-    
+
     match goal with
       | [ |- context[div4 ?N] ] => specialize (div4_correct N);
         destruct (div4 N)
@@ -465,7 +465,7 @@ Section correctness.
             end
       end).
     simpl in *.
-  
+
     do 13 (destruct f; t).
 
     Focus 2.
@@ -501,7 +501,7 @@ Section correctness.
     sym_read_easier Prover summ args pe = Some ve ->
     Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe wordT = Some p ->
-    match 
+    match
       applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
       with
       | None => False
@@ -675,7 +675,7 @@ Section correctness.
     specialize (smem_read_correct' _ _ _ _ (i := natToW (variablePosition' t x1)) H9); intro Hsmem.
     rewrite wmult_comm in Hsmem.
     rewrite <- natToW_times4 in Hsmem.
-    
+
     Lemma variablePosition'_4 : forall nm ns,
       variablePosition' ns nm * 4 = variablePosition ns nm.
       induction ns; simpl; intuition.
@@ -719,7 +719,7 @@ Section correctness.
     omega.
 
     red.
-    apply array_bound in H9.    
+    apply array_bound in H9.
     repeat rewrite wordToN_nat.
     rewrite wordToNat_natToWord_idempotent.
     rewrite wordToNat_natToWord_idempotent.
@@ -741,7 +741,7 @@ Section correctness.
 
   Theorem easy_bridge : forall args uvars vars summ pe ve P,
     sym_read Prover summ args pe = Some ve
-    -> match 
+    -> match
          applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
          with
          | None => False
@@ -771,13 +771,13 @@ Section correctness.
     do 7 (destruct n; try reflexivity).
     rewrite Heq.
     erewrite sym_sel_correct by eassumption; reflexivity.
-  Qed.    
+  Qed.
 
   Theorem sym_read_correct : forall args uvars vars cs summ pe p ve m stn,
     sym_read Prover summ args pe = Some ve ->
     Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe wordT = Some p ->
-    match 
+    match
       applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
       with
       | None => False
@@ -808,11 +808,11 @@ Section correctness.
       | None => False
       | Some p => ST.satisfies cs p stn m
     end ->
-    match 
+    match
       applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args' _ (SEP.SDenotation ssig)
       with
       | None => False
-      | Some pr => 
+      | Some pr =>
         match ST.HT.smem_set_word (IL.explode stn) p v m with
           | None => False
           | Some sm' => ST.satisfies cs pr stn sm'
@@ -1036,7 +1036,7 @@ Section correctness.
       rewrite string_eq_false by auto.
       rewrite H1; auto.
     Qed.
-    
+
     rewrite array_updN_variablePosition'; auto.
 
     apply array_bound in H15.
@@ -1077,11 +1077,11 @@ Section correctness.
 End correctness.
 
 Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
-  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
+  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in
     @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 2.
 
 Theorem MemEvaluator_correct types' funcs' preds'
-  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
+  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1)
   (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
   (IL.settings * IL.state) (tvType 0) (tvType 0)
   (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types'))
@@ -1096,7 +1096,7 @@ Qed.
 Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte :=
 
-  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte
   types_r
   funcs_r
@@ -1155,7 +1155,7 @@ Lemma behold_the_array' : forall p ns,
              | 0 => p
              | S _ => p ^+ $ (offset)
            end) with (p ^+ $(offset)) by (destruct offset; W_eq).
-  
+
   apply Himp_ex_c; exists (upd x1 x x0).
   eapply Himp_trans; [ apply Himp_star_comm | ].
   apply Himp_star_frame.
@@ -1193,7 +1193,7 @@ Theorem ptsto32m'_out : forall a vs offset,
   auto.
 Qed.
 
-Theorem Himp_ex : forall T (P Q : T -> _), 
+Theorem Himp_ex : forall T (P Q : T -> _),
   (forall v, P v ===> Q v) ->
   ex P ===> ex Q.
   intros; intro cs; apply himp_ex; firstorder.
@@ -1218,7 +1218,7 @@ Lemma do_call' : forall ns ns' vs avail avail' p p',
 Proof.
   intros.
   unfold locals.
-  eapply Himp_trans; [ | apply Himp_star_assoc' ]. 
+  eapply Himp_trans; [ | apply Himp_star_assoc' ].
   apply Himp_star_frame.
   apply Himp_refl.
 
@@ -1234,7 +1234,7 @@ Proof.
   eapply Himp_trans; [ apply Himp_ex_star | ].
   apply Himp'_ex; intro vs'.
   apply Himp_ex_c; exists vs'.
-  unfold array.  
+  unfold array.
   eapply Himp_trans; [ | apply Himp_star_assoc' ].
   apply Himp_star_pure_cc; auto.
   apply Himp_star_frame.
@@ -1256,9 +1256,9 @@ Lemma expose_avail : forall ns vs avail p expose avail',
   * reserved (p ^+ natToW (4 * (length ns + avail'))) expose.
 Proof.
   unfold locals; intros.
-  eapply Himp_trans; [ | apply Himp_star_assoc' ]. 
+  eapply Himp_trans; [ | apply Himp_star_assoc' ].
   apply Himp_star_frame.
-  apply Himp_refl.  
+  apply Himp_refl.
   subst.
   eapply Himp_trans; [ apply allocated_split | ].
   instantiate (1 := avail - expose); omega.
@@ -1600,7 +1600,7 @@ Theorem prelude_in : forall ns ns' vs avail p,
   apply ptsto32m_shift_base.
   omega.
   apply agree_on_refl.
-  
+
   apply allocated_shift_base; try omega.
   rewrite app_length.
   words.

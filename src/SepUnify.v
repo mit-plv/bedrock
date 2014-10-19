@@ -27,15 +27,15 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
     Variable funcs : functions types.
     Variable preds : SH.SE.predicates types pcT stT.
-    
+
     Variables U G : env types.
     Variable cs : PropX.codeSpec (tvarD types pcT) (tvarD types stT).
 
     Lemma impuresInstantiate_mmap_add : forall n e acc,
       SH.SE.heq funcs preds U G cs
         (SH.impuresD pcT stT (impuresInstantiate (MM.mmap_add n e acc)))
-        (SH.impuresD pcT stT 
-          (MM.mmap_add n (map (@U.exprInstantiate _ s) e) 
+        (SH.impuresD pcT stT
+          (MM.mmap_add n (map (@U.exprInstantiate _ s) e)
                          (impuresInstantiate acc))).
     Proof.
       clear. intros. eapply MM.PROPS.map_induction with (m := acc); intros.
@@ -89,7 +89,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
         red. intros. specialize (H0 y). repeat (rewrite MM.FACTS.add_o in * || rewrite MM.FACTS.map_o in * ).
         unfold exprs in *. rewrite H0. unfold MM.FACTS.option_map. destruct (MF.FACTS.eq_dec n y); auto.
-        
+
         intro. apply H. apply MM.FACTS.map_in_iff in H1. auto.
     Qed.
 
@@ -107,14 +107,14 @@ Module Make (U : SynUnifier) (SH : SepHeap).
     Lemma starred_forget_exprInstantiate : forall x P,
       U.Subst_equations funcs U G s ->
       forall e,
-      SH.SE.heq funcs preds U G cs 
+      SH.SE.heq funcs preds U G cs
         (SH.starred (fun v : list (expr types) => SH.SE.Func x (map (U.exprInstantiate s) v)) e P)
         (SH.starred (SH.SE.Func x) e P).
     Proof.
       clear. induction e; intros; repeat rewrite SH.starred_def; simpl; repeat rewrite <- SH.starred_def; SEP_FACTS.heq_canceler.
         rewrite IHe. SEP_FACTS.heq_canceler. unfold SH.SE.heq. simpl.
         match goal with
-                 | [ |- context [ match ?X with _ => _ end ] ] => 
+                 | [ |- context [ match ?X with _ => _ end ] ] =>
                    case_eq X; intros; try reflexivity
                end.
         erewrite applyD_forget_exprInstantiate with (D := SH.SE.SDomain p) (F := SH.SE.SDenotation p); eauto.
@@ -123,7 +123,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
     Lemma impuresD_forget_impuresInstantiate : forall h,
       U.Subst_equations funcs U G s ->
-      SH.SE.heq funcs preds U G cs 
+      SH.SE.heq funcs preds U G cs
         (SH.impuresD pcT stT (impuresInstantiate h))
         (SH.impuresD pcT stT h).
     Proof.

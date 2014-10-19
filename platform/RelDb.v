@@ -73,7 +73,7 @@ Section preds.
     * [| buf <> 0 |] * [| freeable8 buf (length bs) |]) ===> row p.
     unfold row; sepLemma.
   Qed.
-    
+
   Definition rows (_ : W) := starL row.
 
   Theorem rows_cons_fwd : forall (dummy : W) p ps,
@@ -656,7 +656,7 @@ Lemma inBounds_up'' : forall pos len cols col,
   induction cols; simpl; intuition.
   destruct col; simpl; intuition.
   f_equal; apply IHcols; auto.
-Qed.        
+Qed.
 
 Lemma inBounds_up' : forall pos len cols col,
   (col < length cols)%nat

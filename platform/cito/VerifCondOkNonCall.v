@@ -65,7 +65,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Open Scope nat.
 
-    Lemma verifCond_ok_skip : 
+    Lemma verifCond_ok_skip :
       forall k (pre : assert),
         let s := skip in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
@@ -80,7 +80,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Qed.
 
-    Lemma verifCond_ok_seq : 
+    Lemma verifCond_ok_seq :
       forall s1 s2
              (IHs1 : forall (k : Stmt) (pre : assert),
                        vcs
@@ -150,7 +150,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Qed.
 
-    Lemma verifCond_ok_if : 
+    Lemma verifCond_ok_if :
       forall e s1 s2
              (IHs1 : forall (k : Stmt) (pre : assert),
                        vcs
@@ -298,7 +298,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Qed.
 
-    Lemma verifCond_ok_while : 
+    Lemma verifCond_ok_while :
       forall e s
              (IHs : forall (k : Stmt) (pre : assert),
                       vcs
