@@ -18,10 +18,10 @@ VS      := $(MODULES:%=%.v)
 .PHONY: coq clean
 
 coq: Makefile.coq
-	COQC='time coqc' $(MAKE) -f Makefile.coq
+	COQC='time $(COQBIN)coqc' $(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile -R $(ROOT)/src Bedrock \
+	$(COQBIN)coq_makefile -R $(ROOT)/src Bedrock \
 		     $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
