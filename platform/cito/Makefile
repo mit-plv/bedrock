@@ -81,15 +81,15 @@ VS      := $(MODULES:%=%.v)
 .PRECIOUS: examples/%.gen.ml examples/%.gen.s
 
 coq: Makefile.coq
-	COQC='coqc' $(MAKE) -f Makefile.coq
+	COQC='$(COQBIN)coqc' $(MAKE) -f Makefile.coq
 
 COQARGS := -R $(BEDROCK)/src Bedrock \
 	-R . Cito \
 	-I $(BEDROCK)/platform
-COQC    := coqc $(COQARGS)
+COQC    := $(COQBIN)coqc $(COQARGS)
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+	$(COQBIN)coq_makefile $(COQARGS) $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean

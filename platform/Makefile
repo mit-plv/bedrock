@@ -30,10 +30,10 @@ coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 COQARGS := -R $(ROOT)/src Bedrock -I tests
-COQC    := coqc $(COQARGS)
+COQC    := $(COQBIN)coqc $(COQARGS)
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+	$(COQBIN)coq_makefile $(COQARGS) $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean

@@ -18,10 +18,10 @@ coq: Makefile.coq
 	$(MAKE) -C cito
 
 COQARGS := -R $(ROOT)/src Bedrock
-COQC    := coqc $(COQARGS)
+COQC    := $(COQBIN)coqc $(COQARGS)
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+	$(COQBIN)coq_makefile $(COQARGS) $(VS) -o Makefile.coq
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
