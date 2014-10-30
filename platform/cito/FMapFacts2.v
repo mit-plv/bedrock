@@ -13,11 +13,16 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
   Import P.
   Import F.
 
+  Definition Submap {elt} m1 m2 := forall {k v}, @find elt k m1 = Some v -> find k m2 = Some v.
+  Definition direct_sum elt (h1 h2 h12 : t elt) := (Equal (update h1 h2) h12 /\ Disjoint h1 h2).
+
   Module FMapNotations.
     Infix "==" := (@Equal _) (at level 70) : fmap_scope.
     Notation "{}" := (@empty _) : fmap_scope.
     Infix "-" := (@diff _) : fmap_scope.
     Infix "+" := (@update _) : fmap_scope.
+    Infix "<=" := Submap : fmap_scope.
+    Notation "h1 * h2 === h12" := (direct_sum h1 h2 h12) (at level 100) : fmap_scope.
     Delimit Scope fmap_scope with fmap.
   End FMapNotations.
 
@@ -25,6 +30,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Require Import GeneralTactics.
     Require Import GeneralTactics2.
+    Require Import Option.
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap_scope.
@@ -858,6 +864,364 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       rewrite mapi_update.
       rewrite IHms.
       eauto.
+    Qed.
+
+    (* newly added from Facade *)
+
+    Lemma find_Some_in : forall elt k m (v : elt), find k m = Some v -> In k m.
+      intros; eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma in_find_Some elt k m : In k m -> exists v : elt, find k m = Some v.
+      intros H.
+      eapply In_MapsTo in H.
+      destruct H as [v H].
+      eapply find_mapsto_iff in H.
+      eauto.
+    Qed.
+
+    Lemma diff_disjoint elt m1 m2 : @Disjoint elt (m1 - m2) m2.
+    Proof.
+      unfold Disjoint.
+      intros k.
+      nintro.
+      openhyp.
+      eapply diff_in_iff in H.
+      openhyp; intuition.
+    Qed.
+
+    Lemma Disjoint_in_not elt h1 h2 x : @Disjoint elt h1 h2 -> In x h1 -> ~ In x h2.
+    Proof.
+      intros Hdisj Hin1 Hin2.
+      eapply Hdisj; eauto.
+    Qed.
+
+    Lemma diff_find_Some_iff : forall elt k (v : elt) m m', find k (m - m') = Some v <-> find k m = Some v /\ ~ In k m'.
+      split; intros.
+      eapply find_mapsto_iff in H.
+      eapply diff_mapsto_iff in H; openhyp.
+      eapply find_mapsto_iff in H.
+      eauto.
+      openhyp.
+      eapply find_mapsto_iff.
+      eapply diff_mapsto_iff.
+      eapply find_mapsto_iff in H.
+      eauto.
+    Qed.
+
+    Lemma diff_swap_find elt k (v : elt) h h1 h2 : find k (h - h1 - h2) = Some v -> find k (h - h2 - h1) = Some v.
+    Proof.
+      intros Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni2].
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni1].
+      eapply diff_find_Some_iff.
+      split.
+      eapply diff_find_Some_iff.
+      eauto.
+      eauto.
+    Qed.
+
+    Lemma diff_swap elt (h h1 h2 : t elt) : h - h1 - h2 == h - h2 - h1.
+    Proof.
+      unfold Equal.
+      intros k.
+      eapply option_univalence.
+      intros v; split; intros Hf; eapply diff_swap_find; eauto.
+    Qed.
+
+    Global Add Parametric Morphism elt : (@Submap elt)
+        with signature Equal ==> Equal ==> iff as Submap_m.
+    Proof.
+      intros x y Hxy x' y' Hx'y'.
+      unfold Submap.
+      split; intros H.
+      intros k v Hf.
+      rewrite <- Hx'y' in *.
+      rewrite <- Hxy in *.
+      eauto.
+      intros k v Hf.
+      rewrite Hx'y' in *.
+      rewrite Hxy in *.
+      eauto.
+    Qed.
+
+    Lemma submap_trans elt (a b c : t elt) : a <= b -> b <= c -> a <= c.
+    Proof.
+      intros Hab Hbc; unfold Submap; intros k v Hf; eapply Hbc; eauto.
+    Qed.
+
+    Lemma submap_find : forall elt k (v : elt) m1 m2, m1 <= m2 -> find k m1 = Some v -> find k m2 = Some v.
+      unfold Submap; eauto.
+    Qed.
+
+    Lemma submap_in elt h1 h2 : h1 <= h2 -> forall k, @In elt k h1 -> In k h2.
+    Proof.
+      intros Hsm k Hi.
+      eapply in_find_Some in Hi.
+      destruct Hi as [v Hf].
+      eapply find_Some_in; eauto.
+    Qed.
+
+    Lemma diff_submap elt (m1 m2 : t elt) : m1 - m2 <= m1.
+    Proof.
+      unfold Submap.
+      intros k v Hf.
+      eapply diff_find_Some_iff in Hf; openhyp; eauto.
+    Qed.
+
+    Lemma submap_not_in : forall elt h1 h2, h1 <= h2 -> forall k, ~ @In elt k h2 -> ~ In k h1.
+      intros; not_not; eapply submap_in; eauto.
+    Qed.
+    Lemma submap_diff elt (a b c : t elt) : c <= b -> b <= a -> a - b <= a - c.
+    Proof.
+      intros Hcb Hba.
+      unfold Submap.
+      intros k v Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff.
+      split.
+      solve [eauto].
+      solve [eapply submap_not_in; eauto].
+    Qed.
+
+    Lemma submap_restrict elt (h1 h2 h : t elt) : h1 <= h2 -> h1 - h <= h2 - h.
+    Proof.
+      unfold Submap; intros Hsml k v Hf.
+      eapply diff_find_Some_iff in Hf; openhyp; rewrite diff_o; eauto.
+    Qed.
+
+    Require Import GeneralTactics4.
+
+    Lemma submap_diff_diff elt (h1 h2 h3 : t elt) : h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
+    Proof.
+      intros H12 H23.
+      unfold Equal.
+      intros k.
+      eapply option_univalence.
+      intros v; split; intros Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff.
+      split.
+      eapply diff_find_Some_iff.
+      split.
+      eapply submap_find; eauto.
+      eauto.
+      not_not.
+      eapply diff_in_iff in H.
+      destruct H as [Hi3 Hni2].
+      eapply find_Some_in in Hf; contradiction.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni].
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf Hni1].
+      eapply diff_find_Some_iff.
+      split.
+      destruct (option_dec (find k h2)) as [[v' Hs] | Hn].
+      copy Hs; eapply H23 in Hs; unif v'; eauto.
+      eapply not_find_in_iff in Hn.
+      contradict Hni.
+      eapply diff_in_iff.
+      split.
+      eapply find_Some_in; eauto.
+      eauto.
+      eauto.
+    Qed.
+
+    Lemma submap_case elt h2 h12 : h2 <= h12 -> forall k (v : elt), find k h12 = Some v <-> find k (h12 - h2) = Some v \/ find k h2 = Some v.
+    Proof.
+      intros Hsm k v; split.
+      intros Hf12.
+      destruct (In_dec h2 k) as [Hin | Hni].
+      right.
+      eapply in_find_Some in Hin.
+      destruct Hin as [v' Hf2].
+      copy_as Hf2 Hf2'; eapply Hsm in Hf2'.
+      unif v'.
+      eauto.
+      left.
+      eapply diff_find_Some_iff; eauto.
+
+      intros [Hfd | Hf2].
+      eapply diff_find_Some_iff in Hfd; eauto.
+      destruct Hfd as [Hf12 Hni].
+      eauto.
+      eapply Hsm; eauto.
+    Qed.
+
+    Lemma submap_disjoint_1 elt (h1 h2 h1' : t elt) : Disjoint h1 h2 -> h1' <= h1 -> Disjoint h1' h2.
+    Proof.
+      intros Hdisj Hsm.
+      unfold Disjoint.
+      intros k [Hin1 Hin2].
+      eapply submap_in in Hin1; eauto.
+      eapply Hdisj; eauto.
+    Qed.
+
+    Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+
+    Lemma diff_submap_cancel elt (h1 h12 : t elt) : h1 <= h12 -> h12 - (h12 - h1) == h1.
+    Proof.
+      intros Hsm.
+      unfold Equal.
+      intros k.
+      eapply option_univalence.
+      intros v; split; intros Hf.
+      eapply diff_find_Some_iff in Hf.
+      destruct Hf as [Hf12 Hni].
+      eapply submap_case in Hf12; eauto.
+      openhyp.
+      contradict Hni; eapply find_Some_in; eauto.
+      eauto.
+      eapply diff_find_Some_iff.
+      split.
+      eapply Hsm; eauto.
+      intros Hin.
+      eapply diff_in_iff in Hin.
+      destruct Hin as [? Hni].
+      contradict Hni; eapply find_Some_in; eauto.
+    Qed.
+
+    Global Add Parametric Morphism elt : (@direct_sum elt)
+        with signature Equal ==> Equal ==> Equal ==> iff as direct_sum_m.
+    Proof.
+      intros.
+      unfold direct_sum.
+      rewrite H.
+      rewrite H0.
+      rewrite H1.
+      intuition.
+    Qed.
+
+    Lemma direct_sum_disjoint elt h1 h2 h12 : direct_sum h1 h2 h12 -> @Disjoint elt h1 h2.
+    Proof.
+      intros H; destruct H; eauto.
+    Qed.
+
+    Lemma direct_sum_in_not elt h1 h2 h12 x : @direct_sum elt h1 h2 h12 -> In x h1 -> ~ In x h2.
+    Proof.
+      intros; eapply Disjoint_in_not; eauto.
+      eapply direct_sum_disjoint; eauto.
+    Qed.
+    Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+
+    Lemma disjoint_update_iff elt h1 h2 : Disjoint h1 h2 -> forall k (v : elt), find k (h1 + h2) = Some v <-> find k h1 = Some v \/ find k h2 = Some v.
+    Proof.
+      intros Hdisj k v.
+      split; intros Hf12.
+      eapply find_mapsto_iff in Hf12.
+      eapply update_mapsto_iff in Hf12.
+      destruct Hf12 as [Hf2 | [Hf1 Hni2]].
+      eapply find_mapsto_iff in Hf2.
+      eauto.
+      eapply find_mapsto_iff in Hf1.
+      eauto.
+      eapply find_mapsto_iff.
+      eapply update_mapsto_iff.
+      destruct Hf12 as [Hf1 | Hf2].
+      right.
+      split.
+      eapply find_mapsto_iff; eauto.
+      eapply Disjoint_in_not; eauto.
+      eapply find_Some_in; eauto.
+      left.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma direct_sum_intro elt h1 h2 h12 : @Disjoint elt h1 h2 -> (forall k v, find k h12 = Some v <-> find k h1 = Some v \/ find k h2 = Some v) -> direct_sum h1 h2 h12.
+    Proof.
+      intros Hdisj Hiff.
+      unfold direct_sum.
+      split.
+      unfold Equal.
+      intros k.
+      eapply option_univalence.
+      intros v.
+      etransitivity.
+      2 : symmetry; eauto.
+      eapply disjoint_update_iff; eauto.
+      eauto.
+    Qed.
+
+    Lemma find_Some_direct_sum elt h1 h2 h12 : direct_sum h1 h2 h12 -> forall k (v : elt), find k h12 = Some v <-> find k h1 = Some v \/ find k h2 = Some v.
+    Proof.
+      intros Hds k v.
+      destruct Hds as [Hheq Hdisj].
+      rewrite <- Hheq.
+      eapply disjoint_update_iff; eauto.
+    Qed.
+
+    Lemma diff_direct_sum elt (h2 h12 : t elt) : h2 <= h12 -> direct_sum (h12 - h2) h2 h12.
+    Proof.
+      intros Hsm.
+      eapply direct_sum_intro.
+      eapply diff_disjoint.
+      eapply submap_case; eauto.
+    Qed.
+
+    Lemma direct_sum_submap elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> h1 <= h12 /\ h2 <= h12.
+      intros Hds.
+      specialize (find_Some_direct_sum Hds).
+      intros Hiff.
+      unfold Submap.
+      split; intros k v Hf; eapply Hiff; eauto.
+    Qed.
+
+    Arguments direct_sum_submap [_] _ _ _ _.
+
+    Lemma direct_sum_sym elt (h1 h2 h12 : t elt) : direct_sum h1 h2 h12 -> direct_sum h2 h1 h12.
+    Proof.
+      intros Hds.
+      specialize (find_Some_direct_sum Hds).
+      intros Hiff.
+      eapply direct_sum_intro.
+      eapply Disjoint_sym; eapply direct_sum_disjoint; eauto.
+      intros k v.
+      etransitivity.
+      eauto.
+      intuition.
+    Qed.
+
+    Lemma direct_sum_submap_submap elt (h1 h12 h123 h2 : t elt) : h1 <= h12 -> h12 <= h123 -> h2 == h12 - h1 -> direct_sum h2 (h123 - h12) (h123 - h1).
+    Proof.
+      intros Hsm1 Hsm12 Heq2.
+      eapply direct_sum_intro.
+      rewrite Heq2.
+      eapply submap_disjoint_1; eauto.
+      2 : solve [eapply diff_submap; eauto].
+      eapply Disjoint_sym; eapply diff_disjoint; eauto.
+      intros k v; split.
+      intros Hfd.
+      eapply diff_find_Some_iff in Hfd; eauto.
+      destruct Hfd as [Hf123 Hni1].
+      eapply submap_case in Hf123; eauto.
+      destruct Hf123 as [Hfd | Hf12].
+      eauto.
+      left.
+      rewrite Heq2.
+      eapply submap_case in Hf12; eauto.
+      destruct Hf12 as [Hfd | Hf1].
+      eauto.
+      contradict Hni1; eapply find_Some_in; eauto.
+      
+      intros Hor.
+      eapply diff_find_Some_iff.
+      rewrite Heq2 in Hor.
+      destruct Hor as [Hf2 | Hfd].
+      eapply diff_find_Some_iff in Hf2.
+      openhyp.
+      split.
+      eapply Hsm12; eauto.
+      eauto.
+      eapply diff_find_Some_iff in Hfd.
+      openhyp.
+      split.
+      eauto.
+      not_not.
+      eapply submap_in; eauto.
     Qed.
 
   End TopSection.
