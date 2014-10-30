@@ -28,20 +28,13 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
 
     Definition find_list k := findA (B := elt) (eqb k).
 
-    Definition option_dec A (x : option A) : {a | x = Some a} + {x = None}.
-      destruct x.
-      left.
-      exists a.
-      eauto.
-      right.
-      eauto.
-    Qed.
-
     Require Import GeneralTactics.
     Require Import GeneralTactics2.
 
     Definition NoDupKey := NoDupA eqk.
     Definition InPair := InA eqke.
+
+    Require Import Option.
 
     Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
       unfold InPair.

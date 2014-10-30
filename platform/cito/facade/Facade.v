@@ -82,16 +82,6 @@ Section ADTSection.
       | _, _, _ => st
     end.
 
-  Fixpoint mapM A B (f : A -> option B) ls :=
-    match ls with
-      | x :: xs => 
-        match f x, mapM f xs with
-          | Some y, Some ys => Some (y :: ys)
-          | _, _ => None
-        end
-      | nil => Some nil
-    end.
-
   Definition same_type a b := 
     match a, b with
       | ADT _, ADT _ => True
@@ -112,7 +102,7 @@ Section ADTSection.
       PreCondTypeConform : type_conforming PreCond
     }.
 
-  Require Import ListFacts3.
+  Require Import ListFacts3 ListFacts4.
 
   Definition is_no_dup := NoDup_bool string_bool.
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
