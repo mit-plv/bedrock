@@ -1224,6 +1224,139 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply submap_in; eauto.
     Qed.
 
+    Fixpoint make_map {elt} keys values :=
+      match keys, values with
+        | k :: keys', v :: values' => add k v (make_map keys' values')
+        | _, _ => @empty elt
+      end.
+
+    Lemma make_map_in elt ks : forall (vs : list elt) k, In k (make_map ks vs) -> List.In k ks.
+    Proof.
+      induction ks; destruct vs; simpl; intros k' Hi.
+      eapply empty_in_iff in Hi; contradiction.
+      eapply empty_in_iff in Hi; contradiction.
+      eapply empty_in_iff in Hi; contradiction.
+      rename a into k.
+      eapply add_in_iff in Hi.
+      destruct Hi as [He | Hi].
+      subst; eauto.
+      right; eauto.
+    Qed.
+
+    Lemma make_map_not_in elt k ks (vs : list elt) : ~ List.In k ks -> ~ In k (make_map ks vs).
+    Proof.
+      intros; not_not.
+      rename H0 into H.
+      eapply make_map_in; eauto.
+    Qed.
+
+    Fixpoint make_mapM {elt} keys values :=
+      match keys, values with
+        | k :: keys', v :: values' => 
+          match v with
+            | Some a => add k a (make_mapM keys' values')
+            | None => make_mapM keys' values'
+          end
+        | _, _ => @empty elt
+      end.
+
+    Require Import ListFacts4.
+
+    Lemma in_make_mapM_iff elt ks : forall vs k, length ks = length vs -> (In k (make_mapM ks vs) <-> exists i (a : elt), nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
+    Proof.
+      induction ks; try (rename a into k'); destruct vs as [|v' vs]; simpl; intros k Hl; (split; [intros Hi | intros Hex]); try discriminate.
+      eapply empty_in_iff in Hi; contradiction.
+      destruct Hex as [i [a [Hk Hv]]]; rewrite nth_error_nil in *; discriminate.
+
+      inject Hl.
+      destruct v' as [a' | ].
+      eapply add_in_iff in Hi.
+      destruct Hi as [Heq | Hi].
+      subst.
+      solve [exists 0, a'; eauto].
+      solve [eapply IHks in Hi; eauto; destruct Hi as [i [a [Hk Hv]]]; exists (S i), a; eauto].
+      solve [eapply IHks in Hi; eauto; destruct Hi as [i [a [Hk Hv]]]; exists (S i), a; eauto].
+
+      inject Hl.
+      destruct Hex as [i [a [Hk Hv]]].
+      destruct i as [ | i]; simpl in *.
+      inject Hk.
+      inject Hv.
+      eapply add_in_iff; eauto.
+      destruct v' as [a' |].
+      eapply add_in_iff.
+      right.
+      eapply IHks; eauto.
+      eapply IHks; eauto.
+    Qed.
+
+    Definition no_dupM elt ks vs := forall i j (k : key) (ai aj : elt), nth_error ks i = Some k -> nth_error vs i = Some (Some ai) -> nth_error ks j = Some k -> nth_error vs j = Some (Some aj) -> i = j.
+
+    Lemma no_dupM_cons_elim elt ks vs k (v : option elt) : no_dupM (k :: ks) (v :: vs) -> no_dupM ks vs.
+    Proof.
+      unfold no_dupM.
+      intros Hnd i j k' ai aj Hik Hiv Hjk Hjv.
+      assert (S i = S j).
+      eapply Hnd; eauto; simpl; eauto.
+      inject H; eauto.
+    Qed.
+
+    Lemma find_Some_make_mapM_iff elt ks : forall vs k (a : elt), length ks = length vs -> no_dupM ks vs -> (find k (make_mapM ks vs) = Some a <-> exists i, nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
+    Proof.
+      induction ks; try (rename a into k'); destruct vs as [ | v' vs]; simpl in *; intros k a Hl Hnd; (split; [intros Hi | intros Hex]); try rewrite empty_o in *; try discriminate.
+      destruct Hex as [i [Hk Hv]]; rewrite nth_error_nil in *; discriminate.
+
+      inject Hl.
+      destruct v' as [a' | ].
+      destruct (eq_dec k k') as [Heq | Hne].
+      subst.
+      rewrite add_eq_o in * by eauto.
+      inject Hi.
+      solve [exists 0; eauto].
+      rewrite add_neq_o in * by eauto.
+      eapply IHks in Hi; eauto.
+      solve [destruct Hi as [i [Hk Hv]]; exists (S i); eauto].
+      solve [eapply no_dupM_cons_elim; eauto].
+      eapply IHks in Hi; eauto.
+      solve [destruct Hi as [i [Hk Hv]]; exists (S i); eauto].
+      solve [eapply no_dupM_cons_elim; eauto].
+
+      inject Hl.
+      destruct Hex as [i [Hk Hv]].
+      destruct i as [ | i]; simpl in *.
+      inject Hk.
+      inject Hv.
+      rewrite add_eq_o in * by eauto.
+      solve [eauto].
+      destruct v' as [a' |].
+      destruct (eq_dec k k') as [Heq | Hne].
+      subst.
+      assert (0 = S i).
+      eapply Hnd; eauto; simpl; eauto.
+      discriminate.
+      rewrite add_neq_o in * by eauto.
+      eapply IHks; eauto.
+      solve [eapply no_dupM_cons_elim; eauto].
+      eapply IHks; eauto.
+      solve [eapply no_dupM_cons_elim; eauto].
+    Qed.
+
+    Lemma singleton_iff_not : forall elt (e e' : elt), ~ List.In e' [e] <-> e <> e'.
+      unfold List.In; split; intros; not_not; intuition.
+    Qed.
+
+    Lemma add_new_submap elt k m : ~ In k m -> forall (v : elt), m <= add k v m.
+    Proof.
+      intros Hni v.
+      unfold Submap.
+      intros k' v' Hf.
+      destruct (eq_dec k' k).
+      subst.
+      contradict Hni.
+      eapply find_Some_in; eauto.
+      rewrite add_neq_o by eauto; eauto.
+    Qed.
+
   End TopSection.
 
 End UWFacts_fun.

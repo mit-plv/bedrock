@@ -145,12 +145,6 @@ Section ADTSection.
 
   Definition sel st x := @StringMap.find Value x st.
 
-  Fixpoint make_map {elt} keys values :=
-    match keys, values with
-      | k :: keys', v :: values' => add k v (make_map keys' values')
-      | _, _ => @empty elt
-    end.
-
   Record Env := 
     {
       Label2Word : glabel -> option W ;

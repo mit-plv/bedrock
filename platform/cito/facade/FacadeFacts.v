@@ -112,6 +112,7 @@ Section ADTValue.
   Require Import List.
   Require Import StringMap.
   Import StringMap.
+  Require Import StringMapFacts.
   Require Import ListFacts4.
   Require Import GeneralTactics.
   Require Import GeneralTactics2.
@@ -357,17 +358,139 @@ Section ADTValue.
     intuition.
     openhyp; discriminate.
   Qed.
+
   Lemma is_mapsto_adt_false_iff x st : is_mapsto_adt x st = false <-> ~ exists a : ADTValue, StringMap.find x st = Some (ADT a).
   Proof.
     eapply iff_false_iff; eapply is_mapsto_adt_iff.
   Qed.
+
   Lemma not_mapsto_adt_iff x st : not_mapsto_adt x st = true <-> ~ exists a : ADTValue, StringMap.find x st = Some (ADT a).
   Proof.
     eapply iff_negb_iff; eapply is_mapsto_adt_iff.
   Qed.
+
   Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
   Proof.
     eapply iff_negb_not_true_iff; eapply is_mapsto_adt_iff.
+  Qed.
+
+  Lemma find_Some_make_map_iff elt ks : 
+    forall vs k (v : elt),
+      NoDup ks ->
+      length ks  = length vs ->
+      (StringMap.find k (make_map ks vs) = Some v <->
+       exists i,
+         nth_error ks i = Some k /\
+         nth_error vs i = Some v).
+  Proof.
+    induction ks; destruct vs; simpl in *; intros k v Hnd Hl; (split; [intros Hf | intros Hex]); try discriminate.
+    destruct Hex as [i [Hk Hi]]; rewrite nth_error_nil in *; discriminate.
+    rename a into k'.
+    inject Hl.
+    inversion Hnd; subst.
+    destruct (string_dec k k') as [Heq | Hne].
+    subst.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    inject Hf.
+    exists 0; eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply IHks in Hf; eauto.
+    destruct Hf as [i [Hk Hv]].
+    solve [exists (S i); eauto].
+    rename a into k'.
+    inject Hl.
+    inversion Hnd; subst.
+    destruct Hex as [i [Hk Hv]].
+    destruct i as [ | i]; simpl in *.
+    inject Hk.
+    inject Hv.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    solve [eauto].
+    destruct (string_dec k k') as [Heq | Hne].
+    subst.
+    contradict H2.
+    solve [eapply Locals.nth_error_In; eauto].
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eapply IHks; eauto.
+  Qed.      
+
+  Require Import ListFacts3.
+
+  Lemma is_no_dup_sound ls : is_no_dup ls = true -> NoDup ls.
+    intros; eapply NoDup_bool_string_eq_sound; eauto.
+  Qed.
+
+  Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
+    intros; destruct spec; simpl; eapply is_no_dup_sound; eauto.
+  Qed.
+
+  Lemma not_in_no_adt k m : ~ StringMap.In k m -> ~ exists a : ADTValue, StringMap.find k m = Some (ADT a).
+  Proof.
+    intros; not_not; openhyp; eapply find_Some_in; eauto.
+  Qed.
+
+  Lemma NoDup_not_in : forall A (x : A) xs, NoDup (x :: xs) -> ~ List.In x xs.
+    inversion 1; subst; eauto.
+  Qed.
+
+  Lemma not_incl_spec : forall spec, ~ List.In (RetVar spec) (ArgVars spec).
+    intros; destruct spec; simpl; eapply negb_is_in_iff; eauto.
+  Qed.
+
+  Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
+  Proof.
+    destruct spec; simpl in *; nintro; eapply is_disjoint_sound; eauto.
+  Qed.
+
+  Lemma safe_seq_1 : forall (env : Env) a b st, Safe env (Seq a b) st -> Safe env a st.
+  Proof.
+    intros.
+    inversion H; subst.
+    openhyp.
+    eauto.
+  Qed.
+
+  Lemma safe_seq_2 : forall (env : Env) a b st, Safe env (Seq a b) st -> forall st', RunsTo env a st st' -> Safe env b st'.
+  Proof.
+    intros.
+    inversion H; subst.
+    openhyp.
+    eauto.
+  Qed.
+
+  Require Import GeneralTactics3.
+
+  Lemma safe_while_is_bool (env : Env) e s st : Safe env (While e s) st -> is_bool st e.
+  Proof.
+    intros H.
+    inversion H; unfold_all; subst.
+    eapply is_true_is_bool; eauto.
+    eapply is_false_is_bool; eauto.
+  Qed.
+
+  Lemma is_mapsto_adt_eq_sca x w st : is_mapsto_adt x (StringMap.add x (SCA ADTValue w) st) = false.
+  Proof.
+    unfold is_mapsto_adt.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    eauto.
+  Qed.
+
+  Lemma is_mapsto_adt_neq x (v : Value) st x' : x' <> x -> is_mapsto_adt x' (StringMap.add x v st) = is_mapsto_adt x' st.
+  Proof.
+    unfold is_mapsto_adt; intros.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_find x st v : not_mapsto_adt x st = true -> StringMap.find x st = Some v -> exists w, v = SCA ADTValue w.
+  Proof.
+    intros Hnmt Hfx.
+    unfold not_mapsto_adt in *.
+    unfold is_mapsto_adt in *.
+    rewrite Hfx in Hnmt; simpl in *.
+    destruct v as [w | a]; simpl in *.
+    eauto.
+    discriminate.
   Qed.
   
 End ADTValue.  
