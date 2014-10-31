@@ -108,10 +108,15 @@ Section ADTValue.
 
   Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
 
+  Require Import String.
+  Require Import List.
   Require Import StringMap.
   Import StringMap.
   Require Import ListFacts4.
-
+  Require Import GeneralTactics.
+  Require Import GeneralTactics2.
+  Require Import GeneralTactics4.
+  
   Lemma find_Some_add_remove_many ks : 
     forall ins outs h k v, 
       NoDup ks -> 
@@ -275,5 +280,94 @@ Section ADTValue.
     solve [right; exists i, a; eauto].
   Qed.
 
+  Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
+    NoDup ks -> 
+    mapM (sel st) ks = Some ins ->
+    length ks = length outs ->
+    StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
+    exists a', StringMap.find k st = Some (ADT a').
+  Proof.
+    intros Hnd Hmm Hl Hf.
+    eapply find_Some_add_remove_many in Hf; eauto.
+    2 : eapply mapM_length; eauto.
+    openhyp.
+    eexists; eauto.
+    eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
+    unif x1.
+    eexists; eauto.
+  Qed.
 
+  Lemma is_in_iff a ls : is_in a ls = true <-> List.In a ls.
+  Proof.
+    unfold is_in; split; intros H; destruct (in_dec string_dec a ls); eauto; discriminate.
+  Qed.
+  Lemma iff_false_iff b P : (b = true <-> P) -> (b = false <-> ~ P).
+  Proof.
+    split; intros; destruct b; intuition.
+  Qed.
+  Lemma iff_not_true_iff b P : (b = true <-> P) -> (b <> true <-> ~ P).
+  Proof.
+    split; intros; destruct b; intuition.
+  Qed.
+  Lemma iff_negb_iff b P : (b = true <-> P) -> (negb b = true <-> ~ P).
+  Proof.
+    split; intros; destruct b; intuition.
+  Qed.
+  Lemma iff_negb_not_true_iff b P : (b = true <-> P) -> (negb b <> true <-> P).
+  Proof.
+    split; intros; destruct b; intuition.
+  Qed.
+  Lemma not_is_in_iff a ls : is_in a ls = false <-> ~ List.In a ls.
+  Proof.
+    eapply iff_false_iff; eapply is_in_iff.
+  Qed.
+  Lemma negb_is_in_iff a ls : negb (is_in a ls) = true <-> ~ List.In a ls.
+  Proof.
+    eapply iff_negb_iff; eapply is_in_iff.
+  Qed.
+
+  Lemma is_some_p_iff A p (o : option A) : is_some_p p o = true <-> match o with | Some a => p a = true | None => False end.
+  Proof.
+    destruct o as [a|]; simpl in *; intuition.
+  Qed.
+
+  Lemma is_adt_iff v : is_adt v = true <-> exists a : ADTValue, v = ADT a.
+  Proof.
+    destruct v as [w | a]; simpl in *.
+    split; intros; openhyp; discriminate.
+    intuition.
+    eexists; eauto.
+  Qed.
+
+  Lemma is_mapsto_adt_iff x st : is_mapsto_adt x st = true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
+  Proof.
+    unfold is_mapsto_adt.
+    etransitivity.
+    eapply is_some_p_iff.
+    destruct (option_dec (StringMap.find x st)) as [[v Heq] | Hne].
+    rewrite Heq in *.
+    etransitivity.
+    eapply is_adt_iff.
+    split; intros Hex.
+    openhyp; subst; eexists; eauto.
+    destruct Hex as [a Ha]; inject Ha; eexists; eauto.
+
+    rewrite Hne.
+    split; intros.
+    intuition.
+    openhyp; discriminate.
+  Qed.
+  Lemma is_mapsto_adt_false_iff x st : is_mapsto_adt x st = false <-> ~ exists a : ADTValue, StringMap.find x st = Some (ADT a).
+  Proof.
+    eapply iff_false_iff; eapply is_mapsto_adt_iff.
+  Qed.
+  Lemma not_mapsto_adt_iff x st : not_mapsto_adt x st = true <-> ~ exists a : ADTValue, StringMap.find x st = Some (ADT a).
+  Proof.
+    eapply iff_negb_iff; eapply is_mapsto_adt_iff.
+  Qed.
+  Lemma not_mapsto_adt_not_true_iff x st : not_mapsto_adt x st <> true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
+  Proof.
+    eapply iff_negb_not_true_iff; eapply is_mapsto_adt_iff.
+  Qed.
+  
 End ADTValue.  
