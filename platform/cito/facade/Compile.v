@@ -1,14 +1,15 @@
 Set Implicit Arguments.
 
+Require Import Memory IL.
+Require Import GLabel.
+Require Import Facade.
+
 Require Import String.
 Local Open Scope string_scope.
-Require Import Memory IL.
-Require Import Facade.
 Require Syntax.
 Require Import SyntaxExpr.
 Require Import StringMap.
 Import StringMap.
-Require Import GLabel.
 Require Import StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
@@ -21,17 +22,16 @@ Fixpoint compile (s : Stmt) : Syntax.Stmt :=
     | Seq a b => Syntax.Seq (compile a) (compile b)
     | If e t f => Syntax.If e (compile t) (compile f)
     | While e c => Syntax.While e (compile c)
-    | Assign x e => Syntax.Assign x e
+    | Facade.Assign x e => Syntax.Assign x e
     | Label x lbl => Syntax.Label x lbl
     | Call x f args => Syntax.Call (Some x) f (List.map Var args)
   end.
 
-Require Import ADT.
+Section ADTValue.
 
-Module Make (Import A : ADT).
+  Variable ADTValue : Type.
 
   Require Semantics.
-  Module Cito := Semantics.Make A.
 
   Definition RunsTo := @RunsTo ADTValue.
   Definition State := @State ADTValue.
@@ -49,7 +49,14 @@ Module Make (Import A : ADT).
 
   Require Import WordMap.
 
-  Definition related (s_st : State) (t_st : Cito.State) := 
+  Notation CitoState := (@Semantics.State ADTValue).
+  Notation CitoCallee := (@Semantics.Callee ADTValue).
+  Notation CitoArgIn := (@Semantics.ArgIn ADTValue).
+  Notation CitoArgOut := (@Semantics.ArgOut ADTValue).
+  Notation CitoInternal := (@Semantics.Internal ADTValue).
+  Notation CitoRunsTo := (@Semantics.RunsTo ADTValue).
+
+  Definition related (s_st : State) (t_st : CitoState) := 
     (forall x v, 
        find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (WordMap.find p (snd t_st)) v) /\
     (forall p a,
@@ -58,17 +65,17 @@ Module Make (Import A : ADT).
          Locals.sel (fst t_st)  x = p /\
          find x s_st = Some (ADT a)).
                 
-  Definition CitoEnv := ((glabel -> option W) * (W -> option Cito.Callee))%type.
+  Definition CitoEnv := ((glabel -> option W) * (W -> option CitoCallee))%type.
 
   Coercion Semantics.Fun : Semantics.InternalFuncSpec >-> FuncCore.FuncCore.
 
-  Definition CitoIn_FacadeIn (argin : Cito.ArgIn) : Value :=
+  Definition CitoIn_FacadeIn (argin : CitoArgIn) : Value :=
     match argin with
       | inl w => SCA _ w
       | inr a => ADT a
     end.
 
-  Definition CitoInOut_FacadeInOut (in_out : Cito.ArgIn * Cito.ArgOut) : Value * option ADTValue := (CitoIn_FacadeIn (fst in_out), snd in_out).
+  Definition CitoInOut_FacadeInOut (in_out : CitoArgIn * CitoArgOut) : Value * option ADTValue := (CitoIn_FacadeIn (fst in_out), snd in_out).
 
   Definition compile_ax (spec : AxiomaticSpec) :=
     {|
@@ -91,10 +98,10 @@ Module Make (Import A : ADT).
 
   Definition FuncSpec := @FuncSpec ADTValue.
 
-  Definition compile_spec (spec : FuncSpec) : Cito.Callee :=
+  Definition compile_spec (spec : FuncSpec) : CitoCallee :=
     match spec with
       | Axiomatic s => Semantics.Foreign (compile_ax s)
-      | Operational s => Cito.Internal (compile_op s)
+      | Operational s => CitoInternal (compile_op s)
     end.
 
   Definition compile_env (env : Env) : CitoEnv :=
@@ -261,7 +268,7 @@ Module Make (Import A : ADT).
 
   Theorem compile_runsto : 
     forall t t_env t_st t_st', 
-      Cito.RunsTo t_env t t_st t_st' -> 
+      CitoRunsTo t_env t t_st t_st' -> 
       forall s, 
         t = compile s -> 
         (* h1 : the heap portion that this program is allowed to change *)
@@ -1225,13 +1232,13 @@ Module Make (Import A : ADT).
       destruct Hai' as [vi [Hii' Hvi]]. 
       eapply nth_error_map_elim in Hii'; eauto.
       destruct Hii' as [ai' [Hii' Hai']].
-      unfold Cito.ArgIn, ArgIn in *.
+      unfold ArgIn in *.
       unif ai'; simpl in *.
       copy_as Haj Haj'; eapply mapM_nth_error_1 in Haj'; eauto.
       destruct Haj' as [vj [Hij' Hvj]]. 
       eapply nth_error_map_elim in Hij'; eauto.
       destruct Hij' as [aj' [Hij' Haj']].
-      unfold Cito.ArgIn, ArgIn in *.
+      unfold ArgIn in *.
       unif aj'; simpl in *.
       assert (xi = xj) by (eapply related_no_alias; eauto).
       subst; eapply NoDup_nth_error in Hnd; eauto.
@@ -1469,7 +1476,6 @@ Module Make (Import A : ADT).
       destruct Hmm as [b [Hi' Hs]].
       eapply nth_error_map_elim in Hi'.
       destruct Hi' as [a' [? ?]].
-      unfold Cito.ArgIn in *.
       unif a'.
       destruct v; simpl in *.
       eexists; eauto.
@@ -1572,7 +1578,6 @@ Module Make (Import A : ADT).
       rename x0 into v'.
       eapply nth_error_map_elim in H3.
       openhyp; subst.
-      unfold Cito.ArgIn in *.
       unif x0.
       destruct v; simpl in *.
       eexists; eauto.
@@ -2261,4 +2266,4 @@ Module Make (Import A : ADT).
     solve [rewrite diff_submap_cancel; eauto].
   Qed.
 
-End Make.
+End ADTValue.
