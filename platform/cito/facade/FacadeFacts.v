@@ -492,5 +492,15 @@ Section ADTValue.
     eauto.
     discriminate.
   Qed.
-  
+
+  Lemma wrap_output_not_sca coutput i w : nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
+  Proof.
+    unfold wrap_output.
+    rewrite ListFacts.map_nth_error_full.
+    destruct (option_dec (nth_error coutput i)) as [s | e]; simpl in *.
+    destruct s as [a e]; rewrite e in *; simpl in *.
+    destruct a; simpl in *; discriminate.
+    rewrite e in *; discriminate.
+  Qed.
+
 End ADTValue.  
