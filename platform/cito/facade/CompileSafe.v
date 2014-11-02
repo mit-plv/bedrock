@@ -1,5 +1,7 @@
 Set Implicit Arguments.
 
+Require Import Compile.
+
 Require Import Facade.
 Require Import Memory IL.
 Require Import GLabel.
@@ -12,8 +14,9 @@ Require Import StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
 Require Import List.
-Require Import ListFacts4.
+Require Import ListFacts ListFacts2 ListFacts3 ListFactsNew ListFacts4.
 Local Open Scope list_scope.
+Require Import GeneralTactics GeneralTactics2 GeneralTactics3 GeneralTactics4.
 
 Section ADTValue.
 
@@ -106,35 +109,126 @@ Section ADTValue.
     Qed.
 
   End Safe_coind.
+  
+  
+  Require Import WordMap.
+  Import WordMap.
+  Require Import WordMapFacts.
+  Import FMapNotations.
+  Local Open Scope fmap_scope.
 
-  Require Import Compile.
+  Require Import FacadeFacts.
 
-(*
-  Theorem compile_runsto : 
-    forall t t_env t_st t_st', 
-      Cito.RunsTo t_env t t_st t_st' -> 
-      forall s, 
-        t = compile s -> 
-        (* h1 : the heap portion that this program is allowed to change *)
-        forall h1, 
-          h1 <= snd t_st -> 
-          forall s_st, 
-            related s_st (fst t_st, h1) -> 
-            forall s_env, 
-              t_env = compile_env s_env -> 
-              Safe s_env s s_st -> 
-              exists s_st', 
-                RunsTo s_env s s_st s_st' /\ 
-                (* h2 : the frame heap (the outside portion that won't be touched by this program *)
-                let h2 := snd t_st - h1 in 
-                (* the frame heap will be intacked in the final state *)
-                h2 <= snd t_st' /\ 
-                (* variables not appearing as LHS won't change value in Cito state *)
-                (forall x, ~ List.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
-                (* newly allocated ADT objects during this program's execution won't collide with the frame heap *)
-                (forall x, is_mapsto_adt x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel (fst t_st) x <> Locals.sel (fst t_st') x -> is_mapsto_adt x s_st' = true -> ~ In (Locals.sel (fst t_st') x) h2) /\
-                (* main result: final source-level and target level states are related *)
-                related s_st' (fst t_st', snd t_st' - h2).
- *)
+  Notation CitoSafe := (@Semantics.Safe ADTValue).
+
+  Ltac try_eexists := try match goal with | |- exists _, _ => eexists end.
+  Ltac try_split := try match goal with | |- _ /\ _ => split end.
+  Ltac pick_related := try match goal with | |- related _ _ => eauto end.
+
+  Theorem compile_safe :
+    forall s_env s s_st,
+      Safe s_env s s_st ->
+      (* h1 : the heap portion that this program is allowed to change *)
+      forall vs h h1, 
+        h1 <= h -> 
+        related s_st (vs, h1) -> 
+        let t_env := compile_env s_env in
+        let t := compile s in
+        let t_st := (vs, h) in
+        CitoSafe t_env t t_st.
+  Proof.
+    simpl; intros.
+    eapply 
+      (Semantics.Safe_coind 
+         (fun t v =>
+            exists s s_st h1,
+              let vs := fst v in
+              let h := snd v in
+              Safe s_env s s_st /\
+              h1 <= h /\
+              related s_st (vs, h1) /\
+              t = compile s)
+      ); [ .. | repeat try_eexists; simpl in *; intuition eauto ]; clear; simpl; intros until v; destruct v as [vs h]; intros [s [s_st [h1 [Hsf [Hsm [Hr Hcomp]]]]]]; destruct s; simpl in *; try discriminate; inject Hcomp.
+
+    (* seq *)
+    {
+      rename s1 into a.
+      rename s2 into b.
+      inversion Hsf; subst.
+      destruct H2 as [Hsfa Hsfb].
+      split.
+      - exists a, s_st, h1; eauto.
+      - intros [vs' h'] Hcrt; simpl in *.
+        eapply compile_runsto in Hcrt; eauto.
+        simpl in *.
+        openhyp.
+        repeat try_eexists; repeat try_split; pick_related; eauto.
+        eapply diff_submap.
+    }
+
+    (* if *)
+    {
+      rename e into cond.
+      rename s1 into t.
+      rename s2 into f.
+      inversion Hsf; subst.
+      - left.
+        rename H3 into Hcond.
+        rename H4 into Hsfbr.
+        split.
+        + eapply eval_bool_wneb; eauto.
+        + repeat try_eexists; repeat try_split; pick_related; eauto.
+      - right.
+        rename H3 into Hcond.
+        rename H4 into Hsfbr.
+        split.
+        + eapply eval_bool_wneb; eauto.
+        + repeat try_eexists; repeat try_split; pick_related; eauto.
+    }
+
+    (* while *)
+    {
+      rename e into cond.
+      rename s into body.
+      inversion Hsf; unfold_all; subst.
+      - left.
+        rename H1 into Hcond.
+        rename H2 into Hsfbody.
+        rename H4 into Hsfk.
+        repeat try_split.
+        + eapply eval_bool_wneb; eauto.
+        + repeat try_eexists; repeat try_split; pick_related; eauto.
+        + intros [vs' h'] Hcrt; simpl in *.
+          eapply compile_runsto in Hcrt; eauto.
+          simpl in *.
+          openhyp.
+          repeat try_eexists; repeat try_split; pick_related; eauto.
+          eapply diff_submap.
+      - right.
+        eapply eval_bool_wneb; eauto.
+    }
+
+    (* call *)
+    {
+      rename s into x.
+      rename e into f_e.
+      rename l into args.
+      inversion Hsf; unfold_all; subst.
+      (* axiomatic *)
+      {
+        right.
+        (*here*)
+      }
+    }      
+
+    (* label *)
+    {
+      rename s into x.
+      rename g into lbl.
+      inversion Hsf; unfold_all; subst.
+      intuition.
+    }
+
+  Qed.
 
 End ADTValue.

@@ -33,13 +33,13 @@ Section ADTValue.
 
   Require Semantics.
 
-  Definition RunsTo := @RunsTo ADTValue.
-  Definition State := @State ADTValue.
-  Definition Env := @Env ADTValue.
-  Definition AxiomaticSpec := @AxiomaticSpec ADTValue.
-  Definition Value := @Value ADTValue.
-  Definition Sca := @SCA ADTValue.
-  Definition Adt := @ADT ADTValue.
+  Notation RunsTo := (@RunsTo ADTValue).
+  Notation State := (@State ADTValue).
+  Notation Env := (@Env ADTValue).
+  Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+  Notation Value := (@Value ADTValue).
+  Notation Sca := (@SCA ADTValue).
+  Notation Adt := (@ADT ADTValue).
 
   Definition represent p (o : option ADTValue) v :=
     match v with
@@ -431,7 +431,6 @@ Section ADTValue.
       inject Hai.
       copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
       destruct Hmm' as [v' [? Hfki]].
-      unfold Value in *.
       unif v'.
       eapply nth_error_map_elim in Hkj.
       destruct Hkj as [kj [Hkj Hvs]].
@@ -529,7 +528,6 @@ Section ADTValue.
       subst.
       eapply mapM_nth_error_1 in Hmm; eauto.
       destruct Hmm as [v [Hin' Hfk]].
-      unfold Value in *.
       unif v.
       eapply Hr in Hfk; simpl in *.
       solve [eauto].
@@ -557,7 +555,6 @@ Section ADTValue.
       subst.
       copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
       destruct Hmm' as [v' [? Hfk]].
-      unfold Value in *.
       unif v'.
       exists k.
       split.
@@ -687,7 +684,6 @@ Section ADTValue.
       destruct H as [i [k' [a' [Hk' [Hi Hp]]]]].
       eapply mapM_nth_error_1 in Hmm; eauto.
       destruct Hmm as [v [Hi' Hf']].
-      unfold Value in *.
       unif v.
       assert (k = k').
       eapply related_no_alias; eauto.
@@ -1196,7 +1192,6 @@ Section ADTValue.
     simpl.
     assert (combine (List.map CitoIn_FacadeIn cinput) coutput = List.map CitoInOut_FacadeInOut cinput_coutput) by (unfold_all; repeat rewrite map_map; rewrite combine_map; eauto).
     unfold Semantics.ArgOut in *.
-    unfold Value in *.
     rewrite H6.
     eauto.
     reflexivity.
