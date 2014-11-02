@@ -199,3 +199,12 @@ Proof.
   f_equal; eauto.
 Qed.
 
+Lemma map_fst_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map fst (combine ls1 ls2) = ls1.
+  induction ls1; destruct ls2; simpl in *; intros; intuition.
+  f_equal; eauto.
+Qed.
+
+Lemma map_snd_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map snd (combine ls1 ls2) = ls2.
+  induction ls1; destruct ls2; simpl in *; intros; intuition.
+  f_equal; eauto.
+Qed.
