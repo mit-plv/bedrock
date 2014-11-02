@@ -208,3 +208,13 @@ Lemma map_snd_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = l
   induction ls1; destruct ls2; simpl in *; intros; intuition.
   f_equal; eauto.
 Qed.
+
+Require Import Setoid.
+Require Import Morphisms.
+
+Global Add Parametric Morphism A B : (@List.map A B)
+    with signature pointwise_relation A eq ==> eq ==> eq as list_map_m.
+Proof.
+  intros; eapply map_ext; eauto.
+Qed.
+

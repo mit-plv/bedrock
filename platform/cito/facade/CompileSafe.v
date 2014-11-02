@@ -50,15 +50,6 @@ Section ADTValue.
         end.
   Ltac pick_related := try match goal with | |- related _ _ => eauto end.
 
-  Require Import Setoid.
-  Require Import Morphisms.
-
-  Global Add Parametric Morphism A B : (@List.map A B)
-      with signature pointwise_relation A eq ==> eq ==> eq as list_map_m.
-  Proof.
-    intros; eapply map_ext; eauto.
-  Qed.
-
   Definition FacadeIn_CitoIn (v : Value) :=
     match v with
       | SCA w => inl w
