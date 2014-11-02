@@ -123,6 +123,11 @@ Section ADTValue.
 
   Ltac try_eexists := try match goal with | |- exists _, _ => eexists end.
   Ltac try_split := try match goal with | |- _ /\ _ => split end.
+  Ltac eexists_split := 
+    try match goal with
+          | |- exists _, _ => eexists
+          | |- _ /\ _ => split
+        end.
   Ltac pick_related := try match goal with | |- related _ _ => eauto end.
 
   Theorem compile_safe :
@@ -162,7 +167,7 @@ Section ADTValue.
         eapply compile_runsto in Hcrt; eauto.
         simpl in *.
         openhyp.
-        repeat try_eexists; repeat try_split; pick_related; eauto.
+        repeat eexists_split; pick_related; eauto.
         eapply diff_submap.
     }
 
@@ -177,13 +182,13 @@ Section ADTValue.
         rename H4 into Hsfbr.
         split.
         + eapply eval_bool_wneb; eauto.
-        + repeat try_eexists; repeat try_split; pick_related; eauto.
+        + repeat eexists_split; pick_related; eauto.
       - right.
         rename H3 into Hcond.
         rename H4 into Hsfbr.
         split.
         + eapply eval_bool_wneb; eauto.
-        + repeat try_eexists; repeat try_split; pick_related; eauto.
+        + repeat eexists_split; pick_related; eauto.
     }
 
     (* while *)
@@ -197,16 +202,36 @@ Section ADTValue.
         rename H4 into Hsfk.
         repeat try_split.
         + eapply eval_bool_wneb; eauto.
-        + repeat try_eexists; repeat try_split; pick_related; eauto.
+        + repeat eexists_split; pick_related; eauto.
         + intros [vs' h'] Hcrt; simpl in *.
           eapply compile_runsto in Hcrt; eauto.
           simpl in *.
           openhyp.
-          repeat try_eexists; repeat try_split; pick_related; eauto.
+          repeat eexists_split; pick_related; eauto.
           eapply diff_submap.
       - right.
         eapply eval_bool_wneb; eauto.
     }
+
+    Require Import Setoid.
+    Require Import Morphisms.
+
+    Global Add Parametric Morphism A B : (@List.map A B)
+        with signature pointwise_relation A eq ==> eq ==> eq as list_map_m.
+    Proof.
+      intros; eapply map_ext; eauto.
+    Qed.
+
+    Definition FacadeIn_CitoIn (v : Value) :=
+      match v with
+        | SCA w => inl w
+        | ADT a => inr a
+      end.
+
+    Lemma CF_FC x : CitoIn_FacadeIn (FacadeIn_CitoIn x) = x.
+    Proof.
+      destruct x; simpl; eauto.
+    Qed.
 
     (* call *)
     {
@@ -217,7 +242,197 @@ Section ADTValue.
       (* axiomatic *)
       {
         right.
-        (*here*)
+        rename H2 into Hnd.
+        rename H3 into Hfe.
+        rename H4 into Hfw.
+        rename H5 into Hmm.
+        rename H7 into Hna.
+        rename H8 into Hpre.
+        destruct spec; simpl in *.
+        rewrite map_map.
+        simpl.
+        set (words := List.map (fun x0 : string => vs x0) args) in *.
+        eexists.
+        set (cinput := List.map FacadeIn_CitoIn input) in *.
+        exists (combine words cinput).
+        repeat eexists_split.
+        {
+          eapply eval_ceval in Hfe; eauto.
+          rewrite Hfe.
+          rewrite Hfw.
+          simpl.
+          eauto.
+        }
+        {
+          Lemma map_fst_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map fst (combine ls1 ls2) = ls1.
+            induction ls1; destruct ls2; simpl in *; intros; intuition.
+            f_equal; eauto.
+          Qed.
+          Lemma map_snd_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map snd (combine ls1 ls2) = ls2.
+            induction ls1; destruct ls2; simpl in *; intros; intuition.
+            f_equal; eauto.
+          Qed.
+          rewrite map_fst_combine.
+          eauto.
+          unfold_all.
+          repeat rewrite map_length.
+          eapply mapM_length; eauto.
+        }
+        {
+          Hint Constructors NoDup.
+
+          Require Import Option.
+
+          Lemma cito_is_adt_iff x : Semantics.is_adt x = true <-> exists a : ADTValue, x = inr a.
+          Proof.
+            destruct x; simpl in *.
+            intuition.
+            openhyp; intuition.
+            intuition.
+            eexists; eauto.
+          Qed.
+
+          Lemma mapM_good_inputs args :
+            forall words cinput input h h2 st vs,
+              mapM (sel st) args = Some input ->
+              cinput = List.map FacadeIn_CitoIn input ->
+              words = List.map vs args ->
+              h2 <= h ->
+              related st (vs, h2) ->
+              NoDup args ->
+              Semantics.good_inputs h (combine words cinput).
+          Proof.
+            simpl; induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate]; unfold Semantics.good_inputs, Semantics.disjoint_ptrs in *.
+            - simpl in *.
+              intros.
+              intuition.
+            - simpl in *.
+              intros.
+              intuition.
+            - simpl in *.
+              rename a into x.
+              rename s into cv.
+              intros h h2 st vs Hmm Hcin Hw Hsm Hr Hnd.
+              destruct (option_dec (sel st x)) as [[y Hy] | Hn].
+              + rewrite Hy in *.
+                destruct (option_dec (mapM (sel st) args)) as [[ys Hys] | Hn].
+                * rewrite Hys in *.
+                  inject Hmm.
+                  inject Hcin.
+                  inject Hw.
+                  inversion Hnd; subst.
+                  rename H1 into Hni.
+                  rename H2 into Hnd2.
+                  destruct v as [w | a]; simpl in *.
+                  {
+                    split.
+                    - econstructor.
+                      + unfold Semantics.word_adt_match.
+                        simpl.
+                        eapply Hr in Hy; simpl in *.
+                        eauto.
+                      + eapply IHargs; eauto.
+                    - eapply IHargs; eauto.
+                  }
+                  {
+                    split.
+                    - econstructor.
+                      + unfold Semantics.word_adt_match.
+                        simpl.
+                        eapply Hr in Hy; simpl in *.
+                        eauto.
+                      + eapply IHargs; eauto.
+                    - econstructor.
+                      + nintro.
+                        contradict Hni.
+                        eapply in_map_iff in H.
+                        destruct H as [[w cv] [Hw Hin]]; simpl in *.
+                        subst.
+                        eapply filter_In in Hin.
+                        destruct Hin as [Hin Hadt]; simpl in *.
+                        eapply cito_is_adt_iff in Hadt.
+                        destruct Hadt as [a' Hcv].
+                        subst.
+                        eapply in_nth_error in Hin.
+                        destruct Hin as [i Hnc].
+                        eapply nth_error_combine_elim in Hnc.
+                        destruct Hnc as [Hia Hii].
+                        eapply nth_error_map_elim in Hia.
+                        destruct Hia as [x' [Hia Hvs]].
+                        eapply nth_error_map_elim in Hii.
+                        destruct Hii as [v [Hii Hv]].
+                        destruct v as [w | a'']; simpl in *.
+                        * discriminate.
+                        * inject Hv.
+                          eapply mapM_nth_error_1 in Hys; eauto.
+                          destruct Hys as [v [Hii' Hx']].
+                          unif v.
+                          assert (x = x').
+                          {
+                            eapply related_no_alias; eauto.
+                          }
+                          subst.
+                          eapply Locals.nth_error_In; eauto.
+                      + eapply IHargs; eauto.
+                  }
+                * rewrite Hn in *; discriminate.
+              + rewrite Hn in *; discriminate.
+          Qed.
+
+          eapply mapM_good_inputs; unfold_all; eauto.
+        }
+        {
+          simpl in *.
+          rewrite map_snd_combine.
+          unfold_all.
+          rewrite map_map.
+          setoid_rewrite CF_FC.
+          rewrite map_id; eauto.
+          unfold_all.
+          repeat rewrite map_length.
+          eapply mapM_length; eauto.
+        }
+      }
+      (* opereational *)
+      {
+        left.
+        rename H2 into Hnd.
+        rename H3 into Hfe.
+        rename H4 into Hfw.
+        rename H5 into Hl.
+        rename H6 into Hmm.
+        rename H7 into Hna.
+        rename H9 into Hsfb.
+        rename H10 into Hnl.
+        destruct spec; simpl in *.
+        repeat eexists_split.
+        {
+          eapply eval_ceval in Hfe; eauto.
+          rewrite Hfe.
+          rewrite Hfw.
+          simpl.
+          eauto.
+        }
+        {
+          simpl in *.
+          rewrite map_length.
+          symmetry; eauto.
+        }
+        {
+          simpl in *.
+          intros vs_arg Hm.
+          rewrite map_map in Hm.
+          eapply reachable_submap_related in Hr; eauto.
+          destruct Hr as [Hsm2 Hr].
+          repeat eexists_split.
+          - eauto.
+          - instantiate (1 := reachable_heap vs args input).
+            eapply submap_trans; eauto.
+          - eapply change_var_names; eauto.
+            eapply is_no_dup_sound; eauto.
+            eapply mapM_length; eauto.
+          - eauto.
+        }
       }
     }      
 
