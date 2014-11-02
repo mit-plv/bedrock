@@ -341,6 +341,10 @@ Module Make (Import A : ADT).
 
     Definition reachable_heap (vs : Locals.vals) argvars (input : list Value) := make_mapM (List.map (fun x => vs x) argvars) (only_adt input).
 
+    Require Import List.
+    Require Import ListFacts4.
+    Import WordMap.
+    
     Lemma in_reachable_heap_iff vs ks : forall ins p, length ks = length ins -> (In p (reachable_heap vs ks ins) <-> exists i k a, nth_error ks i = Some k /\ nth_error ins i = Some (ADT a) /\ vs k = p).
     Proof.
       unfold reachable_heap, only_adt; intros ins p Hl.
@@ -444,12 +448,12 @@ Module Make (Import A : ADT).
       end.
 
     Lemma change_var_names vs1 vs2 h vars1 vars2 input : 
-      related (make_map vars1 input) (vs1, h) -> 
+      related (StringMapFacts.make_map vars1 input) (vs1, h) -> 
       List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1 -> 
       NoDup vars1 ->
       NoDup vars2 ->
       length vars1 = length input ->
-      related (make_map vars2 input) (vs2, h).
+      related (StringMapFacts.make_map vars2 input) (vs2, h).
     Proof.
       intros Hr Hm Hnd1 Hnd2 Hl.
       copy_as Hr Hr'.
@@ -507,7 +511,7 @@ Module Make (Import A : ADT).
       related st (vs, h) -> 
       NoDup args ->
       reachable_heap vs args input <= h /\ 
-      related (make_map args input) (vs, reachable_heap vs args input).
+      related (StringMapFacts.make_map args input) (vs, reachable_heap vs args input).
     Proof.
       intros Hmm Hr Hdn.
       split.
@@ -605,7 +609,7 @@ Module Make (Import A : ADT).
     left.
     eapply is_mapsto_adt_false_iff.
     eapply not_in_no_adt.
-    eapply make_map_not_in.
+    eapply StringMapFacts.make_map_not_in.
     solve [eapply not_incl_spec].
     eapply is_mapsto_adt_iff.
     solve [eexists; eauto].
@@ -758,9 +762,11 @@ Module Make (Import A : ADT).
     eapply diff_direct_sum; eauto.
     eapply submap_trans.
     eauto.
+    Arguments direct_sum_submap [_] _ _ _ _.
     solve [eapply (direct_sum_submap h1 h23); eauto].
 
     assert (Hd13 : Disjoint h1 h3).
+    Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
     eapply (submap_disjoint_1 h12 h3).
     eapply direct_sum_disjoint; eauto.
     solve [eapply (direct_sum_submap h1 h2); eauto].
@@ -810,6 +816,7 @@ Module Make (Import A : ADT).
     split.
     2 : solve [eauto].
     eapply not_reachable_iff; eauto.
+    Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
     eapply (direct_sum_in_not h2 h3); eauto.
     solve [subst; eapply find_Some_in; eauto].
 
@@ -829,7 +836,7 @@ Module Make (Import A : ADT).
     left.
     eapply is_mapsto_adt_false_iff.
     eapply not_in_no_adt.
-    solve [eapply make_map_not_in; eapply not_incl_spec].
+    solve [eapply StringMapFacts.make_map_not_in; eapply not_incl_spec].
     eapply is_mapsto_adt_iff.
     solve [eexists; eauto].
     contradict Hni.
@@ -848,7 +855,7 @@ Module Make (Import A : ADT).
       NoDup ks -> 
       length ks = length ins -> 
       length ks = length outs -> 
-      not_reachable k ks ins -> 
+      not_reachable (ADTValue := ADTValue) k ks ins -> 
       StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
     Proof.
       intros Hnd Hlki Hlko Hnr.
@@ -1793,15 +1800,6 @@ Module Make (Import A : ADT).
     unfold_related H8.
     eapply H8 in H19; simpl in *.
     eauto.
-    Lemma wrap_output_not_sca coutput i w : nth_error (wrap_output coutput) i <> Some (Some (SCA ADTValue w)).
-    Proof.
-      unfold wrap_output.
-      rewrite ListFacts.map_nth_error_full.
-      destruct (option_dec (nth_error coutput i)) as [s | e]; simpl in *.
-      destruct s as [a e]; rewrite e in *; simpl in *.
-      destruct a; simpl in *; discriminate.
-      rewrite e in *; discriminate.
-    Qed.
     contradict H20.
     eapply wrap_output_not_sca; eauto.
     solve [eauto].
