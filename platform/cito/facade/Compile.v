@@ -1,17 +1,17 @@
 Set Implicit Arguments.
 
+Require Import String.
+Local Open Scope string_scope.
 Require Import Memory IL.
 Require Import Facade.
 Require Syntax.
-Require Import String.
-Open Scope string.
 Require Import SyntaxExpr.
 Require Import StringMap.
 Import StringMap.
 Require Import GLabel.
 Require Import StringMapFacts.
 Import FMapNotations.
-Open Scope fmap.
+Local Open Scope fmap_scope.
 
 Coercion Var : string >-> Expr.
 
@@ -207,7 +207,7 @@ Module Make (Import A : ADT).
 
   Require Import WordMapFacts.
   Import FMapNotations.
-  Open Scope fmap.
+  Local Open Scope fmap_scope.
   Require Import WordMap.
   Import WordMap.
 
