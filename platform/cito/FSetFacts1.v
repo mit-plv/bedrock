@@ -11,8 +11,14 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Module FSetNotations.
     Infix "+" := union : fset_scope.
+    Infix "-" := diff : fset_scope.
+    Infix "*" := inter : fset_scope.
     Infix "<=" := Subset : fset_scope.
     Delimit Scope fset_scope with fset.
+    Module FSetNotationsTrial.
+      Notation " [ ] " := empty : fset_scope.
+      Notation "m %- k" := (remove k m) (at level 60) : fset_scope.
+    End FSetNotationsTrial.
   End FSetNotations.
 
   Definition Disjoint a b := forall x, ~ (In x a /\ In x b).
