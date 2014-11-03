@@ -30,6 +30,7 @@ Module Make (Import E : ADT).
           strengthen_op_ax spec_op spec_ax env_ax.
 
     Require Import GeneralTactics GeneralTactics2.
+    Require Import Option.
 
     Lemma strengthen_specs_strengthen : forall specs_op specs_ax env_op env_ax, strengthen_specs specs_op specs_ax env_ax -> specs_env_agree specs_op env_op -> specs_env_agree specs_ax env_ax -> (forall lbl, fst env_op lbl = fst env_ax lbl) -> strengthen env_op env_ax.
     Proof.

@@ -30,6 +30,8 @@ Ltac f_equal' :=
     | |- (if ?E1 then _ else _) = (if ?E2 then _ else _) => replace E2 with E1; try reflexivity
   end.
 
+Require Import Option.
+
 Ltac openhyp' :=
   repeat match goal with
            | H : context [const_dec ?E] |- _ => destruct (const_dec E)
