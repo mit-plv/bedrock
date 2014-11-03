@@ -3,6 +3,11 @@ Set Implicit Arguments.
 Require Import Arith.
 Open Scope nat_scope.
 
+Require Import GoodModule.
+Local Notation MName := Name.
+Require Import GLabelMap.
+Require Import StringMap.
+
 Require Import ADT.
 
 Module Make (Import E : ADT).
@@ -10,22 +15,137 @@ Module Make (Import E : ADT).
   Require Import ChangeSpec.
   Module Import ChangeSpecMake := Make E.
   Import SemanticsFacts4Make.
+  Import ProgramLogicMake.
   Import TransitMake.
   Require Import Semantics.
   Import SemanticsMake.
+  Require Import LinkSpecFacts.
+  Module Import LinkSpecFactsMake := Make E.
+  Require Import LinkSpec.
+  Import LinkSpecMake.
 
-  Section GoodModule.
+  Section M.
 
-    Require Import GoodModule.
-
-    Variable gm : GoodModule.
+    Variable m : GoodModule.
     
-    Require Import GLabelMap.
-    Import GLabelMap.
-
     Variable imports : GLabelMap.t ForeignFuncSpec.
 
-    Definition modules := gm :: nil.
+    Definition modules := m :: nil.
+
+    Variable exports : StringMap.t ForeignFuncSpec.
+
+    Definition m_name := MName m.
+
+    Arguments GLabelMap.empty {elt}.
+
+    Definition aug_mod_name elt (m : StringMap.t elt) := StringMap.fold (fun k v a => GLabelMap.add (m_name, k) v a) m GLabelMap.empty.
+
+    Definition exports' := aug_mod_name exports.
+    Definition specs_op := make_specs modules imports.
+    Definition specs := apply_specs_diff specs_op exports'.
+
+    Hypothesis specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op exports' env_ax.
+
+    Lemma specs_op_equal : specs_equal specs_op modules imports.
+      admit.
+    Qed.
+
+    Lemma specs_equal_domain : equal_domain specs specs_op.
+      admit.
+    Qed.
+
+    Lemma new_env_strengthen : forall stn fs, env_good_to_use modules imports stn fs -> strengthen (from_bedrock_label_map (Labels stn), fs stn) (change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
+      intros.
+      eapply strengthen_diff_strenghthen.
+      - eapply specs_strengthen_diff; eauto.
+        eapply change_env_agree; eauto.
+        eapply specs_equal_domain; eauto.
+        eapply specs_equal_agree; eauto.
+        eapply specs_op_equal; eauto.
+      - eapply specs_equal_agree; eauto; eapply specs_op_equal; eauto.
+      - eapply change_env_agree; eauto.
+        eapply specs_equal_domain; eauto.
+        eapply specs_equal_agree; eauto.
+        eapply specs_op_equal; eauto.
+      - intros; simpl; eauto.
+    Qed.
+
+  End M.
+
+  Require Import RepInv.
+
+  Module Make (Import M : RepInv E).
+    
+    Module Import LinkSpecMakeMake := LinkSpecMake.Make M.
+
+    Section M.
+
+      Variable new_m_name : string.
+
+      Variable m : GoodModule.
+      
+      Definition old_m_name := MName m.
+
+      Definition modules := m :: nil.
+
+      Variable imports : GLabelMap.t ForeignFuncSpec.
+
+      Variable exports : StringMap.t ForeignFuncSpec.
+
+      Require Import StringMapFacts.
+
+      Definition accessible_labels := List.map (fun l => (old_m_name, l)) (StringMapFacts.keys exports).
+
+      Section Fun.
+
+        Variable f : GoodFunction.
+
+        Definition fname := Name f.
+
+        Variable spec : ForeignFuncSpec.
+
+        Section body.
+          
+          Require Import XCAP.
+
+          Variable im : LabelMap.t assert.
+
+          Variable im_g : importsGlobal im.
+
+          Definition tgt : glabel := (old_m_name, fname).
+
+          Definition tgt_spec := func_spec modules imports (old_m_name, fname) f.
+
+          Definition body := 
+            @Seq_ _ im_g new_m_name
+                  (AssertStar_ im new_m_name accessible_labels tgt_spec)
+                  (Goto_ im_g new_m_name tgt).
+
+        End body.
+
+        Definition new_spec := foreign_func_spec (new_m_name, fname) spec.
+
+        Definition make_stub : StructuredModule.function new_m_name :=
+          (fname, new_spec, body).
+
+      End Fun.
+      
+      (*here*)
+
+      Notation Func_to_impl_import := func_impl_export.
+
+      Definition bimports : list import := 
+        bimports_base ++ List.map (Func_to_impl_import m) (Functions m).
+      
+      Definition stubs := List.map make_stub (Functions m).
+
+      Definition bexports := List.map (@func_to_import _) stubs.
+
+      Definition bimports_diff_bexports := diff_map bimports bexports.
+
+      Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
+
+
 (*
     Definition main_spec_Bedrock := func_spec modules imports ("count"!"main")%stmtex main.
 
@@ -44,618 +164,6 @@ Module Make (Import E : ADT).
         end
       }}.
 *)
-
-    (* actually 'exports' *)
-    Variable specs_change_table : GLabelMap.t ForeignFuncSpec.
-
-    Definition specs_op := make_specs modules imports.
-    Definition specs := apply_specs_diff specs_op specs_change_table.
-
-    Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
-      intros.
-      unfold strengthen_op_ax.
-      split_all.
-      intros.
-      simpl in *.
-      openhyp.
-      rewrite H0; simpl; eauto.
-
-      intros.
-      cito_safe count count_pre count_vcs_good.
-      split.
-      eauto.
-      Import SemanticsFacts4Make.TransitMake.
-      unfold TransitSafe in *.
-      openhyp.
-      simpl in *.
-      openhyp.
-      subst; simpl in *.
-      Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
-        induction ls; simpl; intuition.
-        simpl; f_equal; eauto.
-      Qed.
-      Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
-        intros.
-        specialize (combine_fst_snd ls); intros.
-        rewrite H0 in H1.
-        rewrite <- H in H1.
-        eauto.
-      Qed.
-      eapply_in_any combine_fst_snd'; try eassumption.
-      subst; simpl in *.
-      Import SemanticsMake.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      descend; eauto.
-
-      cito_runsto count count_pre count_vcs_good.
-      2 : split; eauto.
-      unfold TransitSafe in *.
-      openhyp.
-      simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any combine_fst_snd'; try eassumption.
-      subst; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      rewrite H9 in H0; injection H0; intros; subst.
-      unfold TransitTo.
-      descend.
-      instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := inr (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := inl (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match in *.
-      simpl.
-      repeat econstructor.
-      simpl; eauto.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      simpl.
-      descend.
-      eauto.
-      eauto.
-      eauto.
-      simpl.
-      descend; eauto.
-      simpl.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      repeat econstructor.
-      simpl.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      Import WordMap.
-      rewrite H2.
-      Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
-        unfold Equal; intros.
-        repeat rewrite add_o.
-        destruct (eq_dec k y); subst; intuition.
-      Qed.
-      rewrite add_no_effect; eauto; reflexivity.
-      unfold decide_ret, Semantics.decide_ret.
-      simpl.
-      eauto.
-
-      unfold TransitSafe in *.
-      openhyp.
-      simpl in *.
-      openhyp.
-      subst; simpl in *.
-      specialize (combine_fst_snd x); intros.
-      rewrite H3 in H4.
-      rewrite <- H1 in H4.
-      subst; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      descend; eauto.
-      Grab Existential Variables.
-      eapply ($0).
-    Qed.
-
-    Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
-      unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
-
-      (* vc1 *)
-      intros.
-      subst.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      Import Notations4Make.
-      Import ProgramLogicMake.
-      Import TransitMake.
-      unfold TransitSafe.
-      descend.
-      instantiate (1 := [[ ($3, _) ]]).
-      eauto.
-      repeat econstructor.
-      instantiate (1 := inl $3).
-      repeat econstructor.
-      repeat econstructor.
-      descend; eauto.
-
-      (* vc2 *)
-      intros.
-      destruct_state.
-      openhyp.
-      subst.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply triples_intro in H3; try eassumption.
-      subst; simpl in *.
-      Import SemanticsMake.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      descend; eauto.
-      rewrite H5.
-      eapply separated_star; eauto.
-
-      (* vc3 *)
-      intros.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      destruct_state.
-      openhyp.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; rewrite update_add in *.
-      unfold TransitSafe.
-      descend.
-      sel_upd_simpl.
-      eapply map_fst_combine.
-      instantiate (1 := [[ _, _, _ ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match.
-      repeat econstructor; simpl.
-      eauto.
-      instantiate (1 := inr (Arr x)); simpl in *.
-      rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-      instantiate (1 := inl $0); simpl in *.
-      eauto.
-      instantiate (1 := inl $10); simpl in *.
-      eauto.
-      simpl.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      descend; eauto.
-      rewrite H0.
-      eauto.
-
-      (* vc4 *)
-      intros.
-      openhyp.
-      destruct_state.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any triples_intro; try eassumption.
-      subst; simpl in *.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst; simpl in *.
-      sel_upd_simpl.
-      rewrite H in H10.
-      eapply_in_any add_o_eq; subst.
-      injection H10; intros; subst.
-      descend.
-      split.
-      rewrite H8.
-      rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-      eapply map_add_same_key.
-      eapply same_keys_all_disj; eauto.
-      simpl; eauto.
-      rewrite upd_length; eauto.
-      eapply CompileExpr.sel_upd_eq; eauto.
-      rewrite H1; eauto.
-
-      (* vc5 *)
-      intros.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      destruct_state.
-      openhyp.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold TransitSafe.
-      sel_upd_simpl.
-      descend.
-      eapply map_fst_combine.
-      instantiate (1 := [[ _, _, _ ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match.
-      repeat econstructor; simpl.
-      instantiate (1 := inr (Arr x)); simpl in *.
-      rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-      instantiate (1 := inl $1); simpl in *.
-      eauto.
-      instantiate (1 := inl $20); simpl in *.
-      eauto.
-      simpl.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      descend; eauto.
-      rewrite H0; eauto.
-
-      (* vc6 *)
-      intros.
-      openhyp.
-      destruct_state.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any triples_intro; try eassumption.
-      subst; simpl in *.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst; simpl in *.
-      sel_upd_simpl.
-      rewrite H in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
-      destruct x5; simpl in *; try discriminate.
-      destruct x5; simpl in *; try discriminate.
-      destruct x5; simpl in *; try discriminate.
-      descend.
-      split.
-      rewrite H9.
-      rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-      eapply map_add_same_key.
-      eapply same_keys_all_disj; eauto.
-      simpl; eauto.
-      Transparent natToWord.
-      unfold Array.upd; simpl.
-      unfold Array.sel in H2; simpl in H2; subst.
-      repeat f_equal.
-      destruct x5; simpl in *; try discriminate.
-      eauto.
-      Opaque natToWord.
-
-      (* vc7 *)
-      intros.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      destruct_state.
-      openhyp.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold TransitSafe.
-      sel_upd_simpl.
-      descend.
-      eapply map_fst_combine.
-      instantiate (1 := [[ _, _, _ ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match.
-      repeat econstructor; simpl.
-      instantiate (1 := inr (Arr x)); simpl in *.
-      rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-      instantiate (1 := inl $2); simpl in *.
-      eauto.
-      instantiate (1 := inl $10); simpl in *.
-      eauto.
-      simpl.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      descend; eauto.
-      rewrite H0; eauto.
-
-      (* vc8 *)
-      intros.
-      openhyp.
-      destruct_state.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any triples_intro; try eassumption.
-      subst; simpl in *.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst; simpl in *.
-      sel_upd_simpl.
-      rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
-      descend.
-      split.
-      rewrite H8.
-      rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-      eapply map_add_same_key.
-      eapply same_keys_all_disj; eauto.
-      simpl; eauto.
-      Transparent natToWord.
-      reflexivity.
-      Opaque natToWord.
-
-      (* vc9 *)
-      intros.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      destruct_state.
-      openhyp.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold TransitSafe.
-      sel_upd_simpl.
-      descend.
-      eapply map_fst_combine.
-      instantiate (1 := [[ _, _ ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match.
-      repeat econstructor; simpl.
-      instantiate (1 := inr (Arr x)); simpl in *.
-      rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-      instantiate (1 := inl $3); simpl in *.
-      eauto.
-      simpl.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      descend.
-      eauto.
-      rewrite H0; eauto.
-      rewrite H0; simpl.
-      eauto.
-
-      (* vc10 *)
-      intros.
-      openhyp.
-      destruct_state.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any triples_intro; try eassumption.
-      subst; simpl in *.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst; simpl in *.
-      sel_upd_simpl.
-      rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
-      descend.
-      split.
-      rewrite H8.
-      rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-      eapply map_add_same_key.
-      eapply same_keys_all_disj; eauto.
-      simpl; eauto.
-      reflexivity.
-
-      (* vc11 *)
-      intros.
-      unfold SafeDCall.
-      simpl.
-      intros.
-      destruct_state.
-      openhyp.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold TransitSafe.
-      sel_upd_simpl.
-      descend.
-      eapply map_fst_combine.
-      instantiate (1 := [[ _ ]]); eauto.
-      split.
-      unfold Semantics.word_adt_match.
-      repeat econstructor; simpl.
-      instantiate (1 := inr (Arr x)); simpl in *.
-      rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-      simpl.
-      unfold Semantics.disjoint_ptrs.
-      NoDup.
-      descend.
-      eauto.
-
-      (* vc12 *)
-      intros.
-      openhyp.
-      destruct_state.
-      destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-      unfold RunsToDCall in *.
-      simpl in *.
-      openhyp.
-      unfold TransitTo in *.
-      openhyp.
-      unfold PostCond in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply_in_any triples_intro; try eassumption.
-      subst; simpl in *.
-      unfold store_out, Semantics.store_out in *; simpl in *.
-      unfold good_inputs, Semantics.good_inputs in *.
-      openhyp.
-      unfold Semantics.word_adt_match in *.
-      inversion_Forall; simpl in *.
-      subst; simpl in *.
-      sel_upd_simpl.
-      rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
-      descend.
-      rewrite H8.
-      rewrite H.
-      eapply not_in_add_remove.
-      eapply singleton_disj.
-      inv_clear H2.
-      inversion_Forall.
-      eauto.
-
-      eauto.
-    Qed.
-
-    Local Hint Immediate main_vcs_good.
-
-    Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
-      intros.
-      unfold strengthen_op_ax.
-      split_all.
-      intros.
-      simpl in *.
-      rewrite H0; simpl; eauto.
-
-      intros.
-      cito_safe main empty_precond main_vcs_good.
-
-      cito_runsto main empty_precond main_vcs_good.
-      2 : eauto.
-      Import SemanticsFacts4Make.TransitMake.
-      unfold TransitTo.
-      descend.
-      instantiate (1 := [[]]).
-      eauto.
-      simpl.
-      Import SemanticsMake.
-      repeat econstructor.
-      eauto.
-      eauto.
-      simpl.
-      repeat econstructor.
-      simpl.
-      eauto.
-      unfold decide_ret, Semantics.decide_ret.
-      simpl.
-      eauto.
-      Grab Existential Variables.
-      eapply ($0).
-    Qed.
-
-    Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
-      intros.
-      unfold strengthen_diff.
-      rewrite GLabelMap.fold_1.
-      Opaque specs specs_op.
-      simpl.
-      Transparent specs specs_op.
-      unfold strengthen_diff_f.
-      split_all.
-      eauto.
-      right.
-      eexists.
-      split.
-      reflexivity.
-      eapply count_strengthen; eauto.
-      right.
-      eexists.
-      split.
-      reflexivity.
-      eapply main_strengthen; eauto.
-    Qed.
-
-    Import LinkSpecMake.
-    Require Import LinkSpecFacts.
-    Module Import LinkSpecFactsMake := Make ExampleADT.
-
-    Import GLabelMap.GLabelMap.
-    Import GLabelMapFacts.
-    Import LinkSpecMake.
-
-    Lemma specs_op_equal : specs_equal specs_op modules imports.
-      split; intros.
-      unfold specs_equal, specs_op in *; simpl in *.
-      eapply find_mapsto_iff in H; eapply add_mapsto_iff in H; openhyp.
-      subst; simpl in *.
-      left; descend; eauto.
-      unfold gm, to_good_module; simpl; eauto.
-      eapply add_mapsto_iff in H0; openhyp.
-      subst; simpl in *.
-      left; descend; eauto.
-      unfold gm, to_good_module; simpl; eauto.
-      eapply map_mapsto_iff in H1; openhyp.
-      subst; simpl in *.
-      eapply find_mapsto_iff in H2.
-      right; descend; eauto.
-
-      unfold label_mapsto in *.
-      openhyp.
-      subst; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      reflexivity.
-      subst; simpl in *.
-      reflexivity.
-      intuition.
-      intuition.
-      subst; simpl in *.
-      assert (lbl <> ("count", "count") /\ lbl <> ("count", "main")).
-      split.
-      nintro.
-      subst; simpl in *.
-      compute in H0; intuition.
-      nintro.
-      subst; simpl in *.
-      compute in H0; intuition.
-      openhyp.
-      eapply find_mapsto_iff.
-      eapply add_mapsto_iff.
-      right.
-      split.
-      eauto.
-      eapply add_mapsto_iff.
-      right.
-      split.
-      eauto.
-      eapply find_mapsto_iff in H0.
-      eapply map_mapsto_iff.
-      descend; eauto.
-    Qed.
-
-    Lemma specs_equal_domain : equal_domain specs specs_op.
-      eapply equal_domain_dec_sound; reflexivity.
-    Qed.
-
-    Hint Resolve specs_op_equal specs_equal_domain.
-
-    Lemma new_env_strengthen : forall stn fs, env_good_to_use modules imports stn fs -> strengthen (from_bedrock_label_map (Labels stn), fs stn) (change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
-      intros.
-      eapply strengthen_diff_strenghthen.
-      Focus 2.
-      eapply specs_equal_agree; eauto.
-      Focus 2.
-      eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
-      eapply specs_strengthen_diff; eauto.
-      eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
-      intros; simpl; eauto.
-    Qed.
 
     Lemma main_safe' : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (change_env specs (from_bedrock_label_map (Labels stn), fs stn)) (Body main) v.
       cito_safe main empty_precond main_vcs_good.
