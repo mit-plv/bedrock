@@ -1,13 +1,11 @@
 Set Implicit Arguments.
 
-Require Import String.
-Local Open Scope string_scope.
 Require Import StringMap.
 Import StringMap.
 
 Require Import Facade.
 
-Definition FunCore := OperationalSpec.
+Local Notation FunCore := OperationalSpec.
 
 Definition is_syntactic_wellformed (f : FunCore) := true.
 
@@ -17,7 +15,7 @@ Record FFunction :=
     syntactic_wellformed : is_syntactic_wellformed Core = true
   }.
     
-Definition is_good_module_name (s : string) := negb (prefix "_" s).
+Coercion Core : FFunction >-> OperationalSpec.
 
 Section ADTValue.
 
@@ -27,8 +25,6 @@ Section ADTValue.
 
   Record FModule := 
     {
-      Name : string;
-      good_name : is_good_module_name Name = true;
       Imports : StringMap.t AxiomaticSpec;
       (* Exports : StringMap.t AxiomaticSpec; *)
       Functions : StringMap.t FFunction

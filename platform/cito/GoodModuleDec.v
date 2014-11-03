@@ -32,8 +32,6 @@ Section TopSection.
 
   Require Import GetLocalVars.
 
-  Definition NoUninitialized_bool (f : FuncCore) := true.
-
   Require Import Depth.
   Require Import GoodModuleFacts.
   Require Import ListFacts3.
@@ -60,9 +58,6 @@ Section TopSection.
 
   Require Import Program.Basics.
   Require Import GoodFunc.
-(*
-  Lemma NoUninitialized_bool_sound : forall f, NoUninitialized_bool f = true -> NoUninitialized (ArgVars f) (RetVar f) (Body f).
-  Qed.
 
   Require Import WellFormed.
 
@@ -121,5 +116,5 @@ Section TopSection.
     eapply GoodFuncs_bool_sound; eauto.
     eapply NoDup_bool_string_eq_sound; eauto.
   Qed.
-*)
+
 End TopSection.
