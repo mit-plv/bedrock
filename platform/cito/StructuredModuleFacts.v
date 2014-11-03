@@ -260,6 +260,7 @@ Section TopSection.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
+  Require Import Option.
 
   Lemma importsOk_Compat_right : forall m1 m2, LabelMapFacts.Compat m1 m2 -> importsOk m1 m2.
     induction m1 using LabelMapFacts.map_induction_bis.

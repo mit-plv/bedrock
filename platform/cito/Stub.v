@@ -399,6 +399,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation is_export := (LinkSpecMake.is_export modules).
       Notation is_import := (LinkSpecMake.is_import imports).
 
+      Require Import Option.
+
       Lemma fs_internal : 
         forall stn p spec, 
           fs stn p = Some (Internal spec) -> 

@@ -175,6 +175,7 @@ Module Make (Import E : ADT).
       specs_fs_agree specs env.
 
     Require Import GLabelMapFacts.
+    Require Import Option.
 
     Lemma RunsTo_RunsToDCall : 
       forall specs env r f args v v', 

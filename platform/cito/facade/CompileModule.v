@@ -8,4 +8,4 @@ Section ADTValue.
 
   Notation FModule := (@FModule ADTValue).
 
-  Definition compile (m : FModule)
+End ADTValue.

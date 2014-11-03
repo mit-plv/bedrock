@@ -29,9 +29,9 @@ Section ADTValue.
     {
       Name : string;
       good_name : is_good_module_name Name = true;
-      Functions : StringMap.t FFunction;
       Imports : StringMap.t AxiomaticSpec;
-      Exports : StringMap.t AxiomaticSpec
+      (* Exports : StringMap.t AxiomaticSpec; *)
+      Functions : StringMap.t FFunction
     }.
 
 End ADTValue.
