@@ -5,6 +5,7 @@ Require Import Compile.
 Require Import Facade.
 Require Import GoodFunction.
 Require Import GoodModule.
+Require Import NameDecoration.
 
 Section ADTValue.
 
@@ -14,8 +15,6 @@ Section ADTValue.
 
   Require Import String.
   Local Open Scope string_scope.
-
-  Require Import GoodModuleFacts.
 
   Variable m_name : string.
 

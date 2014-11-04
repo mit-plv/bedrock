@@ -215,16 +215,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         unfold IsInjection, impl_label; intuition.
       Qed.
 
-      Lemma IsGoodModuleName_not_impl_module_name : forall s, IsGoodModuleName s -> ~ exists s', impl_module_name s' = s.
-        unfold IsGoodModuleName, impl_module_name.
-        intros.
-        intuition.
-        openhyp.
-        rewrite <- H0 in *.
-        simpl in *.
-        intuition.
-      Qed.
-
       Lemma GoodModule_GoodName : forall m : GoodModule, IsGoodModuleName (MName m).
         intros; destruct m0; simpl; eauto.
       Qed.
@@ -882,7 +872,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         injection H; intros.
         contradict H2.
         eapply prefix_neq.
-        intuition.
+        eapply cito_module_impl_prefix_not_empty; eauto.
       Qed.
 
       Lemma module_name_not_in_imports : NameNotInImports (MName m) bimports_diff_bexports.
