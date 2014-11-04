@@ -86,8 +86,6 @@ Section ADTValue.
   Open Scope string_scope.
   Require Import List.
   Import ListNotations.
-  Goal is_no_dup ["aa"; "ab"; "cc"] = true. Proof. exact eq_refl. Qed.
-  Goal is_no_dup ["aa"; "aa"; "cc"] = false. Proof. exact eq_refl. Qed.
   Goal is_in "bb" ["aa"; "bb"; "cc"] = true. Proof. exact eq_refl. Qed.
   Goal is_in "dd" ["aa"; "bb"; "cc"] = false. Proof. exact eq_refl. Qed.
   Goal is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"] = true. Proof. exact eq_refl. Qed.
@@ -415,10 +413,6 @@ Section ADTValue.
   Qed.      
 
   Require Import ListFacts3.
-
-  Lemma is_no_dup_sound ls : is_no_dup ls = true -> NoDup ls.
-    intros; eapply NoDup_bool_string_eq_sound; eauto.
-  Qed.
 
   Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
     intros; destruct spec; simpl; eapply is_no_dup_sound; eauto.

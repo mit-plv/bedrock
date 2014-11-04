@@ -104,7 +104,6 @@ Section ADTSection.
 
   Require Import ListFacts3 ListFacts4.
 
-  Definition is_no_dup := NoDup_bool string_bool.
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
 
   Import ListNotations.

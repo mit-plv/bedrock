@@ -17,13 +17,7 @@ Section ADTValue.
   Require Import String.
   Local Open Scope string_scope.
 
-  Definition is_good_module_name (s : string) := negb (prefix "_" s).
-
-  Lemma is_good_module_name_sound_cito name : is_good_module_name name = true -> IsGoodModuleName name.
-  Proof.
-    unfold is_good_module_name, IsGoodModuleName.
-    intros; eapply Bool.negb_true_iff; eauto.
-  Qed.
+  Require Import GoodModuleFacts.
 
   Variable m_name : string.
 
@@ -33,15 +27,19 @@ Section ADTValue.
   Notation MName := GoodModule.Name.
 
   Require Import GoodFunc.
+  Require Import Semantics.
+  Require Import GoodModuleDec.
 
-  Lemma compile_GoodFunc f : GoodFunc (compile_op f).
-    admit.
+  Lemma compile_GoodFunc (f : FFunction) : GoodFunc (compile_op f).
+  Proof.
+    destruct f; simpl in *.
+    eapply is_good_func_sound; eauto.
   Qed.
 
   Definition compile_func (name : string) (f : FFunction) : GoodFunction.
     refine
       ({|
-          Fun := 
+          GoodFunction.Fun := 
             {|
               SyntaxFunc.Name := name;
               SyntaxFunc.Core := compile_op f
@@ -72,7 +70,7 @@ Section ADTValue.
           Functions := compile_funcs (FModule.Functions module);
           NoDupFuncNames := _
         |}).
-    eapply is_good_module_name_sound_cito; eauto.
+    eapply is_good_module_name_sound; eauto.
     unfold compile_funcs.
     unfold uncurry.
     rewrite map_map.

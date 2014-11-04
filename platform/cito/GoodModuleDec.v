@@ -17,15 +17,21 @@ Section TopSection.
 
   Require Import SyntaxModule.
 
-  Definition goodSize_bool n := proj1_sig (Sumbool.bool_of_sumbool (Malloc.goodSize_dec n)).
+  Local Open Scope N_scope.
 
-  Fixpoint wellformed_bool s :=
+  Definition is_good_size (n : nat) :=
+    match N.of_nat n ?= Npow2 32 with
+      | Datatypes.Lt => true
+      | _ => false
+    end. 
+
+  Fixpoint is_arg_len_ok s :=
     match s with
-      | Syntax.Call _ _ args => goodSize_bool (2 + length args)
+      | Syntax.Call _ _ args => is_good_size (2 + length args)
       | Syntax.Skip => true
-      | Syntax.Seq a b => wellformed_bool a && wellformed_bool b
-      | Syntax.If _ a b => wellformed_bool a && wellformed_bool b
-      | Syntax.While _ body => wellformed_bool body
+      | Syntax.Seq a b => is_arg_len_ok a && is_arg_len_ok b
+      | Syntax.If _ a b => is_arg_len_ok a && is_arg_len_ok b
+      | Syntax.While _ body => is_arg_len_ok body
       | Syntax.Assign _ _ => true
       | Syntax.Label _ _ => true
     end.
@@ -35,23 +41,25 @@ Section TopSection.
   Require Import Depth.
   Require Import GoodModuleFacts.
   Require Import ListFacts3.
+  Require Import ListFacts4.
   Require Import NoUninitDec.
+  Require Import List.
 
-  Definition GoodFunc_bool f := 
+  Definition is_good_func f := 
     let body := Body f in 
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
     let all_vars := ArgVars f ++ local_vars in
-    NoDup_bool string_bool (ArgVars f) &&
+    is_no_dup (ArgVars f) &&
     is_no_uninited f &&
-    wellformed_bool body &&
-    goodSize_bool (length local_vars + depth body).
+    is_arg_len_ok body &&
+    is_good_size (length local_vars + depth body).
 
-  Definition GoodFuncs_bool fs := forallb GoodFunc_bool fs.
+  Definition is_good_funcs fs := forallb is_good_func fs.
 
-  Definition GoodModule_bool (m : Module) :=
-    GoodModuleName_bool (MName m) &&
-    GoodFuncs_bool (map Core (Funcs m)) &&
-    NoDup_bool string_bool (map FName (Funcs m)).
+  Definition is_good_module (m : Module) :=
+    is_good_module_name (MName m) &&
+    is_good_funcs (map Core (Funcs m)) &&
+    is_no_dup (map FName (Funcs m)).
 
   Require Import Bool.
   Require Import GeneralTactics.
@@ -62,60 +70,63 @@ Section TopSection.
 
   Require Import WellFormed.
 
-  Lemma goodSize_bool_sound : forall n, goodSize_bool n = true -> goodSize n.
+  Lemma is_good_size_sound : forall n, is_good_size n = true -> goodSize n.
     intros.
-    unfold goodSize_bool in *.
-    destruct (Malloc.goodSize_dec n); simpl in *; intuition.
+    unfold is_good_size in *.
+    destruct (ZArith_dec.Dcompare_inf (N.of_nat n ?= Npow2 32)) as [ [Hc | Hc] | Hc ]; rewrite Hc in *.
+    discriminate.
+    eapply N.compare_lt_iff in Hc; eauto.
+    discriminate.
   Qed.
 
   Hint Constructors args_not_too_long.
 
-  Lemma wellformed_bool_sound : forall s, wellformed_bool s = true -> wellformed s.
+  Lemma is_arg_len_ok_sound : forall s, is_arg_len_ok s = true -> wellformed s.
     unfold wellformed.
     induction s; simpl; intuition eauto.
     eapply andb_true_iff in H; openhyp; eauto.
     eapply andb_true_iff in H; openhyp; eauto.
     econstructor.
-    eapply goodSize_bool_sound; eauto.
+    eapply is_good_size_sound; eauto.
   Qed.
 
-  Lemma GoodFunc_bool_sound : forall f, GoodFunc_bool f = true -> GoodFunc f.
-    unfold GoodFunc_bool.
+  Lemma is_good_func_sound : forall f, is_good_func f = true -> GoodFunc f.
+    unfold is_good_func.
     intros.
     repeat (eapply andb_true_iff in H; openhyp).
     econstructor.
-    eapply NoDup_bool_string_eq_sound; eauto.
+    eapply is_no_dup_sound; eauto.
     split.
     eapply is_no_uninited_sound; eauto.
     split.
-    eapply wellformed_bool_sound; eauto.
-    eapply goodSize_bool_sound; eauto.
+    eapply is_arg_len_ok_sound; eauto.
+    eapply is_good_size_sound; eauto.
   Qed.
 
-  Lemma GoodFuncs_bool_sound : forall ls, GoodFuncs_bool (map Core ls) = true -> Forall (compose GoodFunc Core) ls.
+  Lemma is_good_funcs_sound : forall ls, is_good_funcs (map Core ls) = true -> Forall (compose GoodFunc Core) ls.
     intros.
-    unfold GoodFuncs_bool in *.
+    unfold is_good_funcs in *.
     eapply Forall_forall.
     intros.
     eapply forallb_forall in H.
     2 : eapply in_map; eauto.
     unfold compose.
-    eapply GoodFunc_bool_sound; eauto.
+    eapply is_good_func_sound; eauto.
   Qed.
 
-  Lemma GoodModule_bool_sound : forall m, GoodModule_bool m = true -> IsGoodModule m.
+  Lemma is_good_module_sound : forall m, is_good_module m = true -> IsGoodModule m.
     intros.
-    unfold GoodModule_bool in *.
+    unfold is_good_module in *.
     destruct m; simpl in *.
     eapply andb_true_iff in H.
     openhyp.
     eapply andb_true_iff in H.
     openhyp.
     econstructor; simpl.
-    eapply GoodModuleName_bool_sound; eauto.
+    eapply is_good_module_name_sound; eauto.
     split.
-    eapply GoodFuncs_bool_sound; eauto.
-    eapply NoDup_bool_string_eq_sound; eauto.
+    eapply is_good_funcs_sound; eauto.
+    eapply is_no_dup_sound; eauto.
   Qed.
 
 End TopSection.
