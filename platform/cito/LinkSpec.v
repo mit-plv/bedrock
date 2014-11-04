@@ -137,11 +137,14 @@ Module Make (Import E : ADT).
 
       Notation fs := (fs modules imps).
       
+      (* the exported Bedrock spec format *)
       Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| env_good_to_use modules imps (fst st) fs |] ---> spec_without_funcs_ok f fs st)%PropX.
 
+      (* the imported Bedrock spec format *)
       Definition foreign_func_spec id spec : assert := 
         st ~> name_marker id /\ ExX, foreign_spec _ spec st.
 
+      (* the imported Bedrock specs *)
       Definition imports := mapi (foreign_func_spec) imps.
 
       Notation FName := SyntaxFunc.Name.
@@ -157,6 +160,7 @@ Module Make (Import E : ADT).
              (func_export m)
              (Functions m)).
 
+      (* the exported Bedrock specs (barring the exports from internal implementation, which shouldn't be used) *)
       Definition exports := update_all (List.map module_exports modules).
 
       Definition impl_label mod_name f_name : glabel := (impl_module_name mod_name, f_name).
@@ -171,6 +175,7 @@ Module Make (Import E : ADT).
 
       Definition impl_exports := update_all (List.map module_impl_exports modules).
 
+      (* the imported Bedrock specs (including the exports from internal implementation, which shouldn't be used) *)
       Definition all_exports := update exports impl_exports.
 
     End TopSection.
