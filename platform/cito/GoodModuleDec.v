@@ -39,7 +39,6 @@ Section TopSection.
   Require Import GetLocalVars.
 
   Require Import Depth.
-  Require Import GoodModuleFacts.
   Require Import ListFacts3.
   Require Import ListFacts4.
   Require Import NoUninitDec.
@@ -55,6 +54,8 @@ Section TopSection.
     is_good_size (length local_vars + depth body).
 
   Definition is_good_funcs fs := forallb is_good_func fs.
+
+  Require Import NameDecoration.
 
   Definition is_good_module (m : Module) :=
     is_good_module_name (MName m) &&

@@ -1,8 +1,7 @@
 Set Implicit Arguments.
 
 Require Import GoodFunction.
-
-Definition IsGoodModuleName (s : string) := prefix "_" s = false.
+Require Import NameDecoration.
 
 Record GoodModule :=
   {
