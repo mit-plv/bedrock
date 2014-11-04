@@ -23,9 +23,9 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 CITO := $(shell find cito -name \*.v)
 
 FACADE := \
-	cito/facade/Facade \
+	facade/Facade \
 
-FACADE_ALL := $(shell find cito/facade -name \*.v)
+FACADE_ALL := $(shell find facade -name \*.v)
 
 .PHONY: default platform cito facade build clean master
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
