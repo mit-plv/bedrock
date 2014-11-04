@@ -17,7 +17,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GeneralTactics2.
   Require Import StringFacts2.
 
-  Require Import CompileModule.
+  Require Import Cito.CompileModule.
   Module Import CompileModuleMake := Make E M.
   Require Import CompileFuncSpec.
   Import CompileFuncMake.

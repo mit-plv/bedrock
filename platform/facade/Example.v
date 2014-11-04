@@ -12,41 +12,41 @@ Section ADTValue.
   Local Open Scope list_scope.
 
   Definition m := 
-    fmodule "count" 
-    import [[
-          "ADT"!"ArraySeq_new" @ [ArraySeq_newSpec],
-          "ADT"!"ArraySeq_write" @ [ArraySeq_writeSpec],
-          "ADT"!"ArraySeq_read" @ [ArraySeq_readSpec],
-          "ADT"!"ArraySeq_delete" @ [ArraySeq_deleteSpec],
-          "ADT"!"ListSet_new" @ [ListSet_newSpec],
-          "ADT"!"ListSet_add" @ [ListSet_addSpec],
-          "ADT"!"ListSet_size" @ [ListSet_sizeSpec],
-          "ADT"!"ListSet_delete" @ [ListSet_deleteSpec]
-    ]]
-    define {{
-      ffunction "count"("arr", "len")
-        "set" <-- DCall "ADT"!"ListSet_new"();;
+    module
+    import {
+      "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;
+      "ADT"!"ArraySeq_write" ==> ArraySeq_writeSpec;
+      "ADT"!"ArraySeq_read" ==> ArraySeq_readSpec;
+      "ADT"!"ArraySeq_delete" ==> ArraySeq_deleteSpec;
+      "ADT"!"ListSet_new" ==> ListSet_newSpec;
+      "ADT"!"ListSet_add" ==> ListSet_addSpec;
+      "ADT"!"ListSet_size" ==> ListSet_sizeSpec;
+      "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
+    }
+    define {
+      def "count" = func("arr", "len")
+        "set" <-- call_ "ADT"!"ListSet_new"();;
         "i" <- 0;;
-        While ("i" < "len") {
-          "e" <-- DCall "ADT"!"ArraySeq_read" ("arr", "i");;
-          DCall "ADT"!"ListSet_add"("set", "e");;
+        while_ ("i" < "len") {
+          "e" <-- call_ "ADT"!"ArraySeq_read" ("arr", "i");;
+          call_ "ADT"!"ListSet_add"("set", "e");;
           "i" <- "i" + 1
         };;
-        "ret" <-- DCall "ADT"!"ListSet_size"("set");;
-        DCall "ADT"!"ListSet_delete"("set")
-      end with
-      ffunction "main"()
+        "ret" <-- call_ "ADT"!"ListSet_size"("set");;
+        call_ "ADT"!"ListSet_delete"("set")
+      end;
+      def "main" = func()
 (*
-        "arr" <-- DCall "ADT"!"ArraySeq_new"(3);;
-        DCall "ADT"!"ArraySeq_write"("arr", 0, 10);;
-        DCall "ADT"!"ArraySeq_write"("arr", 1, 20);;
-        DCall "ADT"!"ArraySeq_write"("arr", 2, 10);;
-        "ret" <-- DCall "count"!"count" ("arr", 3);;
-        DCall "ADT"!"ArraySeq_delete"("arr")
+        "arr" <-- call_ "ADT"!"ArraySeq_new"(3);;
+        call_ "ADT"!"ArraySeq_write"("arr", 0, 10);;
+        call_ "ADT"!"ArraySeq_write"("arr", 1, 20);;
+        call_ "ADT"!"ArraySeq_write"("arr", 2, 10);;
+        "ret" <-- call_ "count"!"count" ("arr", 3);;
+        call_ "ADT"!"ArraySeq_delete"("arr")
 *)
         "ret" <- 0
       end
-    }}.
+    }.
 
   Require Import Facade.CompileModule.
 
