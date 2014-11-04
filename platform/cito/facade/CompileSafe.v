@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Compile.
+Require Import CompileRunsTo.
 
 Require Import Facade.
 Require Import Memory IL.
@@ -158,6 +158,8 @@ Section ADTValue.
         * rewrite Hn in *; discriminate.
       + rewrite Hn in *; discriminate.
   Qed.
+
+  Require Import Compile.
 
   Theorem compile_safe :
     forall s_env s s_st,

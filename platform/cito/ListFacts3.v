@@ -46,4 +46,17 @@ Section TopSection.
     unfold string_bool, sumbool_to_bool in *; destruct (string_dec a b); try discriminate; eauto.
   Qed.
 
+  Definition is_no_dup := NoDup_bool string_bool.
+
+  (* test boolean deciders *)
+  Require Import List.
+  Import ListNotations.
+  Local Open Scope string_scope.
+  Goal is_no_dup ["aa"; "ab"; "cc"] = true. Proof. exact eq_refl. Qed.
+  Goal is_no_dup ["aa"; "aa"; "cc"] = false. Proof. exact eq_refl. Qed.
+
+  Lemma is_no_dup_sound ls : is_no_dup ls = true -> NoDup ls.
+    intros; eapply NoDup_bool_string_eq_sound; eauto.
+  Qed.
+
 End TopSection.

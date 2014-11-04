@@ -135,8 +135,11 @@ Definition m := cmodule "count" {{
   end
 }}.
 
+Require Import GoodModuleDec.
+
 Lemma good : IsGoodModule m.
-  good_module.
+  eapply is_good_module_sound.
+  reflexivity.
 Qed.
 
 Definition gm := to_good_module good.
@@ -164,7 +167,8 @@ Definition imports :=
 
 Definition dummy_gf : GoodFunction.
   refine (to_good_function (cfunction "dummy"() "ret" <- 0 end)%Citofuncs _).
-  good_module.
+  eapply is_good_func_sound.
+  reflexivity.
 Defined.    
 
 Definition count := nth 0 (Functions gm) dummy_gf.

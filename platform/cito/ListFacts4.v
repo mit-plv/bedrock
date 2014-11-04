@@ -217,4 +217,3 @@ Global Add Parametric Morphism A B : (@List.map A B)
 Proof.
   intros; eapply map_ext; eauto.
 Qed.
-

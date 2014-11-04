@@ -4,10 +4,13 @@ Require Import StringMap.
 Import StringMap.
 
 Require Import Facade.
+Require Import Compile.
+Require Import Semantics.
+Require Import GoodModuleDec.
 
 Local Notation FunCore := OperationalSpec.
 
-Definition is_syntactic_wellformed (f : FunCore) := true.
+Definition is_syntactic_wellformed (f : FunCore) := is_good_func (compile_op f).
 
 Record FFunction :=
   {
