@@ -2,16 +2,14 @@ Set Implicit Arguments.
 
 Require Import Facade.
 Require Import Notations.
+Import Notations.OpenScopes.
 
 Section ADTValue.
 
   Variable ADTValue : Type.
   Variables ArraySeq_newSpec ArraySeq_writeSpec ArraySeq_readSpec ArraySeq_deleteSpec ListSet_newSpec ListSet_addSpec ListSet_sizeSpec ListSet_deleteSpec : AxiomaticSpec ADTValue.
 
-  Local Open Scope facade_scope.
-  Local Open Scope list_scope.
-
-  Definition m := 
+  Definition count_unique := 
     module
     import {
       "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;
@@ -24,18 +22,18 @@ Section ADTValue.
       "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
     }
     define {
-      def "count" = func("arr", "len")
-        "set" <-- call_ "ADT"!"ListSet_new"();;
-        "i" <- 0;;
+      def "count" = func("arr", "len"){
+        "set" <-- call_ "ADT"!"ListSet_new"();
+        "i" <- 0;
         while_ ("i" < "len") {
-          "e" <-- call_ "ADT"!"ArraySeq_read" ("arr", "i");;
-          call_ "ADT"!"ListSet_add"("set", "e");;
+          "e" <-- call_ "ADT"!"ArraySeq_read" ("arr", "i");
+          call_ "ADT"!"ListSet_add"("set", "e");
           "i" <- "i" + 1
-        };;
-        "ret" <-- call_ "ADT"!"ListSet_size"("set");;
+        };
+        "ret" <-- call_ "ADT"!"ListSet_size"("set");
         call_ "ADT"!"ListSet_delete"("set")
-      end;
-      def "main" = func()
+      };
+      def "main" = func(){
 (*
         "arr" <-- call_ "ADT"!"ArraySeq_new"(3);;
         call_ "ADT"!"ArraySeq_write"("arr", 0, 10);;
@@ -45,11 +43,11 @@ Section ADTValue.
         call_ "ADT"!"ArraySeq_delete"("arr")
 *)
         "ret" <- 0
-      end
+      }
     }.
 
   Require Import Facade.CompileModule.
 
-  Definition cmodule := compile (fst m) eq_refl (snd m).
+  Definition cmodule := compile "count_unique" eq_refl count_unique.
 
 End ADTValue.
