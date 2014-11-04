@@ -87,7 +87,74 @@ Proof.
     eauto.
 Qed.
 
-Lemma uninited_reads_intro' stmt : forall x uninited inited, Wf.reads uninited stmt x -> (forall x, uninited x -> In x inited -> False) -> In x (uninited_reads inited stmt).
+Require Import GeneralTactics GeneralTactics4.
+
+Lemma expReads_free_vars e : forall uninited x, Wf.expReads uninited e x -> In x (free_vars e) /\ uninited x.
+Proof.
+  induction e; simpl; intros uninited x Hr.
+  - openhyp.
+    split; eauto.
+    eapply singleton_iff; eauto.
+  - intuition.
+  - destruct Hr as [Hr | Hr].
+    + eapply IHe1 in Hr.
+      openhyp.
+      split; eauto.
+      eapply union_iff; eauto.
+    + eapply IHe2 in Hr.
+      openhyp.
+      split; eauto.
+      eapply union_iff; eauto.
+  - destruct Hr as [Hr | Hr].
+    + eapply IHe1 in Hr.
+      openhyp.
+      split; eauto.
+      eapply union_iff; eauto.
+    + eapply IHe2 in Hr.
+      openhyp.
+      split; eauto.
+      eapply union_iff; eauto.
+Qed.
+
+Definition disj uninited inited := forall x, uninited x -> In x inited -> False.
+
+Lemma expReads_free_vars_diff e x uninited inited : Wf.expReads uninited e x -> disj uninited inited -> In x (free_vars e - inited).
+Proof.
+  intros Hr Hdisj.
+  eapply diff_iff.
+  eapply expReads_free_vars in Hr.
+  openhyp; split; eauto.
+Qed.
+
+Definition sub_set (a : string -> Prop) b := forall x, a x -> In x b.
+
+Lemma ExistsR_fold_left' elt (ls : list elt) : forall a0 b0 a b all, sub_set a0 b0 -> (forall e, sub_set (a e) (b e)) -> (forall x, all x <-> (a0 x \/ Wf.ExistsR (fun e => a e x) ls)) -> sub_set all (fold_left (fun acc e => b e + acc) ls b0).
+Proof.
+  induction ls; simpl; intros a0 b0 af bf all Hss0 Hss Heq.
+  - unfold sub_set in *.
+    intros x Hin.
+    eapply Heq in Hin.
+    openhyp; intuition.
+  - eapply IHls; eauto.
+    + instantiate (1 := fun x => a0 x \/ af a x).
+      unfold sub_set in *.
+      intros x Ha.
+      eapply union_iff.
+      intuition.
+    + intros x.
+      etransitivity.
+      eauto.
+      intuition.
+Qed.
+
+Lemma ExistsR_fold_left elt (ls : list elt) : forall a0 b0 a b, sub_set a0 b0 -> (forall e, sub_set (a e) (b e)) -> sub_set (fun x => a0 x \/ Wf.ExistsR (fun e => a e x) ls) (fold_left (fun acc e => b e + acc) ls b0).
+Proof.
+  intros.
+  eapply ExistsR_fold_left'; eauto.
+  intuition.
+Qed.
+
+Lemma uninited_reads_intro' stmt : forall x uninited inited, Wf.reads uninited stmt x -> disj uninited inited -> In x (uninited_reads inited stmt).
 Proof.
   induction stmt; simpl; intros x uninited inited Hr Hdisj.
   - eapply empty_iff; eauto.
@@ -101,10 +168,44 @@ Proof.
       simpl in *.
       eapply union_iff in Hi.
       destruct Hu as [Hu Hnw].
-      (*here*)
+      destruct Hi as [Hi | Hi].
+      * eauto.
+      * contradict Hnw.
+        eapply inits_elim; eauto.
+  - eapply union_iff.
+    destruct Hr as [Hr | [Hr | Hr]].
+    + left.
+      eapply union_iff.
+      left.
+      eapply expReads_free_vars_diff; eauto.
+    + left.
+      eapply union_iff.
+      right.
+      eauto.
+    + right.
+      eauto.
+  - eapply union_iff.
+    destruct Hr as [Hr | Hr].
+    + left.
+      eapply expReads_free_vars_diff; eauto.
+    + right.
+      eauto.
+  - eapply ExistsR_fold_left; eauto; unfold sub_set in *.
+    intros; eapply expReads_free_vars_diff; eauto.
+    intros; eapply expReads_free_vars_diff; eauto.
+  - eapply empty_iff; eauto.
+  - eapply expReads_free_vars_diff; eauto.
 Qed.
 
 Lemma uninited_reads_intro stmt : forall x inited, Wf.reads (fun x => ~ List.In x inited) stmt x -> In x (uninited_reads (of_list inited) stmt).
+Proof.
+  intros.
+  eapply uninited_reads_intro'; eauto.
+  unfold disj.
+  intros x' Hni Hi.
+  eapply of_list_fwd in Hi.
+  intuition.
+Qed.
 
 Lemma is_no_uninited_reads_sound f : is_no_uninited_reads f = true -> forall x, ~ Wf.reads (fun x => ~ List.In x (ArgVars f)) (Body f) x.
 Proof.

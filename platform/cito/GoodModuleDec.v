@@ -35,13 +35,14 @@ Section TopSection.
   Require Import Depth.
   Require Import GoodModuleFacts.
   Require Import ListFacts3.
+  Require Import NoUninitDec.
 
   Definition GoodFunc_bool f := 
     let body := Body f in 
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
     let all_vars := ArgVars f ++ local_vars in
     NoDup_bool string_bool (ArgVars f) &&
-    NoUninitialized_bool f &&
+    is_no_uninited f &&
     wellformed_bool body &&
     goodSize_bool (length local_vars + depth body).
 
@@ -85,7 +86,7 @@ Section TopSection.
     econstructor.
     eapply NoDup_bool_string_eq_sound; eauto.
     split.
-    eapply NoUninitialized_bool_sound; eauto.
+    eapply is_no_uninited_sound; eauto.
     split.
     eapply wellformed_bool_sound; eauto.
     eapply goodSize_bool_sound; eauto.
