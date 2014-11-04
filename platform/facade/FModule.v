@@ -26,9 +26,11 @@ Section ADTValue.
 
   Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
 
+  Require Import GLabelMap.
+
   Record FModule := 
     {
-      Imports : StringMap.t AxiomaticSpec;
+      Imports : GLabelMap.t AxiomaticSpec;
       (* Exports : StringMap.t AxiomaticSpec; *)
       Functions : StringMap.t FFunction
     }.

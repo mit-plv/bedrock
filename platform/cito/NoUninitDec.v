@@ -12,14 +12,6 @@ Require Import List.
 Import ListNotations.
 Local Open Scope list_scope.
 
-Module ListNotationsFix.
-  Notation " [ ] " := (@nil _) : list_scope.
-  Notation " [ x , .. , y ] " := (cons x .. (cons y nil) ..) : list_scope.
-  Notation " +[ ] " := (@nil _) : list_scope.
-  Notation " +[ x , .. , y ] " := (cons x .. (cons y nil) ..) : list_scope.
-End ListNotationsFix.
-Import ListNotationsFix.
-
 Require Import StringSet.
 Import StringSet.
 Require Import StringSetFacts.
