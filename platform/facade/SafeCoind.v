@@ -71,26 +71,13 @@ Section ADTValue.
 
     Theorem Safe_coind : forall c st, R c st -> Safe env c st.
       cofix; intros; destruct c.
-
-      solve [eauto].
-      Guarded.
-
-      solve [eapply SeqCase in H; openhyp; eapply SafeSeq; eauto].
-      Guarded.
-
-      solve [eapply IfCase in H; openhyp; eauto].
-      Guarded.
-
-      solve [eapply WhileCase in H; openhyp; eauto].
-      Guarded.
-
-      solve [eapply CallCase in H; openhyp; simpl in *; intuition eauto].
-      Guarded.
-
-      solve [eapply LabelCase in H; openhyp; eauto].
-      Guarded.
-
-      solve [eapply AssignCase in H; openhyp; eauto].
+      - eauto.
+      - eapply SeqCase in H; openhyp; eapply SafeSeq; eauto.
+      - eapply IfCase in H; openhyp; eauto.
+      - eapply WhileCase in H; openhyp; eauto.
+      - eapply CallCase in H; openhyp; simpl in *; intuition eauto.
+      - eapply LabelCase in H; openhyp; eauto.
+      - eapply AssignCase in H; openhyp; eauto.
     Qed.
 
   End Safe_coind.
