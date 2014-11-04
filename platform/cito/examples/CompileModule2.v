@@ -130,18 +130,11 @@ Module Make (Import E : ADT).
 
       End Fun.
       
-      (*here*)
-
-      Notation Func_to_impl_import := func_impl_export.
-
-      Definition bimports : list import := 
-        bimports_base ++ List.map (Func_to_impl_import m) (Functions m).
+      Definition select_funs m names := 
+        match names
+      Definition bimports : list import := List.map tgt_spec (select_funs m (keys exports)).
       
       Definition stubs := List.map make_stub (Functions m).
-
-      Definition bexports := List.map (@func_to_import _) stubs.
-
-      Definition bimports_diff_bexports := diff_map bimports bexports.
 
       Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
 
