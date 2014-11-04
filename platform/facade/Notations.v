@@ -10,15 +10,24 @@ Coercion natToW : nat >-> W.
 
 Require Import AutoSep.
 
+Require Import Listy.
+Import Listy.Notations.
+Export Listy.Notations.
+Import BeginEndNotation.
+Import Instances.
+Export Instances.
+Local Open Scope listy_scope.
+
+Instance seq_Listy : Listy Stmt Stmt := {
+  Nil := Facade.Skip;
+  Cons := Facade.Seq
+}.                                                
+
+(* for some reason typeclass inference needs to redeclare this instance *)
+Existing Instance list_Listy.
+
 (* for free-standing stmt seq *)
 Infix ";;" := Facade.Seq : facade_scope.
-
-(* for stmt list *)
-Notation " { } " := (Facade.Skip) (only parsing) : facade_scope.
-Notation " { x ; .. ; y } " := (Facade.Seq x .. (Facade.Seq y Facade.Skip) ..) (only parsing) : facade_scope.
-
-(* make sure we don't mess up with record syntax *)
-Record test_record := { AAA : nat; BBB : nat ; CCC : nat}.
 
 Delimit Scope facade_scope with facade.
 Local Open Scope facade_scope.
@@ -63,6 +72,10 @@ Definition test_stmt :=
   );;
   "ret" <-- call_ "m"!"f" ("x", "y").
 
+Definition test_ls := {1;2;3}.
+Definition test_ls2 := {"1";"2";"3"}.
+Definition test_ls3 := { ("a", {"x" <- 1; "y" <- 2}); ("b", {"x" <- 1; "y" <- 2}); ("c", {"x" <- 1; "y" <- 2}) }.
+
 Require Import List.
 Import ListNotations.
 Local Open Scope list_scope.
@@ -83,6 +96,11 @@ Definition test_f :=
     "ret" <- 0
   }.
 
+Definition test_2 := 
+  func() begin
+    "ret" <- 0
+  end.
+
 (* notations for pairs *)
 Notation "'def' name = v" := (pair name v) (no associativity, at level 95, name at level 0, only parsing) : facade_scope.
 Infix "==>" := pair (no associativity, at level 95, only parsing) : facade_scope.
@@ -90,8 +108,6 @@ Infix "::=" := pair (no associativity, at level 95, only parsing) : facade_scope
 
 (* notations for lists *)
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : facade_scope.
-Notation " { } " := (@nil _) (only parsing) : list_scope.
-Notation " { x ; .. ; y } " := (cons x .. (cons y nil) ..) (only parsing) : list_scope.
 
 Definition test_name_f := 
   def "test" = func(){
@@ -107,7 +123,7 @@ Notation "'module' 'import' imps 'define' fs" :=
 Section Test.
   
   Variable ADTValue : Type.
-  Variables ArraySeq_newSpec ListSet_deleteSpec : AxiomaticSpec ADTValue.
+  Variables ArraySeq_newSpec ArraySeq_writeSpec ArraySeq_readSpec ArraySeq_deleteSpec ListSet_newSpec ListSet_addSpec ListSet_sizeSpec ListSet_deleteSpec : AxiomaticSpec ADTValue.
 
   Definition test_m := 
     module 
@@ -116,9 +132,9 @@ Section Test.
       "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
     }
     define {
-      def "f1" = func(){
+      def "f1" = func() begin
         "ret" <- 0
-      };
+      end;
       def "f2" = func("a", "b"){
         "x" <- 2;
         "y" <- "b";
@@ -141,9 +157,52 @@ Section Test.
       }
     }.
 
+  Definition test_m2 := 
+    module
+    import {
+      "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;
+      "ADT"!"ArraySeq_write" ==> ArraySeq_writeSpec;
+      "ADT"!"ArraySeq_read" ==> ArraySeq_readSpec;
+      "ADT"!"ArraySeq_delete" ==> ArraySeq_deleteSpec;
+      "ADT"!"ListSet_new" ==> ListSet_newSpec;
+      "ADT"!"ListSet_add" ==> ListSet_addSpec;
+      "ADT"!"ListSet_size" ==> ListSet_sizeSpec;
+      "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
+    }
+    define {
+      def "count" = func("arr", "len"){
+        "set" <-- call_ "ADT"!"ListSet_new"();
+        "i" <- 0;
+        while_ ("i" < "len") {
+          "e" <-- call_ "ADT"!"ArraySeq_read" ("arr", "i");
+          call_ "ADT"!"ListSet_add"("set", "e");
+          "i" <- "i" + 1
+        };
+        "ret" <-- call_ "ADT"!"ListSet_size"("set");
+        call_ "ADT"!"ListSet_delete"("set")
+      };
+      def "main" = func(){
+(*
+        "arr" <-- call_ "ADT"!"ArraySeq_new"(3);;
+        call_ "ADT"!"ArraySeq_write"("arr", 0, 10);;
+        call_ "ADT"!"ArraySeq_write"("arr", 1, 20);;
+        call_ "ADT"!"ArraySeq_write"("arr", 2, 10);;
+        "ret" <-- call_ "count"!"count" ("arr", 3);;
+        call_ "ADT"!"ArraySeq_delete"("arr")
+*)
+        "ret" <- 0
+      }
+    }.
+
   Definition test_ms := {
     def "m1" = test_m;
-    def "m2" = test_m
-  }%list.
+    def "m2" = test_m2
+  }.
 
 End Test.
+
+Module OpenScopes.
+  Open Scope listy_scope.
+  Open Scope facade_scope.
+  Open Scope expr_scope.
+End OpenScopes.
