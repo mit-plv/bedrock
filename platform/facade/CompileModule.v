@@ -12,8 +12,6 @@ Section ADTValue.
 
   Notation FModule := (@FModule ADTValue).
 
-  Variable module : FModule.
-
   Require Import String.
   Local Open Scope string_scope.
 
@@ -22,6 +20,8 @@ Section ADTValue.
   Variable m_name : string.
 
   Hypothesis good_name : is_good_module_name m_name = true.
+
+  Variable module : FModule.
 
   Notation FName := SyntaxFunc.Name.
   Notation MName := GoodModule.Name.
