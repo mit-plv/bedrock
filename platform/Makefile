@@ -44,7 +44,7 @@ facade: build
 facade_all: T=$(FACADE_ALL)
 facade_all: build
 
-COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito
+COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
 COQC    := coqc $(COQARGS)
 
