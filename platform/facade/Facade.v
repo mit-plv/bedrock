@@ -6,6 +6,8 @@ Require Import String.
 
 Require Import StringMap.
 Import StringMap.
+Require Import AxSpec.
+Export AxSpec.
 
 Section ADTSection.
 
@@ -28,9 +30,8 @@ Section ADTSection.
 
   Variable ADTValue : Type.
 
-  Inductive Value :=
-  | SCA : W -> Value
-  | ADT : ADTValue -> Value.
+  Notation Value := (@Value ADTValue).
+  Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
 
   Definition State := StringMap.t Value.
 
@@ -40,7 +41,10 @@ Section ADTSection.
       | inr op' => if evalTest op' a b then $1 else $0
     end.
 
-  Definition eval_binop_m (op : binop + test) oa ob :=
+  Arguments SCA {ADTValue} _.
+  Arguments ADT {ADTValue} _.
+
+  Definition eval_binop_m (op : binop + test) (oa ob : option Value) : option Value :=
     match oa, ob with
       | Some (SCA a), Some (SCA b) => Some (SCA (eval_binop op a b))
       | _, _ => None
@@ -81,26 +85,6 @@ Section ADTSection.
         add_remove_many keys' input' output' st'
       | _, _, _ => st
     end.
-
-  Definition same_type a b := 
-    match a, b with
-      | ADT _, ADT _ => True
-      | SCA _, SCA _ => True
-      | _, _ => False
-    end.
-
-  Definition same_types ls1 ls2 := Forall2 same_type ls1 ls2.
-
-  (* type_conforming precond : any n-length input list satisfying precond must conform to a n-length type signature. But inputs of different lengths can have different type signatures ('type' means ADT vs. scalar).
-     This requirement is necessary for semantic-preserving compilation into Cito, which can nondeterministically interpret the inputs to an axiomatic call either as ADTs or as scalars, where the choice of ADT/scalar may not agree with Facade's state. *)
-  Definition type_conforming precond := forall inputs1 inputs2, precond inputs1 -> precond inputs2 -> length inputs1 = length inputs2 -> same_types inputs1 inputs2.
-
-  Record AxiomaticSpec :=
-    {
-      PreCond : list Value -> Prop;
-      PostCond : list (Value * option ADTValue) -> Value -> Prop;
-      PreCondTypeConform : type_conforming PreCond
-    }.
 
   Require Import ListFacts3 ListFacts4.
 
@@ -151,13 +135,13 @@ Section ADTSection.
     }.
 
   Definition no_adt_leak input argvars retvar st :=
-    forall var a, 
+    forall var (a : ADTValue), 
       sel st var = Some (ADT a) -> 
       var = retvar \/ 
-      exists i ai, nth_error argvars i = Some var /\ 
+      exists i (ai : ADTValue), nth_error argvars i = Some var /\ 
                    nth_error input i = Some (ADT ai).
 
-  Definition wrap_output := List.map (option_map ADT).
+  Definition wrap_output := List.map (option_map (@ADT ADTValue)).
 
   Definition is_some_p A (p : A -> bool) o := 
     match o with
@@ -165,7 +149,7 @@ Section ADTSection.
       | None => false
     end.
 
-  Definition is_adt v :=
+  Definition is_adt (v : Value) :=
     match v with
       | ADT _ => true
       | _ => false
@@ -327,4 +311,3 @@ Section ADTSection.
   End EnvSection.
           
 End ADTSection.
-
