@@ -81,6 +81,8 @@ Module Make (Import E : ADT).
   Module Make (Import M : RepInv E).
     
     Module Import LinkSpecMakeMake := LinkSpecMake.Make M.
+    Require Import MakeWrapper.
+    Module Import MakeWrapperMake := Make E M.
 
     Section M.
 
@@ -168,17 +170,137 @@ Module Make (Import E : ADT).
       Qed.
 
       Require Import Wrap.
+      Require Import Inv.
+
+      Opaque mult.
 
       Lemma good_vcs ls : vcs (makeVcs bimports stubs (List.map make_stub' ls)).
         induction ls; simpl; eauto.
-        Opaque funcs_ok.
-        Opaque spec_without_funcs_ok.
         wrap0.
         wrap0.
-        (*here*)
-        admit.
-        admit.
-      Qed.        
+        {
+          unfold name_marker.
+          hiding ltac:(step auto_ext).
+          unfold spec_without_funcs_ok.
+          post.
+          subst.
+
+          Import List.
+
+          Ltac hide_all_eq :=
+            repeat match goal with
+                     | H : _ = _ |- _ => generalize dependent H
+                   end.
+
+          Ltac clear_all_eq :=
+            repeat match goal with
+                     | H : _ = _ |- _ => clear H
+                   end.
+
+          rename H7 into Hlong.
+          rename x1 into rp.
+          rename x2 into e_stack.
+          rename x0 into pairs.
+          rename a into ax_spec.
+          rename b0 into op_spec.
+          rename H2 into Hst.
+          rename H8 into Hegu.
+          rename H6 into Hpre.
+          unfold is_state, has_extra_stack in Hst.
+          simpl in *.
+
+          set (arr := map fst pairs) in *.
+          set (avars := ArgVars op_spec) in *.
+          Require Import SepHints3.
+          rewrite (@replace_array_to_locals arr _ avars) in Hst.
+          assert (Halok : array_to_locals_ok arr avars) by admit.
+          Ltac hide3 IHls Hegu Hpre :=
+            generalize dependent IHls;
+            generalize dependent  Hegu;
+            generalize dependent  Hpre.
+          
+          hide3 IHls Hegu Hpre.
+          hiding ltac:(evaluate hints_array_to_locals).
+          intros.
+          rename H13 into Hta.
+          rename x0 into vs_callee.
+          rename H6 into Hst.
+
+          eexists.
+          Import CompileFuncSpecMake.InvMake.
+          set (h := make_heap pairs) in *.
+          exists (vs_callee, h).
+          exists rp, e_stack.
+          descend.
+          {
+            unfold is_state.
+            unfold has_extra_stack.
+            simpl.
+            Require Import Arith.
+            Require Import WordFacts.
+            rewrite mult_0_r in *.
+            rewrite wplus_0 in *.
+            rewrite plus_0_r in *.
+            Ltac simpl_array_nil := let h0 := fresh in set (h0 := array nil _) in *; unfold array in h0; simpl in h0; subst h0.
+            Ltac simpl_locals_nil := let h0 := fresh in set (h0 := locals nil _ _ _) in *; unfold locals in h0; unfold array in h0; simpl in h0; subst h0.
+            simpl_array_nil.
+            simpl_locals_nil.
+            assert (Hleq : length arr = length avars) by admit.
+            rewrite  Hleq in *.
+
+            clear IHls Hegu Hpre.
+            repeat hiding ltac:(step auto_ext).
+          }
+          {
+            admit. (* safe *)
+          }
+          {
+            eauto.
+          }
+          {
+            (* post call *)
+            set (rv := Regs x0 Rv) in *.
+            Require Import WordMap.
+            Import SemanticsMake.
+
+            Definition retv p (h : Heap) : Ret := 
+              match WordMap.find p h with
+                | Some a => inr a
+                | None => inl p
+              end.
+
+            hiding ltac:(step auto_ext).
+            hiding ltac:(step auto_ext).
+            hiding ltac:(step auto_ext).
+            {
+              instantiate (2 := rv).
+              instantiate (2 := retv rv (snd x1)).
+              instantiate (2 := List.map (fun p => WordMap.find p (snd x1)) arr).
+              instantiate (4 := x2).
+              instantiate (3 := x4).
+              instantiate (1 := List.map (fst x1) avars).
+              instantiate (1 := empty_vs).
+
+              rename x2 into rp'.
+              rename x4 into e_stack'.
+              destruct H1 as [vs_callee' [Hrt [Hrv Hsp] ] ].
+              rewrite Hsp in *.
+              rename x1 into v_callee'.
+              set (h' := snd v_callee') in *.
+              admit.
+            }
+            {
+              admit.
+            }
+          }
+        }
+        {
+          admit.
+        }
+        (* universe inconsistency *)
+        Set Printing Universes.
+        Admitted.
+      (* Qed.         *)
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
