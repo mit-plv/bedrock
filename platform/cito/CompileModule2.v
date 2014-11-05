@@ -151,121 +151,44 @@ Module Make (Import E : ADT).
         match x with (name, (_, f)) => (op_mod_name, name, tgt_spec name f) end.
 
       Definition bimports : list import := List.map tgt_spec_as_import (elements content).
-      
-      Definition stubs := List.map (fun x => match x with (name, (ax, op)) => make_stub name ax op end) (elements content).
+
+      Definition make_stub' x := match x with (name, (ax, op)) => make_stub name ax op end.
+
+      Definition stubs := List.map make_stub' (elements content).
 
       Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
+      Require Import NameVC.
+      Require Import ListFacts3.
+
+      Hypothesis name_neq : negb (string_bool ax_mod_name op_mod_name) = true.
+
+      Lemma ax_mod_name_not_in_imports : NameNotInImports ax_mod_name bimports.
+        admit.
+      Qed.
+
+      Require Import Wrap.
+
+      Lemma good_vcs ls : vcs (makeVcs bimports stubs (List.map make_stub' ls)).
+        induction ls; simpl; eauto.
+        Opaque funcs_ok.
+        Opaque spec_without_funcs_ok.
+        wrap0.
+        wrap0.
+        (*here*)
+        admit.
+        admit.
+      Qed.        
+
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
-        eapply module_name_not_in_imports.
-        eapply no_dup_func_names.
+        eapply ax_mod_name_not_in_imports.
+        admit. (* eapply no_dup_func_names. *)
         eapply good_vcs; eauto.
       Qed.
 
+    End M.
 
-(*
-    Definition main_spec_Bedrock := func_spec modules imports ("count"!"main")%stmtex main.
+  End Make.
 
-    Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printInt" @ [printIntS],
-                                 "sys"!"abort" @ [abortS] ]]
-      bmodule "top" {{
-        bfunction "top"("R") [topS]
-          "R" <-- Call "count"!"main"(extra_stack)
-          [PREonly[_, R] [| R = 2 |] ];;
-
-          Call "sys"!"printInt"("R")
-          [PREonly[_] Emp ];;
-
-          Call "sys"!"abort"()
-          [PREonly[_] [| False |] ]
-        end
-      }}.
-*)
-
-    Lemma main_safe' : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (change_env specs (from_bedrock_label_map (Labels stn), fs stn)) (Body main) v.
-      cito_safe main empty_precond main_vcs_good.
-      eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
-    Qed.
-
-    Lemma main_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
-      intros.
-      eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
-      eapply main_safe'; eauto.
-      eapply new_env_strengthen; eauto.
-    Qed.
-
-    Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
-      intros.
-      eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H0.
-      cito_runsto main empty_precond main_vcs_good.
-      split; eauto.
-      2 : eauto.
-      eapply change_env_agree; eauto; eapply specs_equal_agree; eauto.
-      eapply new_env_strengthen; eauto.
-      eapply main_safe'; eauto.
-    Qed.
-
-    Require Import Inv.
-    Module Import InvMake := Make ExampleADT.
-    Module Import InvMake2 := Make ExampleRepInv.
-    Import Made.
-
-    Theorem top_ok : moduleOk top.
-      vcgen.
-
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-
-      post.
-      call_cito 40 (@nil string).
-      hiding ltac:(evaluate auto_ext).
-      unfold name_marker.
-      hiding ltac:(step auto_ext).
-      unfold spec_without_funcs_ok.
-      post.
-      descend.
-      eapply CompileExprs.change_hyp.
-      Focus 2.
-      apply (@is_state_in''' (upd x2 "extra_stack" 40)).
-      autorewrite with sepFormula.
-      clear H7.
-      hiding ltac:(step auto_ext).
-      apply main_safe; eauto.
-      hiding ltac:(step auto_ext).
-      repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
-      apply swap; apply injL; intro.
-      openhyp.
-      Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
-      match goal with
-        | [ x : State |- _ ] => destruct x; simpl in *
-      end.
-      eapply_in_any main_runsto; simpl in *; intuition subst.
-      eapply replace_imp.
-      change 40 with (wordToNat (sel (upd x2 "extra_stack" 40) "extra_stack")).
-      apply is_state_out'''''.
-      NoDup.
-      NoDup.
-      NoDup.
-      eauto.
-
-      clear H7.
-      hiding ltac:(step auto_ext).
-      hiding ltac:(step auto_ext).
-
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-    Qed.
-
-    Definition all := link top (link_with_adts modules imports).
-
-    Theorem all_ok : moduleOk all.
-      link0 top_ok.
-    Qed.
+End Make.
