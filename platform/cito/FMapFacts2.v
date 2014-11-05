@@ -1357,6 +1357,12 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       rewrite add_neq_o by eauto; eauto.
     Qed.
 
+    Lemma NoDup_elements elt (m : t elt) : NoDup (List.map fst (elements m)).
+    Proof.
+      eapply NoDupKey_NoDup_fst.
+      eapply elements_3w.
+    Qed.
+
   End TopSection.
 
 End UWFacts_fun.

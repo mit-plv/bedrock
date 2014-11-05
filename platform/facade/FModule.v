@@ -10,12 +10,12 @@ Require Import GoodModuleDec.
 
 Local Notation FunCore := OperationalSpec.
 
-Definition is_syntactic_wellformed (f : FunCore) := is_good_func (compile_op f).
+Definition is_syntax_ok (f : FunCore) := is_good_func (compile_op f).
 
 Record FFunction :=
   {
     Core : FunCore;
-    syntactic_wellformed : is_syntactic_wellformed Core = true
+    syntax_ok : is_syntax_ok Core = true
   }.
     
 Coercion Core : FFunction >-> OperationalSpec.
