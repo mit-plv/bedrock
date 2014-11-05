@@ -48,6 +48,12 @@ Section ADTValue.
 
   Require Import Facade.CompileModule.
 
-  Definition cmodule := compile "count_unique" eq_refl count_unique.
+  Definition gmodule := compile_to_gmodule count_unique "count_unique" eq_refl.
+
+  Require Import GoodModuleDec.
+  Require Import IsGoodModule.
+
+  (* test executability *)
+  Goal is_good_module gmodule = true. Proof. exact eq_refl. Qed.
 
 End ADTValue.
