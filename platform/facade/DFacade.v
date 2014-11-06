@@ -57,6 +57,18 @@ Section ADTSection.
       | Call x f es => [x]
     end.
   
+  Open Scope bool_scope.
+
+  Fixpoint is_actual_args_no_dup s :=
+    match s with
+      | Call _ _ args => is_no_dup args
+      | Skip => true
+      | Seq a b => is_actual_args_no_dup a && is_actual_args_no_dup b
+      | If _ a b => is_actual_args_no_dup a && is_actual_args_no_dup b
+      | While _ body => is_actual_args_no_dup body
+      | Assign _ _ => true
+    end.
+
   (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
      The return variable must not be an argument, to prevent aliasing. 
      Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
@@ -65,10 +77,10 @@ Section ADTSection.
       ArgVars : list string;
       RetVar : string;
       Body : Stmt;
-      (* should also be a 'actual_args_no_dup' here *)
       args_no_dup : is_no_dup ArgVars = true;
       ret_not_in_args : negb (is_in RetVar ArgVars) = true;
-      no_assign_to_args : is_disjoint (assigned Body) ArgVars = true
+      no_assign_to_args : is_disjoint (assigned Body) ArgVars = true;
+      actual_args_no_dup : is_actual_args_no_dup Body = true
     }.
 
   Inductive FuncSpec :=
