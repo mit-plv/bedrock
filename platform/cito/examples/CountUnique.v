@@ -205,7 +205,8 @@ Module Import ChangeSpecMake := Make ExampleADT.
 Import SemanticsFacts4Make.
 Import TransitMake.
 
-Ltac t := unfold type_conforming, same_type; intros; openhyp; subst; eapply is_same_types_sound; reflexivity.
+Require AxSpec.
+Import AxSpec.ConformTactic.
 
 Definition count_spec : ForeignFuncSpec.
   refine
@@ -213,7 +214,7 @@ Definition count_spec : ForeignFuncSpec.
       PreCond := fun args => exists arr len, args = ADT (Arr arr) :: SCA len :: nil /\ len = length arr /\ goodSize (length arr);
       PostCond := fun args ret => exists arr len, args = (ADT (Arr arr), Some (Arr arr)) :: (SCA len, None) :: nil /\ ret = SCA (unique_count arr : W)
     |}.
-  t.
+  conform.
 Defined.
 
 Definition main_spec : ForeignFuncSpec.
@@ -222,7 +223,7 @@ Definition main_spec : ForeignFuncSpec.
       PreCond := fun args => args = nil;
       PostCond := fun _ ret => ret = SCA $2
     |}.
-  t.
+  conform.
 Defined.
 
 Import GLabelMap.GLabelMap.

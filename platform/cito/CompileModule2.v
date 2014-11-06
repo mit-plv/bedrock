@@ -263,10 +263,13 @@ Module Make (Import E : ADT).
             Require Import WordMap.
             Import SemanticsMake.
 
+            Arguments SCA {ADTValue} _.
+            Arguments ADT {ADTValue} _.
+
             Definition retv p (h : Heap) : Ret := 
               match WordMap.find p h with
-                | Some a => inr a
-                | None => inl p
+                | Some a => ADT a
+                | None => SCA p
               end.
 
             hiding ltac:(step auto_ext).

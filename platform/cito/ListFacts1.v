@@ -145,3 +145,22 @@ Section TopSection.
   Qed.
 
 End TopSection.
+
+Require Import Bool.
+
+Local Open Scope bool_scope.
+
+Fixpoint forall2 A B (pred : A -> B -> bool) ls1 ls2 :=
+  match ls1, ls2 with
+    | a :: ls1', b :: ls2' => pred a b && forall2 pred ls1' ls2'
+    | nil, nil => true
+    | _, _ => false
+  end.
+
+Lemma forall2_sound A B pred (P : A -> B -> Prop) : (forall a b, pred a b = true -> P a b) -> forall ls1 ls2, forall2 pred ls1 ls2 = true -> List.Forall2 P ls1 ls2.
+Proof.
+  intros Hs.
+  induction ls1; destruct ls2; simpl; try solve [intros; try discriminate; intuition].
+  intros Hp; eapply andb_true_iff in Hp.
+  openhyp; econstructor; eauto.
+Qed.
