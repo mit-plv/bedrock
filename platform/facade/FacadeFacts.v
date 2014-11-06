@@ -330,14 +330,6 @@ Section ADTValue.
     destruct o as [a|]; simpl in *; intuition.
   Qed.
 
-  Lemma is_adt_iff v : is_adt v = true <-> exists a : ADTValue, v = ADT a.
-  Proof.
-    destruct v as [w | a]; simpl in *.
-    split; intros; openhyp; discriminate.
-    intuition.
-    eexists; eauto.
-  Qed.
-
   Lemma is_mapsto_adt_iff x st : is_mapsto_adt x st = true <-> exists a : ADTValue, StringMap.find x st = Some (ADT a).
   Proof.
     unfold is_mapsto_adt.

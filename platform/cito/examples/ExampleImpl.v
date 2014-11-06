@@ -167,54 +167,11 @@ Definition hints : TacPackage.
   (store_pair_inl_bwd, store_pair_inr_bwd).
 Defined.
 
-Section ADTValue.
-
-  Variable ADTValue : Type.
-
-  Notation Value := (@Value ADTValue).
-
-  Fixpoint is_same_type (a b : Value) :=
-    match a, b with
-      | ADT _, ADT _ => true
-      | SCA _, SCA _ => true
-      | _, _ => false
-    end.
-
-  Open Scope bool_scope.
-
-  Fixpoint forall2 A B (pred : A -> B -> bool) ls1 ls2 :=
-    match ls1, ls2 with
-      | a :: ls1', b :: ls2' => pred a b && forall2 pred ls1' ls2'
-      | nil, nil => true
-      | _, _ => false
-    end.
-
-  Definition is_same_types := forall2 is_same_type.
-
-  Lemma is_same_type_sound a b : is_same_type a b = true -> same_type a b.
-  Proof.
-    destruct a; destruct b; simpl in *; intuition.
-  Qed.
-
-  Require Import Bool.
-
-  Lemma forall2_sound A B pred (P : A -> B -> Prop) : (forall a b, pred a b = true -> P a b) -> forall ls1 ls2, forall2 pred ls1 ls2 = true -> List.Forall2 P ls1 ls2.
-  Proof.
-    intros Hs.
-    induction ls1; destruct ls2; simpl; try solve [intros; intuition].
-    intros Hp; eapply andb_true_iff in Hp.
-    openhyp; econstructor; eauto.
-  Qed.
-
-  Lemma is_same_types_sound ls1 ls2 : is_same_types ls1 ls2 = true -> same_types ls1 ls2.
-  Proof.
-    eapply forall2_sound; eapply is_same_type_sound.
-  Qed.
-
-End ADTValue.
-
 Arguments SCA {ADTValue} _.
 Arguments ADT {ADTValue} _.
+
+Require AxSpec.
+Import AxSpec.ConformTactic.
 
 Definition SimpleCell_newSpec : ForeignFuncSpec.
   refine
@@ -222,13 +179,8 @@ Definition SimpleCell_newSpec : ForeignFuncSpec.
       PreCond := fun args => args = nil;
       PostCond := fun args ret => args = nil /\ ret = ADT (Cell 0)
     |}.
-  unfold type_conforming, same_type; intros ls1 ls2 Hpre1 Hpre2 Hlen.
-  intros; subst.
-  eapply is_same_types_sound.
-  reflexivity.
+  conform.
 Defined.
-
-Ltac t := unfold type_conforming, same_type; intros; openhyp; subst; eapply is_same_types_sound; reflexivity.
 
 Definition SimpleCell_deleteSpec : ForeignFuncSpec.
   refine
@@ -236,7 +188,7 @@ Definition SimpleCell_deleteSpec : ForeignFuncSpec.
       PreCond := fun args => exists n, args = ADT (Cell n) :: nil;
       PostCond := fun args ret => exists n r, args = (ADT (Cell n), None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition SimpleCell_readSpec : ForeignFuncSpec.
@@ -245,7 +197,7 @@ Definition SimpleCell_readSpec : ForeignFuncSpec.
       PreCond := fun args => exists n, args = ADT (Cell n) :: nil;
       PostCond := fun args ret => exists n, ret = SCA n /\ args = (ADT (Cell n), Some (Cell n)) :: nil
     |}.
-  t.
+  conform.
 Defined.
 
 Definition SimpleCell_writeSpec : ForeignFuncSpec.
@@ -254,7 +206,7 @@ Definition SimpleCell_writeSpec : ForeignFuncSpec.
       PreCond := fun args => exists n n', args = ADT (Cell n) :: SCA n' :: nil;
       PostCond := fun args ret => exists n n' r, args = (ADT (Cell n), Some (Cell n')) :: (SCA n', None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ArraySeq_newSpec : ForeignFuncSpec.
@@ -263,7 +215,7 @@ Definition ArraySeq_newSpec : ForeignFuncSpec.
       PreCond := fun args => exists len, args = SCA len :: nil /\ goodSize (2 + wordToNat len);
       PostCond := fun args ret => exists len ws, args = (SCA len, None) :: nil /\ ret = ADT (Arr ws) /\ length ws = wordToNat len
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ArraySeq_deleteSpec : ForeignFuncSpec.
@@ -272,7 +224,7 @@ Definition ArraySeq_deleteSpec : ForeignFuncSpec.
       PreCond := fun args => exists ws, args = ADT (Arr ws) :: nil;
       PostCond := fun args ret => exists ws r, args = (ADT (Arr ws), None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ArraySeq_readSpec : ForeignFuncSpec.
@@ -283,7 +235,7 @@ Definition ArraySeq_readSpec : ForeignFuncSpec.
       PostCond := fun args ret => exists ws n, ret = SCA (Array.sel ws n)
                                                /\ args = (ADT (Arr ws), Some (Arr ws)) :: (SCA n, None) :: nil
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ArraySeq_writeSpec : ForeignFuncSpec.
@@ -293,7 +245,7 @@ Definition ArraySeq_writeSpec : ForeignFuncSpec.
                                             /\ n < natToW (length ws);
       PostCond := fun args ret => exists ws n v r, args = (ADT (Arr ws), Some (Arr (Array.upd ws n v))) :: (SCA n, None) :: (SCA v, None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ListSet_newSpec : ForeignFuncSpec.
@@ -302,7 +254,7 @@ Definition ListSet_newSpec : ForeignFuncSpec.
       PreCond := fun args => args = nil;
       PostCond := fun args ret => args = nil /\ ret = ADT (FSet WordSet.empty)
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ListSet_deleteSpec : ForeignFuncSpec.
@@ -311,7 +263,7 @@ Definition ListSet_deleteSpec : ForeignFuncSpec.
       PreCond := fun args => exists s, args = ADT (FSet s) :: nil;
       PostCond := fun args ret => exists s r, args = (ADT (FSet s), None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ListSet_memSpec : ForeignFuncSpec.
@@ -321,7 +273,7 @@ Definition ListSet_memSpec : ForeignFuncSpec.
       PostCond := fun args ret => exists s n, ret = SCA (WordSet.mem n s : W)
                                               /\ args = (ADT (FSet s), Some (FSet s)) :: (SCA n, None) :: nil
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ListSet_addSpec : ForeignFuncSpec.
@@ -330,7 +282,7 @@ Definition ListSet_addSpec : ForeignFuncSpec.
       PreCond := fun args => exists s n, args = ADT (FSet s) :: SCA n :: nil;
       PostCond := fun args ret => exists s n r, args = (ADT (FSet s), Some (FSet (WordSet.add n s))) :: (SCA n, None) :: nil /\ ret = SCA r
     |}.
-  t.
+  conform.
 Defined.
 
 Definition ListSet_sizeSpec : ForeignFuncSpec.
@@ -340,7 +292,7 @@ Definition ListSet_sizeSpec : ForeignFuncSpec.
       PostCond := fun args ret => exists s, ret = SCA (WordSet.cardinal s : W)
                                             /\ args = (ADT (FSet s), Some (FSet s)) :: nil
     |}.
-  t.
+  conform.
 Defined.
 
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],

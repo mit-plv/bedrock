@@ -1130,6 +1130,7 @@ Section ADTValue.
     eapply good_input_mapM; eauto.
     solve [rewrite combine_map; destruct H1; eauto].
     solve [repeat rewrite map_length; eauto].
+    eapply is_same_types_sound.
     eapply PreCondTypeConform; eauto.
     repeat rewrite map_length; eauto.
     eapply mapM_length in H14; eauto.
