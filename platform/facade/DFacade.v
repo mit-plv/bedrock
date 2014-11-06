@@ -6,34 +6,84 @@ Require Import Facade.
 
 Require Import String.
 Require Import StringMap.
-Import StringMap.
-Require Import StringMapFacts.
-Import FMapNotations.
-Open Scope fmap_scope.
-Require Import StringSet.
-Require StringSetFacts.
 
 Require Import List.
 Require Import ListFacts3 ListFacts4.
 Import ListNotations.
 
-Require Import GLabel.
-Require Import GLabelMap.
+Require Import StringSet.
+Import StringSet.
+Require Import StringSetFacts.
+Import FSetNotations.
+Local Open Scope fset_scope.
 
+Require Import GLabel.
 Require Import Memory.
 Require Import SyntaxExpr.
 
+(* Syntax *)
+
+Inductive Stmt :=
+| Skip
+| Seq : Stmt -> Stmt -> Stmt
+| If : Expr -> Stmt -> Stmt -> Stmt
+| While : Expr -> Stmt -> Stmt
+| Call : string -> glabel -> list string -> Stmt
+| Assign : string -> Expr -> Stmt.
+
+(* syntactical checks *)
+
+(* List of variables that are assigned to, i.e. appear as LHS *)
+Fixpoint assigned s :=
+  match s with
+    | Skip => []
+    | Seq a b => assigned a ++ assigned b
+    | If _ t f => assigned t ++ assigned f
+    | While _ c => assigned c
+    | Assign x _ => [x]
+    | Call x _ _ => [x]
+  end.
+
+Local Open Scope bool_scope.
+
+Fixpoint is_actual_args_no_dup s :=
+  match s with
+    | Call _ _ args => is_no_dup args
+    | Skip => true
+    | Seq a b => is_actual_args_no_dup a && is_actual_args_no_dup b
+    | If _ a b => is_actual_args_no_dup a && is_actual_args_no_dup b
+    | While _ body => is_actual_args_no_dup body
+    | Assign _ _ => true
+  end.
+
+Require Import FreeVarsExpr.
+
+Local Notation e_free_vars := FreeVarsExpr.free_vars.
+
+Fixpoint free_vars (s : Stmt) :=
+  match s with
+    | Skip => empty
+    | Seq a b => free_vars a + free_vars b
+    | If e t f => e_free_vars e + free_vars t + free_vars f
+    | While e body => e_free_vars e + free_vars body
+    | Assign x e => singleton x + e_free_vars e
+    | Call x _ args => singleton x + StringSetFacts.of_list args
+  end.
+
+Require Import Facade.NameDecoration.
+
+Definition is_good_varnames s := for_all is_good_varname (free_vars s).
+
+Definition is_syntax_ok s := is_actual_args_no_dup s && is_good_varnames s.
+
+Import StringMap.
+Require Import StringMapFacts.
+Import FMapNotations.
+Local Open Scope fmap_scope.
+
+Require Import GLabelMap.
+
 Section ADTSection.
-
-  (* Syntax *)
-
-  Inductive Stmt :=
-  | Skip
-  | Seq : Stmt -> Stmt -> Stmt
-  | If : Expr -> Stmt -> Stmt -> Stmt
-  | While : Expr -> Stmt -> Stmt
-  | Call : string -> glabel -> list string -> Stmt
-  | Assign : string -> Expr -> Stmt.
 
   (* Semantics *)
 
@@ -46,29 +96,6 @@ Section ADTSection.
 
   Notation State := (@State ADTValue).
 
-  (* List of variables that are assigned to, i.e. appear as LHS *)
-  Fixpoint assigned s :=
-    match s with
-      | Skip => []
-      | Seq a b => assigned a ++ assigned b
-      | If _ t f => assigned t ++ assigned f
-      | While _ c => assigned c
-      | Assign x e => [x]
-      | Call x f es => [x]
-    end.
-  
-  Open Scope bool_scope.
-
-  Fixpoint is_actual_args_no_dup s :=
-    match s with
-      | Call _ _ args => is_no_dup args
-      | Skip => true
-      | Seq a b => is_actual_args_no_dup a && is_actual_args_no_dup b
-      | If _ a b => is_actual_args_no_dup a && is_actual_args_no_dup b
-      | While _ body => is_actual_args_no_dup body
-      | Assign _ _ => true
-    end.
-
   (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
      The return variable must not be an argument, to prevent aliasing. 
      Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
@@ -80,7 +107,7 @@ Section ADTSection.
       args_no_dup : is_no_dup ArgVars = true;
       ret_not_in_args : negb (is_in RetVar ArgVars) = true;
       no_assign_to_args : is_disjoint (assigned Body) ArgVars = true;
-      actual_args_no_dup : is_actual_args_no_dup Body = true
+      syntax_ok : is_syntax_ok Body = true
     }.
 
   Inductive FuncSpec :=
