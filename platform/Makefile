@@ -20,12 +20,14 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/MiniMasterDriver tests/RosMasterDriver
 
-CITO := $(shell find cito -name \*.v)
+VNAME := -name \*.v ! -name \*.#\*
+
+CITO := $(shell find cito $(VNAME))
 
 FACADE := \
 	facade/Facade \
 
-FACADE_ALL := $(shell find facade -name \*.v)
+FACADE_ALL := $(shell find facade $(VNAME))
 
 .PHONY: default platform cito facade build clean master
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
@@ -50,7 +52,7 @@ COQC    := coqc $(COQARGS)
 
 build:  
 	coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
-	echo '-include $(addsuffix .d,$(shell find . -name \*.v))' >> Makefile.coq
+	echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 clean: 
