@@ -149,15 +149,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import FMapFacts.
   Module Properties := Properties WordMap.
   
+  Require Import AxSpec.
+
   Lemma preserve_store : forall k v pairs h,
     List.Forall (fun p => match snd p with
-                            | inl _ => True
-                            | inr _ => ~WordMap.In (fst p) h
+                            | SCA _ => True
+                            | ADT _ => ~WordMap.In (fst p) h
                           end) pairs
-    -> NoDup (map fst (filter (fun p => Semantics.is_adt (snd p)) pairs))
+    -> NoDup (map fst (filter (fun p => is_adt (snd p)) pairs))
     -> WordMap.MapsTo k v h
     -> WordMap.MapsTo k v (fold_left store_pair pairs h).
     induction pairs; simpl in *; intuition.
+    destruct b as [w | a]; simpl in *.
     inversion_clear H; simpl in *.
     apply IHpairs; auto.
 
@@ -175,8 +178,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     apply H.
     apply in_map.
     apply filter_In; intuition idtac.
-    unfold Semantics.is_adt.
-    unfold WordMap.key, Semantics.ArgIn in *.
+    unfold is_adt.
+    unfold WordMap.key in *.
     rewrite H5; reflexivity.
     unfold store_pair; simpl.
     unfold heap_upd.
@@ -187,19 +190,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Lemma keep_key : forall w a1 pairs,
-    In (w, inr a1) pairs
+    In (w, ADT a1) pairs
     -> In w (map fst (filter
-      (fun p : W * (W + ADTValue) =>
+      (fun p : W * Value ADTValue =>
         match snd p with
-          | inl _ => false
-          | inr _ => true
+          | SCA _ => false
+          | ADT _ => true
         end) pairs)).
     induction pairs; simpl; intuition (subst; simpl in *); intuition idtac.
+    destruct b; simpl in *; intuition.
   Qed.
 
   Lemma store_keys : forall k v pairs h,
     WordMap.MapsTo k v (fold_left store_pair pairs h)
-    -> In (k, inr v) pairs \/ WordMap.MapsTo k v h.
+    -> In (k, ADT v) pairs \/ WordMap.MapsTo k v h.
     induction pairs; simpl; intuition idtac.
     apply IHpairs in H; intuition idtac.
     unfold store_pair in H0; simpl in H0.
@@ -210,10 +214,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   
   Lemma store_keys'' : forall k v pairs h,
     WordMap.MapsTo k v h
-    -> ~In k (map fst (filter (fun p => Semantics.is_adt (snd p)) pairs))
+    -> ~In k (map fst (filter (fun p => is_adt (snd p)) pairs))
     -> WordMap.MapsTo k v (fold_left store_pair pairs h).
     induction pairs; simpl; intuition (try discriminate; eauto);
-      unfold Semantics.is_adt in *; simpl in *.
+      unfold is_adt in *; simpl in *.
 
     destruct b; auto.
     simpl in *; intuition subst.
@@ -223,11 +227,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Lemma store_keys' : forall k v pairs h,
-    In (k, inr v) pairs
-    -> NoDup (map fst (filter (fun p => Semantics.is_adt (snd p)) pairs))
+    In (k, ADT v) pairs
+    -> NoDup (map fst (filter (fun p => is_adt (snd p)) pairs))
     -> WordMap.MapsTo k v (fold_left store_pair pairs h).
-    induction pairs; simpl; intuition (try discriminate; eauto);
-      unfold Semantics.is_adt in *; simpl in *.
+    induction pairs; simpl; intuition (try discriminate; eauto); destruct b; intuition (try discriminate; eauto); 
+      unfold is_adt in *; simpl in *.
 
     injection H1; clear H1; intros; subst.
     inversion_clear H0.

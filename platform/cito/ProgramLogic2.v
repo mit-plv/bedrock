@@ -193,6 +193,7 @@ Module Make (Import E : ADT).
       destruct x; simpl in *.
       destruct H; simpl in *.
       destruct env; simpl in *.
+      rename a into f0.
       assert (o0 w = Some (Foreign f0)).
       eapply H0.
       descend; eauto.

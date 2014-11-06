@@ -1,5 +1,8 @@
 Set Implicit Arguments.
 
+(* there is a name conflict on tactic 'unfolder' between GeneralTactics and MakeADT *)
+Require Import GeneralTactics.
+
 Require Import ExampleADT.
 Import ExampleADT.ExampleADT.
 Require Import WordMap.
@@ -164,92 +167,181 @@ Definition hints : TacPackage.
   (store_pair_inl_bwd, store_pair_inr_bwd).
 Defined.
 
-Definition SimpleCell_newSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => args = nil;
-    PostCond := fun args ret => args = nil /\ ret = inr (Cell 0)
-  |}.
+Section ADTValue.
 
-Definition SimpleCell_deleteSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
-    PostCond := fun args ret => exists n r, args = (inr (Cell n), None) :: nil /\ ret = inl r
-  |}.
+  Variable ADTValue : Type.
 
-Definition SimpleCell_readSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists n, args = inr (Cell n) :: nil;
-    PostCond := fun args ret => exists n, ret = inl n /\ args = (inr (Cell n), Some (Cell n)) :: nil
-  |}.
+  Notation Value := (@Value ADTValue).
 
-Definition SimpleCell_writeSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists n n', args = inr (Cell n) :: inl n' :: nil;
-    PostCond := fun args ret => exists n n' r, args = (inr (Cell n), Some (Cell n')) :: (inl n', None) :: nil
-      /\ ret = inl r
-  |}.
+  Fixpoint is_same_type (a b : Value) :=
+    match a, b with
+      | ADT _, ADT _ => true
+      | SCA _, SCA _ => true
+      | _, _ => false
+    end.
 
-Definition ArraySeq_newSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists len, args = inl len :: nil /\ goodSize (2 + wordToNat len);
-    PostCond := fun args ret => exists len ws, args = (inl len, None) :: nil /\ ret = inr (Arr ws)
-      /\ length ws = wordToNat len
-  |}.
+  Open Scope bool_scope.
 
-Definition ArraySeq_deleteSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists ws, args = inr (Arr ws) :: nil;
-    PostCond := fun args ret => exists ws r, args = (inr (Arr ws), None) :: nil /\ ret = inl r
-  |}.
+  Fixpoint forall2 A B (pred : A -> B -> bool) ls1 ls2 :=
+    match ls1, ls2 with
+      | a :: ls1', b :: ls2' => pred a b && forall2 pred ls1' ls2'
+      | nil, nil => true
+      | _, _ => false
+    end.
 
-Definition ArraySeq_readSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists ws n, args = inr (Arr ws) :: inl n :: nil
-      /\ n < natToW (length ws);
-    PostCond := fun args ret => exists ws n, ret = inl (Array.sel ws n)
-      /\ args = (inr (Arr ws), Some (Arr ws)) :: (inl n, None) :: nil
-  |}.
+  Definition is_same_types := forall2 is_same_type.
 
-Definition ArraySeq_writeSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists ws n v, args = inr (Arr ws) :: inl n :: inl v :: nil
-      /\ n < natToW (length ws);
-    PostCond := fun args ret => exists ws n v r, args = (inr (Arr ws), Some (Arr (Array.upd ws n v)))
-      :: (inl n, None) :: (inl v, None) :: nil /\ ret = inl r
-  |}.
+  Lemma is_same_type_sound a b : is_same_type a b = true -> same_type a b.
+  Proof.
+    destruct a; destruct b; simpl in *; intuition.
+  Qed.
 
-Definition ListSet_newSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => args = nil;
-    PostCond := fun args ret => args = nil /\ ret = inr (FSet WordSet.empty)
-  |}.
+  Require Import Bool.
 
-Definition ListSet_deleteSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists s, args = inr (FSet s) :: nil;
-    PostCond := fun args ret => exists s r, args = (inr (FSet s), None) :: nil /\ ret = inl r
-  |}.
+  Lemma forall2_sound A B pred (P : A -> B -> Prop) : (forall a b, pred a b = true -> P a b) -> forall ls1 ls2, forall2 pred ls1 ls2 = true -> List.Forall2 P ls1 ls2.
+  Proof.
+    intros Hs.
+    induction ls1; destruct ls2; simpl; try solve [intros; intuition].
+    intros Hp; eapply andb_true_iff in Hp.
+    openhyp; econstructor; eauto.
+  Qed.
 
-Definition ListSet_memSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
-    PostCond := fun args ret => exists s n, ret = inl (WordSet.mem n s : W)
-      /\ args = (inr (FSet s), Some (FSet s)) :: (inl n, None) :: nil
-  |}.
+  Lemma is_same_types_sound ls1 ls2 : is_same_types ls1 ls2 = true -> same_types ls1 ls2.
+  Proof.
+    eapply forall2_sound; eapply is_same_type_sound.
+  Qed.
 
-Definition ListSet_addSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists s n, args = inr (FSet s) :: inl n :: nil;
-    PostCond := fun args ret => exists s n r, args = (inr (FSet s), Some (FSet (WordSet.add n s)))
-      :: (inl n, None) :: nil /\ ret = inl r
-  |}.
+End ADTValue.
 
-Definition ListSet_sizeSpec : ForeignFuncSpec := 
-  {|
-    PreCond := fun args => exists s, args = inr (FSet s) :: nil;
-    PostCond := fun args ret => exists s, ret = inl (WordSet.cardinal s : W)
-      /\ args = (inr (FSet s), Some (FSet s)) :: nil
-  |}.
+Arguments SCA {ADTValue} _.
+Arguments ADT {ADTValue} _.
+
+Definition SimpleCell_newSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => args = nil;
+      PostCond := fun args ret => args = nil /\ ret = ADT (Cell 0)
+    |}.
+  unfold type_conforming, same_type; intros ls1 ls2 Hpre1 Hpre2 Hlen.
+  intros; subst.
+  eapply is_same_types_sound.
+  reflexivity.
+Defined.
+
+Ltac t := unfold type_conforming, same_type; intros; openhyp; subst; eapply is_same_types_sound; reflexivity.
+
+Definition SimpleCell_deleteSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists n, args = ADT (Cell n) :: nil;
+      PostCond := fun args ret => exists n r, args = (ADT (Cell n), None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition SimpleCell_readSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists n, args = ADT (Cell n) :: nil;
+      PostCond := fun args ret => exists n, ret = SCA n /\ args = (ADT (Cell n), Some (Cell n)) :: nil
+    |}.
+  t.
+Defined.
+
+Definition SimpleCell_writeSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists n n', args = ADT (Cell n) :: SCA n' :: nil;
+      PostCond := fun args ret => exists n n' r, args = (ADT (Cell n), Some (Cell n')) :: (SCA n', None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition ArraySeq_newSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists len, args = SCA len :: nil /\ goodSize (2 + wordToNat len);
+      PostCond := fun args ret => exists len ws, args = (SCA len, None) :: nil /\ ret = ADT (Arr ws) /\ length ws = wordToNat len
+    |}.
+  t.
+Defined.
+
+Definition ArraySeq_deleteSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists ws, args = ADT (Arr ws) :: nil;
+      PostCond := fun args ret => exists ws r, args = (ADT (Arr ws), None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition ArraySeq_readSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists ws n, args = ADT (Arr ws) :: SCA n :: nil
+                                          /\ n < natToW (length ws);
+      PostCond := fun args ret => exists ws n, ret = SCA (Array.sel ws n)
+                                               /\ args = (ADT (Arr ws), Some (Arr ws)) :: (SCA n, None) :: nil
+    |}.
+  t.
+Defined.
+
+Definition ArraySeq_writeSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists ws n v, args = ADT (Arr ws) :: SCA n :: SCA v :: nil
+                                            /\ n < natToW (length ws);
+      PostCond := fun args ret => exists ws n v r, args = (ADT (Arr ws), Some (Arr (Array.upd ws n v))) :: (SCA n, None) :: (SCA v, None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition ListSet_newSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => args = nil;
+      PostCond := fun args ret => args = nil /\ ret = ADT (FSet WordSet.empty)
+    |}.
+  t.
+Defined.
+
+Definition ListSet_deleteSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists s, args = ADT (FSet s) :: nil;
+      PostCond := fun args ret => exists s r, args = (ADT (FSet s), None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition ListSet_memSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists s n, args = ADT (FSet s) :: SCA n :: nil;
+      PostCond := fun args ret => exists s n, ret = SCA (WordSet.mem n s : W)
+                                              /\ args = (ADT (FSet s), Some (FSet s)) :: (SCA n, None) :: nil
+    |}.
+  t.
+Defined.
+
+Definition ListSet_addSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists s n, args = ADT (FSet s) :: SCA n :: nil;
+      PostCond := fun args ret => exists s n r, args = (ADT (FSet s), Some (FSet (WordSet.add n s))) :: (SCA n, None) :: nil /\ ret = SCA r
+    |}.
+  t.
+Defined.
+
+Definition ListSet_sizeSpec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists s, args = ADT (FSet s) :: nil;
+      PostCond := fun args ret => exists s, ret = SCA (WordSet.cardinal s : W)
+                                            /\ args = (ADT (FSet s), Some (FSet s)) :: nil
+    |}.
+  t.
+Defined.
 
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "SimpleCell"!"new" @ [SimpleCell.newS],

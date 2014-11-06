@@ -317,7 +317,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eauto.
   Qed.
 
-  Lemma make_heap_heap_empty : forall ls, make_heap (List.map (fun w : W => (w, inl w)) ls) = heap_empty.
+  Lemma make_heap_heap_empty : forall ls, make_heap (List.map (fun w : W => (w, SCA _ w)) ls) = heap_empty.
     induction ls; simpl; intuition.
   Qed.
 
@@ -335,7 +335,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                                                                                                   * [| sel vs' "extra_stack" = e_stack|]
                                                                                                   * mallocHeap 0 * F.
     intros.
-    assert (make_heap (List.map (fun w => (w, inl w)) (toArray args vs)) = heap_empty).
+    assert (make_heap (List.map (fun w => (w, SCA _ w)) (toArray args vs)) = heap_empty).
     eapply make_heap_heap_empty.
     rewrite <- H2.
     eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out''' | ]; eauto.

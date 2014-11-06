@@ -30,4 +30,10 @@ Section ADTSection.
       PreCondTypeConform : type_conforming PreCond
     }.
 
+  Definition is_adt (v : Value) :=
+    match v with
+      | ADT _ => true
+      | _ => false
+    end.
+
 End ADTSection.

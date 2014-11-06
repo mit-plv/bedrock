@@ -51,7 +51,7 @@ Module Make (Import E : ADT).
     eapply Forall_weaken; [ | eassumption ].
     unfold Semantics.word_adt_match; intros.
     destruct x; simpl in *.
-    destruct s; auto.
+    destruct v; auto.
     erewrite <- Facts.find_m; eauto.
   Qed.    
 
@@ -238,7 +238,7 @@ Module Make (Import E : ADT).
   Lemma fold_fwd : forall k v ls h,
     WordMap.MapsTo k v (fold_left store_pair ls h)
     -> WordMap.MapsTo k v h
-    \/ List.In (k, inr v) ls.
+    \/ List.In (k, ADT v) ls.
     induction ls; simpl; intuition.
     apply IHls in H; intuition.
     unfold store_pair in H0; simpl in H0.
@@ -248,10 +248,11 @@ Module Make (Import E : ADT).
   Qed.
 
   Lemma foldp_bwd : forall k ls h,
-    WordMap.In k h \/ (exists v, List.In (k, inr v) ls)
+    WordMap.In k h \/ (exists v, List.In (k, ADT v) ls)
     -> WordMap.In k (fold_left store_pair ls h).
-    induction ls; simpl; intuition.
+    induction ls; simpl; intuition; try destruct b; intuition.
     firstorder.
+    Focus 2.
     destruct H0; intuition.
     eauto.
     eapply IHls.
@@ -273,7 +274,7 @@ Module Make (Import E : ADT).
 
   Lemma foldp_fwd : forall k ls h,
     WordMap.In k (fold_left store_pair ls h)
-    -> WordMap.In k h \/ (exists v, List.In (k, inr v) ls).
+    -> WordMap.In k h \/ (exists v, List.In (k, ADT v) ls).
     induction ls; simpl; intuition.
     apply IHls in H; clear IHls; intuition.
     unfold store_pair in H0; simpl in H0.
@@ -287,8 +288,8 @@ Module Make (Import E : ADT).
 
   Lemma fold_fwd' : forall k v ls h,
     WordMap.MapsTo k v (fold_left store_out ls h)
-    -> (WordMap.MapsTo k v h /\ forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} ls)
-    \/ exists a, List.In {| Word := k; ADTIn := inr a; ADTOut := Some v |} ls.
+    -> (WordMap.MapsTo k v h /\ forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls)
+    \/ exists a, List.In {| Word := k; ADTIn := ADT a; ADTOut := Some v |} ls.
     induction ls; simpl; intuition.
     apply IHls in H; intuition.
 
@@ -335,7 +336,7 @@ Module Make (Import E : ADT).
 
     Lemma In_make_heap' : forall k pairs h,
       WordMap.In (elt:=ADTValue) k (fold_left store_pair pairs h)
-      -> WordMap.In k h \/ exists a, List.In (k, inr a) pairs.
+      -> WordMap.In k h \/ exists a, List.In (k, ADT a) pairs.
       induction pairs; simpl; intuition.
       apply IHpairs in H; intuition.
       unfold store_pair in H0; simpl in H0.
@@ -349,7 +350,7 @@ Module Make (Import E : ADT).
 
     Lemma In_make_heap : forall k pairs,
       WordMap.In (elt:=ADTValue) k (make_heap pairs)
-      -> exists a, List.In (k, inr a) pairs.
+      -> exists a, List.In (k, ADT a) pairs.
       intros.
       apply In_make_heap' in H; intuition eauto.
       apply Properties.F.empty_in_iff in H0; tauto.
@@ -394,22 +395,22 @@ Module Make (Import E : ADT).
 
     Lemma get_pair : forall k x e pairs outs h,
       Semantics.disjoint_ptrs pairs
-      -> List.In {| Word := k; ADTIn := inr x; ADTOut := Some e |} (make_triples pairs outs)
+      -> List.In {| Word := k; ADTIn := ADT x; ADTOut := Some e |} (make_triples pairs outs)
       -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
       induction pairs; destruct outs; simpl; intuition.
       simpl in *; intuition.
       injection H1; clear H1; intros; subst.
-      assert (WordMap.MapsTo k e (store_out h {| Word := k; ADTIn := inr x; ADTOut := Some e |})).
+      assert (WordMap.MapsTo k e (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |})).
       unfold store_out, Semantics.store_out; simpl.
       apply WordMap.add_1; auto.
-      generalize dependent (store_out h {| Word := k; ADTIn := inr x; ADTOut := Some e |}).
-      assert (forall v, ~List.In (k, inr v) pairs).
+      generalize dependent (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |}).
+      assert (forall v, ~List.In (k, ADT v) pairs).
       intuition.
       hnf in H.
       simpl in H.
       inversion_clear H.
       apply H1.
-      change k with (fst (k, @inr W _ v)).
+      change k with (fst (k, ADT v)).
       apply in_map.
       apply filter_In; tauto.
       generalize dependent H0.
@@ -419,7 +420,7 @@ Module Make (Import E : ADT).
       apply IHpairs; eauto.
       unfold store_out, Semantics.store_out; simpl.
       destruct a; simpl in *.
-      destruct a; auto.
+      destruct v; auto.
       destruct a0.
       apply WordMap.add_2; auto.
       intro; subst; eauto.
@@ -443,7 +444,7 @@ Module Make (Import E : ADT).
     Lemma get_pair' : forall k e pairs outs h,
       Semantics.disjoint_ptrs pairs
       -> WordMap.MapsTo k e h
-      -> (forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} (make_triples pairs outs))
+      -> (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} (make_triples pairs outs))
       -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
       induction pairs; destruct outs; simpl; intuition.
       apply IHpairs.
@@ -476,21 +477,21 @@ Module Make (Import E : ADT).
     unfold make_heap.
 
     Lemma grab_it : forall k x pairs h,
-      List.In (k, inr x) pairs
+      List.In (k, ADT x) pairs
       -> Semantics.disjoint_ptrs pairs
       -> WordMap.MapsTo k x (fold_left store_pair pairs h).
-      induction pairs; simpl; intuition.
+      induction pairs; simpl; intuition; try destruct b; intuition.
       injection H1; clear H1; intros; subst.
       hnf in H0.
       simpl in H0.
       inversion_clear H0.
       generalize dependent H.
       clear IHpairs H1.
-      assert (WordMap.MapsTo k x (store_pair h (k, inr x))).
+      assert (WordMap.MapsTo k x (store_pair h (k, ADT x))).
       unfold store_pair; simpl.
       apply WordMap.add_1; auto.
-      generalize dependent (store_pair h (k, inr x)).
-      induction pairs; simpl in *; intuition.
+      generalize dependent (store_pair h (k, ADT x)).
+      induction pairs; simpl in *; intuition; try destruct b; intuition.
       simpl in *; intuition subst.
       apply IHpairs.
       unfold store_pair; simpl.
@@ -515,7 +516,7 @@ Module Make (Import E : ADT).
     apply H4; clear H4.
 
     Lemma i_didn't_do_it : forall k ls h,
-      (forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} ls)
+      (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls)
       -> WordMap.In k (fold_left store_out ls h)
       -> WordMap.In k h.
       induction ls; simpl; intuition.

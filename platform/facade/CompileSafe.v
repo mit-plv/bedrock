@@ -50,32 +50,12 @@ Section ADTValue.
         end.
   Ltac pick_related := try match goal with | |- related _ _ => eauto end.
 
-  Definition FacadeIn_CitoIn (v : Value) :=
-    match v with
-      | SCA w => inl w
-      | ADT a => inr a
-    end.
-
-  Lemma CF_FC x : CitoIn_FacadeIn (FacadeIn_CitoIn x) = x.
-  Proof.
-    destruct x; simpl; eauto.
-  Qed.
-
   Hint Constructors NoDup.
 
-  Lemma cito_is_adt_iff x : Semantics.is_adt x = true <-> exists a : ADTValue, x = inr a.
-  Proof.
-    destruct x; simpl in *.
-    intuition.
-    openhyp; intuition.
-    intuition.
-    eexists; eauto.
-  Qed.
-
   Lemma mapM_good_inputs args :
-    forall words cinput input h h2 st vs,
+    forall words cinput input h h2 (st : State) vs,
       mapM (sel st) args = Some input ->
-      cinput = List.map FacadeIn_CitoIn input ->
+      cinput = input ->
       words = List.map vs args ->
       h2 <= h ->
       related st (vs, h2) ->
@@ -91,7 +71,8 @@ Section ADTValue.
       intuition.
     - simpl in *.
       rename a into x.
-      rename s into cv.
+      rename v into cv.
+      rename v0 into v.
       intros h h2 st vs Hmm Hcin Hw Hsm Hr Hnd.
       destruct (option_dec (sel st x)) as [[y Hy] | Hn].
       + rewrite Hy in *.
@@ -130,7 +111,7 @@ Section ADTValue.
                 subst.
                 eapply filter_In in Hin.
                 destruct Hin as [Hin Hadt]; simpl in *.
-                eapply cito_is_adt_iff in Hadt.
+                eapply is_adt_iff in Hadt.
                 destruct Hadt as [a' Hcv].
                 subst.
                 eapply in_nth_error in Hin.
@@ -139,20 +120,15 @@ Section ADTValue.
                 destruct Hnc as [Hia Hii].
                 eapply nth_error_map_elim in Hia.
                 destruct Hia as [x' [Hia Hvs]].
-                eapply nth_error_map_elim in Hii.
-                destruct Hii as [v [Hii Hv]].
-                destruct v as [w | a'']; simpl in *.
-                * discriminate.
-                * inject Hv.
-                  eapply mapM_nth_error_1 in Hys; eauto.
-                  destruct Hys as [v [Hii' Hx']].
-                  unif v.
-                  assert (x = x').
-                  {
-                    eapply related_no_alias; eauto.
-                  }
-                  subst.
-                  eapply Locals.nth_error_In; eauto.
+                eapply mapM_nth_error_1 in Hys; eauto.
+                destruct Hys as [v [Hii' Hx']].
+                unif v.
+                assert (x = x').
+                {
+                  eapply related_no_alias; eauto.
+                }
+                subst.
+                eapply Locals.nth_error_In; eauto.
               + eapply IHargs; eauto.
           }
         * rewrite Hn in *; discriminate.
@@ -264,8 +240,7 @@ Section ADTValue.
         simpl.
         set (words := List.map (fun x0 : string => vs x0) args) in *.
         eexists.
-        set (cinput := List.map FacadeIn_CitoIn input) in *.
-        exists (combine words cinput).
+        exists (combine words input).
         repeat eexists_split.
         {
           eapply eval_ceval in Hfe; eauto.
@@ -287,10 +262,7 @@ Section ADTValue.
         {
           simpl in *.
           rewrite map_snd_combine.
-          unfold_all.
-          rewrite map_map.
-          setoid_rewrite CF_FC.
-          rewrite map_id; eauto.
+          eauto.
           unfold_all.
           repeat rewrite map_length.
           eapply mapM_length; eauto.
