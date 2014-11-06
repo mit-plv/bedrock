@@ -52,14 +52,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H in *; subst.
       unfold make_heap; simpl.
       unfold store_pair at 2 4.
-      unfold ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn.
+      unfold ArgIn, SemanticsMake.ArgIn.
       unfold WordMap.key in H.
       rewrite H.
       apply IHpairs.
       split; auto.
       hnf.
       simpl in H0.
-      unfold ArgIn, Semantics.ArgIn in H0.
+      unfold ArgIn, SemanticsMake.ArgIn in H0.
       rewrite H in H0.
       auto.
 
@@ -79,15 +79,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply InA_In.
       apply Properties.F.elements_mapsto_iff.
       simpl in H0.
-      unfold Semantics.is_adt in H0.
-      unfold WordMap.key, Semantics.ArgIn in *.
+      unfold is_adt in H0.
+      unfold WordMap.key, SemanticsMake.ArgIn in *.
       rewrite H in *; simpl in *.
       inversion_clear H0.
       apply preserve_store; auto.
       apply Forall_forall; intros.
       case_eq (snd x0); intuition idtac.
       unfold store_pair in H8.
-      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn in *.
+      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn in *.
       rewrite H in H8.
       unfold heap_upd in H8.
       eapply Properties.F.add_in_iff in H8; intuition idtac.
@@ -97,13 +97,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       eauto using keep_key.
       unfold store_pair.
-      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn in *.
+      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn in *.
       rewrite H.
       unfold heap_upd.
       apply WordMap.add_1; auto.
 
       simpl in *.
       destruct a; simpl in *; subst; simpl in *.
+      rename w into k.
       inversion_clear H0.
       eapply Himp_trans; [ | apply Himp_star_frame; [ apply starL_permute | apply Himp_refl ] ].
       instantiate (1 := (k, a0) :: heap_elements (make_heap pairs)).
@@ -116,7 +117,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       apply store_keys in H0; intuition idtac.
       apply H.
-      change k with (fst (k, @inr W _ a0)).
+      change k with (fst (k, AxSpec.ADT a0)).
       apply in_map; apply filter_In; tauto.
       eapply WordMap.empty_1; eauto.
       apply NoDupA_NoDup; apply WordMap.elements_3w.
@@ -184,13 +185,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Forall_forall in H2; [ | apply H0 ].
       hnf in H2; hnf.
       destruct x0; simpl in *.
-      destruct s; auto.
+      rename w into k0.
+      destruct v; auto.
       apply WordMap.find_1.
       apply Properties.F.remove_mapsto_iff.
       apply WordMap.find_2 in H2.
       intuition subst.
       apply H.
-      change k0 with (@fst W (Semantics.ArgIn ADTValue) (k0, inr a)).
+      change k0 with (fst (k0, AxSpec.ADT a)).
       apply in_map.
       apply filter_In; auto.
 

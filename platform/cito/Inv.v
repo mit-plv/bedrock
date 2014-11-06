@@ -30,8 +30,8 @@ Module Make (Import E : ADT).
 
   Definition store_pair heap (p : W * ArgIn) :=
     match snd p with
-      | inl _ => heap
-      | inr a => heap_upd heap (fst p) a
+      | SCA _ => heap
+      | ADT a => heap_upd heap (fst p) a
     end.
 
   Definition make_heap pairs := fold_left store_pair pairs heap_empty.
@@ -68,7 +68,7 @@ Module Make (Import E : ADT).
         let word := fst p in
         let in_ := snd p in
         match in_ with
-          | inl w => word = w
+          | SCA w => word = w
           | _ => True
         end.
 

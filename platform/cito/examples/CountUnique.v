@@ -205,17 +205,25 @@ Module Import ChangeSpecMake := Make ExampleADT.
 Import SemanticsFacts4Make.
 Import TransitMake.
 
-Definition count_spec : ForeignFuncSpec :=
-  {|
-    PreCond := fun args => exists arr len, args = inr (Arr arr) :: inl len :: nil /\ len = length arr /\ goodSize (length arr);
-    PostCond := fun args ret => exists arr len, args = (inr (Arr arr), Some (Arr arr)) :: (inl len, None) :: nil /\ ret = inl (unique_count arr : W)
-  |}.
+Ltac t := unfold type_conforming, same_type; intros; openhyp; subst; eapply is_same_types_sound; reflexivity.
 
-Definition main_spec : ForeignFuncSpec :=
-  {|
-    PreCond := fun args => args = nil;
-    PostCond := fun _ ret => ret = inl $2
-  |}.
+Definition count_spec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists arr len, args = ADT (Arr arr) :: SCA len :: nil /\ len = length arr /\ goodSize (length arr);
+      PostCond := fun args ret => exists arr len, args = (ADT (Arr arr), Some (Arr arr)) :: (SCA len, None) :: nil /\ ret = SCA (unique_count arr : W)
+    |}.
+  t.
+Defined.
+
+Definition main_spec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => args = nil;
+      PostCond := fun _ ret => ret = SCA $2
+    |}.
+  t.
+Defined.
 
 Import GLabelMap.GLabelMap.
 
@@ -507,7 +515,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff.
   right.
   rewrite H4 in *; clear H4.
@@ -523,7 +531,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eapply in_alldisj_neq; eauto.
   eapply MapsTo_In; eapply find_mapsto_iff; eauto.
   eapply find_mapsto_iff; eauto.
-  instantiate (1 := inl (sel v0 "i")); simpl in *.
+  instantiate (1 := SCA (sel v0 "i")); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -618,9 +626,9 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (FSet x0)); simpl in *.
+  instantiate (1 := ADT (FSet x0)); simpl in *.
   rewrite H1; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl (sel v0 "e")); simpl in *.
+  instantiate (1 := SCA (sel v0 "e")); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -724,7 +732,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (FSet x0)); simpl in *.
+  instantiate (1 := ADT (FSet x0)); simpl in *.
   rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -791,7 +799,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (FSet x0)); simpl in *.
+  instantiate (1 := ADT (FSet x0)); simpl in *.
   rewrite H0; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -892,7 +900,7 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
   rewrite H9 in H0; injection H0; intros; subst.
   unfold TransitTo.
   descend.
-  instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := inr (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := inl (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
+  instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := ADT (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := SCA (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
   split.
   unfold Semantics.word_adt_match in *.
   simpl.
@@ -959,7 +967,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   instantiate (1 := [[ ($3, _) ]]).
   eauto.
   repeat econstructor.
-  instantiate (1 := inl $3).
+  instantiate (1 := SCA $3).
   repeat econstructor.
   repeat econstructor.
   descend; eauto.
@@ -1007,11 +1015,11 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
   eauto.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $0); simpl in *.
+  instantiate (1 := SCA $0); simpl in *.
   eauto.
-  instantiate (1 := inl $10); simpl in *.
+  instantiate (1 := SCA $10); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -1072,11 +1080,11 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $1); simpl in *.
+  instantiate (1 := SCA $1); simpl in *.
   eauto.
-  instantiate (1 := inl $20); simpl in *.
+  instantiate (1 := SCA $20); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -1141,11 +1149,11 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $2); simpl in *.
+  instantiate (1 := SCA $2); simpl in *.
   eauto.
-  instantiate (1 := inl $10); simpl in *.
+  instantiate (1 := SCA $10); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -1203,9 +1211,9 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := inl $3); simpl in *.
+  instantiate (1 := SCA $3); simpl in *.
   eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.
@@ -1264,7 +1272,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   split.
   unfold Semantics.word_adt_match.
   repeat econstructor; simpl.
-  instantiate (1 := inr (Arr x)); simpl in *.
+  instantiate (1 := ADT (Arr x)); simpl in *.
   rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
   simpl.
   unfold Semantics.disjoint_ptrs.

@@ -42,8 +42,6 @@ Section ADTValue.
 
   Notation CitoState := (@Semantics.State ADTValue).
   Notation CitoCallee := (@Semantics.Callee ADTValue).
-  Notation CitoArgIn := (@Semantics.ArgIn ADTValue).
-  Notation CitoArgOut := (@Semantics.ArgOut ADTValue).
   Notation CitoInternal := (@Semantics.Internal ADTValue).
   Notation CitoRunsTo := (@Semantics.RunsTo ADTValue).
 
@@ -58,27 +56,13 @@ Section ADTValue.
                 
   Definition CitoEnv := ((glabel -> option W) * (W -> option CitoCallee))%type.
 
-  Definition CitoIn_FacadeIn (argin : CitoArgIn) : Value :=
-    match argin with
-      | inl w => SCA _ w
-      | inr a => ADT a
-    end.
-
-  Definition CitoInOut_FacadeInOut (in_out : CitoArgIn * CitoArgOut) : Value * option ADTValue := (CitoIn_FacadeIn (fst in_out), snd in_out).
-
-  Definition compile_ax (spec : AxiomaticSpec) :=
-    {|
-      Semantics.PreCond args := PreCond spec (List.map CitoIn_FacadeIn args) ;
-      Semantics.PostCond pairs ret := PostCond spec (List.map CitoInOut_FacadeInOut pairs) (CitoIn_FacadeIn ret)
-    |}.
-
   Require Import ListFacts1 ListFacts2 ListFacts3 ListFactsNew.
 
   Definition FuncSpec := @FuncSpec ADTValue.
 
   Definition compile_spec (spec : FuncSpec) : CitoCallee :=
     match spec with
-      | Axiomatic s => Semantics.Foreign (compile_ax s)
+      | Axiomatic s => Semantics.Foreign s
       | Operational s => CitoInternal (compile_op s)
     end.
 
@@ -282,7 +266,7 @@ Section ADTValue.
     rewrite e0 in *; simpl in *.
     inject H.
     destruct x; simpl in *.
-    destruct a; simpl in *; unfold compile_ax in *; simpl in *; discriminate.
+    destruct a; simpl in *; simpl in *; discriminate.
     unfold compile_op in *; simpl in *.
     inject H2; simpl in *.
     inversion H6; subst.
@@ -1016,7 +1000,7 @@ Section ADTValue.
 
     Import Semantics.
 
-    Fixpoint make_triples pairs (outs : list (ArgOut ADTValue)) :=
+    Fixpoint make_triples pairs (outs : list (option ADTValue)) :=
       match pairs, outs with
         | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
         | _, _ => nil
@@ -1072,7 +1056,6 @@ Section ADTValue.
     destruct x; simpl in *.
     2 : discriminate.
     destruct a; simpl in *.
-    unfold compile_ax in *; simpl in *.
     injection H6; intros; subst; simpl in *; clear H6.
 
     inversion H10; subst.
@@ -1096,7 +1079,7 @@ Section ADTValue.
     set (words := List.map (Semantics.Word (ADTValue:=ADTValue)) triples) in *.
     set (cinput_coutput := List.map (fun x => (Semantics.ADTIn x, Semantics.ADTOut x)) triples) in *.
     set (words_cinput := List.map (fun x => (Semantics.Word x, Semantics.ADTIn x)) triples) in *.
-    assert (input = List.map CitoIn_FacadeIn cinput).
+    assert (input = cinput).
     Lemma good_input_mapM args : 
       forall words cinput input h h2 st vs,
         Forall (word_adt_match h) (combine words cinput) ->
@@ -1105,13 +1088,14 @@ Section ADTValue.
         related st (vs, h2) ->
         List.map (fun x => vs x) args = words ->
         mapM (sel st) args = Some input ->
-        let input' := List.map CitoIn_FacadeIn cinput in
+        let input' := cinput in
         same_types input input' ->
         input = input'.
     Proof.
       simpl; induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate].
       intros until 5; intros Hmm; intros; eapply mapM_length in Hmm; simpl in *; discriminate.
       rename a into x.
+      rename v0 into v'.
       intros h h2 st vs Hfa Hl Hsm Hr Hm Hmm Hte.
       simpl in *.
       destruct (option_dec (sel st x)) as [[y Hy] | Hn].
@@ -1129,7 +1113,7 @@ Section ADTValue.
       2 : solve [eapply IHargs; eauto].
       eapply Hr in Hy; simpl in *.
       unfold word_adt_match in H2.
-      destruct s as [w | a]; simpl in *.
+      destruct v' as [w | a]; simpl in *.
       subst.
       destruct v as [w' | a']; simpl in *.
       subst; eauto.
@@ -1168,13 +1152,12 @@ Section ADTValue.
     unfold_all.
     repeat rewrite map_length; eauto.
     simpl.
-    assert (combine (List.map CitoIn_FacadeIn cinput) coutput = List.map CitoInOut_FacadeInOut cinput_coutput) by (unfold_all; repeat rewrite map_map; rewrite combine_map; eauto).
-    unfold Semantics.ArgOut in *.
+    assert (combine cinput coutput = cinput_coutput) by (unfold_all; repeat rewrite map_map; rewrite combine_map; eauto).
     rewrite H6.
     eauto.
     reflexivity.
 
-    Definition no_alias (words_cinput : list (W * ArgIn ADTValue)) := forall i j p (ai aj : ADTValue), nth_error words_cinput i = Some (p, inr ai) -> nth_error words_cinput j = Some (p, inr aj) -> i = j.
+    Definition no_alias (words_cinput : list (W * Value ADTValue)) := forall i j p (ai aj : ADTValue), nth_error words_cinput i = Some (p, ADT ai) -> nth_error words_cinput j = Some (p, ADT aj) -> i = j.
 
     assert (words_cinput = combine words cinput) by (unfold_all; rewrite combine_map; eauto).
 
@@ -1184,7 +1167,7 @@ Section ADTValue.
       related st (vs, h) ->
       NoDup args ->
       List.map (fun x => vs x) args = words ->
-      input = List.map CitoIn_FacadeIn cinput ->
+      input = cinput ->
       mapM (sel st) args = Some input ->
       words_cinput = combine words cinput ->
       no_alias words_cinput.
@@ -1203,16 +1186,10 @@ Section ADTValue.
       destruct Haj as [xj [Haj ?]]; subst.
       copy_as Hai Hai'; eapply mapM_nth_error_1 in Hai'; eauto.
       destruct Hai' as [vi [Hii' Hvi]]. 
-      eapply nth_error_map_elim in Hii'; eauto.
-      destruct Hii' as [ai' [Hii' Hai']].
-      unfold ArgIn in *.
-      unif ai'; simpl in *.
+      unif vi; simpl in *.
       copy_as Haj Haj'; eapply mapM_nth_error_1 in Haj'; eauto.
       destruct Haj' as [vj [Hij' Hvj]]. 
-      eapply nth_error_map_elim in Hij'; eauto.
-      destruct Hij' as [aj' [Hij' Haj']].
-      unfold ArgIn in *.
-      unif aj'; simpl in *.
+      unif vj; simpl in *.
       assert (xi = xj) by (eapply related_no_alias; eauto).
       subst; eapply NoDup_nth_error in Hnd; eauto.
     Qed.
@@ -1233,14 +1210,14 @@ Section ADTValue.
     eapply diff_find_Some_iff in Hf.
     openhyp.
 
-    Definition not_reachable_p p (words_cinput : list (W * ArgIn ADTValue)) := forall i v, nth_error words_cinput i = Some (p, v) -> exists w, v = inl w.
+    Definition not_reachable_p p (words_cinput : list (W * Value ADTValue)) := forall i v, nth_error words_cinput i = Some (p, v) -> exists w, v = SCA _ w.
 
     Lemma fold_bwd p a triples : 
       forall h,
         let words_cinput := List.map (fun x => (Word x, ADTIn x)) triples in
         no_alias words_cinput -> 
         ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
-         exists i input, nth_error triples i = Some {| Word := p; ADTIn := inr input; ADTOut := Some a |}) ->
+         exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}) ->
         find p (List.fold_left store_out triples h) = Some a.
     Proof.
       induction triples; simpl in *.
@@ -1280,11 +1257,11 @@ Section ADTValue.
       eauto.
       destruct to as [ao |].
       destruct (Word.weq p tp).
-      Lemma not_not_reachable_p p a ls : ~ not_reachable_p p ((p, inr a) :: ls).
+      Lemma not_not_reachable_p p a ls : ~ not_reachable_p p ((p, ADT a) :: ls).
       Proof.
         unfold not_reachable_p.
         nintro.
-        specialize (H 0 (inr a)).
+        specialize (H 0 (ADT a)).
         simpl in *.
         edestruct H; eauto.
         discriminate.
@@ -1298,7 +1275,7 @@ Section ADTValue.
       inject Ht.
       left.
       split.
-      Lemma no_alias_not_reachable_p p a ls : no_alias ((p, inr a) :: ls) -> not_reachable_p p ls.
+      Lemma no_alias_not_reachable_p p a ls : no_alias ((p, ADT a) :: ls) -> not_reachable_p p ls.
       Proof.
         intros Hna.
         unfold not_reachable_p.
@@ -1322,9 +1299,9 @@ Section ADTValue.
       forall k (v : ADTValue) ls h,
         WordMap.MapsTo k v (fold_left store_out ls h) -> 
         (WordMap.MapsTo k v h /\ 
-         forall a o, ~List.In {| Word := k; ADTIn := inr a; ADTOut := o |} ls) 
+         forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls) 
         \/ exists a, 
-             List.In {| Word := k; ADTIn := inr a; ADTOut := Some v |} ls.
+             List.In {| Word := k; ADTIn := ADT a; ADTOut := Some v |} ls.
     Proof.
       induction ls; simpl; intuition.
       apply IHls in H; intuition.
@@ -1351,7 +1328,7 @@ Section ADTValue.
       coutput = List.map ADTOut triples ->
       find p (List.fold_left store_out triples h) = Some a -> 
       (not_reachable_p p words_cinput /\ find p h = Some a) \/ 
-      exists i input, nth_error triples i = Some {| Word := p; ADTIn := inr input; ADTOut := Some a |}.
+      exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}.
     Proof.
       intros Hwid Hod Hf.
       subst.
@@ -1383,7 +1360,7 @@ Section ADTValue.
       coutput = List.map ADTOut triples ->
       no_alias words_cinput -> 
       ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
-       exists i input, nth_error triples i = Some {| Word := p; ADTIn := inr input; ADTOut := Some a |}) ->
+       exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}) ->
       find p (List.fold_left store_out triples h) = Some a.
     Proof.
       intros; subst; eapply fold_bwd; eauto.
@@ -1395,7 +1372,7 @@ Section ADTValue.
       (find p (List.fold_left store_out (make_triples words_cinput coutput) h) = Some a <-> 
        ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
         exists i input, 
-          nth_error words_cinput i = Some (p, inr input) /\
+          nth_error words_cinput i = Some (p, ADT input) /\
           nth_error coutput i = Some (Some a))).
     Proof.
       intros Hna Hl.
@@ -1433,7 +1410,7 @@ Section ADTValue.
     Lemma not_in_not_reachable_p st vs h args words cinput p :
         related st (vs, h) -> 
         List.map (fun x => vs x) args = words -> 
-        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        mapM (sel st) args = Some cinput -> 
         ~ In p h ->
         not_reachable_p p (combine words cinput).
     Proof.
@@ -1447,9 +1424,7 @@ Section ADTValue.
       subst.
       eapply mapM_nth_error_1 in Hmm; eauto.
       destruct Hmm as [b [Hi' Hs]].
-      eapply nth_error_map_elim in Hi'.
-      destruct Hi' as [a' [? ?]].
-      unif a'.
+      unif b.
       destruct v; simpl in *.
       eexists; eauto.
       eapply Hr in Hs; simpl in *.
@@ -1509,9 +1484,9 @@ Section ADTValue.
 
     Lemma not_reachable_p_not_reachable st vs args words cinput x :
         List.map (fun x => vs x) args = words -> 
-        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        mapM (sel st) args = Some cinput -> 
         not_reachable_p (vs x) (combine words cinput) -> 
-        not_reachable x args (List.map CitoIn_FacadeIn cinput).
+        not_reachable x args cinput.
     Proof.
       intros Hm Hmm.
       intros Hnr; unfold not_reachable_p, not_reachable in *.
@@ -1519,23 +1494,21 @@ Section ADTValue.
       eapply map_nth_error_1 in Hm; eauto.
       eapply mapM_nth_error_1 in Hmm; eauto.
       openhyp; rename x0 into v.
-      eapply nth_error_map_elim in H.
-      openhyp; subst; rename x0 into cv.
       set (p := vs x) in *.
       edestruct Hnr.
       eapply nth_error_combine; eauto.
       subst; rename x0 into w.
       exists w.
-      erewrite map_nth_error; eauto; eauto.
+      eauto.
     Qed.
 
     Lemma not_reachable_not_reachable_p st vs h args words cinput x a :
         related st (vs, h) -> 
         NoDup args ->
         List.map (fun x => vs x) args = words -> 
-        mapM (sel st) args = Some (List.map CitoIn_FacadeIn cinput) -> 
+        mapM (sel st) args = Some cinput -> 
         StringMap.find x st = Some (ADT a) ->
-        not_reachable x args (List.map CitoIn_FacadeIn cinput) ->
+        not_reachable x args cinput ->
         not_reachable_p (vs x) (combine words cinput).
     Proof.
       intros Hr Hnd Hm Hmm Hf.
@@ -1549,9 +1522,7 @@ Section ADTValue.
       eapply mapM_nth_error_1 in Hmm; eauto.
       openhyp; subst.
       rename x0 into v'.
-      eapply nth_error_map_elim in H3.
-      openhyp; subst.
-      unif x0.
+      unif v'.
       destruct v; simpl in *.
       eexists; eauto.
       assert (x = x').
@@ -1559,9 +1530,7 @@ Section ADTValue.
       subst.
       eapply Hnr in H1.
       openhyp; subst.
-      eapply nth_error_map_elim in H1.
-      openhyp; subst.
-      unif x0.
+      rewrite H1 in H0.
       simpl in *; discriminate.
     Qed.
 
@@ -1572,7 +1541,7 @@ Section ADTValue.
         words = List.map (@Word _) triples ->
         cinput = List.map (@ADTIn _) triples ->
         coutput = List.map (@ADTOut _) triples ->
-        input = List.map CitoIn_FacadeIn cinput ->
+        input = cinput ->
         List.map (fun x => vs x) args = words ->
         mapM (sel st) args = Some input ->
         h2 <= h ->
@@ -1626,10 +1595,7 @@ Section ADTValue.
       unif x0.
       eapply nth_error_map_elim in H0; openhyp.
       destruct x0; simpl in *.
-      discriminate.
-      inject H2.
-      eapply nth_error_map_elim in H0; openhyp.
-      destruct x0; simpl in *; subst.
+      subst.
       unfold wrap_output in H1; eapply nth_error_map_elim in H1; openhyp.
       destruct x0; simpl in *.
       2 : discriminate.
@@ -1730,7 +1696,7 @@ Section ADTValue.
         words = List.map (@Word _) triples ->
         cinput = List.map (@ADTIn _) triples ->
         coutput = List.map (@ADTOut _) triples ->
-        input = List.map CitoIn_FacadeIn cinput ->
+        input = cinput ->
         List.map (fun x => vs x) args = words ->
         mapM (sel st) args = Some input ->
         h2 <= h ->
@@ -1757,6 +1723,7 @@ Section ADTValue.
     rewrite Locals.sel_upd_eq in * by eauto; simpl.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     inject Hf.
+    rename v into ret.
     destruct ret; simpl in *.
     eauto.
     eapply diff_find_Some_iff.
@@ -1787,8 +1754,8 @@ Section ADTValue.
     (* v is ADT object *)
     rewrite H5.
 
-    Definition ret_doesn't_matter (p addr : W) (ret : Ret ADTValue) := p <> addr \/ exists w, ret = inl w.
-    Definition p_addr_ret_dec (p addr : W) (ret : Ret ADTValue) : { a : ADTValue | ret = inr a /\ p = addr} + {ret_doesn't_matter p addr ret}.
+    Definition ret_doesn't_matter (p addr : W) (ret : Value ADTValue) := p <> addr \/ exists w, ret = SCA _  w.
+    Definition p_addr_ret_dec (p addr : W) (ret : Value ADTValue) : { a : ADTValue | ret = ADT a /\ p = addr} + {ret_doesn't_matter p addr ret}.
       destruct ret.
       right; right; eexists; eauto.
       destruct (Word.weq p addr).

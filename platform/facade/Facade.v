@@ -32,6 +32,8 @@ Section ADTSection.
 
   Notation Value := (@Value ADTValue).
   Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+  Arguments SCA {ADTValue} _.
+  Arguments ADT {ADTValue} _.
 
   Definition State := StringMap.t Value.
 
@@ -40,9 +42,6 @@ Section ADTSection.
       | inl op' => evalBinop op' a b
       | inr op' => if evalTest op' a b then $1 else $0
     end.
-
-  Arguments SCA {ADTValue} _.
-  Arguments ADT {ADTValue} _.
 
   Definition eval_binop_m (op : binop + test) (oa ob : option Value) : option Value :=
     match oa, ob with
@@ -149,13 +148,7 @@ Section ADTSection.
       | None => false
     end.
 
-  Definition is_adt (v : Value) :=
-    match v with
-      | ADT _ => true
-      | _ => false
-    end.
-
-  Definition is_mapsto_adt x st := is_some_p is_adt (StringMap.find x st).
+  Definition is_mapsto_adt x st := is_some_p (@is_adt ADTValue) (StringMap.find x st).
   Definition not_mapsto_adt x st := negb (is_mapsto_adt x st).
 
   Section EnvSection.
