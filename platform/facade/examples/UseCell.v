@@ -37,7 +37,17 @@ Import LinkSpecMake2.
 Definition modules := { use_cell_gm }.
 Definition imports := FModule.Imports use_cell.
 
-Definition fspec := func_spec modules imports ("use_cell"!"use_cell") f.
+Require Import GoodModuleDec.
+
+Definition dummy_gf : GoodFunction.
+  refine (to_good_function f _).
+  eapply is_good_func_sound.
+  reflexivity.
+Defined.    
+
+Definition spec_op := hd dummy_gf (Functions use_cell_gm).
+
+Definition spec_op_b := func_spec modules imports ("use_cell"!"use_cell") spec_op.
 
 Notation extra_stack := 20.
 
@@ -46,7 +56,7 @@ Definition topS := SPEC reserving (4 + extra_stack)
 
 Notation input := 5.
 
-Definition top := bimport [[ ("use_cell"!"use_cell", fspec), "sys"!"printInt" @ [printIntS],
+Definition top := bimport [[ ("use_cell"!"use_cell", spec_op_b), "sys"!"printInt" @ [printIntS],
                              "sys"!"abort" @ [abortS] ]]
   bmodule "top" {{
     bfunction "top"("R") [topS]
@@ -60,16 +70,6 @@ Definition top := bimport [[ ("use_cell"!"use_cell", fspec), "sys"!"printInt" @ 
       [PREonly[_] [| False |] ]
     end
   }}.
-
-Require Import GoodModuleDec.
-
-Definition dummy_gf : GoodFunction.
-  refine (to_good_function f _).
-  eapply is_good_func_sound.
-  reflexivity.
-Defined.    
-
-Definition spec_op := hd dummy_gf (Functions use_cell_gm).
 
 (* should use the generic 'make_specs' here *)
 Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign imports).
@@ -123,15 +123,17 @@ Lemma specs_good : specs_equal specs modules imports.
   eapply find_mapsto_iff; eauto.
 Qed.
 
-Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
-  (*here*)
-  cito_safe f empty_precond vcs_good; eauto.
-  eapply specs_equal_agree; eauto.
+Definition body : Stmt := Body spec_op.
+
+Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
+  admit.
 Qed.
 
-Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = value /\ snd v' == snd v.
-  cito_runsto f empty_precond vcs_good; eauto.
-  eapply specs_equal_agree; eauto.
+Import WordMapFacts.FMapNotations.
+Local Open Scope fmap_scope.
+
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v v' -> Locals.sel (fst v') (RetVar spec_op) = 0 /\ snd v' == snd v.
+  admit.
 Qed.
 
 Require Import Inv.
@@ -173,7 +175,7 @@ Theorem top_ok : moduleOk top.
   Require Import GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
-  change 20 with (wordToNat (sel (upd x2 "extra_stack" 20) "extra_stack")).
+  change 20 with (wordToNat (Locals.sel (upd x2 "extra_stack" 20) "extra_stack")).
   apply is_state_out'''''.
   NoDup.
   NoDup.
