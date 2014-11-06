@@ -22,7 +22,7 @@ Section ADTValue.
       "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
     }
     define {
-      def "count" = func("arr", "len"){
+      def "count" = func("arr", "len") {
         "set" <-- call_ "ADT"!"ListSet_new"();
         "i" <- 0;
         while_ ("i" < "len") {
@@ -33,7 +33,7 @@ Section ADTValue.
         "ret" <-- call_ "ADT"!"ListSet_size"("set");
         call_ "ADT"!"ListSet_delete"("set")
       };
-      def "main" = func(){
+      def "main" = func() {
 (*
         "arr" <-- call_ "ADT"!"ArraySeq_new"(3);;
         call_ "ADT"!"ArraySeq_write"("arr", 0, 10);;
@@ -50,10 +50,10 @@ Section ADTValue.
 
   Definition gmodule := compile_to_gmodule count_unique "count_unique" eq_refl.
 
+  (* test executability *)
   Require Import GoodModuleDec.
   Require Import IsGoodModule.
 
-  (* test executability *)
   Goal is_good_module gmodule = true. Proof. exact eq_refl. Qed.
 
 End ADTValue.
