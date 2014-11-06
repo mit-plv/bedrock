@@ -9,7 +9,7 @@ Require Import StringMap.
 Import StringMap.
 Require Import StringMapFacts.
 Import FMapNotations.
-Open Scope fmap.
+Open Scope fmap_scope.
 Require Import StringSet.
 Require StringSetFacts.
 
