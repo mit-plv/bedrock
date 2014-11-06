@@ -80,12 +80,21 @@ Import LinkSpecMake.
 Require Import SemanticsFacts4.
 Module Import SemanticsFacts4Make := Make ExampleADT.
 
-Definition fact_spec : ForeignFuncSpec :=
-  {|
-    PreCond := fun args => exists n, args = inl n :: nil;
-    PostCond := fun args ret => exists n, args = (inl n, None) :: nil
-                                          /\ ret = inl (fact_w n)
-  |}.
+Require AxSpec.
+Import AxSpec.ConformTactic.
+
+Arguments SCA {ADTValue} _.
+Arguments ADT {ADTValue} _.
+
+Definition fact_spec : ForeignFuncSpec.
+  refine
+    {|
+      PreCond := fun args => exists n, args = SCA n :: nil;
+      PostCond := fun args ret => exists n, args = (SCA n, None) :: nil
+                                            /\ ret = SCA (fact_w n)
+    |}.
+  conform.
+Defined.
 
 Definition specs := add ("fact", "fact") (Foreign fact_spec) (empty _).
 
@@ -124,6 +133,7 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold specs_fs_agree; simpl in *.
   unfold change_fs.
   intros.
+  Require Import Option.
   destruct (option_dec (fs0 stn p)).
   destruct s; rewrite e in *.
   destruct x; simpl in *.
@@ -227,7 +237,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   descend.
   Require Import BedrockTactics.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v "n" ^- $1, inl (sel v "n" ^- $1)) ]]).
+  instantiate (1 := [[ (sel v "n" ^- $1, SCA (sel v "n" ^- $1)) ]]).
   eauto.
   repeat constructor.
   descend; eauto.
@@ -351,7 +361,7 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   openhyp.
   unfold TransitMake.TransitTo.
   descend.
-  instantiate (1 := [[ {| Word := sel (fst v) "n"; ADTIn := inl (sel (fst v) "n"); ADTOut := None |} ]]).
+  instantiate (1 := [[ {| Word := sel (fst v) "n"; ADTIn := SCA (sel (fst v) "n"); ADTOut := None |} ]]).
   eauto.
   repeat econstructor.
   descend; eauto.
