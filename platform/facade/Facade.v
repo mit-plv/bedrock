@@ -68,7 +68,7 @@ Section ADTSection.
 
   Require Import StringMapFacts.
   Import FMapNotations.
-  Open Scope fmap.
+  Open Scope fmap_scope.
   
   Require Import List.
 
