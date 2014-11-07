@@ -111,8 +111,11 @@ Section ADTSection.
       syntax_ok : is_syntax_ok Body = true
     }.
 
-  (* Only supports axiomatic specs. Don't know how to prove compilation when there are operational specs. *)
-  Definition Env := GLabelMap.t AxiomaticSpec.
+  Inductive FuncSpec :=
+    | Axiomatic : AxiomaticSpec -> FuncSpec
+    | Operational : OperationalSpec -> FuncSpec.
+
+  Definition Env := GLabelMap.t FuncSpec.
 
   Section EnvSection.
 
@@ -157,13 +160,30 @@ Section ADTSection.
           RunsTo (Assign x e) st st'
     | RunsToCallAx :
         forall x f args st spec input output ret,
-          GLabelMap.find f env = Some spec ->
+          GLabelMap.find f env = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
           not_mapsto_adt x st = true ->
           PreCond spec input ->
           length input = length output ->
           PostCond spec (combine input output) ret ->
           let st' := add_remove_many args input (wrap_output output) st in
+          let st' := add x ret st' in
+          forall st'',
+            st'' == st' ->
+            RunsTo (Call x f args) st st''
+    | RunsToCallOp :
+        forall x f args st spec input callee_st' ret,
+          GLabelMap.find f env = Some (Operational spec) ->
+          length args = length (ArgVars spec) ->
+          mapM (sel st) args = Some input ->
+          not_mapsto_adt x st = true ->
+          let callee_st := make_map (ArgVars spec) input in
+          RunsTo (Body spec) callee_st callee_st' ->
+          sel callee_st' (RetVar spec) = Some ret ->
+          (* prevent memory leak *)
+          no_adt_leak input (ArgVars spec) (RetVar spec) callee_st' ->
+          let output := List.map (sel callee_st') (ArgVars spec) in
+          let st' := add_remove_many args input output st in
           let st' := add x ret st' in
           forall st'',
             st'' == st' ->
@@ -207,10 +227,24 @@ Section ADTSection.
           Safe (Assign x e) st
     | SafeCallAx :
         forall x f args st spec input,
-          GLabelMap.find f env = Some spec ->
+          GLabelMap.find f env = Some (Axiomatic spec) ->
           mapM (sel st) args = Some input ->
           not_mapsto_adt x st = true ->
           PreCond spec input ->
+          Safe (Call x f args) st
+    | SafeCallOp :
+        forall x f args st spec input,
+          GLabelMap.find f env = Some (Operational spec) ->
+          length args = length (ArgVars spec) ->
+          mapM (sel st) args = Some input ->
+          not_mapsto_adt x st = true ->
+          let callee_st := make_map (ArgVars spec) input in
+          Safe (Body spec) callee_st ->
+          (* all paths of callee must be memory-leak free and produce a return value *)
+          (forall callee_st', 
+             RunsTo (Body spec) callee_st callee_st' -> 
+             sel callee_st' (RetVar spec) <> None /\ 
+             no_adt_leak input (ArgVars spec) (RetVar spec) callee_st') ->
           Safe (Call x f args) st.
 
     Section Safe_coind.
@@ -241,9 +275,18 @@ Section ADTSection.
           not_mapsto_adt x st = true /\
           exists input, 
             mapM (sel st) args = Some input /\
-            exists spec,
-                GLabelMap.find f env = Some spec /\
-                PreCond spec input.
+            ((exists spec,
+                GLabelMap.find f env = Some (Axiomatic spec) /\
+                PreCond spec input) \/
+             (exists spec,
+                GLabelMap.find f env = Some (Operational spec) /\
+                length args = length (ArgVars spec) /\
+                let callee_st := make_map (ArgVars spec) input in
+                R (Body spec) callee_st /\
+                (forall callee_st',
+                   RunsTo (Body spec) callee_st callee_st' ->
+                   sel callee_st' (RetVar spec) <> None /\
+                   no_adt_leak input (ArgVars spec) (RetVar spec) callee_st'))).
       
       Hint Constructors Safe.
 

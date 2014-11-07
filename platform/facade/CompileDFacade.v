@@ -26,6 +26,16 @@ Fixpoint compile (s : Stmt) : Facade.Stmt :=
         (Facade.Call x (Var fun_ptr_varname) args)
   end.
 
+Lemma compile_no_assign_to_args (spec : OperationalSpec) : is_disjoint (Facade.assigned (compile (Body spec))) (ArgVars spec) = true.
+  admit.
+Qed.
+
+Definition compile_op (spec : OperationalSpec) : Facade.OperationalSpec.
+  refine
+    (Facade.Build_OperationalSpec (ArgVars spec) (RetVar spec) (compile (Body spec)) (args_no_dup spec) (ret_not_in_args spec) _).
+  eapply compile_no_assign_to_args.
+Defined.
+
 Section ADTValue.
 
   Variable ADTValue : Type.
@@ -50,12 +60,18 @@ Section ADTValue.
 
   Arguments Facade.Operational {ADTValue} _.
 
+  Definition compile_spec (spec : FuncSpec) : FFuncSpec :=
+    match spec with
+      | Axiomatic s => Facade.Axiomatic s
+      | Operational s => Facade.Operational (compile_op s)
+    end.
+
   Definition fenv_impls_env (fenv : FEnv) (env : Env) :=
     forall lbl spec,
       find lbl env = Some spec ->
       exists w,
         Label2Word fenv lbl = Some w /\
-        Word2Spec fenv w = Some (Axiomatic spec).
+        Word2Spec fenv w = Some (compile_spec spec).
     
   Require Import GeneralTactics4.
   Require Import GeneralTactics3.
@@ -136,6 +152,10 @@ Section ADTValue.
     admit.
   Qed.
 
+  Lemma equiv_refl a : a === a.
+    admit.
+  Qed.
+
   Lemma equiv_sym a b : a === b -> b === a.
     admit.
   Qed.
@@ -145,6 +165,7 @@ Section ADTValue.
   Qed.
 
   Add Relation State equiv
+      reflexivity proved by equiv_refl
       symmetry proved by equiv_sym
       transitivity proved by equiv_trans
         as equiv_rel.
@@ -162,21 +183,73 @@ Section ADTValue.
     admit.
   Qed.
 
-  Theorem compile_runsto t t_env t_st t_st' :
+  Theorem compile_runsto' t t_env t_st t_st' :
     FRunsTo t_env t t_st t_st' -> 
-    forall s, 
-      t = compile s -> 
-      is_syntax_ok s = true -> 
-      forall s_env, 
-        fenv_impls_env t_env s_env -> 
-        forall s_st,
-          Safe s_env s s_st -> 
-          equiv s_st t_st ->
-          exists s_st',
-            RunsTo s_env s s_st s_st' /\
-            equiv s_st' t_st'. 
+    forall s_env, 
+      fenv_impls_env t_env s_env -> 
+      (forall s, 
+         t = compile s -> 
+         is_syntax_ok s = true -> 
+         forall s_st,
+           Safe s_env s s_st -> 
+           equiv s_st t_st ->
+           exists s_st',
+             RunsTo s_env s s_st s_st' /\
+             s_st' === t_st') /\
+      (forall x f args f_w spec input t_callee_st' ret,
+         t = Facade.Call x f args ->
+         eval t_st f = Some (SCA f_w) ->
+         Word2Spec t_env f_w = Some (Facade.Operational (compile_op spec)) ->
+         mapM (sel t_st) args = Some input ->
+         let body := Body spec in
+         let avars := ArgVars spec in 
+         let retvar := RetVar spec in
+         let callee_st := make_map avars input in
+         Safe s_env body callee_st ->
+         FRunsTo t_env (compile body) callee_st t_callee_st' ->
+         sel t_callee_st' retvar = Some ret ->
+         no_adt_leak input avars retvar t_callee_st' ->
+         let output := List.map (sel t_callee_st') avars in
+         t_st' == add x ret (add_remove_many args input output t_st) ->
+         exists s_callee_st',
+           RunsTo s_env body callee_st s_callee_st' /\
+           List.map (sel s_callee_st') avars = List.map (sel t_callee_st') avars /\
+           sel s_callee_st' retvar = sel t_callee_st' retvar /\
+           no_adt_leak input avars retvar s_callee_st').
   Proof.
-    induction 1; simpl; destruct s; unfold_all; simpl in *; try solve [intros; try discriminate]; intros Hcomp Hsyn s_env Henv s_st Hsf Heqv.
+    induction 1; simpl; intros s_env Henv; (split; [destruct s; unfold_all; simpl in *; try solve [intros; try discriminate]; intros Hcomp Hsyn s_st Hsf Heqv | try solve [intros; try discriminate]]).
+    
+    Focus 9.
+    unfold_all.
+    intros x' f' args' f_w' spec' input' t_callee_st' ret' Heq Hfw Hspec Hmm Hsfb Hrtb Hret Hnadt Hst'.
+    inject Heq.
+    rewrite H0 in Hfw.
+    inject Hfw.
+    rewrite H1 in Hspec.
+    discriminate.
+
+    Focus 9.
+    unfold_all.
+    intros x' f' args' f_w' spec' input' t_callee_st' ret' Heq Hfw Hspec Hmm Hsfb Hrtb Hret Hnadt Hst'.
+    inject Heq.
+    rewrite Hfw in H0.
+    inject H0.
+    rewrite Hspec in H1.
+    inject H1.
+    unif input'.
+    destruct spec'; simpl in *.
+    edestruct IHRunsTo; eauto.
+    edestruct H0; eauto.
+    reflexivity.
+    Require Import GeneralTactics.
+    openhyp.
+    eexists; split; eauto.
+    admit. (* provable *)
+
+    admit.
+    admit.
+
+(*
     {
       (* skip *)
       exists s_st; split.
@@ -198,6 +271,7 @@ Section ADTValue.
       - eapply RunsToSeq; eauto.
       - eauto.
     }
+*)
     {
       (* call *)
       inject Hcomp.
@@ -216,14 +290,6 @@ Section ADTValue.
           (etransitivity; eauto; symmetry; eauto).
       eapply is_syntax_ok_call_elim in Hsyn.
       destruct Hsyn as [Hsynx Hsynargs].
-      inversion Hsf; subst.
-      rename H2 into Hflbl.
-      rename H3 into Hmm'.
-      rename H5 into Hxnadt.
-      rename H6 into Hpre'.
-      copy_as Hflbl Hflbl'; eapply Henv in Hflbl.
-      destruct Hflbl as [f_w' [Hfw' Hspec']]; simpl in *.
-      unif f_w'.
       inversion Hrtcall; unfold_all; subst.
       {
         (* axiomatic *)
@@ -239,30 +305,90 @@ Section ADTValue.
         rewrite Hst'2 in Hfw.
         rewrite add_eq_o in Hfw by eauto.
         inject Hfw.
-        unif (Facade.Axiomatic spec0).
-        rewrite (mapM_find_equiv st' s_st) in Hmm by eauto.
-        unif input0.
-        exists (add x ret (add_remove_many args input (wrap_output output) s_st)).
-        split.
+        inversion Hsf; subst.
         {
-          eapply RunsToCallAx; eauto.
+          rename H3 into Hflbl.
+          rename H4 into Hmm'.
+          rename H6 into Hxnadt.
+          rename H7 into Hpre'.
+          copy_as Hflbl Hflbl'; eapply Henv in Hflbl.
+          destruct Hflbl as [f_w' [Hfw' Hspec']]; simpl in *.
+          unif f_w'.
+          unif (Facade.Axiomatic spec0).
+          rewrite (mapM_find_equiv st' s_st) in Hmm by eauto.
+          unif input0.
+          exists (add x ret (add_remove_many args input (wrap_output output) s_st)).
+          split.
+          {
+            eapply RunsToCallAx; eauto.
+          }
+          {
+            rewrite Hst''.
+            eapply add_equiv; eauto.
+            eapply add_remove_many_equiv; eauto.
+            symmetry; eauto.
+          }
         }
         {
-          rewrite Hst''.
-          eapply add_equiv; eauto.
-          eapply add_remove_many_equiv; eauto.
-          symmetry; eauto.
+          rename H3 into Hflbl.
+          copy_as Hflbl Hflbl'; eapply Henv in Hflbl.
+          destruct Hflbl as [f_w' [Hfw' Hspec']]; simpl in *.
+          unif f_w'.
+          rewrite Hspec' in Hspec; discriminate.
         }
       }
       {
         (* operational *)
         rename H3 into Hfw.
         rename H4 into Hspec.
+        rename H5 into Hlen.
+        rename H6 into Hmm.
+        rename H7 into Hnadt2.
+        rename H8 into Hrtb.
+        rename H9 into Hret.
+        rename H12 into Hnleak.
+        rename H13 into Hst''.
         simpl in *.
         rewrite Hst'2 in Hfw.
         rewrite add_eq_o in Hfw by eauto.
         inject Hfw.
-        rewrite Hspec in Hspec'; discriminate.
+        inversion Hsf; unfold_all; subst.
+        {
+          rename H3 into Hflbl.
+          copy_as Hflbl Hflbl'; eapply Henv in Hflbl.
+          destruct Hflbl as [f_w' [Hfw' Hspec']]; simpl in *.
+          unif f_w'.
+          rewrite Hspec' in Hspec; discriminate.
+        }
+        {
+          rename H3 into Hflbl.
+          rename H4 into Hlen'.
+          rename H5 into Hmm'.
+          rename H6 into Hnadt'.
+          rename H8 into Hsfb.
+          rename H9 into Hbodyok.
+          copy_as Hflbl Hflbl'; eapply Henv in Hflbl.
+          destruct Hflbl as [f_w' [Hfw' Hspec']]; simpl in *.
+          unif f_w'.
+          unif (@Facade.Operational ADTValue spec).
+          destruct spec0; simpl in *.
+          rewrite (mapM_find_equiv st' s_st) in Hmm by eauto.
+          unif input0.
+          (*here*)
+          exists (add x ret (add_remove_many args input (List.map (sel callee_st') ArgVars) s_st)).
+          split.
+          {
+            eapply RunsToCallOp; eauto.
+            simpl.
+
+          }
+          {
+            rewrite Hst''.
+            eapply add_equiv; eauto.
+            eapply add_remove_many_equiv; eauto.
+            symmetry; eauto.
+          }
+        }
       }
     }
     {
@@ -337,5 +463,3 @@ Section ADTValue.
         eapply add_equiv; eauto.
     }
   Qed.
-
-End ADTValue.
