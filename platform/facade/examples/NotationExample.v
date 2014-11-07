@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Facade.
+Require Import Facade.Facade.
 Require Import Notations.
 Import Notations.OpenScopes.
 
@@ -9,7 +9,7 @@ Section ADTValue.
   Variable ADTValue : Type.
   Variables ArraySeq_newSpec ArraySeq_writeSpec ArraySeq_readSpec ArraySeq_deleteSpec ListSet_newSpec ListSet_addSpec ListSet_sizeSpec ListSet_deleteSpec : AxiomaticSpec ADTValue.
 
-  Definition count_unique := 
+  Definition count_unique :=
     module
     import {
       "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;
