@@ -40,6 +40,6 @@ time:
 	@ rm -rf timing
 	@ ./tools/timer.py timing/ src/*.v examples/*.v src/*/*.v
 	@ cp Makefile timing/Makefile
-	@ cp -r src/Makefile src/Makefile.coq src/reification/ timing/src 
+	@ cp -r src/Makefile src/Makefile.coq src/reification/ timing/src
 	@ cp examples/Makefile examples/Makefile.coq timing/examples
 	@ (cd timing; $(MAKE) all)

@@ -31,7 +31,7 @@ ocaml.exe: ocaml_server.ml ocaml_data.ml ocaml_driver.ml
 ocaml_nice.exe: ocaml_nice_server.ml ocaml_data.ml ocaml_nice_driver.ml
 	ocamlopt ocaml_nice_server.ml ocaml_data.ml ocaml_nice_driver.ml -o ocaml_nice.exe
 
-COQC = coqc -q -I .. -R ../../src Bedrock
+COQC = $(COQBIN)coqc -q -I .. -R ../../src Bedrock
 
 Server.vo: Server.v ../AutoSep.vo ../SinglyLinkedList.vo ../Malloc.vo
 	$(COQC) Server

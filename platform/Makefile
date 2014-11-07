@@ -50,14 +50,14 @@ facade_all: build
 
 COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
-COQC    := coqc $(COQARGS)
+COQC    := $(COQBIN)coqc $(COQARGS)
 
-build:  
-	coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
+build:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
 	echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
 	$(MAKE) -f Makefile.coq
 
-clean: 
+clean:
 	rm -f Makefile.coq .depend
 	./rmr .v.d
 	./rmr .vo
