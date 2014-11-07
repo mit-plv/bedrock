@@ -107,6 +107,7 @@ Section ADTSection.
       args_no_dup : is_no_dup ArgVars = true;
       ret_not_in_args : negb (is_in RetVar ArgVars) = true;
       no_assign_to_args : is_disjoint (assigned Body) ArgVars = true;
+      args_name_ok : forallb is_good_varname ArgVars = true;
       syntax_ok : is_syntax_ok Body = true
     }.
 
