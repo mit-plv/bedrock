@@ -31,7 +31,7 @@ FACADE := \
 
 FACADE_ALL := $(shell find facade $(VNAME))
 
-.PHONY: default platform cito facade build clean master
+.PHONY: default platform cito facade build clean master install install-platform install-cito install-facade install-facade-all
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 default: platform
@@ -63,6 +63,22 @@ build:
 # we want to install everything, so we need to remake the makefile
 install:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL) $(CITO) $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade-all:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-cito:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(CITO))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-platform:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(MODULES))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
 clean:

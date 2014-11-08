@@ -12,7 +12,7 @@ Makefile.coq: Makefile $(MODULES)
 		     $(MODULES) -o Makefile.coq
 
 install: Makefile.coq
-	$(MAKE) -f Makefile.coq install
+	$(MAKE) -f Makefile.coq install install-natdynlink
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean
