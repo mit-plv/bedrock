@@ -55,7 +55,7 @@ Section TopSection.
 
   Definition is_good_funcs fs := forallb is_good_func fs.
 
-  Require Import NameDecoration.
+  Require Import Cito.NameDecoration.
 
   Definition is_good_module (m : Module) :=
     is_good_module_name (MName m) &&

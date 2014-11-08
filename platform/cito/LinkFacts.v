@@ -23,7 +23,7 @@ Module Make (Import E : ADT).
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
     Require Import ListFacts3.
-    Require Import NameDecoration.
+    Require Import Cito.NameDecoration.
 
     Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) := 
       let imported_module_names := List.map fst2 (elements imports) in

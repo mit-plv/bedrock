@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import GoodFunction.
-Require Import NameDecoration.
+Require Import Cito.NameDecoration.
 
 Record GoodModule :=
   {

@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction NameDecoration.
-Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction NameDecoration.
+Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration.
+Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration.
 Import GLabelMap.
 
 Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.

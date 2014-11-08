@@ -8,7 +8,7 @@ Require Import SyntaxModule.
 Require Import GoodModule.
 Require Import GoodFunc.
 Require Import GoodFunction.
-Require Import NameDecoration.
+Require Import Cito.NameDecoration.
 
 Notation MName := SyntaxModule.Name.
 Notation FName := SyntaxFunc.Name.

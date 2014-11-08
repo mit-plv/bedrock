@@ -33,7 +33,7 @@ Require Import StringMapFacts.
 
 Definition cfuns_to_gfuns (fs : StringMap.t CFun) : list GoodFunction := List.map (uncurry cfun_to_gfun) (StringMap.elements fs).
 
-Require Import NameDecoration.
+Require Import Cito.NameDecoration.
 
 Lemma cfuns_to_gfuns_nodup fs : NoDup (List.map (fun (f : GoodFunction) => SyntaxFunc.Name f) (cfuns_to_gfuns fs)).
 Proof.
