@@ -52,10 +52,18 @@ COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
 COQC    := $(COQBIN)coqc $(COQARGS)
 
+# N.B. (Jason Gross): This Makefile does not consistently support
+# building cito and facade simultaneously with multiple threads; the
+# Makefile.coqs will overwrite each other
 build:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
 	echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
 	$(MAKE) -f Makefile.coq
+
+# we want to install everything, so we need to remake the makefile
+install:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL) $(CITO) $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
 
 clean:
 	rm -f Makefile.coq .depend

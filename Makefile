@@ -1,6 +1,6 @@
 MODULE:=Bedrock
 
-.PHONY: default examples platform cito facade src clean native ltac version dist time
+.PHONY: default examples platform cito facade src clean native ltac version dist time install install-platform install-cito install-facade install-src install-examples
 
 default: examples
 
@@ -32,6 +32,18 @@ version:
 
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
+
+install-src:
+	$(MAKE) -C src/reification install
+	$(MAKE) -C src install
+
+install-platform install-cito install-facade:
+	$(MAKE) -C platform install
+
+install-examples:
+	$(MAKE) -C examples install
+
+install: install-src install-platform install-examples
 
 .dir-locals.el: tools/dir-locals.el Makefile
 	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el | sed s,MOD,$(MODULE),g > .dir-locals.el
