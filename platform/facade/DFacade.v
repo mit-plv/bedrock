@@ -3,6 +3,7 @@
 Set Implicit Arguments.
 
 Require Import Facade.
+Export Facade.
 
 Require Import String.
 Require Import StringMap.

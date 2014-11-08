@@ -1,6 +1,7 @@
 Set Implicit Arguments.
 
 Require Import FacadeFacts.
+Export FacadeFacts.
 Require Import Facade.
 Require Import DFacade.
 

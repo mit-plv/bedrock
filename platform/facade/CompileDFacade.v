@@ -83,6 +83,7 @@ Section ADTValue.
   Require Import ListFacts4.
 
   Require Import Option.
+  Require Import Bool.
   Require Import Setoid.
 
   Require Import StringSet.
@@ -98,40 +99,80 @@ Section ADTValue.
   Arguments SCA {ADTValue} _.
   Arguments ADT {ADTValue} _.
 
-  Definition only_diff_in s (m1 m2 : State) := forall k v1 v2, find k m1 = Some v1 -> find k m2 = Some v2 -> m1 <> m2 -> StringSet.In k s /\ (exists w1, v1 = SCA w1) /\ exists w2, v2 = SCA w2.
-
-  Coercion string2elt (x : string) : StringSet.elt := x.
-  Coercion StringSet.singleton : StringSet.elt >-> StringSet.t.
-
-  Definition equiv := only_diff_in fun_ptr_varname.
-
-  Infix "===" := equiv (at level 70).
-
-  Lemma equiv_refl a : a === a.
+  Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
     admit.
   Qed.
 
-  Lemma equiv_sym a b : a === b -> b === a.
+  Lemma add_add_comm elt k k' (v v' : elt) m : k <> k' -> add k v (add k' v' m) == add k' v' (add k v m).
+    admit.
+  Qed.
+  Arguments add_add_comm [elt] k k' _ _ _ _ _.
+
+  Lemma remove_add_comm elt k k' (v' : elt) m : k <> k' -> remove k (add k' v' m) == add k' v' (remove k m).
     admit.
   Qed.
 
-  Lemma equiv_trans a b c : a === b -> b === c -> a === c.
+  Lemma add_remove_comm elt k k' (v : elt) m : k <> k' -> add k v (remove k' m) == remove k' (add k v m).
     admit.
   Qed.
 
-  Add Relation State equiv
-      reflexivity proved by equiv_refl
-      symmetry proved by equiv_sym
-      transitivity proved by equiv_trans
-        as equiv_rel.
+  Lemma remove_remove_comm elt k k' (m : t elt) : k <> k' -> remove k (remove k' m) == remove k' (remove k m).
+    admit.
+  Qed.
+  Arguments remove_remove_comm [elt] k k' _ _ _.
 
-  Lemma equiv_intro st1 st2 w : st1 == add fun_ptr_varname (SCA w) st2 -> st1 === st2.
+  Lemma add_remove_eq_false elt k (v : elt) m1 m2 : ~ add k v m1 == remove k m2.
     admit.
   Qed.
 
-  Add Morphism equiv 
-      with signature Equal ==> Equal ==> iff as equiv_m.
-    admit.
+  Lemma add_remove_many_Equal ks : forall types vs st1 st2, st1 == st2 -> @add_remove_many ADTValue ks types vs st1 == add_remove_many ks types vs st2.
+  Proof.
+    induction ks; destruct types; destruct vs; simpl; try solve [intuition].
+    intros st1 st2 Heq.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o|].
+      + eapply IHks; eauto.
+        rewrite Heq; eauto.
+      + eapply IHks; eauto.
+        rewrite Heq; eauto.
+  Qed.
+
+  Global Add Morphism (@add_remove_many ADTValue)
+      with signature eq ==> eq ==> eq ==> Equal ==> Equal as add_remove_many_m.
+  Proof.
+    intros; eapply add_remove_many_Equal; eauto.
+  Qed.
+
+  Lemma add_remove_many_add_comm ks : forall vs types k v (st : State), ~ List.In k ks -> add_remove_many ks types vs (add k v st) == add k v (add_remove_many ks types vs st).
+  Proof.
+    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
+    intros k' v' st Hnin .
+    intuition.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o |].
+      + rewrite add_add_comm by eauto.
+        eauto.
+      + rewrite remove_add_comm by eauto.
+        eauto.
+  Qed.
+
+  Lemma add_remove_many_remove_comm ks : forall vs types k (st : State), ~ List.In k ks -> add_remove_many ks types vs (remove k st) == remove k (add_remove_many ks types vs st).
+  Proof.
+    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
+    intros k' st Hnin .
+    intuition.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o |].
+      + rewrite add_remove_comm by eauto.
+        eauto.
+      + rewrite remove_remove_comm by eauto.
+        eauto.
   Qed.
 
   Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
@@ -150,15 +191,174 @@ Section ADTValue.
   Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
     admit.
   Qed.
+  
+  Section EqualOn.
+
+    Variable Domain : key -> Prop.
+
+    Variable elt : Type.
+
+    Definition EqualOn (m1 m2 : t elt) := forall k, Domain k -> find k m1 = find k m2.
+
+    Infix "===" := EqualOn (at level 70).
+
+    Lemma EqualOn_refl a : a === a.
+      admit.
+    Qed.
+
+    Lemma EqualOn_sym a b : a === b -> b === a.
+      admit.
+    Qed.
+
+    Lemma EqualOn_trans a b c : a === b -> b === c -> a === c.
+      admit.
+    Qed.
+
+    Global Add Relation (t elt) EqualOn
+        reflexivity proved by EqualOn_refl
+        symmetry proved by EqualOn_sym
+        transitivity proved by EqualOn_trans
+          as EqualOn_rel.
+
+    Lemma add_EqualOn k v m1 m2 : m1 === m2 -> add k v m1 === add k v m2.
+    Proof.
+      intros Heq.
+      unfold EqualOn in *.
+      intros k' Hk'.
+      destruct (string_dec k' k) as [Heqk | Hnek].
+      - subst.
+        repeat rewrite add_eq_o by eauto.
+        eauto.
+      - repeat rewrite add_neq_o by eauto.
+        eauto.
+    Qed.
+
+    Global Add Morphism (@add elt) with signature eq ==> eq ==> EqualOn ==> EqualOn as add_EqualOn_m.
+    Proof.
+      intros; eapply add_EqualOn; eauto.
+    Qed.
+
+  End EqualOn.
+
+  Section equiv.
+
+    Variable s : StringSet.t.
+
+    Definition no_adt (m : State) := forall k, StringSet.In k s -> not_mapsto_adt k m = true.
+
+    Definition equiv a b := EqualOn (fun k => ~ StringSet.In k s) a b /\ no_adt a /\ no_adt b.
+
+    Infix "===" := equiv (at level 70).
+
+    Lemma equiv_sym a b : a === b -> b === a.
+      admit.
+    Qed.
+
+    Lemma equiv_trans a b c : a === b -> b === c -> a === c.
+      admit.
+    Qed.
+
+    Global Add Relation State equiv
+        symmetry proved by equiv_sym
+        transitivity proved by equiv_trans
+          as equiv_rel.
+
+    Global Add Morphism equiv 
+        with signature Equal ==> Equal ==> iff as equiv_m.
+      admit.
+    Qed.
+
+    Lemma find_adt_equiv st1 st2 k a : find k st1 = Some (ADT a) -> st1 === st2 -> find k st2 = Some (ADT a).
+      admit.
+    Qed.
+
+  End equiv.
+
+  Lemma not_in_no_adt_add s k v st : no_adt s st -> ~ StringSet.In k s -> no_adt s (add k v st).
+  Proof.
+    intros H Hnin.
+    unfold no_adt in *.
+    intros k' Hk'.
+    unfold not_mapsto_adt in *.
+    unfold is_mapsto_adt in *.
+    destruct (string_dec k k') as [Heqk | Hnek].
+    - subst.
+      contradiction.
+    - rewrite add_neq_o by eauto.
+      eauto.
+  Qed.
+
+  Coercion string2elt (x : string) : StringSet.elt := x.
+  Coercion StringSet.singleton : StringSet.elt >-> StringSet.t.
+
+  Notation equivf := (equiv fun_ptr_varname).
+  Infix "===" := equivf (at level 70).
+
+  Lemma equiv_refl st : not_mapsto_adt fun_ptr_varname st = true -> st === st.
+    admit.
+  Qed.
+
+  Lemma equiv_intro st1 st2 w : st1 == add fun_ptr_varname (SCA w) st2 -> st1 === st2.
+    admit.
+  Qed.
 
   Lemma find_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> find x st1 = find x st2.
+  Proof.
+    intros Heq Hgn.
+    unfold equiv in *.
+    simpl in *.
     admit.
   Qed.
   Arguments find_equiv st1 st2 [_] _ _.
 
-  Lemma add_equiv st1 st2 x v : st1 === st2 -> is_good_varname x = true -> add x v st1 === add x v st2.
-    admit.
-  Qed.
+  Section good_varname_x.
+
+    Variable x : string.
+    Hypothesis Hgn : is_good_varname x = true.
+
+    Global Add Morphism (find x) with signature equivf ==> eq as find_equiv_m.
+    Proof.
+      intros; eapply find_equiv; eauto.
+    Qed.
+
+    Lemma not_mapsto_adt_equiv st1 st2 : st1 === st2 -> not_mapsto_adt x st1 = not_mapsto_adt x st2.
+    Proof.
+      intros Heq.
+      unfold not_mapsto_adt, is_mapsto_adt.
+      rewrite Heq.
+      eauto.
+    Qed.
+
+    Lemma add_equiv st1 st2 v : st1 === st2 -> add x v st1 === add x v st2.
+    Proof.
+      intros Heq.
+      unfold equiv in *.
+      destruct Heq as [Heqon [Hnadt1 Hnadt2]].
+      repeat try_split.
+      - eapply add_EqualOn; eauto.
+      - destruct (string_dec fun_ptr_varname x) as [Heqx | Hnex].
+        + subst.
+          discriminate Hgn.
+        + eapply not_in_no_adt_add; eauto.
+          intros Hin.
+          eapply StringSetFacts.singleton_iff in Hin.
+          subst; intuition.
+      - destruct (string_dec fun_ptr_varname x) as [Heqx | Hnex].
+        + subst.
+          discriminate Hgn.
+        + eapply not_in_no_adt_add; eauto.
+          intros Hin.
+          eapply StringSetFacts.singleton_iff in Hin.
+          subst; intuition.
+    Qed.
+
+    Lemma remove_equiv st1 st2 : st1 === st2 -> remove x st1 === remove x st2.
+    Proof.
+      admit.
+    Qed.
+
+  End good_varname_x.
+    
   Lemma mapM_find_equiv st1 st2 ls : st1 === st2 -> List.forallb is_good_varname ls = true -> mapM (sel st1) ls = mapM (sel st2) ls.
     admit.
   Qed.
@@ -178,43 +378,125 @@ Section ADTValue.
   Lemma is_true_equiv st1 st2 e : is_true st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_true st2 e.
     admit.
   Qed.
-  Lemma not_mapsto_adt_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> not_mapsto_adt x st1 = not_mapsto_adt x st2.
-    admit.
-  Qed.
+
   Lemma no_adt_leak_equiv st1 st2 input avars rvar : no_adt_leak input avars rvar st2 -> st1 === st2 -> no_adt_leak input avars rvar st1.
-    admit.
+  Proof.
+    intros H Heq.
+    unfold no_adt_leak in *.
+    intros; eapply H; eauto.
+    eapply find_adt_equiv; eauto.
   Qed.
 
-  Fixpoint output_eqv A (input : list Value) (output1 output2 : list A) := 
-    match input, output1, output2 with
-      | i :: input', o1 :: output1', o2 :: output2' => 
+  Fixpoint output_eqv A (types : list Value) (output1 output2 : list A) := 
+    match types, output1, output2 with
+      | i :: types', o1 :: output1', o2 :: output2' => 
         match i with
           | ADT _ => o1 = o2 
           | _ => True
-        end /\ output_eqv input' output1' output2'
+        end /\ output_eqv types' output1' output2'
       | nil, nil, nil => True
       | _, _, _ => False
     end.
 
-  Lemma output_eqv_refl A input (output : list A) : output_eqv input output output.
-    admit.
+  Lemma output_eqv_refl A types : forall (output : list A), length types = length output -> output_eqv types output output.
+  Proof.
+    induction types; destruct output; simpl; intuition.
+    destruct a; eauto.
   Qed.
 
-  Lemma add_remove_many_equiv st1 st2 args input output1 output2 : st1 === st2 -> List.forallb is_good_varname args = true -> output_eqv input output1 output2 -> add_remove_many args input output1 st1 === add_remove_many args input output2 st2.
-    admit.
-  Qed.
-
-  Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
-    admit.
+  Lemma add_remove_many_equiv args : forall types output1 output2 st1 st2, st1 === st2 -> List.forallb is_good_varname args = true -> output_eqv types output1 output2 -> length args = length types -> add_remove_many args types output1 st1 === add_remove_many args types output2 st2.
+  Proof.
+    induction args; destruct types; destruct output1; destruct output2; simpl; try solve [intros; try discriminate; intuition eauto].
+    intros st1 st2 Heqv Hgn Hoeqv Hlen.
+    inject Hlen.
+    rename H into Hlen.
+    rename a into k.
+    eapply andb_true_iff in Hgn.
+    destruct Hgn as [Hgnk Hgn].
+    destruct Hoeqv as [Hv Hoeqv].
+    destruct v as [w | a].
+    - eauto.
+    - subst.
+      eapply IHargs; eauto.
+      destruct o0 as [o|].
+      + eapply add_equiv; eauto.
+      + eapply remove_equiv; eauto.
   Qed.
 
   Definition not_mapsto_adt_types (k : string) ks types := forall i, nth_error ks i = Some k -> ~ exists a : ADTValue, nth_error types i = Some (ADT a).
 
   Lemma not_in_not_mapsto_adt_types k ks types : ~ List.In k ks -> not_mapsto_adt_types k ks types.
-    admit.
+  Proof.
+    intros Hnin.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth Hex.
+    contradict Hnin.
+    eapply Locals.nth_error_In; eauto.
   Qed.
+
   Lemma not_mapsto_adt_types_cons_neq_elim ks types k k' type : not_mapsto_adt_types k (k' :: ks) (type :: types) -> k <> k' -> not_mapsto_adt_types k ks types.
-    admit.
+  Proof.
+    intros H Hne.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth Hex.
+    eapply (H (S i)); simpl in *; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_cons_neq_intro ks types k k' type : not_mapsto_adt_types k ks types -> k <> k' -> not_mapsto_adt_types k (k' :: ks) (type :: types).
+  Proof.
+    intros H Hne.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth [a Ha].
+    destruct i as [|i]; simpl in *.
+    - inject Hnth.
+      intuition.
+    - eapply H; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_adt k ks a types : ~ not_mapsto_adt_types k (k :: ks) (ADT a :: types).
+  Proof.
+    unfold not_mapsto_adt_types.
+    intros H.
+    eapply (H 0); simpl in *; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_sca k ks w types : not_mapsto_adt_types k ks types -> not_mapsto_adt_types k (k :: ks) (SCA w :: types).
+  Proof.
+    intros H.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth [a Ha].
+    destruct i as [|i]; simpl in *.
+    - discriminate.
+    - eapply H; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_nil k types : not_mapsto_adt_types k nil types.
+  Proof.
+    unfold not_mapsto_adt_types; intros.
+    rewrite nth_error_nil in *.
+    discriminate.
+  Qed.
+
+  Lemma mapM_not_mapsto_adt_types ks : forall types k st, not_mapsto_adt k st = true -> mapM (sel st) ks = Some types -> not_mapsto_adt_types k ks types.
+  Proof.
+    induction ks; destruct types; simpl; try discriminate; intros k st Hnadt Hmm.
+    - eapply not_mapsto_adt_types_nil.
+    - rename k into k'.
+      rename a into k.
+      destruct (option_dec (sel st k)) as [ [v Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      destruct (option_dec (mapM (sel st) ks)) as [ [vs Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
+    - rename k into k'.
+      rename a into k.
+      destruct (option_dec (sel st k)) as [ [ty Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      destruct (option_dec (mapM (sel st) ks)) as [ [tys Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      inject Hmm.
+      destruct (string_dec k' k) as [Heqk | Hnek].
+      + subst.
+        destruct v as [w | a].
+        * eapply not_mapsto_adt_types_sca; eauto.
+        * eapply not_mapsto_adt_iff in Hnadt.
+          contradict Hnadt; eexists; eauto.
+      + eapply not_mapsto_adt_types_cons_neq_intro; eauto.
   Qed.
 
   Lemma add_remove_many_eq_output_eqv ks : forall types st1 st2 vs1 vs2 k, remove k (add_remove_many ks types vs1 st1) == remove k (add_remove_many ks types vs2 st2) -> not_mapsto_adt_types k ks types -> length ks = length types -> length ks = length vs1 -> length ks = length vs2 -> NoDup ks -> output_eqv types vs1 vs2.
@@ -242,47 +524,61 @@ Section ADTValue.
       }
       {
         destruct (string_dec k k0) as [Hkeq | Hkne].
-        subst.
-        Lemma not_mapsto_adt_types_false k ks a types : ~ not_mapsto_adt_types k (k :: ks) (ADT a :: types).
-          admit.
-        Qed.
-        eapply not_mapsto_adt_types_false in Hnadt; intuition.
-        destruct o as [o1|]; destruct o0 as [o2|].
         {
-          - subst.
-            split; eauto.
-            eapply IHks; eauto.
-            eapply not_in_not_mapsto_adt_types; eauto.
-          - eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
-          destruct (option_dec (sel st k0)) as [[v Hv] | Hne]; try (rewrite Hne in Hmm; discriminate); rewrite Hv in Hmm.
-          destruct (option_dec (mapM (sel st) ks)) as [[v' Hv'] | Hne]; try (rewrite Hne in Hmm; discriminate); rewrite Hv' in Hmm.
-          inject Hmm.
-          Lemma add_remove_many_add_comm ks : forall vs types k v (st : State), ~ List.In k ks -> add_remove_many ks types vs (add k v st) == add k v (add_remove_many ks types vs st).
-            admit.
-          Qed.
-          repeat rewrite add_remove_many_add_comm in Heq by eauto.
-          destruct (string_dec k k0) as [Hkeq | Hkne].
+          subst.
+          eapply not_mapsto_adt_types_adt in Hnadt; intuition.
+        }
+        {
+          eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
+          destruct o as [o1|]; destruct o0 as [o2|].
           {
-            subst.
-            eapply not_mapsto_adt_iff in Hnadt.
-            contradict Hnadt.
-            eexists; eauto.
+            split.
+            - repeat rewrite add_remove_many_add_comm in Heq by eauto.
+              repeat rewrite remove_add_comm in Heq by eauto.
+              eapply add_eq_elim in Heq.
+              openhyp; subst; eauto.
+            - eauto.
           }
           {
-            
+            repeat rewrite add_remove_many_add_comm in Heq by eauto.
+            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
+            repeat rewrite remove_add_comm in Heq by eauto.
+            rewrite remove_remove_comm in Heq by eauto.
+            eapply add_remove_eq_false in Heq; intuition.
+          }
+          {
+            repeat rewrite add_remove_many_add_comm in Heq by eauto.
+            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
+            repeat rewrite remove_add_comm in Heq by eauto.
+            rewrite remove_remove_comm in Heq by eauto.
+            symmetry in Heq.
+            eapply add_remove_eq_false in Heq; intuition.
+          }
+          {
+            eauto.
+          }            
+        }
+      }
+    }
   Qed.
 
-  Lemma add_add_remove_many_eq_elim types k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks types vs1 st) == add k v2 (add_remove_many ks types vs2 st) -> mapM (sel st) ks = Some types -> v1 = v2 /\ output_eqv types vs1 vs2.
+  Lemma add_add_remove_many_eq_elim types k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks types vs1 st) == add k v2 (add_remove_many ks types vs2 st) -> mapM (sel st) ks = Some types -> length ks = length vs1 -> length ks = length vs2 -> v1 = v2 /\ output_eqv types vs1 vs2.
   Proof.
-    intros Hnadt Hnd Heq.
+    intros Hnadt Hnd Heq Hlen1 Hlen2.
     eapply add_eq_elim in Heq.
     destruct Heq as [Hveq Hmeq].
     split; eauto.
     eapply add_remove_many_eq_output_eqv; eauto.
+    - eapply mapM_not_mapsto_adt_types; eauto.
+    - eapply mapM_length; eauto.
+  Qed.
+
+  Lemma args_name_ok_make_map avars input : forallb is_good_varname avars = true -> @not_mapsto_adt ADTValue fun_ptr_varname (make_map avars input) = true.
+    admit.
   Qed.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
-  Theorem compile_runsto' t t_env t_st t_st' :
+  Theorem compile_runsto t t_env t_st t_st' :
     FRunsTo t_env t t_st t_st' -> 
     forall s_env, 
       fenv_impls_env t_env s_env -> 
@@ -291,7 +587,7 @@ Section ADTValue.
          is_syntax_ok s = true -> 
          forall s_st,
            Safe s_env s s_st -> 
-           equiv s_st t_st ->
+           s_st === t_st ->
            exists s_st',
              RunsTo s_env s s_st s_st' /\
              s_st' === t_st') /\
@@ -354,8 +650,12 @@ Section ADTValue.
       rename H5 into Hst'.
       copy_as Hst' Hst'2.
       eapply equiv_intro in Hst'.
-      assert (Heqv' : st' === s_st) by
-          (etransitivity; eauto; symmetry; eauto).
+      assert (Heqv' : st' === s_st).
+      {
+        Existing Instance equiv_rel_Transitive.
+        Existing Instance equiv_rel_Symmetric.
+        etransitivity; eauto; symmetry; eauto.
+      }
       eapply is_syntax_ok_call_elim in Hsyn.
       destruct Hsyn as [Hsynx Hsynargs].
       inversion Hrtcall; unfold_all; subst.
@@ -393,9 +693,13 @@ Section ADTValue.
           {
             rewrite Hst''.
             eapply add_equiv; eauto.
+            copy_as Hmm Hmm'; eapply mapM_length in Hmm'.
             eapply add_remove_many_equiv; eauto.
-            symmetry; eauto.
-            eapply output_eqv_refl.
+            - symmetry; eauto.
+            - eapply output_eqv_refl.
+              unfold wrap_output.
+              rewrite map_length.
+              congruence.
           }
         }
         {
@@ -464,7 +768,8 @@ Section ADTValue.
             rewrite Hst''.
             eapply add_equiv; eauto.
             eapply add_remove_many_equiv; eauto.
-            symmetry; eauto.
+            - symmetry; eauto.
+            - eapply mapM_length; eauto.
           }
         }
       }
@@ -568,10 +873,13 @@ Section ADTValue.
       destruct spec'; simpl in *.
       edestruct IHRunsTo as [IHRunsTo' trash]; eauto.
       edestruct IHRunsTo' as [s_callee_st' [Hstb Hscst']]; eauto.
-      reflexivity.
+      {
+        eapply equiv_refl.
+        eapply args_name_ok_make_map; eauto.
+      }
       rename H8 into Hst''.
       rewrite Hst'' in Hst''2.
-      eapply add_add_remove_many_eq_elim in Hst''2; eauto.
+      eapply add_add_remove_many_eq_elim in Hst''2; eauto; try (rewrite map_length; eauto).
       destruct Hst''2 as [Hreteq Houteq].
       exists s_callee_st'.
       repeat try_split; eauto.
