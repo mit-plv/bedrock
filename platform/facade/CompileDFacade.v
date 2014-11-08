@@ -73,8 +73,19 @@ Section ADTValue.
         Label2Word fenv lbl = Some w /\
         Word2Spec fenv w = Some (compile_spec spec).
     
-  Require Import GeneralTactics4.
+  Require Import GeneralTactics.
   Require Import GeneralTactics3.
+  Require Import GeneralTactics4.
+  Require Import GeneralTactics5.
+
+  Require Import List.
+  Require Import ListFacts3.
+  Require Import ListFacts4.
+
+  Require Import Option.
+  Require Import Setoid.
+
+  Require Import StringSet.
 
   Require Import StringMap.
   Import StringMap.
@@ -82,22 +93,10 @@ Section ADTValue.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
-  Arguments SCA {ADTValue} _.
-  Arguments ADT {ADTValue} _.
-
-  Require Import ListFacts4.
-
-  Require Import Setoid.
-(*
-  Add Morphism FRunsTo 
-      with signature (@eq FEnv) ==> (@eq Facade.Stmt) ==> (@Equal Value) ==> (@Equal Value) ==> iff as FRunsTo_m.
-    admit.
-  Qed.
-*)
-
   Hint Extern 0 (_ == _) => reflexivity.
 
-  Require Import StringSet.
+  Arguments SCA {ADTValue} _.
+  Arguments ADT {ADTValue} _.
 
   Definition only_diff_in s (m1 m2 : State) := forall k v1 v2, find k m1 = Some v1 -> find k m2 = Some v2 -> m1 <> m2 -> StringSet.In k s /\ (exists w1, v1 = SCA w1) /\ exists w2, v2 = SCA w2.
 
@@ -106,52 +105,7 @@ Section ADTValue.
 
   Definition equiv := only_diff_in fun_ptr_varname.
 
-  Add Morphism equiv 
-      with signature Equal ==> Equal ==> iff as equiv_m.
-    admit.
-  Qed.
-
   Infix "===" := equiv (at level 70).
-
-  Require Import Option.
-
-  Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
-  Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
-    admit.
-  Qed.
-
-  Lemma find_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> find x st1 = find x st2.
-    admit.
-  Qed.
-  Arguments find_equiv st1 st2 [_] _ _.
-  Lemma eval_equiv st1 st2 e : st1 === st2 -> is_syntax_ok_e e = true -> eval st1 e = eval st2 e.
-    admit.
-  Qed.
-  Lemma is_false_equiv st1 st2 e : is_false st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_false st2 e.
-    admit.
-  Qed.
-  Lemma is_true_equiv st1 st2 e : is_true st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_true st2 e.
-    admit.
-  Qed.
-  Lemma not_mapsto_adt_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> not_mapsto_adt x st1 = not_mapsto_adt x st2.
-    admit.
-  Qed.
-  Lemma add_equiv st1 st2 x v : st1 === st2 -> is_good_varname x = true -> add x v st1 === add x v st2.
-    admit.
-  Qed.
-
-  Lemma equiv_intro st1 st2 w : st1 == add fun_ptr_varname (SCA w) st2 -> st1 === st2.
-    admit.
-  Qed.
 
   Lemma equiv_refl a : a === a.
     admit.
@@ -171,48 +125,160 @@ Section ADTValue.
       transitivity proved by equiv_trans
         as equiv_rel.
 
+  Lemma equiv_intro st1 st2 w : st1 == add fun_ptr_varname (SCA w) st2 -> st1 === st2.
+    admit.
+  Qed.
+
+  Add Morphism equiv 
+      with signature Equal ==> Equal ==> iff as equiv_m.
+    admit.
+  Qed.
+
+  Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
+    admit.
+  Qed.
+  Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
+  Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
+    admit.
+  Qed.
+  Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
+    admit.
+  Qed.
+  Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
+    admit.
+  Qed.
   Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
     admit.
   Qed.
 
-  Require Import GeneralTactics.
-  Require Import List.
+  Lemma find_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> find x st1 = find x st2.
+    admit.
+  Qed.
+  Arguments find_equiv st1 st2 [_] _ _.
 
-  Fixpoint adts_eq A (input : list Value) (output1 output2 : list A) := 
-    match input, output1, output2 with
-      | i :: input', o1 :: output1', o2 :: output2' => 
-        match i with
-          | ADT _ => o1 = o2 
-          | _ => True
-        end /\ adts_eq input' output1' output2'
-      | nil, nil, nil => True
-      | _, _, _ => False
-    end.
-
+  Lemma add_equiv st1 st2 x v : st1 === st2 -> is_good_varname x = true -> add x v st1 === add x v st2.
+    admit.
+  Qed.
   Lemma mapM_find_equiv st1 st2 ls : st1 === st2 -> List.forallb is_good_varname ls = true -> mapM (sel st1) ls = mapM (sel st2) ls.
     admit.
   Qed.
   Arguments mapM_find_equiv st1 st2 [_] _ _.
 
-  Lemma add_remove_many_equiv st1 st2 args input output1 output2 : st1 === st2 -> List.forallb is_good_varname args = true -> adts_eq input output1 output2 -> add_remove_many args input output1 st1 === add_remove_many args input output2 st2.
-    admit.
-  Qed.
-
-  Require Import GeneralTactics5.
-
-  Lemma add_add_remove_many_eq_elim input k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks input vs1 st) == add k v2 (add_remove_many ks input vs2 st) -> v1 = v2 /\ adts_eq input vs1 vs2.
-    admit.
-  Qed.
-  Lemma map_find_equiv st1 st2 ls : st1 === st2 -> List.forallb is_good_varname ls = true -> map (sel st1) ls = map (sel st2) ls.
+  Lemma map_find_equiv st1 st2 ls : st1 === st2 -> List.forallb is_good_varname ls = true -> List.map (sel st1) ls = List.map (sel st2) ls.
     admit.
   Qed.
   Arguments map_find_equiv st1 st2 [_] _ _.
 
+  Lemma eval_equiv st1 st2 e : st1 === st2 -> is_syntax_ok_e e = true -> eval st1 e = eval st2 e.
+    admit.
+  Qed.
+  Lemma is_false_equiv st1 st2 e : is_false st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_false st2 e.
+    admit.
+  Qed.
+  Lemma is_true_equiv st1 st2 e : is_true st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_true st2 e.
+    admit.
+  Qed.
+  Lemma not_mapsto_adt_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> not_mapsto_adt x st1 = not_mapsto_adt x st2.
+    admit.
+  Qed.
   Lemma no_adt_leak_equiv st1 st2 input avars rvar : no_adt_leak input avars rvar st2 -> st1 === st2 -> no_adt_leak input avars rvar st1.
     admit.
   Qed.
-  Lemma adts_eq_refl A input (output : list A) : adts_eq input output output.
+
+  Fixpoint output_eqv A (input : list Value) (output1 output2 : list A) := 
+    match input, output1, output2 with
+      | i :: input', o1 :: output1', o2 :: output2' => 
+        match i with
+          | ADT _ => o1 = o2 
+          | _ => True
+        end /\ output_eqv input' output1' output2'
+      | nil, nil, nil => True
+      | _, _, _ => False
+    end.
+
+  Lemma output_eqv_refl A input (output : list A) : output_eqv input output output.
     admit.
+  Qed.
+
+  Lemma add_remove_many_equiv st1 st2 args input output1 output2 : st1 === st2 -> List.forallb is_good_varname args = true -> output_eqv input output1 output2 -> add_remove_many args input output1 st1 === add_remove_many args input output2 st2.
+    admit.
+  Qed.
+
+  Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
+    admit.
+  Qed.
+
+  Definition not_mapsto_adt_types (k : string) ks types := forall i, nth_error ks i = Some k -> ~ exists a : ADTValue, nth_error types i = Some (ADT a).
+
+  Lemma not_in_not_mapsto_adt_types k ks types : ~ List.In k ks -> not_mapsto_adt_types k ks types.
+    admit.
+  Qed.
+  Lemma not_mapsto_adt_types_cons_neq_elim ks types k k' type : not_mapsto_adt_types k (k' :: ks) (type :: types) -> k <> k' -> not_mapsto_adt_types k ks types.
+    admit.
+  Qed.
+
+  Lemma add_remove_many_eq_output_eqv ks : forall types st1 st2 vs1 vs2 k, remove k (add_remove_many ks types vs1 st1) == remove k (add_remove_many ks types vs2 st2) -> not_mapsto_adt_types k ks types -> length ks = length types -> length ks = length vs1 -> length ks = length vs2 -> NoDup ks -> output_eqv types vs1 vs2.
+  Proof.
+    induction ks; destruct types; destruct vs1; destruct vs2; simpl; try solve [intros; try discriminate; intuition eauto]; intros k Heq Hnadt Hlent Hlen1 Hlen2 Hnd.
+    {
+      inject Hlent.
+      rename H into Hlent.
+      inject Hlen1.
+      rename H into Hlen1.
+      inject Hlen2.
+      rename H into Hlen2.
+      rename a into k0.
+      inversion Hnd; subst.
+      rename H1 into Hnin.
+      rename H2 into Hnd'.
+      destruct v as [w | a].
+      {
+        destruct (string_dec k k0) as [Hkeq | Hkne].
+        - subst.
+          split; eauto.
+          eapply IHks; eauto.
+          eapply not_in_not_mapsto_adt_types; eauto.
+        - eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
+      }
+      {
+        destruct (string_dec k k0) as [Hkeq | Hkne].
+        subst.
+        Lemma not_mapsto_adt_types_false k ks a types : ~ not_mapsto_adt_types k (k :: ks) (ADT a :: types).
+          admit.
+        Qed.
+        eapply not_mapsto_adt_types_false in Hnadt; intuition.
+        destruct o as [o1|]; destruct o0 as [o2|].
+        {
+          - subst.
+            split; eauto.
+            eapply IHks; eauto.
+            eapply not_in_not_mapsto_adt_types; eauto.
+          - eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
+          destruct (option_dec (sel st k0)) as [[v Hv] | Hne]; try (rewrite Hne in Hmm; discriminate); rewrite Hv in Hmm.
+          destruct (option_dec (mapM (sel st) ks)) as [[v' Hv'] | Hne]; try (rewrite Hne in Hmm; discriminate); rewrite Hv' in Hmm.
+          inject Hmm.
+          Lemma add_remove_many_add_comm ks : forall vs types k v (st : State), ~ List.In k ks -> add_remove_many ks types vs (add k v st) == add k v (add_remove_many ks types vs st).
+            admit.
+          Qed.
+          repeat rewrite add_remove_many_add_comm in Heq by eauto.
+          destruct (string_dec k k0) as [Hkeq | Hkne].
+          {
+            subst.
+            eapply not_mapsto_adt_iff in Hnadt.
+            contradict Hnadt.
+            eexists; eauto.
+          }
+          {
+            
+  Qed.
+
+  Lemma add_add_remove_many_eq_elim types k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks types vs1 st) == add k v2 (add_remove_many ks types vs2 st) -> mapM (sel st) ks = Some types -> v1 = v2 /\ output_eqv types vs1 vs2.
+  Proof.
+    intros Hnadt Hnd Heq.
+    eapply add_eq_elim in Heq.
+    destruct Heq as [Hveq Hmeq].
+    split; eauto.
+    eapply add_remove_many_eq_output_eqv; eauto.
   Qed.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
@@ -246,7 +312,7 @@ Section ADTValue.
          t_st' == add x ret (add_remove_many args input output t_st) ->
          exists s_callee_st',
            RunsTo s_env body callee_st s_callee_st' /\
-           adts_eq input (List.map (sel s_callee_st') avars) (List.map (sel t_callee_st') avars) /\
+           output_eqv input (List.map (sel s_callee_st') avars) (List.map (sel t_callee_st') avars) /\
            sel s_callee_st' retvar = sel t_callee_st' retvar /\
            no_adt_leak input avars retvar s_callee_st').
   Proof.
@@ -329,7 +395,7 @@ Section ADTValue.
             eapply add_equiv; eauto.
             eapply add_remove_many_equiv; eauto.
             symmetry; eauto.
-            eapply adts_eq_refl.
+            eapply output_eqv_refl.
           }
         }
         {
@@ -527,3 +593,5 @@ Section ADTValue.
       }
     }
   Qed.
+
+End ADTValue.
