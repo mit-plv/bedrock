@@ -2,7 +2,7 @@ all: factorial.exe
 
 .PHONY: all
 
-COQC = coqc -R ../../src Bedrock -I ..
+COQC = $(COQBIN)coqc -R ../../src Bedrock -I ..
 
 factorial.s: FactorialX86.v
 	echo ".global bedrock_heap" >$@

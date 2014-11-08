@@ -35,10 +35,10 @@ coq: Makefile.coq ILTac.v
 	$(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(VS)
-	coq_makefile $(ARGS) $(VS) -o Makefile.coq
+	$(COQBIN)coq_makefile $(ARGS) $(VS) -o Makefile.coq
 
 Makefile.test.coq: Makefile $(TVS)
-	coq_makefile $(ARGS) $(TVS) -o Makefile.test.coq
+	$(COQBIN)coq_makefile $(ARGS) $(TVS) -o Makefile.test.coq
 
 test: coq Makefile.test.coq
 	$(MAKE) -f Makefile.test.coq
@@ -87,4 +87,4 @@ depgraph: Makefile.coq
 	@ ./../tools/deps.py $(MODULES:%=%.v.d) | dot -Tpdf -o ../deps.pdf
 
 toplevel: coq
-	coqtop.opt $(ARGS)
+	$(COQBIN)coqtop.opt $(ARGS)

@@ -8,7 +8,7 @@ coq: Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(MODULES)
-	coq_makefile -R $(ROOT)/src Bedrock \
+	$(COQBIN)coq_makefile -R $(ROOT)/src Bedrock \
 		     $(MODULES) -o Makefile.coq
 
 clean:: Makefile.coq
