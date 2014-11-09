@@ -29,7 +29,7 @@ TVS        := $(TESTS:%=%.v)
 
 ARGS :=-R . Bedrock
 
-.PHONY: coq clean package native ltac version
+.PHONY: coq clean package native ltac version install
 
 coq: Makefile.coq ILTac.v
 	$(MAKE) -f Makefile.coq
@@ -42,6 +42,9 @@ Makefile.test.coq: Makefile $(TVS)
 
 test: coq Makefile.test.coq
 	$(MAKE) -f Makefile.test.coq
+
+install: Makefile.coq
+	$(MAKE) -f Makefile.coq install
 
 clean:: Makefile.coq
 	$(MAKE) -f Makefile.coq clean

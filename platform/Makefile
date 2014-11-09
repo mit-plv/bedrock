@@ -31,7 +31,7 @@ FACADE := \
 
 FACADE_ALL := $(shell find facade $(VNAME))
 
-.PHONY: default platform cito facade build clean master
+.PHONY: default platform cito facade build clean master install install-platform install-cito install-facade install-facade-all
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 default: platform
@@ -52,10 +52,34 @@ COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
 COQC    := $(COQBIN)coqc $(COQARGS)
 
+# N.B. (Jason Gross): This Makefile does not consistently support
+# building cito and facade simultaneously with multiple threads; the
+# Makefile.coqs will overwrite each other
 build:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
 	echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
 	$(MAKE) -f Makefile.coq
+
+# we want to install everything, so we need to remake the makefile
+install:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL) $(CITO) $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade-all:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-cito:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(CITO))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-platform:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
 
 clean:
 	rm -f Makefile.coq .depend
