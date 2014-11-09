@@ -2,6 +2,8 @@ Require Import Facade.
 Require Import Memory.
 Require Import Ensembles.
 
+Require Bedrock.
+
 Inductive ADTValue :=
   | List : list W -> ADTValue
   | Junk : False -> ADTValue
@@ -63,7 +65,7 @@ Section ListADTSpec.
         PostCond := fun args ret =>
                       exists l,
                         args = [(ADT (List l), Some (List l))] /\
-                        ((ret = SCAZero /\ l <> nil) \/ (ret = SCAOne /\ l = nil))
+                        exists w, ret = SCA _ w /\ Bedrock.Programming.propToWord (l = nil) w
       |}; crush_types.
   Defined.
 
@@ -141,8 +143,6 @@ Section FiniteSetADTSpec.
                                   /\ ret = SCAZero
       |}; crush_types.
   Defined.
-
-  Require Bedrock.
 
   (* Def Method sIn (s : rep , w : W) : bool :=
         (b <- { b : bool | b = true <-> Ensembles.In _ s w };
