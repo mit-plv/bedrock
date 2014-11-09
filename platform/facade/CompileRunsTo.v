@@ -248,7 +248,7 @@ Section ADTValue.
                 (* the frame heap will be intacked in the final state *)
                 h2 <= snd t_st' /\ 
                 (* variables not appearing as LHS won't change value in Cito state *)
-                (forall x, ~ List.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
+                (forall x, ~ StringSet.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
                 (* newly allocated ADT objects during this program's execution won't collide with the frame heap *)
                 (forall x, is_mapsto_adt x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel (fst t_st) x <> Locals.sel (fst t_st') x -> is_mapsto_adt x s_st' = true -> ~ In (Locals.sel (fst t_st') x) h2) /\
                 (* main result: final source-level and target level states are related *)
@@ -552,7 +552,7 @@ Section ADTValue.
 
     split.
     intros.
-    eapply singleton_iff_not in H18.
+    eapply StringSetFacts.singleton_not_iff in H18.
     rewrite Locals.sel_upd_ne by eauto.
     eauto.
 
@@ -1450,7 +1450,7 @@ Section ADTValue.
     split.
     (* no illegal local variable overwrite *)
     intros.
-    eapply singleton_iff_not in H18.
+    eapply StringSetFacts.singleton_not_iff in H18.
     rewrite Locals.sel_upd_ne by eauto.
     solve [eauto].
 
@@ -1885,7 +1885,8 @@ Section ADTValue.
     split.
     intros s Hni.
     eapply Havs.
-    solve [not_not; eapply in_or_app; eauto].
+    not_not.
+    solve [eapply StringSetFacts.union_iff; eauto].
     solve [eauto].
 
     Focus 3.
@@ -1913,7 +1914,7 @@ Section ADTValue.
     split.
     intros s Hni.
     eapply Havs.
-    solve [not_not; eapply in_or_app; eauto].
+    solve [not_not; eapply StringSetFacts.union_iff; eauto].
     solve [eauto].
 
     Ltac pick_related := try match goal with | |- related _ _ => eauto end.
@@ -2007,9 +2008,9 @@ Section ADTValue.
     intros s Hni.
     etransitivity.
     eapply Havs.
-    not_not; eapply in_or_app; eauto.
+    not_not; eapply StringSetFacts.union_iff; eauto.
     eapply Hbvs.
-    not_not; eapply in_or_app; eauto.
+    not_not; eapply StringSetFacts.union_iff; eauto.
     split.
     eapply new_adt_no_pollute_seq; eauto.
     solve [rewrite diff_submap_cancel; eauto].
@@ -2170,7 +2171,7 @@ Section ADTValue.
     solve [eapply diff_submap; eauto].
     split.
     intros x Hni.
-    eapply singleton_iff_not in Hni.
+    eapply StringSetFacts.singleton_not_iff in Hni.
     solve [rewrite Locals.sel_upd_ne; eauto].
     split.
     solve [eapply new_adt_no_pollute_add_sca].
@@ -2197,7 +2198,7 @@ Section ADTValue.
     solve [eapply diff_submap; eauto].
     split.
     intros x Hni.
-    eapply singleton_iff_not in Hni.
+    eapply StringSetFacts.singleton_not_iff in Hni.
     solve [rewrite Locals.sel_upd_ne; eauto].
     split.
     solve [eapply new_adt_no_pollute_add_sca].

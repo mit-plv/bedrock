@@ -62,6 +62,10 @@ Section ADTValue.
     admit.
   Qed.
 
+  Lemma not_free_vars_no_change env s st st' x : RunsTo env s st st' -> ~ StringSet.In x (free_vars s) -> find x st' = find x st.
+    admit.
+  Qed.
+
   Require Import WordMap.
   Import WordMap.
   Require Import WordMapFacts.

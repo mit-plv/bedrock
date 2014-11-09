@@ -13,6 +13,170 @@ Local Open Scope string_scope.
 Require Import Option.
 Require Import Bool.
 
+Require Import GeneralTactics.
+Require Import GeneralTactics3.
+Require Import GeneralTactics4.
+Require Import GeneralTactics5.
+
+Require Import StringSet.
+Import StringSet.
+Require Import StringSetFacts.
+
+Lemma compat_bool_f A (f : A -> bool) : SetoidList.compat_bool Logic.eq f.
+  unfold SetoidList.compat_bool.
+  intuition.
+Qed.
+
+Lemma for_all_elim p s : for_all p s = true -> forall x, In x s -> p x = true.
+Proof.
+  intros H x Hin.
+  eapply StringSetFacts.for_all_iff in H; eauto.
+  eapply compat_bool_f; eauto.
+Qed.
+
+Arguments for_all_elim [p s] _ _ _.
+
+Lemma for_all_intro p s : (forall x, In x s -> p x = true) -> for_all p s = true.
+Proof.
+  intros H.
+  eapply StringSetFacts.for_all_iff; eauto.
+  eapply compat_bool_f; eauto.
+Qed.
+
+Lemma for_all_singleton_elim p x : for_all p (singleton x) = true -> p x = true.
+Proof.
+  intros H.
+  specialize (for_all_elim H); intros HH.
+  eapply HH.
+  eapply singleton_iff; eauto.
+Qed.
+
+Lemma for_all_union_elim p a b : for_all p (union a b) = true -> for_all p a = true /\ for_all p b = true.
+Proof.
+  intros H.
+  specialize (for_all_elim H); intros HH.
+  split.
+  - eapply for_all_intro.
+    intros; eapply HH.
+    eapply union_iff; intuition.
+  - eapply for_all_intro.
+    intros; eapply HH.
+    eapply union_iff; intuition.
+Qed.
+
+Lemma for_all_of_list_elim p ls : for_all p (of_list ls) = true -> List.forallb p ls = true.
+Proof.
+  intros H.
+  specialize (for_all_elim H); intros HH.
+  eapply List.forallb_forall.
+  intros x Hin.
+  eapply HH.
+  eapply of_list_spec; eauto.
+Qed.
+
+Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
+
+Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  eapply for_all_singleton_elim in H.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  eapply for_all_singleton_elim in H0.
+  eapply for_all_of_list_elim in H1.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_singleton_elim in H.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_e_binop_elim op a b : is_syntax_ok_e (Binop op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_e_test_elim op a b : is_syntax_ok_e (TestE op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  intuition.
+Qed.
+
 Local Notation PRE := tmp_prefix.
 Definition fun_ptr_varname := PRE ++ "fptr".
 
@@ -29,8 +193,31 @@ Fixpoint compile (s : Stmt) : Facade.Stmt :=
         (Facade.Call x (Var fun_ptr_varname) args)
   end.
 
-Lemma compile_no_assign_to_args (spec : OperationalSpec) : is_disjoint (Facade.assigned (compile (Body spec))) (ArgVars spec) = true.
-  admit.
+Lemma compile_assigned s : forall x, is_good_varname x = true -> In x (Facade.assigned (compile s)) -> In x (assigned s).
+Proof.
+  induction s; simpl; intros x Hgn Hin.
+  - eapply empty_iff in Hin; intuition.
+  - eapply union_iff in Hin; openhyp; eapply union_iff; eauto.
+  - eapply union_iff in Hin; openhyp; eapply union_iff; eauto.
+  - eauto.
+  - eapply union_iff in Hin; openhyp; eauto.
+    eapply singleton_iff in H; subst.
+    intuition.
+  - eauto.
+Qed.
+
+Lemma compile_no_assign_to_args (spec : OperationalSpec) : is_disjoint (Facade.assigned (compile (Body spec))) (of_list (ArgVars spec)) = true.
+Proof.
+  destruct spec; simpl.
+  eapply is_disjoint_iff.
+  eapply is_disjoint_iff in no_assign_to_args.
+  unfold Disjoint in *.
+  intros x [Hinass Hinavars].
+  eapply no_assign_to_args.
+  split; eauto.
+  eapply compile_assigned; eauto.
+  eapply of_list_spec in Hinavars.
+  eapply List.forallb_forall in args_name_ok; eauto.
 Qed.
 
 Definition compile_op (spec : OperationalSpec) : Facade.OperationalSpec.
@@ -39,57 +226,16 @@ Definition compile_op (spec : OperationalSpec) : Facade.OperationalSpec.
   eapply compile_no_assign_to_args.
 Defined.
 
-Require Import StringSet.
-
-Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
-  admit.
-Qed.
-
-Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
-
-Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_e_binop_elim op a b : is_syntax_ok_e (Binop op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
-  admit.
-Qed.
-
-Lemma is_syntax_ok_e_test_elim op a b : is_syntax_ok_e (TestE op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
-  admit.
-Qed.
-
-Lemma syntax_ok_fptr_not_fv s : is_syntax_ok s = true -> ~ StringSet.In fun_ptr_varname (free_vars s).
-  admit.
-Qed.
-
-Lemma iff_not_iff P Q : (P <-> Q) -> (~ P <-> ~ Q).
+Lemma syntax_ok_fptr_not_fv s : is_syntax_ok s = true -> ~ In fun_ptr_varname (free_vars s).
 Proof.
-  split; intros; intuition.
-Qed.
-
-Lemma singleton_not_iff x x' : ~ StringSet.In x' (StringSet.singleton x) <-> x' <> x.
-Proof.
-  eapply iff_not_iff.
-  split; intros H.
-  - eapply StringSetFacts.singleton_iff in H; eauto.
-  - eapply StringSetFacts.singleton_iff; eauto.
+  intros Hsyn.
+  unfold is_syntax_ok in *.
+  eapply andb_true_iff in Hsyn.
+  openhyp.
+  unfold is_good_varnames in *.
+  intro Hin.
+  eapply for_all_elim in H0; eauto.
+  intuition.
 Qed.
 
 Section ADTValue.
@@ -129,11 +275,6 @@ Section ADTValue.
         Label2Word fenv lbl = Some w /\
         Word2Spec fenv w = Some (compile_spec spec).
     
-  Require Import GeneralTactics.
-  Require Import GeneralTactics3.
-  Require Import GeneralTactics4.
-  Require Import GeneralTactics5.
-
   Require Import List.
   Require Import ListFacts3.
   Require Import ListFacts4.
@@ -309,6 +450,8 @@ Section ADTValue.
       + eapply IHks; eauto.
         rewrite Heq; eauto.
   Qed.
+
+  Import Logic.
 
   Global Add Morphism (@add_remove_many ADTValue)
       with signature eq ==> eq ==> eq ==> Equal ==> Equal as add_remove_many_m.
@@ -639,11 +782,6 @@ Section ADTValue.
     - eauto.
   Qed.
 
-  Lemma fun_ptr_varname_not_good_varname : is_good_varname fun_ptr_varname = false.
-  Proof.
-    intuition.
-  Qed.
-
   Lemma find_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> find x st1 = find x st2.
   Proof.
     intros Heq Hgn.
@@ -652,8 +790,7 @@ Section ADTValue.
     destruct Heq as [Heq [Hnadt1 Hnadt2]].
     destruct (string_dec x fun_ptr_varname) as [Heqx | Hnex].
     - subst.
-      rewrite fun_ptr_varname_not_good_varname in Hgn.
-      discriminate.
+      intuition.
     - eapply Heq.
       eapply singleton_not_iff; eauto.
   Qed.
@@ -984,7 +1121,7 @@ Section ADTValue.
     eapply make_map_not_in.
     intros Hin.
     eapply forallb_forall in Hgn; eauto.
-    rewrite fun_ptr_varname_not_good_varname in Hgn; discriminate.
+    intuition.
   Qed.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
@@ -1325,10 +1462,6 @@ Section ADTValue.
              s_st' === t_st').
   Proof.
     intros; eapply compile_runsto'; eauto.
-  Qed.
-
-  Lemma not_free_vars_no_change env s st st' x : RunsTo env s st st' -> ~ StringSet.In x (free_vars s) -> find x st' = find x st.
-    admit.
   Qed.
 
 End ADTValue.

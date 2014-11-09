@@ -86,22 +86,38 @@ Section ADTValue.
   Open Scope string_scope.
   Require Import List.
   Import ListNotations.
+
+  Require Import StringSet.
+  Import StringSet.
+  Require Import StringSetFacts.
+
+  Import Logic.
+
   Goal is_in "bb" ["aa"; "bb"; "cc"] = true. Proof. exact eq_refl. Qed.
   Goal is_in "dd" ["aa"; "bb"; "cc"] = false. Proof. exact eq_refl. Qed.
-  Goal is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"] = true. Proof. exact eq_refl. Qed.
-  Goal is_disjoint ["aa"; "bb"; "cc"] ["dd"; "ee"; "cc"] = false. Proof. exact eq_refl. Qed.
-  Goal assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b"))) = ["x"; "y"]. Proof. exact eq_refl. Qed.
-  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"] = true. Proof. exact eq_refl. Qed.
-  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) ["aa"; "bb"; "x"] = false. Proof. exact eq_refl. Qed.
+  Goal is_disjoint (of_list ["aa"; "bb"; "cc"]) (of_list ["dd"; "ee"]) = true. Proof. exact eq_refl. Qed.
+  Goal is_disjoint (of_list ["aa"; "bb"; "cc"]) (of_list ["dd"; "ee"; "cc"]) = false. Proof. exact eq_refl. Qed.
+  Goal equal (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) (of_list ["x"; "y"]) = true. Proof. exact eq_refl. Qed.
+  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) (of_list ["aa"; "bb"]) = true. Proof. exact eq_refl. Qed.
+  Goal is_disjoint (assigned (Seq (Assign "x" (Var "a")) (Label "y" ("a", "b")))) (of_list ["aa"; "bb"; "x"]) = false. Proof. exact eq_refl. Qed.
 
-  Import StringSetFacts.
-  Import StringSet.
-
-  Lemma is_disjoint_sound ls1 ls2 : is_disjoint ls1 ls2 = true -> ListFacts1.Disjoint ls1 ls2.
+  Lemma is_disjoint_sound ls1 ls2 : is_disjoint ls1 ls2 = true -> Disjoint ls1 ls2.
   Proof.
     intros Hdisj.
-    eapply inter_is_empty_iff in Hdisj.
-    eapply set_disjoint_list_disjoint; eauto.
+    eapply inter_is_empty_iff in Hdisj; eauto.
+  Qed.
+
+  Lemma is_disjoint_complete ls1 ls2 : Disjoint ls1 ls2 -> is_disjoint ls1 ls2 = true.
+  Proof.
+    intros Hdisj.
+    eapply inter_is_empty_iff; eauto.
+  Qed.
+
+  Lemma is_disjoint_iff ls1 ls2 : is_disjoint ls1 ls2 = true <-> Disjoint ls1 ls2.
+  Proof.
+    split; intros H.
+    eapply is_disjoint_sound; eauto.
+    eapply is_disjoint_complete; eauto.
   Qed.
 
   Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
@@ -423,9 +439,12 @@ Section ADTValue.
     intros; destruct spec; simpl; eapply negb_is_in_iff; eauto.
   Qed.
 
-  Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
+  Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ StringSet.In x (assigned (Body spec)).
   Proof.
-    destruct spec; simpl in *; nintro; eapply is_disjoint_sound; eauto.
+    destruct spec; simpl in *; nintro.
+    eapply is_disjoint_iff; eauto.
+    split; eauto.
+    eapply StringSetFacts.of_list_spec; eauto.
   Qed.
 
   Lemma safe_seq_1 : forall (env : Env) a b st, Safe env (Seq a b) st -> Safe env a st.

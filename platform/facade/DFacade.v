@@ -37,12 +37,12 @@ Inductive Stmt :=
 (* List of variables that are assigned to, i.e. appear as LHS *)
 Fixpoint assigned s :=
   match s with
-    | Skip => []
-    | Seq a b => assigned a ++ assigned b
-    | If _ t f => assigned t ++ assigned f
+    | Skip => empty
+    | Seq a b => assigned a + assigned b
+    | If _ t f => assigned t + assigned f
     | While _ c => assigned c
-    | Assign x _ => [x]
-    | Call x _ _ => [x]
+    | Assign x _ => singleton x
+    | Call x _ _ => singleton x
   end.
 
 Local Open Scope bool_scope.
@@ -77,6 +77,22 @@ Definition is_good_varnames s := for_all is_good_varname (free_vars s).
 
 Definition is_syntax_ok s := is_actual_args_no_dup s && is_good_varnames s.
 
+(* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
+   The return variable must not be an argument, to prevent aliasing. 
+   Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
+Record OperationalSpec := 
+  {
+    ArgVars : list string;
+    RetVar : string;
+    Body : Stmt;
+    args_no_dup : is_no_dup ArgVars = true;
+    ret_not_in_args : negb (is_in RetVar ArgVars) = true;
+    no_assign_to_args : is_disjoint (assigned Body) (of_list ArgVars) = true;
+    args_name_ok : forallb is_good_varname ArgVars = true;
+    ret_name_ok : is_good_varname RetVar = true;
+    syntax_ok : is_syntax_ok Body = true
+  }.
+
 Import StringMap.
 Require Import StringMapFacts.
 Import FMapNotations.
@@ -96,22 +112,6 @@ Section ADTSection.
   Arguments ADT {ADTValue} _.
 
   Notation State := (@State ADTValue).
-
-  (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
-     The return variable must not be an argument, to prevent aliasing. 
-     Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
-  Record OperationalSpec := 
-    {
-      ArgVars : list string;
-      RetVar : string;
-      Body : Stmt;
-      args_no_dup : is_no_dup ArgVars = true;
-      ret_not_in_args : negb (is_in RetVar ArgVars) = true;
-      no_assign_to_args : is_disjoint (assigned Body) ArgVars = true;
-      args_name_ok : forallb is_good_varname ArgVars = true;
-      ret_name_ok : is_good_varname RetVar = true;
-      syntax_ok : is_syntax_ok Body = true
-    }.
 
   Inductive FuncSpec :=
     | Axiomatic : AxiomaticSpec -> FuncSpec

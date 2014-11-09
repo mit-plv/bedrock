@@ -126,12 +126,31 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     unfold Equal, Subset; firstorder.
   Qed.
 
+  Lemma iff_not_iff P Q : (P <-> Q) -> (~ P <-> ~ Q).
+  Proof.
+    split; intros; intuition.
+  Qed.
+
+  Lemma singleton_not_iff x x' : ~ In x' (singleton x) <-> x' <> x.
+  Proof.
+    eapply iff_not_iff.
+    split; intros H.
+    - eapply singleton_iff in H; eauto.
+    - eapply singleton_iff; eauto.
+  Qed.
+
   Require ListFacts1.
 
   Lemma set_disjoint_list_disjoint ls1 ls2 : Disjoint (of_list ls1) (of_list ls2) -> ListFacts1.Disjoint ls1 ls2.
     unfold ListFacts1.Disjoint, Disjoint.
     intros Hdisj e [Hin1 Hin2].
-    eapply Hdisj; split; eapply of_list_1; eapply SetoidListFacts.In_InA; eauto.
+    eapply Hdisj; split; eapply of_list_spec; eauto.
+  Qed.
+
+  Lemma list_disjoint_set_disjoint ls1 ls2 : ListFacts1.Disjoint ls1 ls2 -> Disjoint (of_list ls1) (of_list ls2).
+    unfold ListFacts1.Disjoint, Disjoint.
+    intros Hdisj e [Hin1 Hin2].
+    eapply Hdisj; split; eapply of_list_spec; eauto.
   Qed.
 
 End UWFacts_fun.

@@ -46,10 +46,14 @@ Section ADTValue.
   Open Scope string_scope.
   Require Import List.
   Import ListNotations.
-  Goal assigned (Seq (Assign "x" (Var "a")) (Assign "y" (Var "b"))) = ["x"; "y"]. Proof. exact eq_refl. Qed.
 
-  Import StringSetFacts.
+  Require Import StringSet.
   Import StringSet.
+  Require Import StringSetFacts.
+
+  Import Logic.
+
+  Goal equal (assigned (Seq (Assign "x" (Var "a")) (Assign "y" (Var "b")))) (of_list ["x"; "y"]) = true. Proof. exact eq_refl. Qed.
 
   Require Import String.
   Require Import List.
@@ -71,9 +75,12 @@ Section ADTValue.
     intros; destruct spec; simpl; eapply negb_is_in_iff; eauto.
   Qed.
 
-  Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ List.In x (assigned (Body spec)).
+  Lemma in_args_not_assigned spec x : List.In x (ArgVars spec) -> ~ StringSet.In x (assigned (Body spec)).
   Proof.
-    destruct spec; simpl in *; nintro; eapply is_disjoint_sound; eauto.
+    destruct spec; simpl in *; nintro.
+    eapply is_disjoint_iff; eauto.
+    split; eauto.
+    eapply StringSetFacts.of_list_spec; eauto.
   Qed.
 
   Lemma safe_seq_1 : forall (env : Env) a b st, Safe env (Seq a b) st -> Safe env a st.

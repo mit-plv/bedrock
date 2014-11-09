@@ -89,24 +89,23 @@ Section ADTSection.
 
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
 
-  Import ListNotations.
+  Require Import StringSet StringSetFacts.
+  Import StringSet FSetNotations.
+  Open Scope fset_scope.
 
   (* List of variables that are assigned to, i.e. appear as LHS *)
   Fixpoint assigned s :=
     match s with
-      | Skip => []
-      | Seq a b => assigned a ++ assigned b
-      | If _ t f => assigned t ++ assigned f
+      | Skip => empty
+      | Seq a b => assigned a + assigned b
+      | If _ t f => assigned t + assigned f
       | While _ c => assigned c
-      | Assign x e => [x]
-      | Label x l => [x]
-      | Call x f es => [x]
+      | Assign x e => singleton x
+      | Label x l => singleton x
+      | Call x f es => singleton x
     end.
   
-  Require Import StringSet.
-  Require StringSetFacts.
-  
-  Definition is_disjoint ls1 ls2 := StringSet.is_empty (StringSet.inter (StringSetFacts.of_list ls1) (StringSetFacts.of_list ls2)).
+  Definition is_disjoint a b := StringSet.is_empty (StringSet.inter a b).
 
   (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
      The return variable must not be an argument, to prevent aliasing. 
@@ -118,7 +117,7 @@ Section ADTSection.
       Body : Stmt;
       args_no_dup : is_no_dup ArgVars = true;
       ret_not_in_args : negb (is_in RetVar ArgVars) = true;
-      no_assign_to_args : is_disjoint (assigned Body) ArgVars = true
+      no_assign_to_args : is_disjoint (assigned Body) (of_list ArgVars) = true
     }.
 
   Inductive FuncSpec :=
@@ -150,6 +149,9 @@ Section ADTSection.
 
   Definition is_mapsto_adt x st := is_some_p (@is_adt ADTValue) (StringMap.find x st).
   Definition not_mapsto_adt x st := negb (is_mapsto_adt x st).
+
+  Import StringMap.
+  Open Scope fmap_scope.
 
   Section EnvSection.
 
