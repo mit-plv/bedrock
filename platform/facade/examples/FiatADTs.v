@@ -2,10 +2,18 @@ Require Import Facade.
 Require Import Memory.
 Require Import Ensembles.
 
-Inductive FacadeADT :=
-  | List : list W -> FacadeADT
-  | Junk : False -> FacadeADT
-  | FEnsemble : Ensemble W -> FacadeADT.
+Inductive ADTValue :=
+  | List : list W -> ADTValue
+  | Junk : False -> ADTValue
+  | FEnsemble : Ensemble W -> ADTValue.
+
+Require Import Cito.ADT.
+
+Module Adt <: ADT.
+
+  Definition ADTValue := ADTValue.
+
+End Adt.
 
 Require Import List Program.
 
@@ -21,21 +29,21 @@ Ltac crush_types :=
 
 Section ListADTSpec.
 
-  Definition List_new : AxiomaticSpec FacadeADT.
+  Definition List_new : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => args = [];
         PostCond := fun args ret => args = [] /\ ret = ADT (List [])
       |}; crush_types.
   Defined.
 
-  Definition List_delete : AxiomaticSpec FacadeADT.
+  Definition List_delete : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => exists l, args = [ADT (List l)];
         PostCond := fun args ret => exists l, args = [(ADT (List l), None)] /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition List_pop : AxiomaticSpec FacadeADT.
+  Definition List_pop : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists h t,
@@ -43,11 +51,11 @@ Section ListADTSpec.
         PostCond := fun args ret =>
                       exists h t,
                         args = [ (ADT (List (h :: t)), Some (List t)) ] /\
-                        ret = SCA FacadeADT h
+                        ret = SCA ADTValue h
       |}; crush_types.
   Defined.
 
-  Definition List_empty : AxiomaticSpec FacadeADT.
+  Definition List_empty : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -59,7 +67,7 @@ Section ListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition List_push : AxiomaticSpec FacadeADT.
+  Definition List_push : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l w,
@@ -71,7 +79,7 @@ Section ListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition List_copy : AxiomaticSpec FacadeADT.
+  Definition List_copy : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -87,8 +95,8 @@ End ListADTSpec.
 
 Section FiniteSetADTSpec.
 
-(* Def Constructor sEmpty (_ : unit) : rep := ret (Empty_set _), *)
-  Definition FEnsemble_sEmpty : AxiomaticSpec FacadeADT.
+  (* Def Constructor sEmpty (_ : unit) : rep := ret (Empty_set _), *)
+  Definition FEnsemble_sEmpty : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      args = [];
@@ -100,7 +108,7 @@ Section FiniteSetADTSpec.
 
   (* Def Method sAdd (s : rep , w : W) : unit :=
       ret (Add _ s w, tt) *)
-  Definition FEnsemble_sAdd : AxiomaticSpec FacadeADT.
+  Definition FEnsemble_sAdd : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists s w, args = [ADT (FEnsemble s); SCA _ w];
@@ -113,7 +121,7 @@ Section FiniteSetADTSpec.
 
   (* Def Method sRemove (s : rep , w : W) : unit :=
       ret (Subtract _ s w, tt) *)
-  Definition FEnsemble_sRemove : AxiomaticSpec FacadeADT.
+  Definition FEnsemble_sRemove : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists s w, args = [ADT (FEnsemble s); SCA _ w];
@@ -127,7 +135,7 @@ Section FiniteSetADTSpec.
   (* Def Method sIn (s : rep , w : W) : bool :=
         (b <- { b : bool | b = true <-> Ensembles.In _ s w };
          ret (s, b)) *)
-  Definition FEnsemble_sIn : AxiomaticSpec FacadeADT.
+  Definition FEnsemble_sIn : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists s w, args = [ADT (FEnsemble s); SCA _ w];
@@ -153,7 +161,7 @@ Section FiniteSetADTSpec.
   (* Def Method sSize (s : rep , _ : unit) : nat :=
           (n <- { n : nat | cardinal _ s n };
            ret (s, n)) *)
-  Definition FEnsemble_sSize : AxiomaticSpec FacadeADT.
+  Definition FEnsemble_sSize : AxiomaticSpec ADTValue.
         refine {|
         PreCond := fun args =>
                      exists s, args = [ADT (FEnsemble s)];
