@@ -27,7 +27,7 @@ CITO := $(shell find cito $(VNAME))
 FACADE := \
 	facade/Facade \
 	facade/DFacade \
-	facade/FacadeADTs \
+	facade/examples/FiatImpl \
 
 FACADE_ALL := $(shell find facade $(VNAME))
 
