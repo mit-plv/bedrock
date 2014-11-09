@@ -33,20 +33,6 @@ Section ADTValue.
 
   Definition compile_spec s := (CompileRunsTo.compile_spec (@compile_spec ADTValue s)).
 
-  Definition cenv_impls_env (cenv : CEnv) (env : Env) :=
-    forall lbl spec,
-      GLabelMap.find lbl env = Some spec ->
-      exists w,
-        fst cenv lbl = Some w /\
-        snd cenv w = Some (compile_spec spec).
-
-  Require Import GeneralTactics.
-  Require Import GeneralTactics3.
-  Require Import GeneralTactics4.
-  Require Import GeneralTactics5.
-
-  Require Import StringSet.
-
   Require Import Label2Word Label2WordFacts.
 
   Require Import GLabelMap.
@@ -55,9 +41,42 @@ Section ADTValue.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
-  Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, CompileRunsTo.cenv_impls_env cenv fenv /\ fenv_impls_env fenv env.
+  Definition cenv_impls_env (cenv : CEnv) (env : Env) :=
+    (forall lbl spec,
+      GLabelMap.find lbl env = Some spec ->
+      exists w,
+        fst cenv lbl = Some w /\
+        snd cenv w = Some (compile_spec spec)) /\
+    stn_injective (fun k => In k env) (fst cenv).
+
+  Require Import StringSet.
+
+  Require Import Option.
+
+  Require Import GeneralTactics.
+  Require Import GeneralTactics3.
+  Require Import GeneralTactics4.
+  Require Import GeneralTactics5.
+
+  Lemma option_map_some_elim A B (f : A -> B) o b : option_map f o = Some b -> exists a, o = Some a /\ f a = b.
   Proof.
     intros H.
+    destruct (option_dec o) as [[a Ha]| Hn]; [rewrite Ha in H | rewrite Hn in H; discriminate]; simpl in *.
+    inject H.
+    exists a; eauto.
+  Qed.
+
+  Lemma option_map_some_intro A B (f : A -> B) o a b : o = Some a -> b = f a -> option_map f o = Some b.
+  Proof.
+    intros Ho Hb.
+    destruct (option_dec o) as [[a' Ha]| Hn]; [rewrite Ha in * | rewrite Hn in *; discriminate]; simpl in *.
+    inject Ho.
+    eauto.
+  Qed.
+
+  Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, CompileRunsTo.cenv_impls_env cenv fenv /\ fenv_impls_env fenv env.
+  Proof.
+    intros [H Hinj].
     set (fenv :=
            {|
              Label2Word := fst cenv;
@@ -67,12 +86,35 @@ Section ADTValue.
     unfold CompileRunsTo.cenv_impls_env in *.
     unfold fenv_impls_env in *.
     exists fenv.
+    unfold_all; simpl in *.
     split.
     {
-      admit.
+      split.
+      {
+        eauto.
+      }
+      {
+        intros w fspec Hfw.
+        eapply option_map_some_elim in Hfw.
+        destruct Hfw as [spec [Hfw ?]].
+        subst.
+        eapply find_by_word_elements_elim in Hfw.
+        destruct Hfw as [lbl [Hflbl Hlblw]].
+        eapply H in Hflbl.
+        destruct Hflbl as [w' [Hlblw' Hw'spec]].
+        unif w'.
+        eauto.
+      }
     }
     {
-      admit.
+      intros lbl spec Hflbl.
+      copy_as Hflbl Hflbl'.
+      eapply H in Hflbl.
+      destruct Hflbl as [w [Hlblw Hwspec]].
+      exists w.
+      split; eauto.
+      eapply option_map_some_intro; eauto.
+      eapply find_by_word_elements_intro; eauto.
     }
   Qed.
 
