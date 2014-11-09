@@ -47,25 +47,40 @@ Section ADTValue.
 
   Require Import StringSet.
 
-  Require Import StringMap.
-  Import StringMap.
-  Require Import StringMapFacts.
+  Require Import Label2Word Label2WordFacts.
+
+  Require Import GLabelMap.
+  Import GLabelMap.
+  Require Import GLabelMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
   Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, CompileRunsTo.cenv_impls_env cenv fenv /\ fenv_impls_env fenv env.
   Proof.
     intros H.
-    unfold cenv_impls_env in *.
-    unfold CompileRunsTo.cenv_impls_env in *.
     set (fenv :=
            {|
              Label2Word := fst cenv;
-             Word2Spec w := option_map compile_spec (find_by_word (fst cenv) (elements env) w)
+             Word2Spec w := option_map (@CompileDFacade.compile_spec _) (find_by_word (fst cenv) (elements env) w)
            |} : FEnv).
+    unfold cenv_impls_env in *.
+    unfold CompileRunsTo.cenv_impls_env in *.
+    unfold fenv_impls_env in *.
     exists fenv.
-    unfold_all.
+    split.
+    {
+      admit.
+    }
+    {
+      admit.
+    }
   Qed.
+
+  Require Import StringMap.
+  Import StringMap.
+  Require Import StringMapFacts.
+  Import FMapNotations.
+  Local Open Scope fmap_scope.
 
   Notation equivf := (equiv (StringSet.singleton fun_ptr_varname)).
   Infix "===" := equivf (at level 70).

@@ -57,7 +57,7 @@ COQC    := $(COQBIN)coqc $(COQARGS)
 # Makefile.coqs will overwrite each other
 build:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
-	echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
+	@echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
 	$(MAKE) -f Makefile.coq
 
 # we want to install everything, so we need to remake the makefile

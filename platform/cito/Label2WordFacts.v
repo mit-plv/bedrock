@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Require Import Label2Word.
 
-Require Import IL Memory Word.
+Require Import Memory Word.
 Require Import GLabel ConvertLabel.
 
 Require Import GLabelMap.
@@ -14,11 +14,11 @@ Require Import ListFacts1.
 
 Require Import GeneralTactics.
 
-Lemma find_by_word_elements_elim A stn d p (v : A) : find_by_word stn (elements d) p = Some v -> exists lbl : glabel, find lbl d = Some v /\ Labels stn lbl = Some p.
+Lemma find_by_word_elements_elim A l2w d p (v : A) : find_by_word l2w (elements d) p = Some v -> exists lbl : glabel, find lbl d = Some v /\ l2w lbl = Some p.
 Proof.
   intros e.
   unfold find_by_word in *.
-  destruct (option_dec (List.find (is_label_map_to_word' stn p) (elements d))).
+  destruct (option_dec (List.find (is_label_map_to_word' l2w p) (elements d))).
   destruct s.
   destruct x.
   rewrite e0 in e.
@@ -28,13 +28,12 @@ Proof.
   openhyp.
   unfold is_label_map_to_word', is_label_map_to_word in *.
   simpl in *.
-  destruct (option_dec (labels stn g)).
+  destruct (option_dec (l2w g)).
   {
     destruct s.
     rewrite e0 in H.
     destruct (weq p x).
     subst.
-    unfold labels in *.
     exists g.
     split.
     eapply In_find_Some; eauto.
@@ -46,12 +45,12 @@ Proof.
   rewrite e0 in e; discriminate.
 Qed.
 
-Lemma find_by_word_elements_intro A stn (lbl : glabel) p d (v : A) : Labels stn lbl = Some p -> stn_injective (fun k => In k d) stn -> find lbl d = Some v -> find_by_word stn (elements d) p = Some v.
+Lemma find_by_word_elements_intro A l2w (lbl : glabel) p d (v : A) : l2w lbl = Some p -> stn_injective (fun k => In k d) l2w -> find lbl d = Some v -> find_by_word l2w (elements d) p = Some v.
 Proof.
   intros H0 HH H.
   rename lbl into x.
   unfold find_by_word in *.
-  destruct (option_dec (List.find (is_label_map_to_word' stn p)
+  destruct (option_dec (List.find (is_label_map_to_word' l2w p)
                                   (elements d))) in *.
   {
     destruct s.
@@ -61,8 +60,7 @@ Proof.
     openhyp.
     unfold is_label_map_to_word' in *.
     unfold is_label_map_to_word in *; simpl in *.
-    unfold labels in *.
-    destruct (option_dec (Labels stn g)).
+    destruct (option_dec (l2w g)).
     {
       destruct s.
       rewrite e in H1.
@@ -96,7 +94,6 @@ Proof.
   }
   unfold is_label_map_to_word' in *.
   unfold is_label_map_to_word in *; simpl in *.
-  unfold labels in *.
   rewrite H0.
   destruct (weq p p); intuition.
 Qed.

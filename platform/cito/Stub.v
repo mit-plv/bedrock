@@ -1410,7 +1410,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Lemma augment_stn_injective : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_injective (label_in modules imports) stn.
+      Lemma augment_stn_injective : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_injective (label_in modules imports) (glabel2w stn).
       Proof.
         unfold stn_injective.
         intros.

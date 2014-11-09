@@ -53,9 +53,11 @@ Module Make (Import E : ADT).
           Labels stn lbl = Some p /\
           label_mapsto lbl spec.
 
+    Definition glabel2w (stn : settings) (lbl : glabel) : option W := Labels stn lbl.
+  
     Definition env_good_to_use stn fs :=
       stn_good_to_use stn /\
-      stn_injective label_in stn /\
+      stn_injective label_in (glabel2w stn) /\
       fs_good_to_use fs stn.
 
     Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
@@ -74,9 +76,9 @@ Module Make (Import E : ADT).
 
       Variable stn : settings.
 
-      Definition is_export := find_by_word stn (elements exports_IFS).
+      Definition is_export := find_by_word (glabel2w stn) (elements exports_IFS).
 
-      Definition is_import := find_by_word stn (elements imports).
+      Definition is_import := find_by_word (glabel2w stn) (elements imports).
 
       Definition fs (p : W) : option Callee :=
         match is_export p with

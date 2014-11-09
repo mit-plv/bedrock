@@ -1,26 +1,24 @@
 Set Implicit Arguments.
 
-Require Import IL Memory Word.
+Require Import Memory Word.
 Require Import GLabel ConvertLabel.
 
 Section stn.
 
   Variable Domain : glabel -> Prop.
 
-  Variable stn : settings.
-
+  Variable l2w : glabel -> option W.
+  
   Definition stn_injective :=
     forall lbl1 lbl2 p, 
       Domain lbl1 -> 
       Domain lbl2 -> 
-      Labels stn lbl1 = Some p -> 
-      Labels stn lbl2 = Some p -> 
+      l2w lbl1 = Some p -> 
+      l2w lbl2 = Some p -> 
       lbl1 = lbl2.
 
-  Definition labels (lbl : glabel) : option W := Labels stn lbl.
-  
   Definition is_label_map_to_word lbl p :=
-    match labels lbl with
+    match l2w lbl with
       | Some p' => 
         if weq p p' then
           true
