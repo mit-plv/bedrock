@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration.
-Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration.
+Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration Label2Word.
+Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration Label2Word.
 Import GLabelMap.
 
 Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
@@ -46,14 +46,6 @@ Module Make (Import E : ADT).
         label_in lbl ->
         Labels stn lbl <> None.
 
-    Definition stn_injective (stn : settings) :=
-      forall lbl1 lbl2 p, 
-        label_in lbl1 -> 
-        label_in lbl2 -> 
-        Labels stn lbl1 = Some p -> 
-        Labels stn lbl2 = Some p -> 
-        lbl1 = lbl2.
-
     Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
       forall p spec, 
         fs stn p = Some spec <-> 
@@ -63,7 +55,7 @@ Module Make (Import E : ADT).
 
     Definition env_good_to_use stn fs :=
       stn_good_to_use stn /\
-      stn_injective stn /\
+      stn_injective label_in stn /\
       fs_good_to_use fs stn.
 
     Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
@@ -82,29 +74,9 @@ Module Make (Import E : ADT).
 
       Variable stn : settings.
 
-      Definition labels (lbl : glabel) : option W := Labels stn lbl.
+      Definition is_export := find_by_word stn (elements exports_IFS).
 
-      Definition is_label_map_to_word lbl p :=
-        match labels lbl with
-          | Some p' => 
-            if weq p p' then
-              true
-            else
-              false
-          | None => false
-        end.
-
-      Definition is_label_map_to_word' A p (x : glabel * A) := is_label_map_to_word (fst x) p.
-
-      Definition find_by_word A m (p : W) : option A :=
-        match List.find (is_label_map_to_word' p) m with
-          | Some (_, a) => Some a
-          | None => None
-        end.
-
-      Definition is_export := find_by_word (elements exports_IFS).
-
-      Definition is_import := find_by_word (elements imports).
+      Definition is_import := find_by_word stn (elements imports).
 
       Definition fs (p : W) : option Callee :=
         match is_export p with

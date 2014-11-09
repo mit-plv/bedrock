@@ -41,6 +41,8 @@ Section ADTValue.
         snd cenv w = Some (compile_spec spec).
 
   Require Import GeneralTactics.
+  Require Import GeneralTactics3.
+  Require Import GeneralTactics4.
   Require Import GeneralTactics5.
 
   Require Import StringSet.
@@ -51,11 +53,21 @@ Section ADTValue.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
-  Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, cenv = CompileRunsTo.compile_env fenv /\ fenv_impls_env fenv env.
-    admit.
+  Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, CompileRunsTo.cenv_impls_env cenv fenv /\ fenv_impls_env fenv env.
+  Proof.
+    intros H.
+    unfold cenv_impls_env in *.
+    unfold CompileRunsTo.cenv_impls_env in *.
+    set (fenv :=
+           {|
+             Label2Word := fst cenv;
+             Word2Spec w := option_map compile_spec (find_by_word (fst cenv) (elements env) w)
+           |} : FEnv).
+    exists fenv.
+    unfold_all.
   Qed.
 
-  Notation equivf := (equiv fun_ptr_varname).
+  Notation equivf := (equiv (StringSet.singleton fun_ptr_varname)).
   Infix "===" := equivf (at level 70).
 
   Lemma equiv_related (st st' : State) cst : related st cst -> st' === st -> find fun_ptr_varname st' = None -> related st' cst.
@@ -115,3 +127,5 @@ Section ADTValue.
         eapply find_none_not_mapsto_adt; eauto.
     - admit (* safe *).
   Qed.
+
+End ADTValue.

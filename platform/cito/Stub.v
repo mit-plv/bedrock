@@ -11,7 +11,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import GoodModule.
   Require Import GoodFunction.
   Require Import ConvertLabel.
-  Require Import NameDecoration.
+  Require Import Cito.NameDecoration.
   Require Import Wrap.
   Require Import GeneralTactics.
 
@@ -390,6 +390,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation is_import := (LinkSpecMake.is_import imports).
 
       Require Import Option.
+      Require Import Label2WordFacts.
 
       Lemma fs_internal : 
         forall stn p spec, 
@@ -401,36 +402,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         unfold LinkSpecMake.fs in *.
         destruct (option_dec (is_export stn p)).
-        destruct s.
-        rewrite e in H.
-        injection H; intros.
-        subst.
-        unfold LinkSpecMake.is_export in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p) (elements exports))).
-        destruct s.
-        destruct x.
-        rewrite e0 in e.
-        injection e; intros.
-        subst.
-        eapply find_spec in e0.
-        openhyp.
-        unfold is_label_map_to_word', is_label_map_to_word in *.
-        simpl in *.
-        destruct (option_dec (labels stn g)).
-        destruct s.
-        rewrite e0 in H0.
-        destruct (weq p x).
-        subst.
-        unfold labels in *.
-        exists g.
-        split.
-        eapply In_find_Some; eauto.
-        eapply InA_eqke_In; intuition.
-        intuition.
-        intuition.
-        rewrite e0 in H0; intuition.
-        rewrite e0 in e; intuition.
+        {
+          destruct s.
+          rewrite e in H.
+          injection H; intros.
+          subst.
+          unfold LinkSpecMake.is_export in *.
+          eapply find_by_word_elements_elim; eauto.
+        }
         rewrite e in H.
         destruct (is_import stn p); intuition.
         discriminate.
@@ -639,43 +618,22 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros.
         unfold LinkSpecMake.fs in *.
         destruct (option_dec (is_export stn p)).
-        destruct s.
-        rewrite e in H.
-        intuition.
-        discriminate.
+        {
+          destruct s.
+          rewrite e in H.
+          intuition.
+          discriminate.
+        }
         rewrite e in H.
         destruct (option_dec (is_import stn p)).
-        destruct s.
-        rewrite e0 in H.
-        injection H; intros; subst.
-        unfold LinkSpecMake.is_import in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p) (elements imports))).
-        destruct s.
-        destruct x.
-        rewrite e1 in e0.
-        injection e0; intros; subst.
-        eapply find_spec in e1.
-        openhyp.
-        unfold is_label_map_to_word', is_label_map_to_word in *.
-        simpl in *.
-        destruct (option_dec (labels stn g)).
-        destruct s.
-        rewrite e1 in H0.
-        destruct (weq p x).
-        subst.
-        unfold labels in *.
-        exists g.
-        split.
-        eapply In_find_Some; eauto.
-        eapply InA_eqke_In.
-        eauto.
-        intuition.
-        intuition.
-        rewrite e1 in H0; intuition.
-        rewrite e1 in e0; intuition.
-        rewrite e0 in H.
-        intuition.
+        {
+          destruct s.
+          rewrite e0 in H.
+          injection H; intros; subst.
+          unfold LinkSpecMake.is_import in *.
+          eapply find_by_word_elements_elim; eauto.
+        }
+        rewrite e0 in H; discriminate.
       Qed.
 
       Lemma imports_accessible_labels : forall l, find l imports <> None -> List.In l accessible_labels.
@@ -1266,72 +1224,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro.
         intro HH.
         split; intros.
-        unfold LinkSpecMake.is_export in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p)
-                                        (elements exports))) in *.
-        destruct s.
-        rewrite e in H.
-        destruct x; simpl in *.
-        eapply find_spec in e.
-        openhyp.
-        injection H; intros; subst.
-        unfold is_label_map_to_word' in *; simpl in *.
-        unfold is_label_map_to_word in *.
-        unfold labels in *.
-        destruct (option_dec (Labels stn g)).
-        destruct s.
-        rewrite e in H0.
-        destruct (weq p x).
-        subst.
-        eapply InA_eqke_In in H1.
-        eapply elements_mapsto_iff in H1.
-        descend; eauto.
-        intuition.
-        rewrite e in H0; intuition.
-        rewrite e in H; intuition.
-
+        {
+          unfold LinkSpecMake.is_export in *.
+          eapply find_by_word_elements_elim in H; eauto.
+          openhyp.
+          eexists; split.
+          - eapply find_mapsto_iff; eauto.
+          - eauto.
+        }
         openhyp.
         unfold LinkSpecMake.is_export in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p)
-                                        (elements exports))) in *.
-        destruct s.
-        rewrite e.
-        destruct x0; simpl in *.
-        eapply find_spec in e.
-        openhyp.
-        unfold is_label_map_to_word' in *.
-        unfold is_label_map_to_word in *; simpl in *.
-        unfold labels in *.
-        destruct (option_dec (Labels stn g)).
-        destruct s.
-        rewrite e in H1.
-        destruct (weq p x0).
-        subst.
-        eapply InA_eqke_In in H2.
-        eapply elements_mapsto_iff in H2.
-        assert (g = x).
-        eapply augment_injective_exports; eauto.
-        eapply MapsTo_In; eauto.
-        eapply MapsTo_In; eauto.
-        subst.
-        eapply find_1 in H.
-        eapply find_1 in H2.
-        congruence.
-        intuition.
-        rewrite e in H1; intuition.
-        eapply find_spec_None in e.
-        contradict e.
-        descend.
-        eapply InA_eqke_In.
-        eapply elements_1.
-        eauto.
-        unfold is_label_map_to_word' in *.
-        unfold is_label_map_to_word in *; simpl in *.
-        unfold labels in *.
-        rewrite H0.
-        destruct (weq p p); intuition.
+        eapply find_by_word_elements_intro; eauto.
+        - intros lbl1 lbl2 p' Hin1 Hin2 Hp1 Hp2.
+          eapply augment_injective_exports; eauto.
+        - eapply find_mapsto_iff; eauto.
       Qed.
       
       Lemma is_import_iff : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> forall p v, is_import stn p = Some v <-> exists (lbl : glabel), MapsTo lbl v imports /\ Labels stn lbl = Some p.
@@ -1339,72 +1245,21 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro.
         intro HH.
         split; intros.
-        unfold LinkSpecMake.is_import in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p)
-                                        (elements imports))) in *.
-        destruct s.
-        rewrite e in H.
-        destruct x; simpl in *.
-        eapply find_spec in e.
-        openhyp.
-        injection H; intros; subst.
-        unfold is_label_map_to_word' in *; simpl in *.
-        unfold is_label_map_to_word in *.
-        unfold labels in *.
-        destruct (option_dec (Labels stn g)).
-        destruct s.
-        rewrite e in H0.
-        destruct (weq p x).
-        subst.
-        eapply InA_eqke_In in H1.
-        eapply elements_mapsto_iff in H1.
-        descend; eauto.
-        intuition.
-        rewrite e in H0; intuition.
-        rewrite e in H; intuition.
+        {
+          unfold LinkSpecMake.is_import in *.
+          eapply find_by_word_elements_elim in H; eauto.
+          openhyp.
+          eexists; split.
+          - eapply find_mapsto_iff; eauto.
+          - eauto.
+        }
 
         openhyp.
         unfold LinkSpecMake.is_import in *.
-        unfold find_by_word in *.
-        destruct (option_dec (List.find (is_label_map_to_word' stn p)
-                                        (elements imports))) in *.
-        destruct s.
-        rewrite e.
-        destruct x0; simpl in *.
-        eapply find_spec in e.
-        openhyp.
-        unfold is_label_map_to_word' in *.
-        unfold is_label_map_to_word in *; simpl in *.
-        unfold labels in *.
-        destruct (option_dec (Labels stn g)).
-        destruct s.
-        rewrite e in H1.
-        destruct (weq p x0).
-        subst.
-        eapply InA_eqke_In in H2.
-        eapply elements_mapsto_iff in H2.
-        assert (g = x).
-        eapply augment_injective_imports; eauto.
-        eapply MapsTo_In; eauto.
-        eapply MapsTo_In; eauto.
-        subst.
-        eapply find_1 in H.
-        eapply find_1 in H2.
-        congruence.
-        intuition.
-        rewrite e in H1; intuition.
-        eapply find_spec_None in e.
-        contradict e.
-        descend.
-        eapply InA_eqke_In.
-        eapply elements_1.
-        eauto.
-        unfold is_label_map_to_word' in *.
-        unfold is_label_map_to_word in *; simpl in *.
-        unfold labels in *.
-        rewrite H0.
-        destruct (weq p p); intuition.
+        eapply find_by_word_elements_intro; eauto.
+        - intros lbl1 lbl2 p' Hin1 Hin2 Hp1 Hp2.
+          eapply augment_injective_imports; eauto.
+        - eapply find_mapsto_iff; eauto.
       Qed.
 
       Notation fs_good_to_use := (LinkSpecMake.fs_good_to_use modules imports fs).
@@ -1555,7 +1410,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Lemma augment_stn_injective : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_injective modules imports stn.
+      Lemma augment_stn_injective : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_injective (label_in modules imports) stn.
       Proof.
         unfold stn_injective.
         intros.
