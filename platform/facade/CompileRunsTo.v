@@ -66,10 +66,14 @@ Section ADTValue.
       | Operational s => CitoInternal (compile_op s)
     end.
 
-  Definition compile_env (env : Env) : CitoEnv :=
-    (Label2Word env, 
-     fun w => option_map compile_spec (Word2Spec env w)).
-    
+  Definition cenv_impls_env (cenv : CitoEnv) (env : Env) :=
+    (forall lbl w,
+       Label2Word env lbl = Some w ->
+       fst cenv lbl = Some w) /\
+    (forall w spec,
+       Word2Spec env w = Some spec ->
+       snd cenv w = Some (compile_spec spec)).
+
   Require Import GeneralTactics.
   Require Import GeneralTactics3.
   Require Import GeneralTactics4.
@@ -239,7 +243,7 @@ Section ADTValue.
           forall s_st, 
             related s_st (fst t_st, h1) -> 
             forall s_env, 
-              t_env = compile_env s_env -> 
+              cenv_impls_env t_env s_env -> 
               Safe s_env s s_st -> 
               exists s_st', 
                 RunsTo s_env s s_st s_st' /\ 
@@ -262,30 +266,40 @@ Section ADTValue.
       unfold_all.
       inject H2.
       destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))); simpl in *.
-      2 : rewrite e0 in *; simpl in *; discriminate.
+      Focus 2.
+      {
+        inversion H6; subst.
+        replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+        rewrite e0 in *; simpl in *; discriminate.
+        replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+        rewrite e0 in *; simpl in *; discriminate.
+      }
+      Unfocus.
       destruct s0.
-      rewrite e0 in *; simpl in *.
+      copy_as e0 e0'.
+      eapply H5 in e0'.
+      rename H5 into Henv.
+      rewrite e0' in *; simpl in *.
       inject H.
       destruct x; simpl in *.
       destruct a; simpl in *; simpl in *; discriminate.
       unfold compile_op in *; simpl in *.
       inject H2; simpl in *.
       inversion H6; subst.
-      replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
-      rewrite e0 in *.
-      discriminate.
-      
+      {
+        replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+        rewrite e0 in *.
+        discriminate.
+      }      
       unfold_all.
       replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
       rewrite e0 in *.
       inject H9.
 
       edestruct IHRunsTo; [ .. | clear IHRunsTo].
-      eauto.
-      2 : eauto.
-      3 : eauto.
-      3 : eauto.
-      3 : eauto.
+      solve [eauto].
+      3 : solve [eauto].
+      3 : solve [eauto].
       Focus 3.
       openhyp.
       copy H; eapply H15 in H.
@@ -1108,9 +1122,20 @@ Section ADTValue.
       injection H6; intros; subst; clear H6.
       simpl in *.
       destruct (option_dec (Word2Spec s_env (SemanticsExpr.eval (fst v) e))).
-      2 : rewrite e0 in *; simpl in *; discriminate.
+      Focus 2.
+      {
+        inversion H10; subst.
+        replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+        rewrite e0 in *; simpl in *; discriminate.
+        replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
+        rewrite e0 in *; simpl in *; discriminate.
+      }
+      Unfocus.
       destruct s0.
-      rewrite e0 in *; simpl in *.
+      rename H9 into Henv.
+      copy_as e0 e0'.
+      eapply Henv in e0'.
+      rewrite e0' in *; simpl in *.
       inject H.
       destruct x; simpl in *.
       2 : discriminate.
@@ -2266,6 +2291,8 @@ Section ADTValue.
       rename H2 into Hr.
       rename H into Hlbl.
       inversion Hsf as [ | | | | | | | ? ? ? w' Hlbl' Hnmt | | ]; unfold_all; subst.
+      copy_as Hlbl' Hlbl''.
+      eapply H3 in Hlbl''.
       unif w'.
       eexists.
       split.
