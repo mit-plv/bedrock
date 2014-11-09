@@ -106,6 +106,16 @@ Section FiniteSetADTSpec.
       |}; crush_types.
   Defined.
 
+  Definition FEnsemble_sDelete : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists s, args = [ADT (FEnsemble s)];
+        PostCond := fun args ret =>
+                      exists s, args = [(ADT (FEnsemble s), None)]
+                      /\ ret = SCAZero
+      |}; crush_types.
+  Defined.
+
   (* Def Method sAdd (s : rep , w : W) : unit :=
       ret (Add _ s w, tt) *)
   Definition FEnsemble_sAdd : AxiomaticSpec ADTValue.
@@ -132,6 +142,8 @@ Section FiniteSetADTSpec.
       |}; crush_types.
   Defined.
 
+  Require Bedrock.
+
   (* Def Method sIn (s : rep , w : W) : bool :=
         (b <- { b : bool | b = true <-> Ensembles.In _ s w };
          ret (s, b)) *)
@@ -142,8 +154,8 @@ Section FiniteSetADTSpec.
         PostCond := fun args ret =>
                       exists s w, args = [(ADT (FEnsemble s), Some (FEnsemble s));
                                          (SCA _ w, None)]
-                                  /\ (ret = SCAZero <-> Ensembles.In _ s w)
-                                  /\ (ret = SCAOne <-> ~ Ensembles.In _ s w)
+                                  /\ exists w', ret = SCA _ w'
+                                                /\ Bedrock.Programming.propToWord (Ensembles.In _ s w) w'
       |}; crush_types.
   Defined.
 
