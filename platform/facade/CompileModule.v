@@ -28,7 +28,7 @@ Section ADTValue.
 
   Variable name : string.
 
-  Require Import NameDecoration.
+  Require Import Cito.NameDecoration.
 
   Hypothesis good_name : is_good_module_name name = true.
 
