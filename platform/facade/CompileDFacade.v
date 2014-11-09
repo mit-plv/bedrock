@@ -10,6 +10,9 @@ Require Import SyntaxExpr.
 Require Import String.
 Local Open Scope string_scope.
 
+Require Import Option.
+Require Import Bool.
+
 Local Notation PRE := tmp_prefix.
 Definition fun_ptr_varname := PRE ++ "fptr".
 
@@ -35,6 +38,46 @@ Definition compile_op (spec : OperationalSpec) : Facade.OperationalSpec.
     (Facade.Build_OperationalSpec (ArgVars spec) (RetVar spec) (compile (Body spec)) (args_no_dup spec) (ret_not_in_args spec) _).
   eapply compile_no_assign_to_args.
 Defined.
+
+Require Import StringSet.
+
+Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
+  admit.
+Qed.
+
+Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
+
+Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_e_binop_elim op a b : is_syntax_ok_e (Binop op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+  admit.
+Qed.
+
+Lemma is_syntax_ok_e_test_elim op a b : is_syntax_ok_e (TestE op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+  admit.
+Qed.
+
+Lemma syntax_ok_fptr_not_fv s : is_syntax_ok s = true -> ~ StringSet.In fun_ptr_varname (free_vars s).
+  admit.
+Qed.
 
 Section ADTValue.
 
@@ -82,11 +125,7 @@ Section ADTValue.
   Require Import ListFacts3.
   Require Import ListFacts4.
 
-  Require Import Option.
-  Require Import Bool.
   Require Import Setoid.
-
-  Require Import StringSet.
 
   Require Import StringMap.
   Import StringMap.
@@ -98,6 +137,14 @@ Section ADTValue.
 
   Arguments SCA {ADTValue} _.
   Arguments ADT {ADTValue} _.
+
+  Lemma find_none_not_mapsto_adt x (st : State) : find x st = None -> not_mapsto_adt x st = true.
+  Proof.
+    intros Hf.
+    unfold not_mapsto_adt, is_mapsto_adt.
+    rewrite Hf.
+    eauto.
+  Qed.
 
   Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
     admit.
@@ -175,23 +222,6 @@ Section ADTValue.
         eauto.
   Qed.
 
-  Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
-  Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
-    admit.
-  Qed.
-  Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
-    admit.
-  Qed.
-  Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
-    admit.
-  Qed.
-  
   Section EqualOn.
 
     Variable Domain : key -> Prop.
@@ -370,13 +400,42 @@ Section ADTValue.
   Arguments map_find_equiv st1 st2 [_] _ _.
 
   Lemma eval_equiv st1 st2 e : st1 === st2 -> is_syntax_ok_e e = true -> eval st1 e = eval st2 e.
-    admit.
+  Proof.
+    induction e; simpl; intros Heqv Hsyn.
+    - eapply is_syntax_ok_e_var_elim in Hsyn.
+      eapply find_equiv; eauto.
+    - eauto.
+    - eapply is_syntax_ok_e_binop_elim in Hsyn.
+      openhyp.
+      rewrite IHe1; eauto.
+      rewrite IHe2; eauto.
+    - eapply is_syntax_ok_e_test_elim in Hsyn.
+      openhyp.
+      rewrite IHe1; eauto.
+      rewrite IHe2; eauto.
   Qed.
+  Arguments eval_equiv st1 st2 [_] _ _.
+
+  Lemma eval_bool_equiv st1 st2 e : st1 === st2 -> is_syntax_ok_e e = true -> eval_bool st1 e = eval_bool st2 e.
+  Proof.
+    intros Heq Hsyn.
+    unfold eval_bool in *.
+    rewrite (eval_equiv st1 st2) by eauto; eauto.
+  Qed.
+  Arguments eval_bool_equiv st1 st2 [_] _ _.
+
   Lemma is_false_equiv st1 st2 e : is_false st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_false st2 e.
-    admit.
+  Proof.
+    intros H Heq Hsyn.
+    unfold is_false in *.
+    rewrite (eval_bool_equiv st1 st2) in H by eauto; eauto.
   Qed.
+
   Lemma is_true_equiv st1 st2 e : is_true st1 e -> st1 === st2 -> is_syntax_ok_e e = true -> is_true st2 e.
-    admit.
+  Proof.
+    intros H Heq Hsyn.
+    unfold is_true in *.
+    rewrite (eval_bool_equiv st1 st2) in H by eauto; eauto.
   Qed.
 
   Lemma no_adt_leak_equiv st1 st2 input avars rvar : no_adt_leak input avars rvar st2 -> st1 === st2 -> no_adt_leak input avars rvar st1.
@@ -573,12 +632,24 @@ Section ADTValue.
     - eapply mapM_length; eauto.
   Qed.
 
+  Lemma fun_ptr_varname_not_good_varname : ~ is_good_varname fun_ptr_varname = true.
+  Proof.
+    intuition.
+  Qed.
+
   Lemma args_name_ok_make_map avars input : forallb is_good_varname avars = true -> @not_mapsto_adt ADTValue fun_ptr_varname (make_map avars input) = true.
-    admit.
+  Proof.
+    intros Hgn.
+    eapply find_none_not_mapsto_adt.
+    eapply not_find_in_iff.
+    eapply make_map_not_in.
+    intros Hin.
+    eapply forallb_forall in Hgn; eauto.
+    eapply fun_ptr_varname_not_good_varname; eauto.
   Qed.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
-  Theorem compile_runsto t t_env t_st t_st' :
+  Theorem compile_runsto' t t_env t_st t_st' :
     FRunsTo t_env t t_st t_st' -> 
     forall s_env, 
       fenv_impls_env t_env s_env -> 
@@ -900,6 +971,27 @@ Section ADTValue.
         eapply (no_adt_leak_equiv _ callee_st'); eauto.
       }
     }
+  Qed.
+
+  Theorem compile_runsto t t_env t_st t_st' :
+    FRunsTo t_env t t_st t_st' -> 
+    forall s_env, 
+      fenv_impls_env t_env s_env -> 
+      (forall s, 
+         t = compile s -> 
+         is_syntax_ok s = true -> 
+         forall s_st,
+           Safe s_env s s_st -> 
+           s_st === t_st ->
+           exists s_st',
+             RunsTo s_env s s_st s_st' /\
+             s_st' === t_st').
+  Proof.
+    intros; eapply compile_runsto'; eauto.
+  Qed.
+
+  Lemma not_free_vars_no_change env s st st' x : RunsTo env s st st' -> ~ StringSet.In x (free_vars s) -> find x st' = find x st.
+    admit.
   Qed.
 
 End ADTValue.
