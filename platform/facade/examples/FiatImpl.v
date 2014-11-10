@@ -184,7 +184,9 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "ListSeq"!"pop" @ [ListSeqF.popS],
                             "ListSeq"!"empty" @ [ListSeqF.emptyS],
                             "ListSeq"!"push" @ [ListSeqF.pushS],
-                            "ListSeq"!"copy" @ [ListSeqF.copyS] ]]
+                            "ListSeq"!"copy" @ [ListSeqF.copyS],
+                            "ListSeq"!"rev" @ [ListSeqF.revS],
+                            "ListSeq"!"length" @ [ListSeqF.lengthS] ]]
   fmodule "ADT" {{
     ffunction "sEmpty" reserving 8 [FEnsemble_sEmpty] := "ListSet"!"new"
     with ffunction "sDelete" reserving 7 [FEnsemble_sDelete] := "ListSet"!"delete"
@@ -198,6 +200,8 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "empty" reserving 0 [List_empty] := "ListSeq"!"empty"
     with ffunction "push" reserving 8 [List_push] := "ListSeq"!"push"
     with ffunction "copy" reserving 10 [List_copy] := "ListSeq"!"copy"
+    with ffunction "rev" reserving 2 [List_rev] := "ListSeq"!"rev"
+    with ffunction "length" reserving 1 [List_length] := "ListSeq"!"length"
   }}.
 
 Theorem ok0 : moduleOk m0.
@@ -460,8 +464,51 @@ Theorem ok0 : moduleOk m0.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
   do_delegate2 ("self" :: nil).
 
+  (* rev *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  simpl.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* length *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval; intro.
+  step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  do_delegate2 ("self" :: nil).
+
 
   Grab Existential Variables.
+  exact 0.
+  exact 0.
   exact 0.
   exact 0.
   exact 0.

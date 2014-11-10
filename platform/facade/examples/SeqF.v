@@ -32,4 +32,14 @@ Section adt.
     Al ls,
     PRE[V] P ls (V "self") * mallocHeap 0
     POST[R] P ls (V "self") * P ls R * mallocHeap 0.
+
+  Definition revS := SPEC("extra_stack", "self") reserving res
+    Al ls,
+    PRE[V] P ls (V "self") * mallocHeap 0
+    POST[R] [| R = $0 |] * P (rev ls) (V "self") * mallocHeap 0.
+
+  Definition lengthS := SPEC("extra_stack", "self") reserving res
+    Al ls,
+    PRE[V] P ls (V "self") * mallocHeap 0
+    POST[R] [| R = $(length ls) |] * P ls (V "self") * mallocHeap 0.
 End adt.
