@@ -127,12 +127,182 @@ Section ADTValue.
   Notation equivf := (equiv (StringSet.singleton fun_ptr_varname)).
   Infix "===" := equivf (at level 70).
 
+  Require Import String.
+
+  Require Import Facade.NameDecoration.
+
+  Lemma find_equiv_fpv (st1 st2 : State) x : st1 === st2 -> x <> fun_ptr_varname -> find x st1 = find x st2.
+  Proof.
+    intros Heq Hgn.
+    unfold equiv in *.
+    simpl in *.
+    destruct Heq as [Heq [Hnadt1 Hnadt2]].
+    eapply Heq.
+    eapply StringSetFacts.singleton_not_iff; eauto.
+  Qed.
+  Arguments find_equiv_fpv st1 st2 [_] _ _.
+
+  Lemma not_find_fpv_adt st1 st2 (a : ADTValue) : st1 === st2 -> find fun_ptr_varname st2 <> Some (ADT a).
+  Proof.
+    intros Heqv Hf.
+    eapply equiv_nma_fpv in Heqv.
+    eapply not_mapsto_adt_iff in Heqv.
+    contradict Heqv.
+    eexists; eauto.
+  Qed.
+
+  Existing Instance equiv_rel_Symmetric.
+  Existing Instance equiv_rel_Transitive.
+
   Lemma equiv_related (st st' : State) cst : related st cst -> st' === st -> find fun_ptr_varname st' = None -> related st' cst.
-    admit.
+  Proof.
+    intros Hr Heqv Hfpv.
+    unfold related.
+    split.
+    {
+      intros k v Hfk.
+      destruct (string_dec k fun_ptr_varname) as [Heqk | Hnek].
+      {
+        subst.
+        rewrite Hfk in Hfpv; discriminate.
+      }
+      erewrite find_equiv_fpv in Hfk; eauto.
+      eapply Hr in Hfk.
+      eauto.
+    }
+    intros p a Hpa.
+    eapply Hr in Hpa.
+    destruct Hpa as [x [[Hxp Hxa] Huni]].
+    destruct (string_dec x fun_ptr_varname) as [Heqx | Hnex].
+    {
+      subst.
+      contradict Hxa.
+      eapply not_find_fpv_adt; eauto.
+    }
+    exists x.
+    split.
+    {
+      split; eauto.
+      erewrite find_equiv_fpv; eauto.
+    }
+    intros x' [Hx'p Hx'a].
+    destruct (string_dec x' fun_ptr_varname) as [Heqx' | Hnex'].
+    {
+      subst.
+      contradict Hx'a.
+      symmetry in Heqv.
+      eapply not_find_fpv_adt; eauto.
+    }
+    erewrite find_equiv_fpv in Hx'a; eauto.
+  Qed.
+
+  Require Import StringSetFacts.
+  Import StringSet.
+  Lemma union_not_iff a b x : ~ In x (union a b) <-> (~ In x a /\ ~ In x b).
+  Proof.
+    etransitivity.
+    - eapply iff_not_iff.
+      eapply union_iff.
+    - intuition.
+  Qed.
+  Lemma of_list_not_iff x ls : ~ In x (of_list ls) <-> ~ List.In x ls.
+    etransitivity.
+    - eapply iff_not_iff.
+      eapply of_list_spec.
+    - intuition.
+  Qed.
+  Lemma not_in_add_remove_many' ks : forall types outs x (st1 st2 : State), ~ List.In x ks -> find x st1 = find x st2 -> find x (add_remove_many ks types outs st1) = find x st2.
+  Proof.
+    induction ks; destruct types; destruct outs; simpl; try solve [intuition].
+    intros x st1 st2 Hnin Hst.
+    eapply Decidable.not_or in Hnin.
+    destruct Hnin as [Hnin1 Hnin2].
+    rename a into k.
+    rename x into k'.
+    destruct v as [w | a].
+    {
+      eauto.
+    }
+    destruct o as [o|].
+    {
+      eapply IHks; eauto.
+      rewrite add_neq_o by eauto.
+      eauto.
+    }
+    eapply IHks; eauto.
+    rewrite remove_neq_o by eauto.
+    eauto.
+  Qed.
+
+  Lemma not_in_add_remove_many ks : forall types outs x (st : State), ~ List.In x ks -> find x (add_remove_many ks types outs st) = find x st.
+    intros; eapply not_in_add_remove_many'; eauto.
   Qed.
 
   Lemma not_free_vars_no_change env s st st' x : RunsTo env s st st' -> ~ StringSet.In x (free_vars s) -> find x st' = find x st.
-    admit.
+  Proof.
+    induction 1; simpl; intros Hnin.
+    {
+      eauto.
+    }
+    {
+      eapply union_not_iff in Hnin.
+      openhyp; rewrite IHRunsTo2; eauto.
+    }
+    {
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin ?].
+      eapply union_not_iff in Hnin.
+      openhyp; eauto.
+    }      
+    {
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin ?].
+      eapply union_not_iff in Hnin.
+      openhyp; eauto.
+    }      
+    {
+      unfold_all.
+      simpl in *.
+      copy_as Hnin Hnin'.
+      eapply union_not_iff in Hnin.
+      openhyp; rewrite IHRunsTo2; eauto.
+    }
+    {
+      eauto.
+    }
+    {
+      rename H1 into Hst'.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      rewrite Hst'.
+      rewrite add_neq_o by eauto.
+      eauto.
+    }      
+    {
+      unfold_all.
+      simpl in *.
+      rename H5 into Hst''.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      eapply of_list_not_iff in Hnin2.
+      rewrite Hst''.
+      rewrite add_neq_o by eauto.
+      eapply not_in_add_remove_many; eauto.
+    }
+    {
+      unfold_all.
+      simpl in *.
+      rename H6 into Hst''.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      eapply of_list_not_iff in Hnin2.
+      rewrite Hst''.
+      rewrite add_neq_o by eauto.
+      eapply not_in_add_remove_many; eauto.
+    }
   Qed.
 
   Require Import WordMap.
