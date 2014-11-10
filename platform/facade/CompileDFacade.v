@@ -840,6 +840,37 @@ Section ADTValue.
     intros; eapply compile_runsto'; eauto.
   Qed.
 
+  Lemma no_adt_in_not_mapsto_adt x st : no_adt_in (StringSet.singleton x) st -> not_mapsto_adt x st = true.
+  Proof.
+    intros H.
+    unfold no_adt_in in *.
+    eapply H.
+    eapply StringSetFacts.singleton_iff; eauto.
+  Qed.
+
+  Lemma equiv_nma_fpv st1 st2 : st1 === st2 -> not_mapsto_adt fun_ptr_varname st2 = true.
+  Proof.
+    intros Heqv.
+    unfold equiv in *.
+    openhyp.
+    eapply no_adt_in_not_mapsto_adt; eauto.
+  Qed.
+
+  Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true /\ is_no_dup args = true.
+  Proof.
+    intros H.
+    unfold is_syntax_ok in *.
+    unfold is_good_varnames in *.
+    simpl in *.
+    eapply andb_true_iff in H.
+    openhyp.
+    eapply for_all_union_elim in H0.
+    openhyp.
+    eapply for_all_singleton_elim in H0.
+    eapply for_all_of_list_elim in H1.
+    intuition.
+  Qed.
+
   Require Import SafeCoind.
 
   Theorem compile_safe s_env s s_st :
@@ -859,14 +890,108 @@ Section ADTValue.
               Safe s_env s s_st /\
               is_syntax_ok s = true /\
               s_st === t_st /\
-              (t = compile s
-(*
-               \/ 
-               (exists lbl, t = Facade.Label fun_ptr_varname lbl) \/
-               (exists)
-*)
-))
-      ); [ .. | solve [repeat try_eexists; simpl in *; intuition eauto] ]; generalize Henv; clear; simpl; intros Henv; intros until st; rename st into t_st; intros [s [s_st [Hsfs [Hsyn [Heqv Hcomp]]]]]; destruct s; simpl in *; try discriminate; inject Hcomp.
+              (t = compile s \/ 
+               exists x lbl args, 
+                 s = Call x lbl args /\
+                 (t = Facade.Label fun_ptr_varname lbl \/
+                  (t = Facade.Call x (Var fun_ptr_varname) args /\ 
+                   exists f_w, Label2Word t_env lbl = Some f_w /\ find fun_ptr_varname t_st = Some (SCA f_w)))))
+      ); [ .. | solve [repeat try_eexists; simpl in *; intuition eauto] ]; generalize Henv; clear; simpl; intros Henv; intros until st; rename st into t_st; intros [s [s_st [Hsfs [Hsyn [Heqv Ht]]]]]; destruct s; simpl in *; destruct Ht as [Ht | [x' [lbl' [arg' [Hs [Ht | [Ht [f_w' [Hlblfw' Hfpvfw']]]]]]]]]; try discriminate; inject Ht.
+
+    Focus 7.
+    {
+      (* call *)
+      symmetry in Hs; inject Hs.
+      rename s into x.
+      rename g into lbl.
+      rename l into args.
+      eapply is_syntax_ok_call_elim in Hsyn.
+      destruct Hsyn as [Hsynx [Hsynargs Hsynnd]].
+      split.
+      {
+        eapply is_no_dup_sound; eauto.
+      }
+      inversion Hsfs; unfold_all; subst.
+      {
+        (* axiomatic *)
+        rename H2 into Hflbl.
+        rename H3 into Hmm.
+        rename H5 into Hnadt.
+        rename H6 into Hpre.
+        split.
+        {
+          erewrite <- not_mapsto_adt_equiv; eauto.
+        }
+        eapply Henv in Hflbl.
+        destruct Hflbl as [f_w [Hlblw Hwspec]]; simpl in *.
+        unif f_w'.
+        exists f_w, input.
+        repeat try_split.
+        {
+          eauto.
+        }
+        {
+          rewrite (mapM_find_equiv s_st t_st) in Hmm by eauto.
+          eauto.
+        }
+        left.
+        exists spec.
+        split; eauto.
+      }
+      (* opereational *)
+      {
+        rename H2 into Hflbl.
+        rename H3 into Hlen.
+        rename H4 into Hmm.
+        rename H5 into Hnadt.
+        rename H7 into Hsfsb.
+        rename H8 into Hsb.
+        split.
+        {
+          erewrite <- not_mapsto_adt_equiv; eauto.
+        }
+        eapply Henv in Hflbl.
+        destruct Hflbl as [f_w [Hlblw Hwspec]]; simpl in *.
+        unif f_w'.
+        exists f_w, input.
+        repeat try_split.
+        {
+          eauto.
+        }
+        {
+          rewrite (mapM_find_equiv s_st t_st) in Hmm by eauto.
+          eauto.
+        }
+        right.
+        exists (compile_op spec).
+        destruct spec; simpl in *.
+        repeat try_split; eauto.
+        {
+          exists Body, (make_map ArgVars input).
+          repeat try_split; eauto.
+          eapply equiv_refl.
+          eapply args_name_ok_make_map; eauto.
+        }
+        intros callee_st' Hrttb.
+        eapply compile_runsto in Hrttb; eauto.
+        destruct Hrttb as [callee_st'2 [Hrtsb Heqv']].
+        eapply Hsb in Hrtsb.
+        destruct Hrtsb as [Hrv Hnleak].
+        split.
+        {
+          unfold sel in *.
+          rewrite <- (find_equiv callee_st'2 callee_st') by eauto.
+          eauto.
+        }
+        {
+          eapply (no_adt_leak_equiv); eauto.
+          symmetry; eauto.
+        }
+        eapply equiv_refl.
+        eapply args_name_ok_make_map; eauto.
+      }
+    }
+    Unfocus.
 
     {
       (* seq *)
@@ -879,7 +1004,7 @@ Section ADTValue.
       - intros t_st' Hrtt; simpl in *.
         eapply compile_runsto in Hrtt; eauto.
         openhyp.
-        repeat eexists_split; try reflexivity; eauto.
+        repeat eexists_split; try eapply Hsfb; eauto.
     }
 
     {
@@ -887,15 +1012,87 @@ Section ADTValue.
       rename s into x.
       rename g into f.
       rename l into args.
+      copy_as Hsyn Hsyn'.
       eapply is_syntax_ok_call_elim in Hsyn.
       destruct Hsyn as [Hsynx Hsynargs].
       inversion Hsfs; subst.
       {
         (* axiomatic *)
-        admit.
+        rename H2 into Hflbl.
+        rename H3 into Hmm.
+        rename H5 into Hnadt.
+        rename H6 into Hpre.
+        split.
+        {
+          exists (Call x f args), s_st.
+          repeat try_split; eauto.
+          right.
+          exists x, f, args.
+          repeat try_split; eauto.
+        }
+        intros t_st' Hrtt.
+        eapply Henv in Hflbl.
+        destruct Hflbl as [f_w [Hlblw Hwspec]]; simpl in *.
+        inversion Hrtt; subst.
+        unif w.
+        rename H2 into Hnadt'.
+        rename H5 into Hst'.
+        exists (Call x f args), s_st.
+        repeat try_split; eauto.
+        {
+          copy_as Hst' Hst'2.
+          eapply equiv_intro in Hst'; eauto.
+          etransitivity; eauto; symmetry; eauto.
+        }          
+        right.
+        exists x, f, args.
+        repeat try_split; eauto.
+        right.
+        repeat try_split; eauto.
+        exists f_w.
+        repeat try_split; eauto.
+        rewrite Hst'.
+        rewrite add_eq_o by eauto; eauto.
       }
       {
-        admit.
+        (* operational *)
+        rename H2 into Hflbl.
+        rename H3 into Hlen.
+        rename H4 into Hmm.
+        rename H5 into Hnadt.
+        rename H7 into Hsfsb.
+        rename H8 into Hsb.
+        split.
+        {
+          exists (Call x f args), s_st.
+          repeat try_split; eauto.
+          right.
+          exists x, f, args.
+          repeat try_split; eauto.
+        }
+        intros t_st' Hrtt.
+        eapply Henv in Hflbl.
+        destruct Hflbl as [f_w [Hlblw Hwspec]]; simpl in *.
+        inversion Hrtt; subst.
+        unif w.
+        rename H2 into Hnadt'.
+        rename H5 into Hst'.
+        exists (Call x f args), s_st.
+        repeat try_split; eauto.
+        {
+          copy_as Hst' Hst'2.
+          eapply equiv_intro in Hst'; eauto.
+          etransitivity; eauto; symmetry; eauto.
+        }          
+        right.
+        exists x, f, args.
+        repeat try_split; eauto.
+        right.
+        repeat try_split; eauto.
+        exists f_w.
+        repeat try_split; eauto.
+        rewrite Hst'.
+        rewrite add_eq_o by eauto; eauto.
       }
     }
 
@@ -909,13 +1106,13 @@ Section ADTValue.
         rename H4 into Hsfbr.
         split.
         + eapply is_true_equiv; eauto.
-        + repeat eexists_split; try reflexivity; eauto.
+        + repeat eexists_split; eauto.
       - right.
         rename H3 into Hcond.
         rename H4 into Hsfbr.
         split.
         + eapply is_false_equiv; eauto.
-        + repeat eexists_split; try reflexivity; eauto.
+        + repeat eexists_split; eauto.
     }
 
     {
@@ -930,7 +1127,7 @@ Section ADTValue.
         rename H4 into Hsfk.
         repeat try_split.
         + eapply is_true_equiv; eauto.
-        + repeat eexists_split; try reflexivity; eauto.
+        + repeat eexists_split; eauto.
         + intros t_st' Hrtt; simpl in *.
           eapply compile_runsto in Hrtt; eauto.
           openhyp.
@@ -951,103 +1148,21 @@ Section ADTValue.
         erewrite <- eval_equiv; eauto.
     }
 
-    (* call *)
     {
-      rename s into x.
-      rename e into f_e.
-      rename l into args.
-      inversion Hsf; unfold_all; subst.
-      (* axiomatic *)
-      {
-        right.
-        rename H2 into Hnd.
-        rename H3 into Hfe.
-        rename H4 into Hfw.
-        rename H5 into Hmm.
-        rename H7 into Hna.
-        rename H8 into Hpre.
-        destruct spec; simpl in *.
-        rewrite map_map.
-        simpl.
-        set (words := List.map (fun x0 : string => vs x0) args) in *.
-        eexists.
-        exists (combine words input).
-        repeat eexists_split.
-        {
-          eapply eval_ceval in Hfe; eauto.
-          rewrite Hfe.
-          rewrite Hfw.
-          simpl.
-          eauto.
-        }
-        {
-          rewrite map_fst_combine.
-          eauto.
-          unfold_all.
-          repeat rewrite map_length.
-          eapply mapM_length; eauto.
-        }
-        {
-          eapply mapM_good_inputs; unfold_all; eauto.
-        }
-        {
-          simpl in *.
-          rewrite map_snd_combine.
-          eauto.
-          unfold_all.
-          repeat rewrite map_length.
-          eapply mapM_length; eauto.
-        }
-      }
-      (* opereational *)
-      {
-        left.
-        rename H2 into Hnd.
-        rename H3 into Hfe.
-        rename H4 into Hfw.
-        rename H5 into Hl.
-        rename H6 into Hmm.
-        rename H7 into Hna.
-        rename H9 into Hsfb.
-        rename H10 into Hnl.
-        destruct spec; simpl in *.
-        repeat eexists_split.
-        {
-          eapply eval_ceval in Hfe; eauto.
-          rewrite Hfe.
-          rewrite Hfw.
-          simpl.
-          eauto.
-        }
-        {
-          simpl in *.
-          rewrite map_length.
-          symmetry; eauto.
-        }
-        {
-          simpl in *.
-          intros vs_arg Hm.
-          rewrite map_map in Hm.
-          eapply reachable_submap_related in Hr; eauto.
-          destruct Hr as [Hsm2 Hr].
-          repeat eexists_split.
-          - eauto.
-          - instantiate (1 := reachable_heap vs args input).
-            eapply submap_trans; eauto.
-          - eapply change_var_names; eauto.
-            eapply is_no_dup_sound; eauto.
-            eapply mapM_length; eauto.
-          - eauto.
-        }
-      }
-    }      
-
-    (* label *)
-    {
+      (* label *)
+      symmetry in Hs; inject Hs.
       rename s into x.
       rename g into lbl.
-      inversion Hsf; unfold_all; subst.
-      intuition.
+      rename l into args.
+      split.
+      - eapply equiv_nma_fpv; eauto.
+      - inversion Hsfs; unfold_all; subst.
+        + rename H2 into Hflbl.
+          eapply Henv in Hflbl.
+          openhyp; eexists; eauto.
+        + rename H2 into Hflbl.
+          eapply Henv in Hflbl.
+          openhyp; eexists; eauto.
     }
 
   Qed.
