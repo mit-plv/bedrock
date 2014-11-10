@@ -93,6 +93,30 @@ Section ListADTSpec.
       |}; crush_types.
   Defined.
 
+  Definition List_rev : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (List l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [ (ADT (List l), Some (List (rev l))) ] /\
+                        ret = SCAZero
+      |}; crush_types.
+  Defined.
+
+  Definition List_length : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (List l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [ (ADT (List l), Some (List l)) ] /\
+                        ret = SCA _ (Word.natToWord _ (length l))
+      |}; crush_types.
+  Defined.
+
 End ListADTSpec.
 
 Section FiniteSetADTSpec.

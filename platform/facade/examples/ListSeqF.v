@@ -104,6 +104,8 @@ Definition popS := popS lseq 8.
 Definition emptyS := emptyS lseq 0.
 Definition pushS := pushS lseq 8.
 Definition copyS := copyS lseq 10.
+Definition revS := revS lseq 2.
+Definition lengthS := lengthS lseq 1.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "ListSeq" {{
@@ -207,10 +209,42 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "acc" *<- 0;;
       Return "new"
     end
+
+    with bfunction "length"("extra_stack", "self", "acc") [lengthS]
+      "self" <-* "self";;
+      "acc" <- 0;;
+
+      [Al ls,
+       PRE[V] lseq' ls (V "self")
+       POST[R] [| R = V "acc" ^+ $(length ls) |] * lseq' ls (V "self") ]
+      While ("self" <> 0) {
+        "acc" <- "acc" + 1;;
+        "self" <-* "self"+4
+      };;
+
+      Return "acc"
+    end with bfunction "rev"("extra_stack", "self", "from", "to") [revS]
+      "from" <-* "self";;
+      "to" <- 0;;
+
+      [Al ls, Al ls',
+       PRE[V] V "self" =?> 1 * lseq' ls (V "from") * lseq' ls' (V "to")
+       POST[R] [| R = $0 |] * Ex p, V "self" =*> p * lseq' (rev_append ls ls') p]
+      While ("from" <> 0) {
+        "extra_stack" <-* "from"+4;;
+        "from"+4 *<- "to";;
+        "to" <- "from";;
+        "from" <- "extra_stack"
+      };;
+
+      "self" *<- "to";;
+      Return 0
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
 Theorem ok : moduleOk m.
-  vcgen; abstract (sep hints; eauto).
+  vcgen; abstract (sep hints; eauto; try rewrite natToW_S; try rewrite <- rev_alt;
+                   eauto; step auto_ext).
 Qed.
