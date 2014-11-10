@@ -30,7 +30,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation module_name := "dfmodule".
     Notation fun_name := "dffun".
-    Notation argvars := nil (only parsing).
+    Notation argvar1 := "arg1".
+    Notation argvar2 := "arg2".
+    Notation argvars := (argvar1 :: argvar2 :: nil) (only parsing).
     Notation retvar := "ret".
 
     Variable body : Stmt.
@@ -41,13 +43,28 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable imports : GLabelMap.t (AxiomaticSpec ADTValue).
 
-    Variable PostCond : W -> Prop.
+    Notation Value := (@Value ADTValue).
+
+    (* PreCond arg1 arg2 *)
+    Variable PreCond : Value -> Value -> Prop.
+    (* PostCond arg1 arg2 ret *)
+    Variable PostCond : Value -> Value -> Value -> Prop.
 
     Notation specs := (GLabelMap.map (@Axiomatic _) imports).
 
-    Hypothesis dfacade_safe : DFacade.Safe specs body (StringMap.empty _).
+    Require Import StringMap.
+    Import StringMap.
+    Require Import StringMapFacts.
+    Import FMapNotations.
+    Local Open Scope fmap_scope.
 
-    Hypothesis dfacade_runsto : forall st', DFacade.RunsTo specs body (StringMap.empty _) st' -> exists w, StringMap.Equal st' (StringMap.add "ret" (SCA _ w) (StringMap.empty _)) /\ PostCond w.
+    Require Import Listy.
+    Import Notations Instances.
+    Local Open Scope listy_scope.
+
+    Hypothesis dfacade_safe : forall st arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.Safe specs body st.
+
+    Hypothesis dfacade_runsto : forall st st' arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.RunsTo specs body st st' -> exists ret, st' == make_map {retvar} {ret} /\ PostCond arg1 arg2 ret.
 
     Definition function :=Build_DFFun Core compile_syntax_ok.
     Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
@@ -95,7 +112,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == WordMap.empty elt -> b == a.
       admit.
     Qed.
-
+(*
     Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
     Proof.
       intros.
@@ -182,22 +199,32 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply submap_diff_empty_equal; eauto.
       }
     Qed.
+*)
+
+    Definition get_adt (v : Value ADTValue) :=
+      match v with
+        | SCA _ => None
+        | ADT a => Some a
+      end.
 
     Notation extra_stack := 20.
-    Definition topS := SPEC reserving (4 + extra_stack)%nat
-      PRE[_] mallocHeap 0
-      POST[R] [| PostCond R |] * mallocHeap 0.
+    Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
+      Al a, Al b,                           
+      PRE[V] let pairs := {(V "a", a); (V "b", b)} in is_heap (make_heap pairs) * [| PreCond a b /\ good_scalars pairs |] * mallocHeap 0
+      POST[R] Ex r, layout_option R (get_adt r) * [| PostCond a b r /\ good_scalars {(R, r)} |] * mallocHeap 0.
     Import Made.
 
     Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
       bmodule "top" {{
-        bfunction "top"("R") [topS]
-          "R" <-- Call module_name!fun_name(extra_stack)
-          [PRE[_, R] [| PostCond R |] 
+        bfunction "top"("a", "b", "R") [topS]
+          "R" <-- Call module_name!fun_name(extra_stack, "a", "b")
+          [PRE[_, R] Emp
            POST[R'] [| R' = R |] ];;
           Return "R"
         end
       }}.
+
+    Require Import AutoSep.
 
     Theorem top_ok : moduleOk top.
       clear_all.
@@ -205,21 +232,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       sep_auto.
       sep_auto.
-
       sep_auto.
-      instantiate (1 := x5).
-      admit. (* himp specs (locals ("rp" :: "R" :: nil) x5 23 (Regs b Sp)) (locals ("rp" :: nil) x5 24 (Regs x Sp)) *)
-
       sep_auto.
 
       post.
-      call_cito 20 (@nil string).
+      call_cito 20 (argvar1 :: argvar2 :: nil).
       hiding ltac:(evaluate auto_ext).
       unfold name_marker.
       hiding ltac:(step auto_ext).
       unfold spec_without_funcs_ok.
       post.
       descend.
+      (*here*)
       eapply CompileExprs.change_hyp.
       Focus 2.
       apply (@is_state_in''' (upd x3 "extra_stack" 20)).
