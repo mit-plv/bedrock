@@ -130,6 +130,8 @@ Section ADTValue.
 
   Require Import Compile.
 
+  Require Import GeneralTactics5.
+
   Theorem compile_safe :
     forall s_env s s_st,
       Safe s_env s s_st ->
@@ -137,12 +139,14 @@ Section ADTValue.
       forall vs h h1, 
         h1 <= h -> 
         related s_st (vs, h1) -> 
-        let t_env := compile_env s_env in
-        let t := compile s in
-        let t_st := (vs, h) in
-        CitoSafe t_env t t_st.
+        forall t_env,
+          cenv_impls_env t_env s_env ->
+          let t := compile s in
+          let t_st := (vs, h) in
+          CitoSafe t_env t t_st.
   Proof.
     simpl; intros.
+    rename H2 into Henv.
     eapply 
       (Semantics.Safe_coind 
          (fun t v =>
@@ -153,7 +157,7 @@ Section ADTValue.
               h1 <= h /\
               related s_st (vs, h1) /\
               t = compile s)
-      ); [ .. | repeat try_eexists; simpl in *; intuition eauto ]; clear; simpl; intros until v; destruct v as [vs h]; intros [s [s_st [h1 [Hsf [Hsm [Hr Hcomp]]]]]]; destruct s; simpl in *; try discriminate; inject Hcomp.
+      ); [ .. | repeat try_eexists; simpl in *; intuition eauto ]; generalize Henv; clear; intros Henv; simpl; intros until v; destruct v as [vs h]; intros [s [s_st [h1 [Hsf [Hsm [Hr Hcomp]]]]]]; destruct s; simpl in *; try discriminate; inject Hcomp.
 
     (* seq *)
     {
@@ -232,6 +236,7 @@ Section ADTValue.
         rewrite map_map.
         simpl.
         set (words := List.map (fun x0 : string => vs x0) args) in *.
+        eapply Henv in Hfw.
         eexists.
         exists (combine words input).
         repeat eexists_split.
@@ -273,6 +278,7 @@ Section ADTValue.
         rename H9 into Hsfb.
         rename H10 into Hnl.
         destruct spec; simpl in *.
+        eapply Henv in Hfw.
         repeat eexists_split.
         {
           eapply eval_ceval in Hfe; eauto.
@@ -309,6 +315,8 @@ Section ADTValue.
       rename s into x.
       rename g into lbl.
       inversion Hsf; unfold_all; subst.
+      rename H1 into Hlbl2.
+      eapply Henv in Hlbl2.
       intuition.
     }
 
