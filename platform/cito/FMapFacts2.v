@@ -1609,6 +1609,13 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     End EqualOn.
 
+    Lemma empty_submap elt m : @empty elt <= m.
+    Proof.
+      intros k v Hin.
+      rewrite empty_o in Hin.
+      discriminate.
+    Qed.
+
   End TopSection.
 
 End UWFacts_fun.

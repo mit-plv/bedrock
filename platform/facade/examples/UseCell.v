@@ -24,7 +24,7 @@ Definition use_cell :=
     def "use_cell" = func() {
       "c" <-- call_ "ADT"!"SimpleCell_new" ();
       "ret" <-- call_ "ADT"!"SimpleCell_read"("c");
-      "tmp" <-- call_ "ADT"!"SimpleCell_delete"("c")
+      call_ "ADT"!"SimpleCell_delete"("c")
     }
   }.
 
