@@ -76,7 +76,9 @@ Proof.
   intuition.
 Qed.
 
-Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
+Require Import ListFacts3.
+
+Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true /\ is_no_dup args = true.
 Proof.
   intros H.
   unfold is_syntax_ok in *.

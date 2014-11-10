@@ -287,6 +287,14 @@ Section ADTValue.
     eauto.
   Qed.
 
+  Lemma no_adt_in_not_mapsto_adt x st : no_adt_in (StringSet.singleton x) st -> not_mapsto_adt x st = true.
+  Proof.
+    intros H.
+    unfold no_adt_in in *.
+    eapply H.
+    eapply StringSetFacts.singleton_iff; eauto.
+  Qed.
+
   Lemma equiv_refl st : not_mapsto_adt fun_ptr_varname st = true -> st === st.
   Proof.
     intros Hnadt.
@@ -295,6 +303,14 @@ Section ADTValue.
     - reflexivity.
     - eapply not_mapsto_adt_no_adt_in; eauto.
     - eapply not_mapsto_adt_no_adt_in; eauto.
+  Qed.
+
+  Lemma equiv_nma_fpv st1 st2 : st1 === st2 -> not_mapsto_adt fun_ptr_varname st2 = true.
+  Proof.
+    intros Heqv.
+    unfold equiv in *.
+    openhyp.
+    eapply no_adt_in_not_mapsto_adt; eauto.
   Qed.
 
   Lemma no_adt_in_add_sca k w st : no_adt_in (StringSet.singleton k) (add k (SCA w) st).
@@ -578,7 +594,7 @@ Section ADTValue.
         etransitivity; eauto; symmetry; eauto.
       }
       eapply is_syntax_ok_call_elim in Hsyn.
-      destruct Hsyn as [Hsynx Hsynargs].
+      destruct Hsyn as [Hsynx [Hsynargs Hargsnd]].
       inversion Hrtcall; unfold_all; subst.
       {
         (* axiomatic *)
@@ -838,37 +854,6 @@ Section ADTValue.
              s_st' === t_st').
   Proof.
     intros; eapply compile_runsto'; eauto.
-  Qed.
-
-  Lemma no_adt_in_not_mapsto_adt x st : no_adt_in (StringSet.singleton x) st -> not_mapsto_adt x st = true.
-  Proof.
-    intros H.
-    unfold no_adt_in in *.
-    eapply H.
-    eapply StringSetFacts.singleton_iff; eauto.
-  Qed.
-
-  Lemma equiv_nma_fpv st1 st2 : st1 === st2 -> not_mapsto_adt fun_ptr_varname st2 = true.
-  Proof.
-    intros Heqv.
-    unfold equiv in *.
-    openhyp.
-    eapply no_adt_in_not_mapsto_adt; eauto.
-  Qed.
-
-  Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true /\ is_no_dup args = true.
-  Proof.
-    intros H.
-    unfold is_syntax_ok in *.
-    unfold is_good_varnames in *.
-    simpl in *.
-    eapply andb_true_iff in H.
-    openhyp.
-    eapply for_all_union_elim in H0.
-    openhyp.
-    eapply for_all_singleton_elim in H0.
-    eapply for_all_of_list_elim in H1.
-    intuition.
   Qed.
 
   Require Import SafeCoind.

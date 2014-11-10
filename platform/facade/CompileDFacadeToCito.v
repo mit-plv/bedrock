@@ -182,7 +182,9 @@ Section ADTValue.
           eapply syntax_ok_fptr_not_fv; eauto.
       + eapply equiv_refl; eauto.
         eapply find_none_not_mapsto_adt; eauto.
-    - admit (* safe *).
+    - eapply CompileDFacade.compile_safe; eauto.
+      eapply equiv_refl; eauto.
+      eapply find_none_not_mapsto_adt; eauto.
   Qed.
 
 End ADTValue.
