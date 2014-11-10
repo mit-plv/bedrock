@@ -30,7 +30,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation module_name := "dfmodule".
     Notation fun_name := "dffun".
-    Notation argvars := nil.
+    Notation argvars := nil (only parsing).
     Notation retvar := "ret".
 
     Variable body : Stmt.
@@ -69,26 +69,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation spec_op_b := (func_spec modules imports (module_name, fun_name) spec_op).
 
     Require Import Semantics.
-
-    Notation extra_stack := 20.
-    Definition topS := SPEC reserving (4 + extra_stack)%nat
-      PREonly[_] mallocHeap 0.
-    Import Made.
-
-    Definition top := bimport [[ (module_name!fun_name, spec_op_b), "sys"!"printInt" @ [printIntS],
-                                 "sys"!"abort" @ [abortS] ]]
-      bmodule "top" {{
-        bfunction "top"("R") [topS]
-          "R" <-- Call module_name!fun_name(extra_stack)
-          [PREonly[_, R] [| PostCond R |] ];;
-
-          Call "sys"!"printInt"("R")
-          [PREonly[_] Emp ];;
-
-          Call "sys"!"abort"()
-          [PREonly[_] [| False |] ]
-        end
-      }}.
 
     Require Import CompileDFacadeToCito.
 
@@ -203,14 +183,33 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Theorem top_ok : moduleOk top.
-      clear dfacade_safe dfacade_runsto.
+    Notation extra_stack := 20.
+    Definition topS := SPEC reserving (4 + extra_stack)%nat
+      PRE[_] mallocHeap 0
+      POST[R] [| PostCond R |] * mallocHeap 0.
+    Import Made.
 
+    Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
+      bmodule "top" {{
+        bfunction "top"("R") [topS]
+          "R" <-- Call module_name!fun_name(extra_stack)
+          [PRE[_, R] [| PostCond R |] 
+           POST[R'] [| R' = R |] ];;
+          Return "R"
+        end
+      }}.
+
+    Theorem top_ok : moduleOk top.
+      clear_all.
       vcgen.
 
       sep_auto.
       sep_auto.
+
       sep_auto.
+      instantiate (1 := x5).
+      admit. (* himp specs (locals ("rp" :: "R" :: nil) x5 23 (Regs b Sp)) (locals ("rp" :: nil) x5 24 (Regs x Sp)) *)
+
       sep_auto.
 
       post.
@@ -223,9 +222,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       descend.
       eapply CompileExprs.change_hyp.
       Focus 2.
-      apply (@is_state_in''' (upd x2 "extra_stack" 20)).
+      apply (@is_state_in''' (upd x3 "extra_stack" 20)).
       autorewrite with sepFormula.
-      clear H7.
+      clear H9.
       hiding ltac:(step auto_ext).
       apply body_safe; eauto.
       hiding ltac:(step auto_ext).
@@ -239,21 +238,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Require Import GeneralTactics3.
       eapply_in_any body_runsto; simpl in *; intuition subst.
       eapply replace_imp.
-      change 20 with (wordToNat (Locals.sel (upd x2 "extra_stack" 20) "extra_stack")).
+      change 20 with (wordToNat (Locals.sel (upd x3 "extra_stack" 20) "extra_stack")).
       apply is_state_out'''''.
       NoDup.
       NoDup.
       NoDup.
       eauto.
 
-      clear H7.
+      clear H9.
       hiding ltac:(step auto_ext).
       hiding ltac:(step auto_ext).
 
       sep_auto.
       sep_auto.
-      sep_auto.
-      sep_auto.
+      words.
       sep_auto.
       sep_auto.
       sep_auto.
