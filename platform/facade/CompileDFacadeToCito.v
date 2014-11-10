@@ -226,13 +226,14 @@ Section ADTValue.
   forall vs h h1, 
     h1 <= h -> 
     related s_st (vs, h1) -> 
-    forall t_env,
+    forall t_env t t_st,
       cenv_impls_env t_env s_env ->
-      let t := compile s in
-      let t_st := (vs, h) in
+      t = compile s ->
+      t_st = (vs, h) ->
       CSafe t_env t t_st.
   Proof.
-    simpl; intros Hsfs Hsyn Hsstok vs h h1 Hsm Hr t_env Henv.
+    simpl; intros Hsfs Hsyn Hsstok vs h h1 Hsm Hr t_env t t_st Henv Ht Htst.
+    subst.
     eapply cenv_impls_env_fenv in Henv.
     destruct Henv as [fenv [Htenv Hfenv]].
     eapply CompileSafe.compile_safe; eauto.

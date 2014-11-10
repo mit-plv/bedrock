@@ -76,15 +76,55 @@ Require Import LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import LinkSpecMake.
 
-Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
-  admit.
-Qed.
+Require Import CompileDFacadeToCito.
+Require Import WordMap.
+Require Import StringMap.
+Require Import GLabelMap.
 
 Import WordMapFacts.FMapNotations.
 Local Open Scope fmap_scope.
 
-Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v v' -> Locals.sel (fst v') (RetVar spec_op) = 0 /\ snd v' == snd v.
+Lemma env_good_to_use_cenv_impls_env modules imports stn fs : env_good_to_use modules imports stn fs -> cenv_impls_env (from_bedrock_label_map (Labels stn), fs stn) (GLabelMap.map (@Axiomatic _) imports).
   admit.
+Qed.
+
+Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
+Proof.
+  intros.
+  destruct v as [vs h].
+  eapply compile_safe; try reflexivity; simpl in *.
+  Focus 2.
+  simpl.
+  reflexivity.
+  Focus 3.
+  instantiate (1 := @WordMap.empty _).
+  admit.
+  Focus 2.
+  rewrite StringMapFacts.empty_o; eauto.
+  Focus 2.
+  admit.
+  Focus 2.
+  eapply env_good_to_use_cenv_impls_env; eauto.
+  simpl.
+  admit. (* safe *)
+Qed.
+
+Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v v' -> Locals.sel (fst v') (RetVar spec_op) = 0 /\ snd v' == snd v.
+Proof.
+  intros.
+  eapply compile_runsto in H0; try reflexivity; simpl in *.
+  Focus 2.
+  instantiate (1 := @WordMap.empty _).
+  admit.
+  Focus 2.
+  instantiate (1 := @StringMap.empty _).
+  admit.
+  Focus 2.
+  rewrite StringMapFacts.empty_o; eauto.
+  Focus 2.
+  eapply env_good_to_use_cenv_impls_env; eauto.
+  admit. (* runsto *)
+  admit. (* safe *)
 Qed.
 
 Require Import Inv.
