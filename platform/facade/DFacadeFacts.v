@@ -5,6 +5,123 @@ Export FacadeFacts.
 Require Import Facade.
 Require Import DFacade.
 
+Require Import GeneralTactics.
+Require Import GeneralTactics2.
+Require Import GeneralTactics4.
+
+Require Import Bool.
+
+Require Import StringSet.
+Import StringSet.
+Require Import StringSetFacts.
+
+Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Require Import Facade.NameDecoration.
+
+Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
+
+Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  eapply for_all_singleton_elim in H.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok in *.
+  unfold is_good_varnames in *.
+  simpl in *.
+  eapply andb_true_iff in H.
+  openhyp.
+  eapply for_all_union_elim in H0.
+  openhyp.
+  eapply for_all_singleton_elim in H0.
+  eapply for_all_of_list_elim in H1.
+  intuition.
+Qed.
+
+Require Import SyntaxExpr.
+
+Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_singleton_elim in H.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_e_binop_elim op a b : is_syntax_ok_e (Binop op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  intuition.
+Qed.
+
+Lemma is_syntax_ok_e_test_elim op a b : is_syntax_ok_e (TestE op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
+Proof.
+  intros H.
+  unfold is_syntax_ok_e in *.
+  simpl in *.
+  eapply for_all_union_elim in H.
+  openhyp.
+  intuition.
+Qed.
+
 Section ADTValue.
 
   Variable ADTValue : Type.
@@ -60,12 +177,9 @@ Section ADTValue.
   Require Import StringMap.
   Import StringMap.
   Require Import StringMapFacts.
-  Require Import ListFacts4.
-  Require Import GeneralTactics.
-  Require Import GeneralTactics2.
-  Require Import GeneralTactics4.
-  
+
   Require Import ListFacts3.
+  Require Import ListFacts4.
 
   Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
     intros; destruct spec; simpl; eapply is_no_dup_sound; eauto.

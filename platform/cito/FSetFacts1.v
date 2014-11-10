@@ -153,4 +153,56 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     eapply Hdisj; split; eapply of_list_spec; eauto.
   Qed.
 
+  Lemma compat_bool_f A (f : A -> bool) : SetoidList.compat_bool Logic.eq f.
+    unfold SetoidList.compat_bool.
+    intuition.
+  Qed.
+
+  Lemma for_all_elim p s : for_all p s = true -> forall x, In x s -> p x = true.
+  Proof.
+    intros H x Hin.
+    eapply for_all_iff in H; eauto.
+    eapply compat_bool_f; eauto.
+  Qed.
+
+  Global Arguments for_all_elim [p s] _ _ _.
+
+  Lemma for_all_intro p s : (forall x, In x s -> p x = true) -> for_all p s = true.
+  Proof.
+    intros H.
+    eapply for_all_iff; eauto.
+    eapply compat_bool_f; eauto.
+  Qed.
+
+  Lemma for_all_singleton_elim p x : for_all p (singleton x) = true -> p x = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    eapply HH.
+    eapply singleton_iff; eauto.
+  Qed.
+
+  Lemma for_all_union_elim p a b : for_all p (union a b) = true -> for_all p a = true /\ for_all p b = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    split.
+    - eapply for_all_intro.
+      intros; eapply HH.
+      eapply union_iff; intuition.
+    - eapply for_all_intro.
+      intros; eapply HH.
+      eapply union_iff; intuition.
+  Qed.
+
+  Lemma for_all_of_list_elim p ls : for_all p (of_list ls) = true -> List.forallb p ls = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    eapply List.forallb_forall.
+    intros x Hin.
+    eapply HH.
+    eapply of_list_spec; eauto.
+  Qed.
+
 End UWFacts_fun.

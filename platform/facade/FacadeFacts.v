@@ -508,4 +508,243 @@ Section ADTValue.
     rewrite e in *; discriminate.
   Qed.
 
+  Lemma find_none_not_mapsto_adt x (st : State) : find x st = None -> not_mapsto_adt x st = true.
+  Proof.
+    intros Hf.
+    unfold not_mapsto_adt, is_mapsto_adt.
+    rewrite Hf.
+    eauto.
+  Qed.
+
+  Require Import StringMap.
+  Import StringMap.
+  Require Import StringMapFacts.
+  Import FMapNotations.
+  Local Open Scope fmap_scope.
+
+  Hint Extern 0 (_ == _) => reflexivity.
+
+  Lemma add_remove_many_Equal ks : forall types vs st1 st2, st1 == st2 -> @add_remove_many ADTValue ks types vs st1 == add_remove_many ks types vs st2.
+  Proof.
+    induction ks; destruct types; destruct vs; simpl; try solve [intuition].
+    intros st1 st2 Heq.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o|].
+      + eapply IHks; eauto.
+        rewrite Heq; eauto.
+      + eapply IHks; eauto.
+        rewrite Heq; eauto.
+  Qed.
+
+  Import Logic.
+  Require Import Setoid.
+
+  Global Add Morphism (@add_remove_many ADTValue)
+      with signature eq ==> eq ==> eq ==> Equal ==> Equal as add_remove_many_m.
+  Proof.
+    intros; eapply add_remove_many_Equal; eauto.
+  Qed.
+
+  Lemma add_remove_many_add_comm ks : forall vs types k v (st : State), ~ List.In k ks -> add_remove_many ks types vs (add k v st) == add k v (add_remove_many ks types vs st).
+  Proof.
+    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
+    intros k' v' st Hnin .
+    intuition.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o |].
+      + rewrite add_add_comm by eauto.
+        eauto.
+      + rewrite remove_add_comm by eauto.
+        eauto.
+  Qed.
+
+  Lemma add_remove_many_remove_comm ks : forall vs types k (st : State), ~ List.In k ks -> add_remove_many ks types vs (remove k st) == remove k (add_remove_many ks types vs st).
+  Proof.
+    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
+    intros k' st Hnin .
+    intuition.
+    rename a into k.
+    destruct v as [w | a].
+    - eauto.
+    - destruct o as [o |].
+      + rewrite add_remove_comm by eauto.
+        eauto.
+      + rewrite remove_remove_comm by eauto.
+        eauto.
+  Qed.
+
+  Fixpoint output_eqv A (types : list Value) (output1 output2 : list A) := 
+    match types, output1, output2 with
+      | i :: types', o1 :: output1', o2 :: output2' => 
+        match i with
+          | ADT _ => o1 = o2 
+          | _ => True
+        end /\ output_eqv types' output1' output2'
+      | nil, nil, nil => True
+      | _, _, _ => False
+    end.
+
+  Lemma output_eqv_refl A types : forall (output : list A), length types = length output -> output_eqv types output output.
+  Proof.
+    induction types; destruct output; simpl; intuition.
+    destruct a; eauto.
+  Qed.
+
+  Definition not_mapsto_adt_types (k : string) ks types := forall i, nth_error ks i = Some k -> ~ exists a : ADTValue, nth_error types i = Some (ADT a).
+
+  Lemma not_in_not_mapsto_adt_types k ks types : ~ List.In k ks -> not_mapsto_adt_types k ks types.
+  Proof.
+    intros Hnin.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth Hex.
+    contradict Hnin.
+    eapply Locals.nth_error_In; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_cons_neq_elim ks types k k' type : not_mapsto_adt_types k (k' :: ks) (type :: types) -> k <> k' -> not_mapsto_adt_types k ks types.
+  Proof.
+    intros H Hne.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth Hex.
+    eapply (H (S i)); simpl in *; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_cons_neq_intro ks types k k' type : not_mapsto_adt_types k ks types -> k <> k' -> not_mapsto_adt_types k (k' :: ks) (type :: types).
+  Proof.
+    intros H Hne.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth [a Ha].
+    destruct i as [|i]; simpl in *.
+    - inject Hnth.
+      intuition.
+    - eapply H; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_adt k ks a types : ~ not_mapsto_adt_types k (k :: ks) (ADT a :: types).
+  Proof.
+    unfold not_mapsto_adt_types.
+    intros H.
+    eapply (H 0); simpl in *; eauto.
+  Qed.
+
+  Arguments SCA {ADTValue} _.
+  Arguments ADT {ADTValue} _.
+
+  Lemma not_mapsto_adt_types_sca k ks w types : not_mapsto_adt_types k ks types -> not_mapsto_adt_types k (k :: ks) (SCA w :: types).
+  Proof.
+    intros H.
+    unfold not_mapsto_adt_types in *.
+    intros i Hnth [a Ha].
+    destruct i as [|i]; simpl in *.
+    - discriminate.
+    - eapply H; eauto.
+  Qed.
+
+  Lemma not_mapsto_adt_types_nil k types : not_mapsto_adt_types k nil types.
+  Proof.
+    unfold not_mapsto_adt_types; intros.
+    rewrite nth_error_nil in *.
+    discriminate.
+  Qed.
+
+  Lemma mapM_not_mapsto_adt_types ks : forall types k st, not_mapsto_adt k st = true -> mapM (sel st) ks = Some types -> not_mapsto_adt_types k ks types.
+  Proof.
+    induction ks; destruct types; simpl; try discriminate; intros k st Hnadt Hmm.
+    - eapply not_mapsto_adt_types_nil.
+    - rename k into k'.
+      rename a into k.
+      destruct (option_dec (sel st k)) as [ [v Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      destruct (option_dec (mapM (sel st) ks)) as [ [vs Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
+    - rename k into k'.
+      rename a into k.
+      destruct (option_dec (sel st k)) as [ [ty Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      destruct (option_dec (mapM (sel st) ks)) as [ [tys Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
+      inject Hmm.
+      destruct (string_dec k' k) as [Heqk | Hnek].
+      + subst.
+        destruct v as [w | a].
+        * eapply not_mapsto_adt_types_sca; eauto.
+        * eapply not_mapsto_adt_iff in Hnadt.
+          contradict Hnadt; eexists; eauto.
+      + eapply not_mapsto_adt_types_cons_neq_intro; eauto.
+  Qed.
+
+  Lemma add_remove_many_eq_output_eqv ks : forall types st1 st2 vs1 vs2 k, remove k (add_remove_many ks types vs1 st1) == remove k (add_remove_many ks types vs2 st2) -> not_mapsto_adt_types k ks types -> length ks = length types -> length ks = length vs1 -> length ks = length vs2 -> NoDup ks -> output_eqv types vs1 vs2.
+  Proof.
+    induction ks; destruct types; destruct vs1; destruct vs2; simpl; try solve [intros; try discriminate; intuition eauto]; intros k Heq Hnadt Hlent Hlen1 Hlen2 Hnd.
+    {
+      inject Hlent.
+      rename H into Hlent.
+      inject Hlen1.
+      rename H into Hlen1.
+      inject Hlen2.
+      rename H into Hlen2.
+      rename a into k0.
+      inversion Hnd; subst.
+      rename H1 into Hnin.
+      rename H2 into Hnd'.
+      destruct v as [w | a].
+      {
+        destruct (string_dec k k0) as [Hkeq | Hkne].
+        - subst.
+          split; eauto.
+          eapply IHks; eauto.
+          eapply not_in_not_mapsto_adt_types; eauto.
+        - eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
+      }
+      {
+        destruct (string_dec k k0) as [Hkeq | Hkne].
+        {
+          subst.
+          eapply not_mapsto_adt_types_adt in Hnadt; intuition.
+        }
+        {
+          eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
+          destruct o as [o1|]; destruct o0 as [o2|].
+          {
+            split.
+            - repeat rewrite add_remove_many_add_comm in Heq by eauto.
+              repeat rewrite remove_add_comm in Heq by eauto.
+              eapply add_eq_elim in Heq.
+              openhyp; subst; eauto.
+            - eauto.
+          }
+          {
+            repeat rewrite add_remove_many_add_comm in Heq by eauto.
+            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
+            repeat rewrite remove_add_comm in Heq by eauto.
+            rewrite remove_remove_comm in Heq by eauto.
+            eapply add_remove_eq_false in Heq; intuition.
+          }
+          {
+            repeat rewrite add_remove_many_add_comm in Heq by eauto.
+            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
+            repeat rewrite remove_add_comm in Heq by eauto.
+            rewrite remove_remove_comm in Heq by eauto.
+            symmetry in Heq.
+            eapply add_remove_eq_false in Heq; intuition.
+          }
+          {
+            eauto.
+          }            
+        }
+      }
+    }
+  Qed.
+
+  Lemma add_add_remove_many_eq_elim types k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks types vs1 st) == add k v2 (add_remove_many ks types vs2 st) -> mapM (sel st) ks = Some types -> length ks = length vs1 -> length ks = length vs2 -> v1 = v2 /\ output_eqv types vs1 vs2.
+  Proof.
+    intros Hnadt Hnd Heq Hlen1 Hlen2.
+    eapply add_eq_elim in Heq.
+    destruct Heq as [Hveq Hmeq].
+    split; eauto.
+    eapply add_remove_many_eq_output_eqv; eauto.
+    - eapply mapM_not_mapsto_adt_types; eauto.
+    - eapply mapM_length; eauto.
+  Qed.
+
 End ADTValue.  

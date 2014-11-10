@@ -1363,6 +1363,252 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply elements_3w.
     Qed.
 
+    Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
+    Proof.
+      intros Heq.
+      unfold Equal in *.
+      split.
+      - specialize (Heq k).
+        rewrite add_eq_o in * by eauto.
+        rewrite add_eq_o in * by eauto.
+        inject Heq; eauto.
+      - intros k'.
+        destruct (eq_dec k' k).
+        + subst.
+          repeat rewrite remove_eq_o by eauto.
+          eauto.
+        + repeat rewrite remove_neq_o by eauto.
+          specialize (Heq k').
+          rewrite add_neq_o in * by eauto.
+          rewrite add_neq_o in * by eauto.
+          eauto.
+    Qed.
+
+    Lemma add_add_comm elt k k' (v v' : elt) m : k <> k' -> add k v (add k' v' m) == add k' v' (add k v m).
+    Proof.
+      intros Hne.
+      unfold Equal.
+      intros k''.
+      destruct (eq_dec k'' k).
+      - subst.
+        rewrite add_eq_o by eauto.
+        destruct (eq_dec k k').
+        + subst.
+          intuition.
+        + rewrite add_neq_o by eauto.
+          rewrite add_eq_o by eauto.
+          eauto.
+      - rewrite add_neq_o by eauto.
+        destruct (eq_dec k'' k').
+        + subst.
+          rewrite add_eq_o by eauto.
+          rewrite add_eq_o by eauto.
+          eauto.
+        + rewrite add_neq_o by eauto.
+          rewrite add_neq_o by eauto.
+          rewrite add_neq_o by eauto.
+          eauto.
+    Qed.
+
+    Global Arguments add_add_comm [elt] k k' _ _ _ _ _.
+
+    Lemma remove_add_comm elt k k' (v' : elt) m : k <> k' -> remove k (add k' v' m) == add k' v' (remove k m).
+    Proof.
+      intros Hne.
+      unfold Equal.
+      intros k''.
+      destruct (eq_dec k'' k).
+      - subst.
+        rewrite remove_eq_o by eauto.
+        destruct (eq_dec k k').
+        + subst.
+          intuition.
+        + rewrite add_neq_o by eauto.
+          rewrite remove_eq_o by eauto.
+          eauto.
+      - rewrite remove_neq_o by eauto.
+        destruct (eq_dec k'' k').
+        + subst.
+          rewrite add_eq_o by eauto.
+          rewrite add_eq_o by eauto.
+          eauto.
+        + rewrite add_neq_o by eauto.
+          rewrite add_neq_o by eauto.
+          rewrite remove_neq_o by eauto.
+          eauto.
+    Qed.
+
+    Lemma add_remove_comm elt k k' (v : elt) m : k <> k' -> add k v (remove k' m) == remove k' (add k v m).
+    Proof.
+      intros Hne.
+      unfold Equal.
+      intros k''.
+      destruct (eq_dec k'' k).
+      - subst.
+        rewrite add_eq_o by eauto.
+        destruct (eq_dec k k').
+        + subst.
+          intuition.
+        + rewrite remove_neq_o by eauto.
+          rewrite add_eq_o by eauto.
+          eauto.
+      - rewrite add_neq_o by eauto.
+        destruct (eq_dec k'' k').
+        + subst.
+          rewrite remove_eq_o by eauto.
+          rewrite remove_eq_o by eauto.
+          eauto.
+        + rewrite remove_neq_o by eauto.
+          rewrite remove_neq_o by eauto.
+          rewrite add_neq_o by eauto.
+          eauto.
+    Qed.
+
+    Lemma remove_remove_comm elt k k' (m : t elt) : k <> k' -> remove k (remove k' m) == remove k' (remove k m).
+    Proof.
+      intros Hne.
+      unfold Equal.
+      intros k''.
+      destruct (eq_dec k'' k).
+      - subst.
+        rewrite remove_eq_o by eauto.
+        destruct (eq_dec k k').
+        + subst.
+          intuition.
+        + rewrite remove_neq_o by eauto.
+          rewrite remove_eq_o by eauto.
+          eauto.
+      - rewrite remove_neq_o by eauto.
+        destruct (eq_dec k'' k').
+        + subst.
+          rewrite remove_eq_o by eauto.
+          rewrite remove_eq_o by eauto.
+          eauto.
+        + rewrite remove_neq_o by eauto.
+          rewrite remove_neq_o by eauto.
+          rewrite remove_neq_o by eauto.
+          eauto.
+    Qed.
+    Global Arguments remove_remove_comm [elt] k k' _ _ _.
+
+    Lemma add_remove_eq_false elt k (v : elt) m1 m2 : ~ add k v m1 == remove k m2.
+    Proof.
+      intro H.
+      unfold Equal in *.
+      specialize (H k).
+      rewrite add_eq_o in * by eauto.
+      rewrite remove_eq_o in * by eauto.
+      discriminate.
+    Qed.
+
+    Section EqualOn.
+
+      Variable Domain : key -> Prop.
+
+      Variable elt : Type.
+
+      Definition EqualOn (m1 m2 : t elt) := forall k, Domain k -> find k m1 = find k m2.
+
+      Lemma EqualOn_refl a : EqualOn a a.
+      Proof.
+        unfold EqualOn.
+        eauto.
+      Qed.
+
+      Lemma EqualOn_sym a b : EqualOn a b -> EqualOn b a.
+      Proof.
+        intros H.
+        unfold EqualOn in *; intros.
+        symmetry; eauto.
+      Qed.
+
+      Lemma EqualOn_trans a b c : EqualOn a b -> EqualOn b c -> EqualOn a c.
+      Proof.
+        intros H1 H2.
+        unfold EqualOn in *; intros.
+        etransitivity. 
+        - eapply H1; eauto.
+        - eauto.
+      Qed.
+
+      Global Add Relation (t elt) EqualOn
+          reflexivity proved by EqualOn_refl
+          symmetry proved by EqualOn_sym
+          transitivity proved by EqualOn_trans
+            as EqualOn_rel.
+
+      Lemma Equal_EqualOn a a' b b' : a == a' -> b == b' -> (EqualOn a b <-> EqualOn a' b').
+      Proof.
+        intros Ha Hb.
+        split; intros H.
+        - unfold EqualOn in *.
+          intros k Hk.
+          rewrite <- Ha.
+          rewrite <- Hb.
+          eapply H; eauto.
+        - unfold EqualOn in *.
+          intros k Hk.
+          rewrite Ha.
+          rewrite Hb.
+          eapply H; eauto.
+      Qed.
+
+      Global Add Morphism EqualOn
+          with signature Equal ==> Equal ==> iff as Equal_EqualOn_m.
+      Proof.
+        intros; eapply Equal_EqualOn; eauto.
+      Qed.
+
+      Lemma add_EqualOn k v m1 m2 : EqualOn m1 m2 -> EqualOn (add k v m1) (add k v m2).
+      Proof.
+        intros Heq.
+        unfold EqualOn in *.
+        intros k' Hk'.
+        destruct (eq_dec k' k) as [Heqk | Hnek].
+        - subst.
+          repeat rewrite add_eq_o by eauto.
+          eauto.
+        - repeat rewrite add_neq_o by eauto.
+          eauto.
+      Qed.
+
+      Lemma remove_EqualOn k m1 m2 : EqualOn m1 m2 -> EqualOn (remove k m1) (remove k m2).
+      Proof.
+        intros Heq.
+        unfold EqualOn in *.
+        intros k' Hk'.
+        destruct (eq_dec k' k) as [Heqk | Hnek].
+        - subst.
+          repeat rewrite remove_eq_o by eauto.
+          eauto.
+        - repeat rewrite remove_neq_o by eauto.
+          eauto.
+      Qed.
+
+      Global Add Morphism (@add elt) with signature eq ==> eq ==> EqualOn ==> EqualOn as add_EqualOn_m.
+      Proof.
+        intros; eapply add_EqualOn; eauto.
+      Qed.
+
+      Global Add Morphism (@remove elt) with signature eq ==> EqualOn ==> EqualOn as remove_EqualOn_m.
+      Proof.
+        intros; eapply remove_EqualOn; eauto.
+      Qed.
+
+      Lemma out_add_EqualOn a b k v : EqualOn a b -> ~ Domain k -> EqualOn (add k v a) b.
+      Proof.
+        intros Heq Hk.
+        unfold EqualOn in *.
+        intros k' Hk'.
+        destruct (eq_dec k' k) as [? | Hne].
+        - subst.
+          contradiction.
+        - rewrite add_neq_o by eauto.
+          eapply Heq; eauto.
+      Qed.
+
+    End EqualOn.
+
   End TopSection.
 
 End UWFacts_fun.

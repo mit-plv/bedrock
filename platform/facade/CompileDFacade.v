@@ -22,161 +22,6 @@ Require Import StringSet.
 Import StringSet.
 Require Import StringSetFacts.
 
-Lemma compat_bool_f A (f : A -> bool) : SetoidList.compat_bool Logic.eq f.
-  unfold SetoidList.compat_bool.
-  intuition.
-Qed.
-
-Lemma for_all_elim p s : for_all p s = true -> forall x, In x s -> p x = true.
-Proof.
-  intros H x Hin.
-  eapply StringSetFacts.for_all_iff in H; eauto.
-  eapply compat_bool_f; eauto.
-Qed.
-
-Arguments for_all_elim [p s] _ _ _.
-
-Lemma for_all_intro p s : (forall x, In x s -> p x = true) -> for_all p s = true.
-Proof.
-  intros H.
-  eapply StringSetFacts.for_all_iff; eauto.
-  eapply compat_bool_f; eauto.
-Qed.
-
-Lemma for_all_singleton_elim p x : for_all p (singleton x) = true -> p x = true.
-Proof.
-  intros H.
-  specialize (for_all_elim H); intros HH.
-  eapply HH.
-  eapply singleton_iff; eauto.
-Qed.
-
-Lemma for_all_union_elim p a b : for_all p (union a b) = true -> for_all p a = true /\ for_all p b = true.
-Proof.
-  intros H.
-  specialize (for_all_elim H); intros HH.
-  split.
-  - eapply for_all_intro.
-    intros; eapply HH.
-    eapply union_iff; intuition.
-  - eapply for_all_intro.
-    intros; eapply HH.
-    eapply union_iff; intuition.
-Qed.
-
-Lemma for_all_of_list_elim p ls : for_all p (of_list ls) = true -> List.forallb p ls = true.
-Proof.
-  intros H.
-  specialize (for_all_elim H); intros HH.
-  eapply List.forallb_forall.
-  intros x Hin.
-  eapply HH.
-  eapply of_list_spec; eauto.
-Qed.
-
-Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok in *.
-  unfold is_good_varnames in *.
-  simpl in *.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply for_all_union_elim in H0.
-  openhyp.
-  intuition.
-Qed.
-
-Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
-
-Lemma is_syntax_ok_if_elim e a b : is_syntax_ok (If e a b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok a = true /\ is_syntax_ok b = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok in *.
-  unfold is_good_varnames in *.
-  simpl in *.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply for_all_union_elim in H0.
-  openhyp.
-  eapply for_all_union_elim in H0.
-  openhyp.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_while_elim e b : is_syntax_ok (While e b) = true -> is_syntax_ok_e e = true /\ is_syntax_ok b = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok in *.
-  unfold is_good_varnames in *.
-  simpl in *.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply for_all_union_elim in H0.
-  openhyp.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_assign_elim x e : is_syntax_ok (Assign x e) = true -> is_good_varname x = true /\ is_syntax_ok_e e = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok in *.
-  unfold is_good_varnames in *.
-  simpl in *.
-  eapply for_all_union_elim in H.
-  openhyp.
-  eapply for_all_singleton_elim in H.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok in *.
-  unfold is_good_varnames in *.
-  simpl in *.
-  eapply andb_true_iff in H.
-  openhyp.
-  eapply for_all_union_elim in H0.
-  openhyp.
-  eapply for_all_singleton_elim in H0.
-  eapply for_all_of_list_elim in H1.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok_e in *.
-  simpl in *.
-  eapply for_all_singleton_elim in H.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_e_binop_elim op a b : is_syntax_ok_e (Binop op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok_e in *.
-  simpl in *.
-  eapply for_all_union_elim in H.
-  openhyp.
-  intuition.
-Qed.
-
-Lemma is_syntax_ok_e_test_elim op a b : is_syntax_ok_e (TestE op a b) = true -> is_syntax_ok_e a = true /\ is_syntax_ok_e b = true.
-Proof.
-  intros H.
-  unfold is_syntax_ok_e in *.
-  simpl in *.
-  eapply for_all_union_elim in H.
-  openhyp.
-  intuition.
-Qed.
-
 Local Notation PRE := tmp_prefix.
 Definition fun_ptr_varname := PRE ++ "fptr".
 
@@ -292,317 +137,11 @@ Section ADTValue.
   Arguments SCA {ADTValue} _.
   Arguments ADT {ADTValue} _.
 
-  Lemma find_none_not_mapsto_adt x (st : State) : find x st = None -> not_mapsto_adt x st = true.
-  Proof.
-    intros Hf.
-    unfold not_mapsto_adt, is_mapsto_adt.
-    rewrite Hf.
-    eauto.
-  Qed.
-
-  Lemma add_eq_elim elt k (v1 v2 : elt) m1 m2 : add k v1 m1 == add k v2 m2 -> v1 = v2 /\ remove k m1 == remove k m2.
-  Proof.
-    intros Heq.
-    unfold Equal in *.
-    split.
-    - specialize (Heq k).
-      rewrite add_eq_o in * by eauto.
-      rewrite add_eq_o in * by eauto.
-      inject Heq; eauto.
-    - intros k'.
-      destruct (string_dec k' k).
-      + subst.
-        repeat rewrite remove_eq_o by eauto.
-        eauto.
-      + repeat rewrite remove_neq_o by eauto.
-        specialize (Heq k').
-        rewrite add_neq_o in * by eauto.
-        rewrite add_neq_o in * by eauto.
-        eauto.
-  Qed.
-
-  Lemma add_add_comm elt k k' (v v' : elt) m : k <> k' -> add k v (add k' v' m) == add k' v' (add k v m).
-  Proof.
-    intros Hne.
-    unfold Equal.
-    intros k''.
-    destruct (string_dec k'' k).
-    - subst.
-      rewrite add_eq_o by eauto.
-      destruct (string_dec k k').
-      + subst.
-        intuition.
-      + rewrite add_neq_o by eauto.
-        rewrite add_eq_o by eauto.
-        eauto.
-    - rewrite add_neq_o by eauto.
-      destruct (string_dec k'' k').
-      + subst.
-        rewrite add_eq_o by eauto.
-        rewrite add_eq_o by eauto.
-        eauto.
-      + rewrite add_neq_o by eauto.
-        rewrite add_neq_o by eauto.
-        rewrite add_neq_o by eauto.
-        eauto.
-  Qed.
-  Arguments add_add_comm [elt] k k' _ _ _ _ _.
-
-  Lemma remove_add_comm elt k k' (v' : elt) m : k <> k' -> remove k (add k' v' m) == add k' v' (remove k m).
-  Proof.
-    intros Hne.
-    unfold Equal.
-    intros k''.
-    destruct (string_dec k'' k).
-    - subst.
-      rewrite remove_eq_o by eauto.
-      destruct (string_dec k k').
-      + subst.
-        intuition.
-      + rewrite add_neq_o by eauto.
-        rewrite remove_eq_o by eauto.
-        eauto.
-    - rewrite remove_neq_o by eauto.
-      destruct (string_dec k'' k').
-      + subst.
-        rewrite add_eq_o by eauto.
-        rewrite add_eq_o by eauto.
-        eauto.
-      + rewrite add_neq_o by eauto.
-        rewrite add_neq_o by eauto.
-        rewrite remove_neq_o by eauto.
-        eauto.
-  Qed.
-
-  Lemma add_remove_comm elt k k' (v : elt) m : k <> k' -> add k v (remove k' m) == remove k' (add k v m).
-  Proof.
-    intros Hne.
-    unfold Equal.
-    intros k''.
-    destruct (string_dec k'' k).
-    - subst.
-      rewrite add_eq_o by eauto.
-      destruct (string_dec k k').
-      + subst.
-        intuition.
-      + rewrite remove_neq_o by eauto.
-        rewrite add_eq_o by eauto.
-        eauto.
-    - rewrite add_neq_o by eauto.
-      destruct (string_dec k'' k').
-      + subst.
-        rewrite remove_eq_o by eauto.
-        rewrite remove_eq_o by eauto.
-        eauto.
-      + rewrite remove_neq_o by eauto.
-        rewrite remove_neq_o by eauto.
-        rewrite add_neq_o by eauto.
-        eauto.
-  Qed.
-
-  Lemma remove_remove_comm elt k k' (m : t elt) : k <> k' -> remove k (remove k' m) == remove k' (remove k m).
-  Proof.
-    intros Hne.
-    unfold Equal.
-    intros k''.
-    destruct (string_dec k'' k).
-    - subst.
-      rewrite remove_eq_o by eauto.
-      destruct (string_dec k k').
-      + subst.
-        intuition.
-      + rewrite remove_neq_o by eauto.
-        rewrite remove_eq_o by eauto.
-        eauto.
-    - rewrite remove_neq_o by eauto.
-      destruct (string_dec k'' k').
-      + subst.
-        rewrite remove_eq_o by eauto.
-        rewrite remove_eq_o by eauto.
-        eauto.
-      + rewrite remove_neq_o by eauto.
-        rewrite remove_neq_o by eauto.
-        rewrite remove_neq_o by eauto.
-        eauto.
-  Qed.
-  Arguments remove_remove_comm [elt] k k' _ _ _.
-
-  Lemma add_remove_eq_false elt k (v : elt) m1 m2 : ~ add k v m1 == remove k m2.
-  Proof.
-    intro H.
-    unfold Equal in *.
-    specialize (H k).
-    rewrite add_eq_o in * by eauto.
-    rewrite remove_eq_o in * by eauto.
-    discriminate.
-  Qed.
-
-  Lemma add_remove_many_Equal ks : forall types vs st1 st2, st1 == st2 -> @add_remove_many ADTValue ks types vs st1 == add_remove_many ks types vs st2.
-  Proof.
-    induction ks; destruct types; destruct vs; simpl; try solve [intuition].
-    intros st1 st2 Heq.
-    rename a into k.
-    destruct v as [w | a].
-    - eauto.
-    - destruct o as [o|].
-      + eapply IHks; eauto.
-        rewrite Heq; eauto.
-      + eapply IHks; eauto.
-        rewrite Heq; eauto.
-  Qed.
-
-  Import Logic.
-
-  Global Add Morphism (@add_remove_many ADTValue)
-      with signature eq ==> eq ==> eq ==> Equal ==> Equal as add_remove_many_m.
-  Proof.
-    intros; eapply add_remove_many_Equal; eauto.
-  Qed.
-
-  Lemma add_remove_many_add_comm ks : forall vs types k v (st : State), ~ List.In k ks -> add_remove_many ks types vs (add k v st) == add k v (add_remove_many ks types vs st).
-  Proof.
-    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
-    intros k' v' st Hnin .
-    intuition.
-    rename a into k.
-    destruct v as [w | a].
-    - eauto.
-    - destruct o as [o |].
-      + rewrite add_add_comm by eauto.
-        eauto.
-      + rewrite remove_add_comm by eauto.
-        eauto.
-  Qed.
-
-  Lemma add_remove_many_remove_comm ks : forall vs types k (st : State), ~ List.In k ks -> add_remove_many ks types vs (remove k st) == remove k (add_remove_many ks types vs st).
-  Proof.
-    induction ks; destruct vs; destruct types; simpl; try solve [intuition].
-    intros k' st Hnin .
-    intuition.
-    rename a into k.
-    destruct v as [w | a].
-    - eauto.
-    - destruct o as [o |].
-      + rewrite add_remove_comm by eauto.
-        eauto.
-      + rewrite remove_remove_comm by eauto.
-        eauto.
-  Qed.
-
-  Section EqualOn.
-
-    Variable Domain : key -> Prop.
-
-    Variable elt : Type.
-
-    Definition EqualOn (m1 m2 : t elt) := forall k, Domain k -> find k m1 = find k m2.
-
-    Infix "===" := EqualOn (at level 70).
-
-    Lemma EqualOn_refl a : a === a.
-    Proof.
-      unfold EqualOn.
-      eauto.
-    Qed.
-
-    Lemma EqualOn_sym a b : a === b -> b === a.
-    Proof.
-      intros H.
-      unfold EqualOn in *; intros.
-      symmetry; eauto.
-    Qed.
-
-    Lemma EqualOn_trans a b c : a === b -> b === c -> a === c.
-    Proof.
-      intros H1 H2.
-      unfold EqualOn in *; intros.
-      etransitivity. 
-      - eapply H1; eauto.
-      - eauto.
-    Qed.
-
-    Global Add Relation (t elt) EqualOn
-        reflexivity proved by EqualOn_refl
-        symmetry proved by EqualOn_sym
-        transitivity proved by EqualOn_trans
-          as EqualOn_rel.
-
-    Lemma Equal_EqualOn a a' b b' : a == a' -> b == b' -> (a === b <-> a' === b').
-    Proof.
-      intros Ha Hb.
-      split; intros H.
-      - unfold EqualOn in *.
-        intros k Hk.
-        rewrite <- Ha.
-        rewrite <- Hb.
-        eapply H; eauto.
-      - unfold EqualOn in *.
-        intros k Hk.
-        rewrite Ha.
-        rewrite Hb.
-        eapply H; eauto.
-    Qed.
-
-    Global Add Morphism EqualOn
-        with signature Equal ==> Equal ==> iff as Equal_EqualOn_m.
-    Proof.
-      intros; eapply Equal_EqualOn; eauto.
-    Qed.
-
-    Lemma add_EqualOn k v m1 m2 : m1 === m2 -> add k v m1 === add k v m2.
-    Proof.
-      intros Heq.
-      unfold EqualOn in *.
-      intros k' Hk'.
-      destruct (string_dec k' k) as [Heqk | Hnek].
-      - subst.
-        repeat rewrite add_eq_o by eauto.
-        eauto.
-      - repeat rewrite add_neq_o by eauto.
-        eauto.
-    Qed.
-
-    Lemma remove_EqualOn k m1 m2 : m1 === m2 -> remove k m1 === remove k m2.
-    Proof.
-      intros Heq.
-      unfold EqualOn in *.
-      intros k' Hk'.
-      destruct (string_dec k' k) as [Heqk | Hnek].
-      - subst.
-        repeat rewrite remove_eq_o by eauto.
-        eauto.
-      - repeat rewrite remove_neq_o by eauto.
-        eauto.
-    Qed.
-
-    Global Add Morphism (@add elt) with signature eq ==> eq ==> EqualOn ==> EqualOn as add_EqualOn_m.
-    Proof.
-      intros; eapply add_EqualOn; eauto.
-    Qed.
-
-    Global Add Morphism (@remove elt) with signature eq ==> EqualOn ==> EqualOn as remove_EqualOn_m.
-    Proof.
-      intros; eapply remove_EqualOn; eauto.
-    Qed.
-
-    Lemma out_add_EqualOn a b k v : a === b -> ~ Domain k -> add k v a === b.
-    Proof.
-      intros Heq Hk.
-      unfold EqualOn in *.
-      intros k' Hk'.
-      destruct (string_dec k' k) as [? | Hne].
-      - subst.
-        contradiction.
-      - rewrite add_neq_o by eauto.
-        eapply Heq; eauto.
-    Qed.
-
-  End EqualOn.
-
   Existing Instance EqualOn_rel_Reflexive.
   Existing Instance EqualOn_rel_Symmetric.
   Existing Instance EqualOn_rel_Transitive.
 
+  (* equivalent relation between states that only differ on temporary variables and temporary variables don't map to ADT values *)
   Section equiv.
 
     Variable s : StringSet.t.
@@ -642,7 +181,9 @@ Section ADTValue.
       rewrite Heq.
       eauto.
     Qed.
-    
+
+    Import Logic.
+
     Global Add Morphism (@not_mapsto_adt ADTValue) with signature eq ==> Equal ==> eq as Equal_not_mapsto_adt_m.
     Proof.
       intros; eapply Equal_not_mapsto_adt; eauto.
@@ -801,6 +342,8 @@ Section ADTValue.
     Variable x : string.
     Hypothesis Hgn : is_good_varname x = true.
 
+    Import Logic.
+
     Global Add Morphism (find x) with signature equivf ==> eq as find_equiv_m.
     Proof.
       intros; eapply find_equiv; eauto.
@@ -927,23 +470,6 @@ Section ADTValue.
     eapply find_adt_equiv; eauto.
   Qed.
 
-  Fixpoint output_eqv A (types : list Value) (output1 output2 : list A) := 
-    match types, output1, output2 with
-      | i :: types', o1 :: output1', o2 :: output2' => 
-        match i with
-          | ADT _ => o1 = o2 
-          | _ => True
-        end /\ output_eqv types' output1' output2'
-      | nil, nil, nil => True
-      | _, _, _ => False
-    end.
-
-  Lemma output_eqv_refl A types : forall (output : list A), length types = length output -> output_eqv types output output.
-  Proof.
-    induction types; destruct output; simpl; intuition.
-    destruct a; eauto.
-  Qed.
-
   Lemma add_remove_many_equiv args : forall types output1 output2 st1 st2, st1 === st2 -> List.forallb is_good_varname args = true -> output_eqv types output1 output2 -> length args = length types -> add_remove_many args types output1 st1 === add_remove_many args types output2 st2.
   Proof.
     induction args; destruct types; destruct output1; destruct output2; simpl; try solve [intros; try discriminate; intuition eauto].
@@ -961,156 +487,6 @@ Section ADTValue.
       destruct o0 as [o|].
       + eapply add_equiv; eauto.
       + eapply remove_equiv; eauto.
-  Qed.
-
-  Definition not_mapsto_adt_types (k : string) ks types := forall i, nth_error ks i = Some k -> ~ exists a : ADTValue, nth_error types i = Some (ADT a).
-
-  Lemma not_in_not_mapsto_adt_types k ks types : ~ List.In k ks -> not_mapsto_adt_types k ks types.
-  Proof.
-    intros Hnin.
-    unfold not_mapsto_adt_types in *.
-    intros i Hnth Hex.
-    contradict Hnin.
-    eapply Locals.nth_error_In; eauto.
-  Qed.
-
-  Lemma not_mapsto_adt_types_cons_neq_elim ks types k k' type : not_mapsto_adt_types k (k' :: ks) (type :: types) -> k <> k' -> not_mapsto_adt_types k ks types.
-  Proof.
-    intros H Hne.
-    unfold not_mapsto_adt_types in *.
-    intros i Hnth Hex.
-    eapply (H (S i)); simpl in *; eauto.
-  Qed.
-
-  Lemma not_mapsto_adt_types_cons_neq_intro ks types k k' type : not_mapsto_adt_types k ks types -> k <> k' -> not_mapsto_adt_types k (k' :: ks) (type :: types).
-  Proof.
-    intros H Hne.
-    unfold not_mapsto_adt_types in *.
-    intros i Hnth [a Ha].
-    destruct i as [|i]; simpl in *.
-    - inject Hnth.
-      intuition.
-    - eapply H; eauto.
-  Qed.
-
-  Lemma not_mapsto_adt_types_adt k ks a types : ~ not_mapsto_adt_types k (k :: ks) (ADT a :: types).
-  Proof.
-    unfold not_mapsto_adt_types.
-    intros H.
-    eapply (H 0); simpl in *; eauto.
-  Qed.
-
-  Lemma not_mapsto_adt_types_sca k ks w types : not_mapsto_adt_types k ks types -> not_mapsto_adt_types k (k :: ks) (SCA w :: types).
-  Proof.
-    intros H.
-    unfold not_mapsto_adt_types in *.
-    intros i Hnth [a Ha].
-    destruct i as [|i]; simpl in *.
-    - discriminate.
-    - eapply H; eauto.
-  Qed.
-
-  Lemma not_mapsto_adt_types_nil k types : not_mapsto_adt_types k nil types.
-  Proof.
-    unfold not_mapsto_adt_types; intros.
-    rewrite nth_error_nil in *.
-    discriminate.
-  Qed.
-
-  Lemma mapM_not_mapsto_adt_types ks : forall types k st, not_mapsto_adt k st = true -> mapM (sel st) ks = Some types -> not_mapsto_adt_types k ks types.
-  Proof.
-    induction ks; destruct types; simpl; try discriminate; intros k st Hnadt Hmm.
-    - eapply not_mapsto_adt_types_nil.
-    - rename k into k'.
-      rename a into k.
-      destruct (option_dec (sel st k)) as [ [v Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
-      destruct (option_dec (mapM (sel st) ks)) as [ [vs Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
-    - rename k into k'.
-      rename a into k.
-      destruct (option_dec (sel st k)) as [ [ty Heq] | Hneq]; [rewrite Heq in Hmm | rewrite Hneq in Hmm]; try discriminate.
-      destruct (option_dec (mapM (sel st) ks)) as [ [tys Heqs] | Hneq]; [rewrite Heqs in Hmm | rewrite Hneq in Hmm]; try discriminate.
-      inject Hmm.
-      destruct (string_dec k' k) as [Heqk | Hnek].
-      + subst.
-        destruct v as [w | a].
-        * eapply not_mapsto_adt_types_sca; eauto.
-        * eapply not_mapsto_adt_iff in Hnadt.
-          contradict Hnadt; eexists; eauto.
-      + eapply not_mapsto_adt_types_cons_neq_intro; eauto.
-  Qed.
-
-  Lemma add_remove_many_eq_output_eqv ks : forall types st1 st2 vs1 vs2 k, remove k (add_remove_many ks types vs1 st1) == remove k (add_remove_many ks types vs2 st2) -> not_mapsto_adt_types k ks types -> length ks = length types -> length ks = length vs1 -> length ks = length vs2 -> NoDup ks -> output_eqv types vs1 vs2.
-  Proof.
-    induction ks; destruct types; destruct vs1; destruct vs2; simpl; try solve [intros; try discriminate; intuition eauto]; intros k Heq Hnadt Hlent Hlen1 Hlen2 Hnd.
-    {
-      inject Hlent.
-      rename H into Hlent.
-      inject Hlen1.
-      rename H into Hlen1.
-      inject Hlen2.
-      rename H into Hlen2.
-      rename a into k0.
-      inversion Hnd; subst.
-      rename H1 into Hnin.
-      rename H2 into Hnd'.
-      destruct v as [w | a].
-      {
-        destruct (string_dec k k0) as [Hkeq | Hkne].
-        - subst.
-          split; eauto.
-          eapply IHks; eauto.
-          eapply not_in_not_mapsto_adt_types; eauto.
-        - eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
-      }
-      {
-        destruct (string_dec k k0) as [Hkeq | Hkne].
-        {
-          subst.
-          eapply not_mapsto_adt_types_adt in Hnadt; intuition.
-        }
-        {
-          eapply not_mapsto_adt_types_cons_neq_elim in Hnadt; eauto.
-          destruct o as [o1|]; destruct o0 as [o2|].
-          {
-            split.
-            - repeat rewrite add_remove_many_add_comm in Heq by eauto.
-              repeat rewrite remove_add_comm in Heq by eauto.
-              eapply add_eq_elim in Heq.
-              openhyp; subst; eauto.
-            - eauto.
-          }
-          {
-            repeat rewrite add_remove_many_add_comm in Heq by eauto.
-            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
-            repeat rewrite remove_add_comm in Heq by eauto.
-            rewrite remove_remove_comm in Heq by eauto.
-            eapply add_remove_eq_false in Heq; intuition.
-          }
-          {
-            repeat rewrite add_remove_many_add_comm in Heq by eauto.
-            repeat rewrite add_remove_many_remove_comm in Heq by eauto.
-            repeat rewrite remove_add_comm in Heq by eauto.
-            rewrite remove_remove_comm in Heq by eauto.
-            symmetry in Heq.
-            eapply add_remove_eq_false in Heq; intuition.
-          }
-          {
-            eauto.
-          }            
-        }
-      }
-    }
-  Qed.
-
-  Lemma add_add_remove_many_eq_elim types k ks v1 vs1 v2 vs2 (st : State) : not_mapsto_adt k st = true -> List.NoDup ks -> add k v1 (add_remove_many ks types vs1 st) == add k v2 (add_remove_many ks types vs2 st) -> mapM (sel st) ks = Some types -> length ks = length vs1 -> length ks = length vs2 -> v1 = v2 /\ output_eqv types vs1 vs2.
-  Proof.
-    intros Hnadt Hnd Heq Hlen1 Hlen2.
-    eapply add_eq_elim in Heq.
-    destruct Heq as [Hveq Hmeq].
-    split; eauto.
-    eapply add_remove_many_eq_output_eqv; eauto.
-    - eapply mapM_not_mapsto_adt_types; eauto.
-    - eapply mapM_length; eauto.
   Qed.
 
   Lemma args_name_ok_make_map avars input : forallb is_good_varname avars = true -> @not_mapsto_adt ADTValue fun_ptr_varname (make_map avars input) = true.
@@ -1462,6 +838,218 @@ Section ADTValue.
              s_st' === t_st').
   Proof.
     intros; eapply compile_runsto'; eauto.
+  Qed.
+
+  Require Import SafeCoind.
+
+  Theorem compile_safe s_env s s_st :
+    Safe s_env s s_st ->
+    is_syntax_ok s = true -> 
+    forall t_env t_st,
+      fenv_impls_env t_env s_env ->
+      s_st === t_st ->
+      let t := compile s in
+      FSafe t_env t t_st.
+  Proof.
+    simpl; intros Hsfs Hsyn t_env t_st Henv Heqv.
+    eapply 
+      (Safe_coind 
+         (fun t t_st =>
+            exists s s_st,
+              Safe s_env s s_st /\
+              is_syntax_ok s = true /\
+              s_st === t_st /\
+              (t = compile s
+(*
+               \/ 
+               (exists lbl, t = Facade.Label fun_ptr_varname lbl) \/
+               (exists)
+*)
+))
+      ); [ .. | solve [repeat try_eexists; simpl in *; intuition eauto] ]; generalize Henv; clear; simpl; intros Henv; intros until st; rename st into t_st; intros [s [s_st [Hsfs [Hsyn [Heqv Hcomp]]]]]; destruct s; simpl in *; try discriminate; inject Hcomp.
+
+    {
+      (* seq *)
+      inversion Hsfs; subst.
+      eapply is_syntax_ok_seq_elim in Hsyn.
+      destruct Hsyn as [Hsyn1 Hsyn2].
+      destruct H2 as [Hsfa Hsfb].
+      split.
+      - exists s1, s_st; eauto.
+      - intros t_st' Hrtt; simpl in *.
+        eapply compile_runsto in Hrtt; eauto.
+        openhyp.
+        repeat eexists_split; try reflexivity; eauto.
+    }
+
+    {
+      (* dfacade call *)
+      rename s into x.
+      rename g into f.
+      rename l into args.
+      eapply is_syntax_ok_call_elim in Hsyn.
+      destruct Hsyn as [Hsynx Hsynargs].
+      inversion Hsfs; subst.
+      {
+        (* axiomatic *)
+        admit.
+      }
+      {
+        admit.
+      }
+    }
+
+    {
+      (* if *)
+      eapply is_syntax_ok_if_elim in Hsyn.
+      destruct Hsyn as [Hsyne [Hsyn1 Hsyn2]].
+      inversion Hsfs; subst.
+      - left.
+        rename H3 into Hcond.
+        rename H4 into Hsfbr.
+        split.
+        + eapply is_true_equiv; eauto.
+        + repeat eexists_split; try reflexivity; eauto.
+      - right.
+        rename H3 into Hcond.
+        rename H4 into Hsfbr.
+        split.
+        + eapply is_false_equiv; eauto.
+        + repeat eexists_split; try reflexivity; eauto.
+    }
+
+    {
+      (* while *)
+      copy_as Hsyn Hysn'.
+      eapply is_syntax_ok_while_elim in Hsyn.
+      destruct Hsyn as [Hsyne Hsynb].
+      inversion Hsfs; unfold_all; subst.
+      - left.
+        rename H1 into Hcond.
+        rename H2 into Hsfbody.
+        rename H4 into Hsfk.
+        repeat try_split.
+        + eapply is_true_equiv; eauto.
+        + repeat eexists_split; try reflexivity; eauto.
+        + intros t_st' Hrtt; simpl in *.
+          eapply compile_runsto in Hrtt; eauto.
+          openhyp.
+          exists (While e s).
+          repeat eexists_split; try eapply Hsfk; eauto.
+      - right.
+        eapply is_false_equiv; eauto.
+    }
+
+    {
+      (* assign *)
+      eapply is_syntax_ok_assign_elim in Hsyn.
+      destruct Hsyn as [Hsynx Hsyne].
+      inversion Hsfs; unfold_all; subst.
+      split.
+      - erewrite <- not_mapsto_adt_equiv; eauto.
+      - eexists.
+        erewrite <- eval_equiv; eauto.
+    }
+
+    (* call *)
+    {
+      rename s into x.
+      rename e into f_e.
+      rename l into args.
+      inversion Hsf; unfold_all; subst.
+      (* axiomatic *)
+      {
+        right.
+        rename H2 into Hnd.
+        rename H3 into Hfe.
+        rename H4 into Hfw.
+        rename H5 into Hmm.
+        rename H7 into Hna.
+        rename H8 into Hpre.
+        destruct spec; simpl in *.
+        rewrite map_map.
+        simpl.
+        set (words := List.map (fun x0 : string => vs x0) args) in *.
+        eexists.
+        exists (combine words input).
+        repeat eexists_split.
+        {
+          eapply eval_ceval in Hfe; eauto.
+          rewrite Hfe.
+          rewrite Hfw.
+          simpl.
+          eauto.
+        }
+        {
+          rewrite map_fst_combine.
+          eauto.
+          unfold_all.
+          repeat rewrite map_length.
+          eapply mapM_length; eauto.
+        }
+        {
+          eapply mapM_good_inputs; unfold_all; eauto.
+        }
+        {
+          simpl in *.
+          rewrite map_snd_combine.
+          eauto.
+          unfold_all.
+          repeat rewrite map_length.
+          eapply mapM_length; eauto.
+        }
+      }
+      (* opereational *)
+      {
+        left.
+        rename H2 into Hnd.
+        rename H3 into Hfe.
+        rename H4 into Hfw.
+        rename H5 into Hl.
+        rename H6 into Hmm.
+        rename H7 into Hna.
+        rename H9 into Hsfb.
+        rename H10 into Hnl.
+        destruct spec; simpl in *.
+        repeat eexists_split.
+        {
+          eapply eval_ceval in Hfe; eauto.
+          rewrite Hfe.
+          rewrite Hfw.
+          simpl.
+          eauto.
+        }
+        {
+          simpl in *.
+          rewrite map_length.
+          symmetry; eauto.
+        }
+        {
+          simpl in *.
+          intros vs_arg Hm.
+          rewrite map_map in Hm.
+          eapply reachable_submap_related in Hr; eauto.
+          destruct Hr as [Hsm2 Hr].
+          repeat eexists_split.
+          - eauto.
+          - instantiate (1 := reachable_heap vs args input).
+            eapply submap_trans; eauto.
+          - eapply change_var_names; eauto.
+            eapply is_no_dup_sound; eauto.
+            eapply mapM_length; eauto.
+          - eauto.
+        }
+      }
+    }      
+
+    (* label *)
+    {
+      rename s into x.
+      rename g into lbl.
+      inversion Hsf; unfold_all; subst.
+      intuition.
+    }
+
   Qed.
 
 End ADTValue.

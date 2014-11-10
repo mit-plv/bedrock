@@ -20,18 +20,20 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 	   tests/XmlTestDriver tests/XmlTest2Driver tests/CallbackDriver \
            tests/Ros tests/MiniMasterDriver tests/RosMasterDriver
 
-VNAME := -name \*.v ! -name \*.#\*
+VNAME := -name \*.v ! -name \*.\#\*
 
 CITO := $(shell find cito $(VNAME))
+
+FACADE_ALLV := $(shell find facade $(VNAME))
 
 FACADE := \
 	facade/Facade \
 	facade/DFacade \
+
+FACADE_ALL := \
 	facade/examples/FiatImpl \
 
-FACADE_ALL := $(shell find facade $(VNAME))
-
-.PHONY: default platform cito facade build clean master install install-platform install-cito install-facade install-facade-all
+.PHONY: default platform cito facade facade_all facade_allv build clean master install install-platform install-cito install-facade install-facade-all
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 default: platform
@@ -47,6 +49,9 @@ facade: build
 
 facade_all: T=$(FACADE_ALL)
 facade_all: build
+
+facade_allv: T=$(FACADE_ALLV)
+facade_allv: build
 
 COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
