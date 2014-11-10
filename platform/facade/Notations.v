@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Facade.
+Require Import DFacade.
 Require Import NotationsExpr.
 Export NotationsExpr.
 
@@ -19,40 +19,38 @@ Export Instances.
 Local Open Scope listy_scope.
 
 Instance seq_Listy : Listy Stmt Stmt := {
-  Nil := Facade.Skip;
-  Cons := Facade.Seq
+  Nil := DFacade.Skip;
+  Cons := DFacade.Seq
 }.                                                
 
 (* for some reason typeclass inference needs to redeclare this instance *)
 Existing Instance list_Listy.
 
 (* for free-standing stmt seq *)
-Infix ";;" := Facade.Seq : facade_scope.
+Infix ";;" := DFacade.Seq : dfacade_scope.
 
-Delimit Scope facade_scope with facade.
-Local Open Scope facade_scope.
+Delimit Scope dfacade_scope with dfacade.
+Local Open Scope dfacade_scope.
 
-Notation "'skip'" := Facade.Skip : facade_scope.
+Notation "'skip'" := DFacade.Skip : dfacade_scope.
 
-Notation if_ := Facade.If.
+Notation if_ := DFacade.If.
 
-Notation while_ := Facade.While.
+Notation while_ := DFacade.While.
 
-Notation "x <- e" := (Facade.Assign x e) : facade_scope.
+Notation "x <- e" := (DFacade.Assign x e) : dfacade_scope.
 
-Definition DirectCall x f args := Facade.Label "_f" f ;; Facade.Call x "_f" args.
+Notation "'call_' f ()" := (DFacade.Call "_tmp" f nil)
+  (no associativity, at level 95, f at level 0) : dfacade_scope.
 
-Notation "'call_' f ()" := (DirectCall "_tmp" f nil)
-  (no associativity, at level 95, f at level 0) : facade_scope.
+Notation "'call_' f ( x1 , .. , xN )" := (DFacade.Call "_tmp" f (cons x1 (.. (cons xN nil) ..))) (no associativity, at level 95, f at level 0) : dfacade_scope.
 
-Notation "'call_' f ( x1 , .. , xN )" := (DirectCall "_tmp" f (cons x1 (.. (cons xN nil) ..))) (no associativity, at level 95, f at level 0) : facade_scope.
+Notation "x <-- 'call_' f ()" := (DFacade.Call x f nil)
+  (no associativity, at level 95, f at level 0) : dfacade_scope.
 
-Notation "x <-- 'call_' f ()" := (DirectCall x f nil)
-  (no associativity, at level 95, f at level 0) : facade_scope.
+Notation "x <-- 'call_' f ( x1 , .. , xN )" := (DFacade.Call x f (cons x1 (.. (cons xN nil) ..))) (no associativity, at level 95, f at level 0) : dfacade_scope.
 
-Notation "x <-- 'call_' f ( x1 , .. , xN )" := (DirectCall x f (cons x1 (.. (cons xN nil) ..))) (no associativity, at level 95, f at level 0) : facade_scope.
-
-Notation "a ! b" := (a, b) (only parsing) : facade_scope.
+Notation "a ! b" := (a, b) (only parsing) : dfacade_scope.
 
 Local Open Scope expr_scope.
 
@@ -81,15 +79,15 @@ Import ListNotations.
 Local Open Scope list_scope.
 Require Import ListNotationsFix.
 Export ListNotationsFix.
-Require Import FModule.
+Require Import DFModule.
 
-Local Open Scope facade_scope.
+Local Open Scope dfacade_scope.
 
 Notation "'func' () b" :=
-  (Build_FFunction (Build_OperationalSpec nil "ret" b eq_refl eq_refl eq_refl) eq_refl) (no associativity, at level 95, only parsing) : facade_scope.
+  (Build_DFFun (Build_OperationalSpec nil "ret" b eq_refl eq_refl eq_refl eq_refl eq_refl eq_refl) eq_refl) (no associativity, at level 95, only parsing) : dfacade_scope.
 
 Notation "'func' ( x , .. , y ) b" :=
-  (Build_FFunction (Build_OperationalSpec (cons x (.. (cons y nil) ..)) "ret" b eq_refl eq_refl eq_refl) eq_refl) (no associativity, at level 95, only parsing) : facade_scope.
+  (Build_DFFun (Build_OperationalSpec (cons x (.. (cons y nil) ..)) "ret" b eq_refl eq_refl eq_refl eq_refl eq_refl eq_refl) eq_refl) (no associativity, at level 95, only parsing) : dfacade_scope.
 
 Definition test_f := 
   func(){
@@ -102,12 +100,12 @@ Definition test_2 :=
   end.
 
 (* notations for pairs *)
-Notation "'def' name = v" := (pair name v) (no associativity, at level 95, name at level 0, only parsing) : facade_scope.
-Infix "==>" := pair (no associativity, at level 95, only parsing) : facade_scope.
-Infix "::=" := pair (no associativity, at level 95, only parsing) : facade_scope.
+Notation "'def' name = v" := (pair name v) (no associativity, at level 95, name at level 0, only parsing) : dfacade_scope.
+Infix "==>" := pair (no associativity, at level 95, only parsing) : dfacade_scope.
+Infix "::=" := pair (no associativity, at level 95, only parsing) : dfacade_scope.
 
 (* notations for lists *)
-Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : facade_scope.
+Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : dfacade_scope.
 
 Definition test_name_f := 
   def "test" = func(){
@@ -118,7 +116,7 @@ Require Import StringMapFacts.
 Require Import GLabelMapFacts.
 
 Notation "'module' 'import' imps 'define' fs" := 
-  (Build_FModule (GLabelMapFacts.of_list imps) (StringMapFacts.of_list fs)) (no associativity, at level 95, only parsing) : facade_scope.
+  (Build_DFModule (GLabelMapFacts.of_list imps) (StringMapFacts.of_list fs)) (no associativity, at level 95, only parsing) : dfacade_scope.
 
 Section Test.
   
@@ -203,6 +201,6 @@ End Test.
 
 Module OpenScopes.
   Open Scope listy_scope.
-  Open Scope facade_scope.
+  Open Scope dfacade_scope.
   Open Scope expr_scope.
 End OpenScopes.

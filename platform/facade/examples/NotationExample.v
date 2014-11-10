@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Facade.Facade.
+Require Import DFacade.
 Require Import Notations.
 Import Notations.OpenScopes.
 
@@ -46,7 +46,7 @@ Section ADTValue.
       }
     }.
 
-  Require Import Facade.CompileModule.
+  Require Import CompileDFModule.
 
   Definition gmodule := compile_to_gmodule count_unique "count_unique" eq_refl.
 

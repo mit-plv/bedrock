@@ -1,7 +1,8 @@
 Set Implicit Arguments.
 
+Require Import CompileSafe.
 Require Import CompileRunsTo.
-Require Import CompileDFacade.
+Require Import CompileDFacadeCorrect.
 
 Section ADTValue.
 
@@ -29,9 +30,9 @@ Section ADTValue.
 
   Require Import GLabelMap.
 
-  Definition compile s := (Compile.compile (compile s)).
+  Notation compile s := (Compile.compile (compile s)).
 
-  Definition compile_spec s := (CompileRunsTo.compile_spec (@compile_spec ADTValue s)).
+  Notation compile_spec s := (CompileRunsTo.compile_spec (@CompileDFacadeCorrect.compile_spec ADTValue s)).
 
   Require Import Label2Word Label2WordFacts.
 
@@ -64,7 +65,7 @@ Section ADTValue.
     set (fenv :=
            {|
              Label2Word := fst cenv;
-             Word2Spec w := option_map (@CompileDFacade.compile_spec _) (find_by_word (fst cenv) (elements env) w)
+             Word2Spec w := option_map (@CompileDFacadeCorrect.compile_spec _) (find_by_word (fst cenv) (elements env) w)
            |} : FEnv).
     unfold cenv_impls_env in *.
     unfold CompileRunsTo.cenv_impls_env in *.
@@ -198,7 +199,7 @@ Section ADTValue.
     eapply CompileRunsTo.compile_runsto in Hcrt; eauto.
     - destruct Hcrt as [s_st' [Hfrt Hsst']]; simpl in *.
       destruct Hsst' as [Hsm' [Hnoass [Hnocollide Hr']]].
-      eapply CompileDFacade.compile_runsto in Hfrt; eauto.
+      eapply CompileDFacadeCorrect.compile_runsto in Hfrt; eauto.
       + destruct Hfrt as [d_st' [Hdrt Heqv]].
         exists d_st'.
         repeat try_split.
@@ -210,12 +211,10 @@ Section ADTValue.
           eapply syntax_ok_fptr_not_fv; eauto.
       + eapply equiv_refl; eauto.
         eapply find_none_not_mapsto_adt; eauto.
-    - eapply CompileDFacade.compile_safe; eauto.
+    - eapply CompileDFacadeCorrect.compile_safe; eauto.
       eapply equiv_refl; eauto.
       eapply find_none_not_mapsto_adt; eauto.
   Qed.
-
-  Require Import CompileSafe.
 
   Notation CSafe := (@Semantics.Safe ADTValue).
 
@@ -237,7 +236,7 @@ Section ADTValue.
     eapply cenv_impls_env_fenv in Henv.
     destruct Henv as [fenv [Htenv Hfenv]].
     eapply CompileSafe.compile_safe; eauto.
-    eapply CompileDFacade.compile_safe; eauto.
+    eapply CompileDFacadeCorrect.compile_safe; eauto.
     eapply equiv_refl.
     eapply find_none_not_mapsto_adt; eauto.
   Qed.

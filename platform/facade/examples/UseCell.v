@@ -2,14 +2,14 @@ Set Implicit Arguments.
 
 Require Import ExampleImpl.
 
-Require Import Facade.
-Require Import Notations.
-Import Notations.OpenScopes.
-
 Require Import MakeWrapper.
 Require Import ExampleADT ExampleRepInv.
 Module Import MakeWrapperMake := Make(ExampleADT)(ExampleRepInv).
 Export MakeWrapperMake.
+
+Require Import DFacade.
+Require Import Notations.
+Import Notations.OpenScopes.
 
 Require Import Arith.
 Open Scope nat.
@@ -28,14 +28,14 @@ Definition use_cell :=
     }
   }.
 
-Require Import Facade.CompileModule.
+Require Import CompileDFModule.
 
 Definition use_cell_gm := compile_to_gmodule use_cell "use_cell" eq_refl.
 
 Import LinkSpecMake2.
 
 Definition modules := { use_cell_gm }.
-Definition imports := FModule.Imports use_cell.
+Definition imports := DFModule.Imports use_cell.
 
 Require Import GoodModuleDec.
 
@@ -71,59 +71,10 @@ Definition top := bimport [[ ("use_cell"!"use_cell", spec_op_b), "sys"!"printInt
     end
   }}.
 
-(* should use the generic 'make_specs' here *)
-Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign imports).
-
 Import LinkSpecMake.
 Require Import LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import LinkSpecMake.
-
-Lemma specs_good : specs_equal specs modules imports.
-  split; intros.
-
-  unfold label_mapsto, specs in *.
-  eapply find_mapsto_iff in H.
-  eapply add_mapsto_iff in H.
-  openhyp.
-  subst; simpl in *.
-  left; descend; eauto.
-  unfold spec_op, use_cell_gm; simpl; eauto.
-
-  eapply map_mapsto_iff in H0.
-  openhyp.
-  subst; simpl in *.
-  right; descend; eauto.
-  eapply find_mapsto_iff; eauto.
-
-  unfold label_mapsto, specs in *.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst.
-  left.
-  unfold spec_op, use_cell_gm, to_good_module in *; simpl in *.
-  openhyp.
-  2 : intuition.
-  subst; simpl in *.
-  eauto.
-
-  subst; simpl in *.
-  right; descend; eauto.
-  Require Import GeneralTactics2.
-  nintro.
-  subst; simpl in *.
-  compute in H0.
-  intuition.
-  eapply map_mapsto_iff.
-  descend; eauto.
-  eapply find_mapsto_iff; eauto.
-Qed.
-
-Definition body : Stmt := Body spec_op.
 
 Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
   admit.
