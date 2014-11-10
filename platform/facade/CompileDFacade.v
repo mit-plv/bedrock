@@ -313,6 +313,15 @@ Section ADTValue.
     eapply no_adt_in_not_mapsto_adt; eauto.
   Qed.
 
+  Lemma not_find_fpv_adt st1 st2 (a : ADTValue) : st1 === st2 -> find fun_ptr_varname st2 <> Some (ADT a).
+  Proof.
+    intros Heqv Hf.
+    eapply equiv_nma_fpv in Heqv.
+    eapply not_mapsto_adt_iff in Heqv.
+    contradict Heqv.
+    eexists; eauto.
+  Qed.
+
   Lemma no_adt_in_add_sca k w st : no_adt_in (StringSet.singleton k) (add k (SCA w) st).
   Proof.
     unfold no_adt_in.
@@ -338,6 +347,17 @@ Section ADTValue.
     - eapply no_adt_in_add_sca; eauto.
     - eauto.
   Qed.
+
+  Lemma find_equiv_fpv (st1 st2 : State) x : st1 === st2 -> x <> fun_ptr_varname -> find x st1 = find x st2.
+  Proof.
+    intros Heq Hgn.
+    unfold equiv in *.
+    simpl in *.
+    destruct Heq as [Heq [Hnadt1 Hnadt2]].
+    eapply Heq.
+    eapply StringSetFacts.singleton_not_iff; eauto.
+  Qed.
+  Arguments find_equiv_fpv st1 st2 [_] _ _.
 
   Lemma find_equiv st1 st2 x : st1 === st2 -> is_good_varname x = true -> find x st1 = find x st2.
   Proof.

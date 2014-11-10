@@ -747,4 +747,31 @@ Section ADTValue.
     - eapply mapM_length; eauto.
   Qed.
 
+  Lemma not_in_add_remove_many' ks : forall types outs x (st1 st2 : State), ~ List.In x ks -> find x st1 = find x st2 -> find x (add_remove_many ks types outs st1) = find x st2.
+  Proof.
+    induction ks; destruct types; destruct outs; simpl; try solve [intuition].
+    intros x st1 st2 Hnin Hst.
+    eapply Decidable.not_or in Hnin.
+    destruct Hnin as [Hnin1 Hnin2].
+    rename a into k.
+    rename x into k'.
+    destruct v as [w | a].
+    {
+      eauto.
+    }
+    destruct o as [o|].
+    {
+      eapply IHks; eauto.
+      rewrite add_neq_o by eauto.
+      eauto.
+    }
+    eapply IHks; eauto.
+    rewrite remove_neq_o by eauto.
+    eauto.
+  Qed.
+
+  Lemma not_in_add_remove_many ks : forall types outs x (st : State), ~ List.In x ks -> find x (add_remove_many ks types outs st) = find x st.
+    intros; eapply not_in_add_remove_many'; eauto.
+  Qed.
+
 End ADTValue.  

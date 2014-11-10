@@ -131,12 +131,23 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     split; intros; intuition.
   Qed.
 
-  Lemma singleton_not_iff x x' : ~ In x' (singleton x) <-> x' <> x.
+  Lemma singleton_not_iff x x' : ~ In x' (singleton x) <-> x <> x'.
   Proof.
     eapply iff_not_iff.
-    split; intros H.
-    - eapply singleton_iff in H; eauto.
-    - eapply singleton_iff; eauto.
+    eapply singleton_iff.
+  Qed.
+
+  Lemma union_not_iff a b x : ~ In x (union a b) <-> (~ In x a /\ ~ In x b).
+  Proof.
+    etransitivity.
+    - eapply iff_not_iff.
+      eapply union_iff.
+    - intuition.
+  Qed.
+
+  Lemma of_list_not_iff x ls : ~ In x (of_list ls) <-> ~ List.In x ls.
+    eapply iff_not_iff.
+    eapply of_list_spec.
   Qed.
 
   Require ListFacts1.

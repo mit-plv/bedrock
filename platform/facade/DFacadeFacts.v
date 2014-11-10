@@ -225,4 +225,73 @@ Section ADTValue.
     eapply is_false_is_bool; eauto.
   Qed.
 
+  Notation RunsTo := (@RunsTo ADTValue).
+
+  Lemma not_free_vars_no_change env s st st' x : RunsTo env s st st' -> ~ StringSet.In x (free_vars s) -> find x st' = find x st.
+  Proof.
+    induction 1; simpl; intros Hnin.
+    {
+      eauto.
+    }
+    {
+      eapply union_not_iff in Hnin.
+      openhyp; rewrite IHRunsTo2; eauto.
+    }
+    {
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin ?].
+      eapply union_not_iff in Hnin.
+      openhyp; eauto.
+    }      
+    {
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin ?].
+      eapply union_not_iff in Hnin.
+      openhyp; eauto.
+    }      
+    {
+      unfold_all.
+      simpl in *.
+      copy_as Hnin Hnin'.
+      eapply union_not_iff in Hnin.
+      openhyp; rewrite IHRunsTo2; eauto.
+    }
+    {
+      eauto.
+    }
+    {
+      rename H1 into Hst'.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      rewrite Hst'.
+      rewrite add_neq_o by eauto.
+      eauto.
+    }      
+    {
+      unfold_all.
+      simpl in *.
+      rename H5 into Hst''.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      eapply of_list_not_iff in Hnin2.
+      rewrite Hst''.
+      rewrite add_neq_o by eauto.
+      eapply not_in_add_remove_many; eauto.
+    }
+    {
+      unfold_all.
+      simpl in *.
+      rename H6 into Hst''.
+      eapply union_not_iff in Hnin.
+      destruct Hnin as [Hnin1 Hnin2].
+      eapply singleton_not_iff in Hnin1.
+      eapply of_list_not_iff in Hnin2.
+      rewrite Hst''.
+      rewrite add_neq_o by eauto.
+      eapply not_in_add_remove_many; eauto.
+    }
+  Qed.
+
 End ADTValue.  
