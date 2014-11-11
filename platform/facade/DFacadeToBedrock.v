@@ -499,13 +499,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut bedrock_module_ok eq_refl.
-
     Notation compile_cito_to_bedrock := link_with_adts.
 
     Notation bedrock_module_impl := (compile_cito_to_bedrock modules imports).
 
-    Definition all := link bedrock_module bedrock_module_impl.
+    Open Scope bool_scope.
+    Lemma import_module_names_ok : 
+      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
+        forallb (string_bool export_module_name) imported_module_names &&
+        forallb (fun x => negb (string_bool module_name x)) imported_module_names &&
+        forallb Cito.NameDecoration.is_good_module_name imported_module_names = true.
+      admit.
+    Qed.
+
+    Require Import Bool.
 
     Theorem bedrock_module_impl_ok : moduleOk bedrock_module_impl.
     Proof.
@@ -513,45 +520,48 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Import MakeWrapperMake.LinkMake.
       Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
-      Ltac impl_ok :=
-        match goal with
-          | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
-            let H := fresh in
-            assert (GoodToLink_bool Modules Imports = true); 
-              [ unfold GoodToLink_bool(*; simpl*) |
-                eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
-              ; eauto
-        end.
+      match goal with
+        | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
+          let H := fresh in
+          assert (GoodToLink_bool Modules Imports = true); 
+            [ unfold GoodToLink_bool(*; simpl*) |
+              eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
+            ; eauto
+      end.
 
-      impl_ok.
-      Require Import Bool.
-      assert (import_module_names_ok : let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
-        forallb (string_bool export_module_name) imported_module_names &&
-        forallb (fun x => negb (string_bool module_name x)) imported_module_names &&
-        forallb Cito.NameDecoration.is_good_module_name imported_module_names = true) by admit.
-
-      eapply andb_true_iff in import_module_names_ok.
-      destruct import_module_names_ok as [Himn1 Himn2].
+      pose (Himn := import_module_names_ok).
+      eapply andb_true_iff in Himn.
+      destruct Himn as [Himn1 Himn2].
       eapply andb_true_iff in Himn1.
       destruct Himn1 as [Himn11 Himn12].
       eapply andb_true_iff.
       split.
       eapply andb_true_iff.
       split.
-      { reflexivity. }
-      2 : solve [eauto].
-      eapply forallb_forall.
-      intros x Hin.
-      eapply forallb_forall in Himn12; eauto.
-      set (ls := List.map _ modules).
-      simpl in ls.
-      subst ls.
-      destruct (in_dec string_dec x ("dfmodule" :: nil)); simpl in *.
-      intuition.
-      subst; simpl in *; intuition.
-      eauto.
+      { 
+        reflexivity. 
+      }
+      {
+        eapply forallb_forall.
+        intros x Hin.
+        eapply forallb_forall in Himn12.
+        2 : solve [eapply Hin].
+        destruct (in_dec string_dec x (List.map GName modules)); simpl in *.
+        - intuition.
+          subst; simpl in *; intuition.
+        - eauto.
+      }
+      {
+        eauto.
+      }
     Qed.
+
+    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut bedrock_module_ok eq_refl bedrock_module_impl_ok.
+
+(* hard to do linking for abstract terms *)
 (*
+    Definition all := link bedrock_module bedrock_module_impl.
+
     Theorem all_ok : moduleOk all.
 
       Ltac link0 ok1 :=
@@ -567,6 +577,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       link0 bedrock_module_ok.
       eauto.
+      Focus 2.
+      simpl.
+      ok_simpl.
+      eauto.
+      Require Import StructuredModuleFacts.
+      eapply importsOk_Compat.
+      unfold impls.
+      rewrite LinkModuleImplsMake.module_imports; eauto.
+      unfold stubs.
+      rewrite StubsMake.module_exports; eauto.
+      eapply to_blm_Compat.
+      symmetry.
+      eapply Compat_empty.
       simpl.
       eauto.
       ok_simpl.
