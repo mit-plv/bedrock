@@ -1,42 +1,6 @@
 Set Implicit Arguments.
 
 Require Import MakeWrapper.
-
-Require Import DFacade DFModule.
-Require Import StringMap WordMap GLabelMap.
-
-Module CompileUnit.
-
-  Notation module_name := "dfmodule".
-  Notation fun_name := "dffun".
-  Notation argvar1 := "arg1".
-  Notation argvar2 := "arg2".
-  Notation argvars := (argvar1 :: argvar2 :: nil).
-  Notation retvar := "ret".
-
-  Record CompileUnit (ADTValue : Type) := 
-    {
-      prog : Stmt;
-      no_assign_to_args : is_disjoint (assigned prog) (StringSetFacts.of_list argvars) = true;
-      syntax_ok : is_syntax_ok prog = true;
-      compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (Build_OperationalSpec argvars retvar prog eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok)) = true;
-      imports : GLabelMap.t (AxiomaticSpec ADTValue);
-      pre_cond : Value ADTValue -> Value ADTValue -> Prop;
-      post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop;
-      pre_safe : forall st value1 value2, 
-                   StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
-                   pre_cond value1 value2 -> 
-                   DFacade.Safe (GLabelMap.map (@Axiomatic _) imports) prog st;
-      pre_runsto_post : forall st st' value1 value2, 
-                          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
-                          pre_cond value1 value2 -> DFacade.RunsTo (GLabelMap.map (@Axiomatic _) imports) prog st st' -> 
-                          exists ret, StringMap.Equal st' (StringMapFacts.make_map (retvar :: nil) (ret :: nil)) /\ post_cond value1 value2 ret
-    }.
-
-End CompileUnit.
-
-Import CompileUnit.
-
 Require Import ADT RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
@@ -54,10 +18,24 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import InvMake2 := Make M.
 
   Import LinkSpecMake2.
+  Require Import StringMap WordMap GLabelMap.
 
   Section TopSection.
 
+    Require Import CompileUnit.
+
     Variable compile_unit : CompileUnit ADTValue.
+
+    Notation pre_cond := (CompileUnit.pre_cond compile_unit).
+    Notation post_cond := (CompileUnit.post_cond compile_unit).
+
+    Require Import AutoSep.
+
+    Notation extra_stack := 20.
+    Definition compileS := SPEC("a", "b") reserving (6 + extra_stack)%nat
+      Al v1, Al v2, Al h,                             
+      PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V "a", v1) :: (V "b", v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ WordMap.Equal h (make_heap pairs) |] * mallocHeap 0
+      POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ WordMap.Equal h' (make_heap pairs) |] * mallocHeap 0.
 
     Notation prog := (CompileUnit.prog compile_unit).
     Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
@@ -67,21 +45,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation Value := (@Value ADTValue).
 
-    Notation pre_cond := (CompileUnit.pre_cond compile_unit).
-    Notation post_cond := (CompileUnit.post_cond compile_unit).
-
     Notation dfacade_safe := (CompileUnit.pre_safe compile_unit).
     Notation dfacade_runsto := (CompileUnit.pre_runsto_post compile_unit).
+
+    Require Import DFacade.
+    Require Import DFModule.
+    Require Import CompileDFModule.
+    Require Import Facade.NameDecoration.
 
     Definition core := Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok.
     Definition function :=Build_DFFun core unit_compile_syntax_ok.
     Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
-
-    Require Import DFacade.
-    Require Import DFModule.
-    Require Import StringMap WordMap GLabelMap.
-    Require Import CompileDFModule.
-    Require Import Facade.NameDecoration.
 
     Require Import ListFacts3.
 
@@ -307,16 +281,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Notation extra_stack := 20.
-    Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
-      Al v1, Al v2, Al h,                             
-      PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V "a", v1) :: (V "b", v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
-      POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ h' == make_heap pairs |] * mallocHeap 0.
     Import Made.
 
-    Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
-      bmodule "top" {{
-        bfunction "top"("a", "b", "R") [topS]
+    Definition compile := bimport [[ (module_name!fun_name, spec_op_b) ]]
+      bmodule "export" {{
+        bfunction fun_name("a", "b", "R") [compileS]
           "R" <-- Call module_name!fun_name(extra_stack, "a", "b")
           [PRE[_, R] Emp
            POST[R'] [| R' = R |] ];;
@@ -436,7 +405,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Transparent mult.
 
-    Theorem top_ok : moduleOk top.
+    Theorem compile_ok : moduleOk compile.
       clear_all.
       vcgen.
 
@@ -525,7 +494,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Definition all := link top (link_with_adts modules imports).
+    Definition all := link compile (link_with_adts modules imports).
 
   End TopSection.
 
@@ -534,6 +503,6 @@ End Make.
 (*
 (* can only use link0 on concrete imports *)
 Theorem all_ok : moduleOk all.
-  link0 top_ok. (* takes about 20 seconds *)
+  link0 compile_ok. (* takes about 20 seconds *)
 Qed.
 *)
