@@ -33,12 +33,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation argvar1 := "arg1".
     Notation argvar2 := "arg2".
     Notation argvars := (argvar1 :: argvar2 :: nil) (only parsing).
-    Notation retvar := "ret".
 
     Variable body : Stmt.
     Hypothesis no_assign_to_args : is_disjoint (assigned body) (StringSetFacts.of_list argvars) = true.
     Hypothesis syntax_ok : is_syntax_ok body = true.
-    Definition Core := Build_OperationalSpec argvars retvar body eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok.
+    Variable retvar : string.
+    Hypothesis ret_not_in_args : negb (is_in retvar argvars) = true.
+    Hypothesis ret_name_ok : is_good_varname retvar = true.
+    Definition Core := Build_OperationalSpec argvars retvar body eq_refl ret_not_in_args no_assign_to_args eq_refl ret_name_ok syntax_ok.
     Hypothesis compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op Core) = true.
 
     Variable imports : GLabelMap.t (AxiomaticSpec ADTValue).
@@ -201,17 +203,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 *)
 
-    Definition make_ret w (r : option ADTValue) :=
-      match r with
-        | None => SCA _ w
-        | Some a => ADT a
-      end.
-
     Notation extra_stack := 20.
     Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
-      Al a, Al b,                           
-      PRE[V] let pairs := {(V "a", a); (V "b", b)} in is_heap (make_heap pairs) * [| PreCond a b /\ good_scalars pairs |] * mallocHeap 0
-      POST[R] Ex r, layout_option R r * [| PostCond a b (make_ret R r) |] * mallocHeap 0.
+      Al v1, Al v2, Al h,                             
+      PRE[V] is_heap h * [| PreCond v1 v2 /\ let pairs := {(V "a", v1); (V "b", v2)} in good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
+      POST[R] Ex h', is_heap h' * [| exists r, PostCond v1 v2 r /\ let pairs := {(R, r)} in good_scalars pairs /\ h' == make_heap pairs |] * mallocHeap 0.
     Import Made.
 
     Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
@@ -226,6 +222,116 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import AutoSep.
 
+      Require Import GeneralTactics3.
+      Opaque mult.
+      Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
+      Require Import Locals.
+
+      Theorem is_state_in2 : forall vs sp args e_stack h F, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h * mallocHeap 0 * F ===> is_state sp (Locals.sel vs "rp") (wordToNat (Locals.sel vs "extra_stack")) e_stack args (vs, h) nil * mallocHeap 0 * F.
+        intros; sepLemma.
+        etransitivity; [ | apply is_state_in'' ]; auto.
+        sepLemma.
+      Qed.
+
+  Theorem is_state_out'' sp rp args pairs vs e_stack e_stack' h :
+    NoDup args
+    -> ~List.In "rp" args
+    -> ~List.In "extra_stack" args
+    -> length args = length pairs
+    -> is_state sp rp e_stack e_stack' nil
+    (vs, h) (List.map fst pairs)
+    ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+    * is_heap h * [| sel vs' "extra_stack" = e_stack |]
+    * [| saved_vars vs' args pairs |].
+    unfold is_state, locals, Inv.has_extra_stack; simpl.
+    intros.
+    apply Himp_ex_c.
+    exists (upd (upd (zip_vals args pairs) "extra_stack" e_stack) "rp" rp).
+    selify.
+    replace (S (S (length args)) * 4)%nat with (8 + 4 * length args)%nat by omega.
+    rewrite map_length.
+    rewrite <- H2.
+    rewrite natToWord_plus.
+    eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
+      apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
+    simpl.
+    generalize (List.map fst pairs); intro.
+    unfold array at 1; simpl.
+    sepLemma.
+    do 2 (apply saved_vars_irrel; auto).
+    eauto using saved_vars_zip_vars.
+
+    etransitivity; [ apply himp_star_comm | ].
+    apply himp_star_frame.
+    etransitivity; [ | apply Arrays.ptsto32m'_in ].
+    etransitivity; [ | apply ptsto32m_shift_base ].
+    unfold array.
+    instantiate (1 := 8).
+    simpl.
+    rewrite <- wplus_assoc.
+    rewrite <- natToWord_plus.
+    reflexivity.
+    auto.
+    rewrite <- wplus_assoc.
+    rewrite <- natToWord_plus.
+    unfold natToW.
+    sepLemma.
+  Qed.
+
+  Theorem is_state_out''' sp rp args pairs vs h e_stack e_stack' :
+                              NoDup args
+                              -> ~List.In "rp" args
+                              -> ~List.In "extra_stack" args
+                              -> toArray args vs = List.map fst pairs
+                              -> is_state sp rp e_stack e_stack' args
+                                          (vs, h) nil
+                                          ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
+                                                       * is_heap h * [| sel vs' "extra_stack" = e_stack |]
+                                                       * [| saved_vars vs' args pairs |].
+    unfold Himp; intros.
+    etransitivity.
+    2 : eapply is_state_out''; eauto.
+    2 : eapply toArray_map_length; eauto.
+    change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
+    change LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.make_heap with make_heap.
+    unfold is_state, locals, Inv.has_extra_stack; simpl.
+    rewrite H2.
+    Require Import Mult.
+    rewrite mult_0_r.
+    Require Import WordFacts.
+    rewrite wplus_0.
+    set (array (List.map _ _) _).
+    set (is_heap _).
+    rewrite map_length.
+    replace (length args) with (length pairs).
+    rewrite plus_0_r.
+    clear_all.
+    sepLemma.
+    symmetry; eapply toArray_map_length; eauto.
+    Grab Existential Variables.
+    eauto.
+  Qed.
+
+  Theorem is_state_out''''' vs sp rp F e_stack e_stack' args h (pairs : list (W * Value ADTValue)):
+    toArray args vs = List.map fst pairs ->
+                               NoDup args
+                               -> ~List.In "rp" args
+                               -> ~List.In "extra_stack" args
+                               -> (is_state sp rp e_stack e_stack' args
+                                            (vs, h) nil * mallocHeap 0) * F
+                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp * is_heap h
+                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
+                                                                                                  * mallocHeap 0 * F.
+    intros Hfstpairs.
+    intros.
+    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out''' | ]; eauto.
+    set (_ :: _ :: _).
+    clear_all.
+    sepLemma.
+  Qed.
+
+      Transparent mult.
+
     Theorem top_ok : moduleOk top.
       clear_all.
       vcgen.
@@ -236,28 +342,35 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       sep_auto.
 
       post.
-      call_cito 20 (argvar1 :: argvar2 :: nil).
+      call_cito 20 (argvars).
       hiding ltac:(evaluate auto_ext).
       unfold name_marker.
       hiding ltac:(step auto_ext).
       unfold spec_without_funcs_ok.
       post.
       descend.
-      unfold is_state, has_extra_stack.
-      clear H9.
-      instantiate (5 := (_, _)).
-      simpl in *.
-      hiding ltac:(step auto_ext).
-
-
-      (*here*)
+      set (vs := Locals.upd _ argvar2 _) in *.
       eapply CompileExprs.change_hyp.
       Focus 2.
-      apply (@is_state_in''' (upd x3 "extra_stack" 20)).
+      apply (@is_state_in2 vs).
       autorewrite with sepFormula.
       clear H9.
       hiding ltac:(step auto_ext).
-      apply body_safe; eauto.
+      Lemma body_safe : 
+        forall cenv stmt cst stn fs v1 v2 w1 w2, 
+          env_good_to_use modules imports stn fs -> 
+          fst cenv = from_bedrock_label_map (Labels stn) -> 
+          snd cenv = fs stn -> 
+          stmt = Compile.compile (CompileDFacade.compile body) -> 
+          PreCond v1 v2 -> 
+          good_scalars {(w1, v1); (w2, v2)} -> 
+          Locals.sel (fst cst) argvar1 = w1 -> 
+          Locals.sel (fst cst) argvar2 = w2 -> 
+          snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+          Safe cenv stmt cst.
+        admit.
+      Qed.
+      eapply body_safe; eauto; simpl in *; try reflexivity.
       hiding ltac:(step auto_ext).
       repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
       apply swap; apply injL; intro.
@@ -266,15 +379,48 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | [ x : State |- _ ] => destruct x; simpl in *
       end.
-      Require Import GeneralTactics3.
-      eapply_in_any body_runsto; simpl in *; intuition subst.
+      Lemma body_runsto : 
+        forall cenv stmt cst cst' stn fs v1 v2 w1 w2, 
+          RunsTo cenv stmt cst cst' -> 
+          env_good_to_use modules imports stn fs -> 
+          fst cenv = from_bedrock_label_map (Labels stn) -> 
+          snd cenv = fs stn -> 
+          stmt = Compile.compile (CompileDFacade.compile body) -> 
+          PreCond v1 v2 -> 
+          good_scalars {(w1, v1); (w2, v2)} -> 
+          Locals.sel (fst cst) argvar1 = w1 -> 
+          Locals.sel (fst cst) argvar2 = w2 -> 
+          snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+          exists vr,
+            let wr := Locals.sel (fst cst') retvar in
+            let pairs := {(wr, vr)} in
+            PostCond v1 v2 vr /\ 
+            snd cst' == make_heap pairs /\
+            good_scalars pairs.
+        admit.
+      Qed.
+      rename H10 into Hrunsto.
+      eapply body_runsto in Hrunsto; eauto. 
+      simpl in *.
+      destruct Hrunsto as [vr [Hpost [Hheq Hgs] ] ].
       eapply replace_imp.
-      change 20 with (wordToNat (Locals.sel (upd x3 "extra_stack" 20) "extra_stack")).
-      apply is_state_out'''''.
-      NoDup.
-      NoDup.
-      NoDup.
-      eauto.
+      set (vs := Locals.upd _ argvar2 _) in *.
+      change 20 with (wordToNat (Locals.sel vs "extra_stack")).
+
+      eapply is_state_out'''''.
+      {
+        instantiate (1 := {(_, _); (_, _)}).
+        simpl; eauto.
+      }
+      {
+        NoDup.
+      }
+      {
+        NoDup.
+      }
+      {
+        NoDup.
+      }
 
       clear H9.
       hiding ltac:(step auto_ext).
@@ -282,10 +428,31 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       sep_auto.
       sep_auto.
-      words.
+      {
+        rewrite H9.
+        rewrite H12.
+        rewrite H1.
+        words.
+      }
+      {
+        eauto.
+      }
+      {
+        rewrite H7.
+        rewrite H11.
+        eauto.
+      }
+      {
+        rewrite H7.
+        rewrite H11.
+        eauto.
+      }        
       sep_auto.
       sep_auto.
       sep_auto.
+      Grab Existential Variables.
+      eauto.
+      eauto.
     Qed.
 
     Definition all := link top (link_with_adts modules imports).
