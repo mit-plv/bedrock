@@ -72,7 +72,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         bedrock_module : XCAP.module;
         bedrock_module_ok : XCAP.moduleOk bedrock_module;
-        bedrock_module_export : LabelMap.find (export_module_name, Labels.Global fun_name) (Exports bedrock_module) = Some (Precondition compileS (Some argvars))
+        bedrock_module_export : LabelMap.find (export_module_name, Labels.Global fun_name) (Exports bedrock_module) = Some (Precondition compileS None)
       }.
 
   End TopSection.

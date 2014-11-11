@@ -281,7 +281,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import Made.
 
-    Definition compile := bimport [[ (module_name!fun_name, spec_op_b) ]]
+    Definition bedrock_module := bimport [[ (module_name!fun_name, spec_op_b) ]]
       bmodule export_module_name {{
         bfunction fun_name(argvar1, argvar2, "R") [compileS pre_cond post_cond]
           "R" <-- Call module_name!fun_name(extra_stack, argvar1, argvar2)
@@ -403,7 +403,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Transparent mult.
 
-    Theorem compile_ok : moduleOk compile.
+    Theorem bedrock_module_ok : moduleOk bedrock_module.
       clear_all.
       vcgen.
 
@@ -413,7 +413,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       sep_auto.
 
       post.
-      call_cito 20 (argvars).
+      call_cito (extra_stack) (argvars).
       hiding ltac:(evaluate auto_ext).
       unfold name_marker.
       hiding ltac:(step auto_ext).
@@ -442,7 +442,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct Hrunsto as [vr [Hpost [Hheq [Hdisj Hgs] ] ] ].
       eapply replace_imp.
       set (vs := Locals.upd _ argvar2 _) in *.
-      change 20 with (wordToNat (Locals.sel vs "extra_stack")).
+      change extra_stack with (wordToNat (Locals.sel vs "extra_stack")).
 
       eapply is_state_out'''''.
       {
@@ -492,7 +492,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Definition all := link compile (link_with_adts modules imports).
+    Definition compile : CompileOut pre_cond post_cond.
+      refine (Build_CompileOut bedrock_module_ok _).
+      simpl.
+      rewrite LabelMapFacts.add_eq_o by eauto.
+      reflexivity.
+    Defined.
+
+    (* Definition all := link compile (link_with_adts modules imports). *)
 
   End TopSection.
 
