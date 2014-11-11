@@ -20,17 +20,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import LinkSpecMake2.
   Require Import StringMap WordMap GLabelMap.
 
+  Require Import CompileUnit.
+  Module Import CompileUnitMake := CompileUnit.Make E M.
+
   Section TopSection.
 
-    Require Import CompileUnit.
-
+    (* pre_cond arg1 arg2 *)
+    Variable pre_cond : Value ADTValue -> Value ADTValue -> Prop.
+    (* post_cond arg1 arg2 ret *)
+    Variable post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop.
     (* input of the this compiler *)
-    Variable compile_unit : CompileUnit ADTValue.
-
-    Notation pre_cond := (CompileUnit.pre_cond compile_unit).
-    Notation post_cond := (CompileUnit.post_cond compile_unit).
-
-    Require Import AutoSep.
+    Variable compile_unit : CompileUnit pre_cond post_cond.
 
     Notation prog := (CompileUnit.prog compile_unit).
     Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
@@ -230,7 +230,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         eapply dfacade_runsto in Hrt; eauto.
         2 : reflexivity.
-        destruct Hrt as [ret [Hst' Hpost] ].
+        destruct Hrt as [ret [Hst' [Hnoleak Hpost] ] ].
         eapply make_map_related_make_heap in Hr.
         {
           destruct Hr as [Hh' [Hgs' Hdisj'] ].
@@ -242,10 +242,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           - eauto.
         }
         {
-          rewrite Hst'.
           instantiate (1 := ret :: nil).
           instantiate (1 := retvar :: nil).
+          admit.
+          (*
+          rewrite Hst'.
           reflexivity.
+           *)
         }
         {
           reflexivity.
@@ -280,8 +283,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition compile := bimport [[ (module_name!fun_name, spec_op_b) ]]
       bmodule export_module_name {{
-        bfunction fun_name("a", "b", "R") [compileS]
-          "R" <-- Call module_name!fun_name(extra_stack, "a", "b")
+        bfunction fun_name(argvar1, argvar2, "R") [compileS pre_cond post_cond]
+          "R" <-- Call module_name!fun_name(extra_stack, argvar1, argvar2)
           [PRE[_, R] Emp
            POST[R'] [| R' = R |] ];;
           Return "R"
@@ -492,13 +495,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition all := link compile (link_with_adts modules imports).
 
   End TopSection.
-  Type compileS.
 
 End Make.
 
 (*
 (* can only use link0 on concrete imports *)
 Theorem all_ok : moduleOk all.
-  link0 compile_ok. (* takes about 20 seconds *)
+  link0 compile_ok. (* takes about 30 seconds *)
 Qed.
 *)
