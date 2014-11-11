@@ -8,8 +8,6 @@ Require Import Memory IL.
 
 Coercion natToW : nat >-> W.
 
-Require Import AutoSep.
-
 Require Import Listy.
 Import Listy.Notations.
 Export Listy.Notations.

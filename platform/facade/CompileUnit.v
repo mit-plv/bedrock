@@ -1,6 +1,8 @@
 Set Implicit Arguments.
 
+Require Import FModule.
 Require Import DFacade.
+Require Import CompileDFacade.
 Require Import StringMap WordMap GLabelMap String List.
 Local Open Scope string_scope.
 
@@ -27,9 +29,7 @@ Section TopSection.
       no_assign_to_args : is_disjoint (assigned prog) (StringSetFacts.of_list argvars) = true;
       syntax_ok : is_syntax_ok prog = true;
       (* will fixed this later *)
-(*
       compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (Build_OperationalSpec argvars retvar prog eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok)) = true;
-*)
       (* imported axiomatic specs *)
       imports : GLabelMap.t (AxiomaticSpec ADTValue);
       (* correctness conditions *)
