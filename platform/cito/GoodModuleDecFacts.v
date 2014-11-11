@@ -26,6 +26,7 @@ Section TopSection.
   Lemma is_good_size_sound : forall n, is_good_size n = true -> goodSize n.
     intros.
     unfold is_good_size in *.
+    Local Open Scope N_scope.
     destruct (ZArith_dec.Dcompare_inf (N.of_nat n ?= Npow2 32)) as [ [Hc | Hc] | Hc ]; rewrite Hc in *.
     discriminate.
     eapply N.compare_lt_iff in Hc; eauto.
@@ -48,8 +49,10 @@ Section TopSection.
     intros.
     repeat (eapply andb_true_iff in H; openhyp).
     econstructor.
+    Require Import ListFacts3.
     eapply is_no_dup_sound; eauto.
     split.
+    Require Import NoUninitDecFacts.
     eapply is_no_uninited_sound; eauto.
     split.
     eapply is_arg_len_ok_sound; eauto.
@@ -76,6 +79,7 @@ Section TopSection.
     eapply andb_true_iff in H.
     openhyp.
     econstructor; simpl.
+    Require Import Cito.NameDecoration.
     eapply is_good_module_name_sound; eauto.
     split.
     eapply is_good_funcs_sound; eauto.

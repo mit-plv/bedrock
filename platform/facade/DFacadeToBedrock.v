@@ -1,5 +1,10 @@
 Set Implicit Arguments.
 
+Require Import CompileUnit.
+Require Import AutoSepExt.
+Require Import AutoSep.
+Require Import CompileOut.
+
 Require Import MakeWrapper.
 Require Import ADT RepInv.
 
@@ -504,11 +509,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation bedrock_module_impl := (compile_cito_to_bedrock modules imports).
 
     Open Scope bool_scope.
-    Lemma import_module_names_ok : 
-      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
-        forallb (string_bool export_module_name) imported_module_names &&
-        forallb (fun x => negb (string_bool module_name x)) imported_module_names &&
-        forallb Cito.NameDecoration.is_good_module_name imported_module_names = true.
       admit.
     Qed.
 

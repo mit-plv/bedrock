@@ -25,6 +25,7 @@ Require Import GoodFunction.
 Definition cfun_to_gfun (name : string) (f : CFun) : GoodFunction.
   refine (Build_GoodFunction (Build_Func name f) _).
   destruct f; simpl in *.
+  Require Import GoodModuleDecFacts.
   eapply is_good_func_sound; eauto.
 Defined.
 
