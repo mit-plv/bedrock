@@ -1,6 +1,42 @@
 Set Implicit Arguments.
 
 Require Import MakeWrapper.
+
+Require Import DFacade DFModule.
+Require Import StringMap WordMap GLabelMap.
+
+Module CompileUnit.
+
+  Notation module_name := "dfmodule".
+  Notation fun_name := "dffun".
+  Notation argvar1 := "arg1".
+  Notation argvar2 := "arg2".
+  Notation argvars := (argvar1 :: argvar2 :: nil).
+  Notation retvar := "ret".
+
+  Record CompileUnit (ADTValue : Type) := 
+    {
+      prog : Stmt;
+      no_assign_to_args : is_disjoint (assigned prog) (StringSetFacts.of_list argvars) = true;
+      syntax_ok : is_syntax_ok prog = true;
+      compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (Build_OperationalSpec argvars retvar prog eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok)) = true;
+      imports : GLabelMap.t (AxiomaticSpec ADTValue);
+      pre_cond : Value ADTValue -> Value ADTValue -> Prop;
+      post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop;
+      pre_safe : forall st value1 value2, 
+                   StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
+                   pre_cond value1 value2 -> 
+                   DFacade.Safe (GLabelMap.map (@Axiomatic _) imports) prog st;
+      pre_runsto_post : forall st st' value1 value2, 
+                          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
+                          pre_cond value1 value2 -> DFacade.RunsTo (GLabelMap.map (@Axiomatic _) imports) prog st st' -> 
+                          exists ret, StringMap.Equal st' (StringMapFacts.make_map (retvar :: nil) (ret :: nil)) /\ post_cond value1 value2 ret
+    }.
+
+End CompileUnit.
+
+Import CompileUnit.
+
 Require Import ADT RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
@@ -21,36 +57,33 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Section TopSection.
 
+    Variable compile_unit : CompileUnit ADTValue.
+
+    Notation prog := (CompileUnit.prog compile_unit).
+    Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
+    Definition unit_syntax_ok := (CompileUnit.syntax_ok compile_unit).
+    Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit).
+    Notation imports := (CompileUnit.imports compile_unit).
+
+    Notation Value := (@Value ADTValue).
+
+    Notation pre_cond := (CompileUnit.pre_cond compile_unit).
+    Notation post_cond := (CompileUnit.post_cond compile_unit).
+
+    Notation dfacade_safe := (CompileUnit.pre_safe compile_unit).
+    Notation dfacade_runsto := (CompileUnit.pre_runsto_post compile_unit).
+
+    Definition core := Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok.
+    Definition function :=Build_DFFun core unit_compile_syntax_ok.
+    Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
+
     Require Import DFacade.
     Require Import DFModule.
     Require Import StringMap WordMap GLabelMap.
     Require Import CompileDFModule.
-    Require Import ListFacts3.
     Require Import Facade.NameDecoration.
 
-    Notation module_name := "dfmodule".
-    Notation fun_name := "dffun".
-    Notation argvar1 := "arg1".
-    Notation argvar2 := "arg2".
-    Notation argvars := (argvar1 :: argvar2 :: nil) (only parsing).
-
-    Variable body : Stmt.
-    Hypothesis no_assign_to_args : is_disjoint (assigned body) (StringSetFacts.of_list argvars) = true.
-    Hypothesis syntax_ok : is_syntax_ok body = true.
-    Variable retvar : string.
-    Hypothesis ret_not_in_args : negb (is_in retvar argvars) = true.
-    Hypothesis ret_name_ok : is_good_varname retvar = true.
-    Definition Core := Build_OperationalSpec argvars retvar body eq_refl ret_not_in_args no_assign_to_args eq_refl ret_name_ok syntax_ok.
-    Hypothesis compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op Core) = true.
-
-    Variable imports : GLabelMap.t (AxiomaticSpec ADTValue).
-
-    Notation Value := (@Value ADTValue).
-
-    (* PreCond arg1 arg2 *)
-    Variable PreCond : Value -> Value -> Prop.
-    (* PostCond arg1 arg2 ret *)
-    Variable PostCond : Value -> Value -> Value -> Prop.
+    Require Import ListFacts3.
 
     Notation specs := (GLabelMap.map (@Axiomatic _) imports).
 
@@ -63,9 +96,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Listy.
     Import Notations Instances.
     Local Open Scope listy_scope.
-
-    Definition function :=Build_DFFun Core compile_syntax_ok.
-    Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
 
     Definition good_module := compile_to_gmodule module module_name eq_refl.
 
@@ -109,8 +139,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import StringMapFacts.FMapNotations.
 
-    Hypothesis dfacade_safe : forall st arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.Safe specs body st.
-
     Import WordMapFacts.FMapNotations.
 
     Lemma submap_refl elt (m : WordMap.t elt) : m <= m.
@@ -130,17 +158,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       admit.
     Qed.
 
-    Lemma body_safe cenv stmt cst stn fs v1 v2 w1 w2 :
+    Lemma prog_safe cenv stmt cst stn fs v1 v2 w1 w2 :
       env_good_to_use modules imports stn fs -> 
       fst cenv = from_bedrock_label_map (Labels stn) -> 
       snd cenv = fs stn -> 
-      stmt = Compile.compile (CompileDFacade.compile body) -> 
-      PreCond v1 v2 -> 
-      disjoint_ptrs {(w1, v1); (w2, v2)} ->
-      good_scalars {(w1, v1); (w2, v2)} -> 
+      stmt = Compile.compile (CompileDFacade.compile prog) -> 
+      pre_cond v1 v2 -> 
+      disjoint_ptrs ((w1, v1) :: (w2, v2) :: nil) ->
+      good_scalars ((w1, v1) :: (w2, v2) :: nil) -> 
       w1 = Locals.sel (fst cst) argvar1 -> 
       w2 = Locals.sel (fst cst) argvar2 -> 
-      snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+      snd cst == make_heap ((w1, v1) :: (w2, v2) :: nil) -> 
       Safe cenv stmt cst.
     Proof.
       destruct cenv as [l2w w2spec]; simpl in *.
@@ -151,6 +179,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         eapply dfacade_safe; eauto.
         reflexivity.
+      }
+      {
+        eapply unit_syntax_ok.
       }
       {
         eauto.
@@ -171,8 +202,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import StringMapFacts.FMapNotations.
 
-    Hypothesis dfacade_runsto : forall st st' arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.RunsTo specs body st st' -> exists ret, st' == make_map {retvar} {ret} /\ PostCond arg1 arg2 ret.
-
     Import WordMapFacts.FMapNotations.
 
     Require Import GeneralTactics5.
@@ -190,13 +219,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       admit.
     Qed.
 
-    Lemma body_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
+    Lemma prog_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
       RunsTo cenv stmt cst cst' -> 
       env_good_to_use modules imports stn fs -> 
       fst cenv = from_bedrock_label_map (Labels stn) -> 
       snd cenv = fs stn -> 
-      stmt = Compile.compile (CompileDFacade.compile body) -> 
-      PreCond v1 v2 -> 
+      stmt = Compile.compile (CompileDFacade.compile prog) -> 
+      pre_cond v1 v2 -> 
       disjoint_ptrs {(w1, v1); (w2, v2)} ->
       good_scalars {(w1, v1); (w2, v2)} -> 
       w1 = Locals.sel (fst cst) argvar1 -> 
@@ -205,7 +234,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       exists vr,
         let wr := Locals.sel (fst cst') retvar in
         let pairs := {(wr, vr)} in
-        PostCond v1 v2 vr /\ 
+        post_cond v1 v2 vr /\ 
         snd cst' == make_heap pairs /\
         disjoint_ptrs pairs /\
         good_scalars pairs.
@@ -217,7 +246,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       subst.
       eapply compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
       destruct Hrt as [st' [Hrt [Hsm Hr] ] ].
-      5 : eapply env_good_to_use_cenv_impls_env; eauto.
+      6 : eapply env_good_to_use_cenv_impls_env; eauto.
+      2 : eapply unit_syntax_ok.
       Focus 3.
       {
         eapply make_map_make_heap_related; eauto; simpl in *.
@@ -280,8 +310,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation extra_stack := 20.
     Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
       Al v1, Al v2, Al h,                             
-      PRE[V] is_heap h * [| PreCond v1 v2 /\ let pairs := {(V "a", v1); (V "b", v2)} in disjoint_ptrs pairs /\ good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
-      POST[R] Ex h', is_heap h' * [| exists r, PostCond v1 v2 r /\ let pairs := {(R, r)} in good_scalars pairs /\ h' == make_heap pairs |] * mallocHeap 0.
+      PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V "a", v1) :: (V "b", v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
+      POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ h' == make_heap pairs |] * mallocHeap 0.
     Import Made.
 
     Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
@@ -428,9 +458,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Focus 2.
       apply (@is_state_in2 vs).
       autorewrite with sepFormula.
-      clear H9.
+      clear H10.
       hiding ltac:(step auto_ext).
-      eapply body_safe; eauto; simpl in *; try reflexivity.
+      eapply prog_safe; eauto; simpl in *; try reflexivity.
       hiding ltac:(step auto_ext).
       repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
       apply swap; apply injL; intro.
@@ -439,8 +469,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | [ x : State |- _ ] => destruct x; simpl in *
       end.
-      rename H10 into Hrunsto.
-      eapply body_runsto in Hrunsto; eauto. 
+      rename H11 into Hrunsto.
+      eapply prog_runsto in Hrunsto; eauto. 
       simpl in *.
       destruct Hrunsto as [vr [Hpost [Hheq [Hdisj Hgs] ] ] ].
       eapply replace_imp.
@@ -462,15 +492,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         NoDup.
       }
 
-      clear H9.
+      clear H10.
       hiding ltac:(step auto_ext).
       hiding ltac:(step auto_ext).
 
       sep_auto.
       sep_auto.
       {
-        rewrite H9.
-        rewrite H12.
+        rewrite H10.
+        rewrite H13.
         rewrite H1.
         words.
       }
@@ -479,12 +509,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
       {
         rewrite H7.
-        rewrite H11.
+        rewrite H12.
         eauto.
       }
       {
         rewrite H7.
-        rewrite H11.
+        rewrite H12.
         eauto.
       }        
       sep_auto.
