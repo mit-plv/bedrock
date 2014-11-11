@@ -201,17 +201,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 *)
 
-    Definition get_adt (v : Value ADTValue) :=
-      match v with
-        | SCA _ => None
-        | ADT a => Some a
+    Definition make_ret w (r : option ADTValue) :=
+      match r with
+        | None => SCA _ w
+        | Some a => ADT a
       end.
 
     Notation extra_stack := 20.
     Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
       Al a, Al b,                           
       PRE[V] let pairs := {(V "a", a); (V "b", b)} in is_heap (make_heap pairs) * [| PreCond a b /\ good_scalars pairs |] * mallocHeap 0
-      POST[R] Ex r, layout_option R (get_adt r) * [| PostCond a b r /\ good_scalars {(R, r)} |] * mallocHeap 0.
+      POST[R] Ex r, layout_option R r * [| PostCond a b (make_ret R r) |] * mallocHeap 0.
     Import Made.
 
     Definition top := bimport [[ (module_name!fun_name, spec_op_b) ]]
@@ -243,6 +243,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold spec_without_funcs_ok.
       post.
       descend.
+      unfold is_state, has_extra_stack.
+      clear H9.
+      instantiate (5 := (_, _)).
+      simpl in *.
+      hiding ltac:(step auto_ext).
+
+
       (*here*)
       eapply CompileExprs.change_hyp.
       Focus 2.
