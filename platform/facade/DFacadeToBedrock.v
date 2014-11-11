@@ -24,6 +24,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import CompileUnit.
 
+    (* input of the this compiler *)
     Variable compile_unit : CompileUnit ADTValue.
 
     Notation pre_cond := (CompileUnit.pre_cond compile_unit).
@@ -31,6 +32,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import AutoSep.
 
+    (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
+    Notation export_module_name := "export".
     Notation extra_stack := 20.
     Definition compileS := SPEC("a", "b") reserving (6 + extra_stack)%nat
       Al v1, Al v2, Al h,                             
@@ -284,7 +287,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import Made.
 
     Definition compile := bimport [[ (module_name!fun_name, spec_op_b) ]]
-      bmodule "export" {{
+      bmodule export_module_name {{
         bfunction fun_name("a", "b", "R") [compileS]
           "R" <-- Call module_name!fun_name(extra_stack, "a", "b")
           [PRE[_, R] Emp
