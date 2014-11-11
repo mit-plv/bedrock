@@ -32,6 +32,6 @@ Record CompileUnit (ADTValue : Type) :=
     pre_runsto_post : forall st st' value1 value2, 
                         StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
                         pre_cond value1 value2 -> DFacade.RunsTo (GLabelMap.map (@Axiomatic _) imports) prog st st' -> 
-                        exists ret, StringMap.Equal st' (StringMapFacts.make_map (retvar :: nil) (ret :: nil)) /\ post_cond value1 value2 ret
+                        exists ret, StringMapFacts.Submap (StringMapFacts.make_map (retvar :: nil) (ret :: nil)) st' /\ (forall x, x <> retvar -> not_mapsto_adt x st' = true) /\ post_cond value1 value2 ret
   }.
 
