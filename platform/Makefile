@@ -32,6 +32,8 @@ FACADE := \
 
 FACADE_ALL := \
 	facade/examples/FiatImpl \
+	facade/CompileUnit \
+	facade/DFacadeToBedrock \
 
 .PHONY: default platform cito facade facade_all facade_allv build clean master install install-platform install-cito install-facade install-facade-all
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
