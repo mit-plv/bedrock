@@ -32,14 +32,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import AutoSep.
 
-    (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
-    Notation export_module_name := "export".
-    Notation extra_stack := 20.
-    Definition compileS := SPEC("a", "b") reserving (6 + extra_stack)%nat
-      Al v1, Al v2, Al h,                             
-      PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V "a", v1) :: (V "b", v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ WordMap.Equal h (make_heap pairs) |] * mallocHeap 0
-      POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ WordMap.Equal h' (make_heap pairs) |] * mallocHeap 0.
-
     Notation prog := (CompileUnit.prog compile_unit).
     Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
     Definition unit_syntax_ok := (CompileUnit.syntax_ok compile_unit).
@@ -500,6 +492,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition all := link compile (link_with_adts modules imports).
 
   End TopSection.
+  Type compileS.
 
 End Make.
 
