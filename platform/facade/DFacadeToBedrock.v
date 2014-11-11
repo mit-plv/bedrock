@@ -20,8 +20,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Import LinkSpecMake2.
   Require Import StringMap WordMap GLabelMap.
 
-  Require Import CompileUnit.
-  Module Import CompileUnitMake := CompileUnit.Make E M.
+  Require Import LinkFacts.
+  Module Import LinkFactsMake := Make E.
+
+  Require Import CompileUnit CompileOut.
+  Module Import CompileOutMake := CompileOut.Make E M.
 
   Section TopSection.
 
@@ -35,7 +38,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation prog := (CompileUnit.prog compile_unit).
     Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
     Definition unit_syntax_ok := (CompileUnit.syntax_ok compile_unit).
-    Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit).
+    (* Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit). *)
+    Require FModule CompileDFacade.
+    Lemma unit_compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (DFacade.Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok)) = true.
+      admit.
+    Qed.
     Notation imports := (CompileUnit.imports compile_unit).
 
     Notation Value := (@Value ADTValue).
@@ -492,15 +499,80 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Definition compile : CompileOut pre_cond post_cond.
-      refine (Build_CompileOut bedrock_module_ok _).
+    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut bedrock_module_ok eq_refl.
+
+    Notation compile_cito_to_bedrock := link_with_adts.
+
+    Notation bedrock_module_impl := (compile_cito_to_bedrock modules imports).
+
+    Definition all := link bedrock_module bedrock_module_impl.
+
+    Theorem bedrock_module_impl_ok : moduleOk bedrock_module_impl.
+    Proof.
+
+      Import MakeWrapperMake.LinkMake.
+      Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
+
+      Ltac impl_ok :=
+        match goal with
+          | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
+            let H := fresh in
+            assert (GoodToLink_bool Modules Imports = true); 
+              [ unfold GoodToLink_bool(*; simpl*) |
+                eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
+              ; eauto
+        end.
+
+      impl_ok.
+      Require Import Bool.
+      assert (import_module_names_ok : let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
+        forallb (string_bool export_module_name) imported_module_names &&
+        forallb (fun x => negb (string_bool module_name x)) imported_module_names &&
+        forallb Cito.NameDecoration.is_good_module_name imported_module_names = true) by admit.
+
+      eapply andb_true_iff in import_module_names_ok.
+      destruct import_module_names_ok as [Himn1 Himn2].
+      eapply andb_true_iff in Himn1.
+      destruct Himn1 as [Himn11 Himn12].
+      eapply andb_true_iff.
+      split.
+      eapply andb_true_iff.
+      split.
+      { reflexivity. }
+      2 : solve [eauto].
+      eapply forallb_forall.
+      intros x Hin.
+      eapply forallb_forall in Himn12; eauto.
+      set (ls := List.map _ modules).
+      simpl in ls.
+      subst ls.
+      destruct (in_dec string_dec x ("dfmodule" :: nil)); simpl in *.
+      intuition.
+      subst; simpl in *; intuition.
+      eauto.
+    Qed.
+(*
+    Theorem all_ok : moduleOk all.
+
+      Ltac link0 ok1 :=
+        eapply linkOk; [ eapply ok1 | eapply bedrock_module_impl_ok
+                         | reflexivity
+                         | ok_simpl(*; unfold CompileModuleMake.mod_name; unfold impl_module_name;
+                           simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
+                           simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+                           simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
+                           unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
+                           link_simp; eauto*) | ..
+                       ].
+
+      link0 bedrock_module_ok.
+      eauto.
       simpl.
-      rewrite LabelMapFacts.add_eq_o by eauto.
-      reflexivity.
-    Defined.
-
-    (* Definition all := link compile (link_with_adts modules imports). *)
-
+      eauto.
+      ok_simpl.
+      link_simp.
+    Qed.
+*)
   End TopSection.
 
 End Make.
