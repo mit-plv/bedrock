@@ -64,10 +64,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import Notations Instances.
     Local Open Scope listy_scope.
 
-    Hypothesis dfacade_safe : forall st arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.Safe specs body st.
-
-    Hypothesis dfacade_runsto : forall st st' arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.RunsTo specs body st st' -> exists ret, st' == make_map {retvar} {ret} /\ PostCond arg1 arg2 ret.
-
     Definition function :=Build_DFFun Core compile_syntax_ok.
     Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
 
@@ -107,106 +103,184 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     admit.
     Qed.
 
-    Lemma sca_related st cst x w : @CompileRunsTo.related ADTValue st cst -> StringMap.Equal st (StringMap.add x (SCA _ w) (StringMap.empty _)) -> Locals.sel (fst cst) x = w /\ snd cst == WordMap.empty _.
-      admit.
-    Qed.
-
     Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == WordMap.empty elt -> b == a.
       admit.
     Qed.
-(*
-    Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v.
-    Proof.
-      intros.
-      destruct v as [vs h].
-      eapply compile_safe; try reflexivity; simpl in *.
-      Focus 2.
-      {
-        eauto.
-      }
-      Unfocus.
-      Focus 3.
-      {
-        eapply WordMapFacts.empty_submap.
-      }
-      Unfocus.
-      Focus 2.
-      {
-        rewrite StringMapFacts.empty_o; eauto.
-      }
-      Unfocus.
-      Focus 2.
-      {
-        eapply empty_related.
-      }
-      Unfocus.
-      Focus 2.
-      {
-        eapply env_good_to_use_cenv_impls_env; eauto.
-      }
-      Unfocus.
-      eapply dfacade_safe; eauto.
+
+    Import StringMapFacts.FMapNotations.
+
+    Hypothesis dfacade_safe : forall st arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.Safe specs body st.
+
+    Import WordMapFacts.FMapNotations.
+
+    Lemma submap_refl elt (m : WordMap.t elt) : m <= m.
+      admit.
     Qed.
 
-    Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body spec_op) v v' -> PostCond (Locals.sel (fst v') (RetVar spec_op)) /\ snd v' == snd v.
+    Lemma make_map_make_heap_related ks values pairs st h vs cst : 
+      StringMap.Equal st (make_map ks values) ->
+      WordMap.Equal h (make_heap pairs) ->
+      good_scalars pairs ->
+      disjoint_ptrs pairs ->
+      List.map fst pairs = List.map vs ks ->
+      List.map snd pairs = values ->
+      vs = fst cst ->
+      h = snd cst ->
+      CompileRunsTo.related st cst.
+      admit.
+    Qed.
+
+    Lemma body_safe cenv stmt cst stn fs v1 v2 w1 w2 :
+      env_good_to_use modules imports stn fs -> 
+      fst cenv = from_bedrock_label_map (Labels stn) -> 
+      snd cenv = fs stn -> 
+      stmt = Compile.compile (CompileDFacade.compile body) -> 
+      PreCond v1 v2 -> 
+      disjoint_ptrs {(w1, v1); (w2, v2)} ->
+      good_scalars {(w1, v1); (w2, v2)} -> 
+      w1 = Locals.sel (fst cst) argvar1 -> 
+      w2 = Locals.sel (fst cst) argvar2 -> 
+      snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+      Safe cenv stmt cst.
     Proof.
-      intros.
-      eapply compile_runsto in H0; try reflexivity; simpl in *.
-      Focus 2.
+      destruct cenv as [l2w w2spec]; simpl in *.
+      destruct cst as [vs h]; simpl in *.
+      intros Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
+      subst.
+      eapply compile_safe; try reflexivity; simpl in *; trivial.
+      {
+        eapply dfacade_safe; eauto.
+        reflexivity.
+      }
       {
         eauto.
       }
-      Unfocus.
-      Focus 2.
       {
-        eapply WordMapFacts.empty_submap.
+        eapply submap_refl.
       }
-      Unfocus.
-      Focus 2.
       {
-        eapply empty_related.
+        eapply make_map_make_heap_related; eauto; simpl in *.
+        instantiate (1 := argvars).
+        reflexivity.
+        eauto.
       }
-      Unfocus.
-      Focus 2.
-      {
-        rewrite StringMapFacts.empty_o; eauto.
-      }
-      Unfocus.
-      Focus 2.
       {
         eapply env_good_to_use_cenv_impls_env; eauto.
       }
+    Qed.
+
+    Import StringMapFacts.FMapNotations.
+
+    Hypothesis dfacade_runsto : forall st st' arg1 arg2, st == make_map {argvar1; argvar2} {arg1; arg2} -> PreCond arg1 arg2 -> DFacade.RunsTo specs body st st' -> exists ret, st' == make_map {retvar} {ret} /\ PostCond arg1 arg2 ret.
+
+    Import WordMapFacts.FMapNotations.
+
+    Require Import GeneralTactics5.
+
+    Lemma make_map_related_make_heap ks values pairs st h vs cst : 
+      StringMap.Equal st (make_map ks values) ->
+      CompileRunsTo.related st cst ->
+      List.map fst pairs = List.map vs ks ->
+      List.map snd pairs = values ->
+      vs = fst cst ->
+      h == snd cst ->
+      WordMap.Equal h (make_heap pairs) /\
+      disjoint_ptrs pairs /\
+      good_scalars pairs.
+      admit.
+    Qed.
+
+    Lemma body_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
+      RunsTo cenv stmt cst cst' -> 
+      env_good_to_use modules imports stn fs -> 
+      fst cenv = from_bedrock_label_map (Labels stn) -> 
+      snd cenv = fs stn -> 
+      stmt = Compile.compile (CompileDFacade.compile body) -> 
+      PreCond v1 v2 -> 
+      disjoint_ptrs {(w1, v1); (w2, v2)} ->
+      good_scalars {(w1, v1); (w2, v2)} -> 
+      w1 = Locals.sel (fst cst) argvar1 -> 
+      w2 = Locals.sel (fst cst) argvar2 -> 
+      snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+      exists vr,
+        let wr := Locals.sel (fst cst') retvar in
+        let pairs := {(wr, vr)} in
+        PostCond v1 v2 vr /\ 
+        snd cst' == make_heap pairs /\
+        disjoint_ptrs pairs /\
+        good_scalars pairs.
+    Proof.
+      destruct cenv as [l2w w2spec]; simpl in *.
+      destruct cst as [vs h]; simpl in *.
+      destruct cst' as [vs' h']; simpl in *.
+      intros Hrt Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
+      subst.
+      eapply compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
+      destruct Hrt as [st' [Hrt [Hsm Hr] ] ].
+      5 : eapply env_good_to_use_cenv_impls_env; eauto.
+      Focus 3.
+      {
+        eapply make_map_make_heap_related; eauto; simpl in *.
+        instantiate (1 := argvars).
+        reflexivity.
+        eauto.
+        eauto.
+      }
       Unfocus.
-      Focus 2.
+      simpl in *.
+      {
+        eapply dfacade_runsto in Hrt; eauto.
+        2 : reflexivity.
+        destruct Hrt as [ret [Hst' Hpost] ].
+        eapply make_map_related_make_heap in Hr.
+        {
+          destruct Hr as [Hh' [Hgs' Hdisj'] ].
+          exists ret.
+          repeat try_split.
+          - eauto.
+          - eapply Hh'.
+          - eauto.
+          - eauto.
+        }
+        {
+          rewrite Hst'.
+          instantiate (1 := ret :: nil).
+          instantiate (1 := retvar :: nil).
+          reflexivity.
+        }
+        {
+          reflexivity.
+        }
+        {
+          reflexivity.
+        }
+        {
+          eauto.
+        }
+        {
+          simpl.
+          Require Import WordMapFacts.
+          rewrite diff_same.
+          rewrite diff_empty.
+          reflexivity.
+        }
+      }
+      {
+        eapply submap_refl.
+      }        
+      {
+        eauto.
+      }
       {
         eapply dfacade_safe; eauto.
-      }
-      Unfocus.
-      openhyp.
-      eapply dfacade_runsto in H0.
-      openhyp.
-      rewrite H0 in H2.
-      rewrite WordMapFacts.diff_empty in H1.
-      eapply sca_related in H2; simpl in *.
-      Focus 2.
-      {
         reflexivity.
       }
-      Unfocus.
-      {
-        openhyp.
-        rewrite H2.
-        split; eauto.
-        rewrite WordMapFacts.diff_empty in H4.
-        eapply submap_diff_empty_equal; eauto.
-      }
     Qed.
-*)
 
     Notation extra_stack := 20.
     Definition topS := SPEC("a", "b") reserving (6 + extra_stack)%nat
       Al v1, Al v2, Al h,                             
-      PRE[V] is_heap h * [| PreCond v1 v2 /\ let pairs := {(V "a", v1); (V "b", v2)} in good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
+      PRE[V] is_heap h * [| PreCond v1 v2 /\ let pairs := {(V "a", v1); (V "b", v2)} in disjoint_ptrs pairs /\ good_scalars pairs /\ h == make_heap pairs |] * mallocHeap 0
       POST[R] Ex h', is_heap h' * [| exists r, PostCond v1 v2 r /\ let pairs := {(R, r)} in good_scalars pairs /\ h' == make_heap pairs |] * mallocHeap 0.
     Import Made.
 
@@ -222,16 +296,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import AutoSep.
 
-      Require Import GeneralTactics3.
-      Opaque mult.
-      Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
-      Require Import Locals.
+    Require Import GeneralTactics3.
+    Opaque mult.
+    Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
+    Require Import Locals.
 
-      Theorem is_state_in2 : forall vs sp args e_stack h F, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h * mallocHeap 0 * F ===> is_state sp (Locals.sel vs "rp") (wordToNat (Locals.sel vs "extra_stack")) e_stack args (vs, h) nil * mallocHeap 0 * F.
-        intros; sepLemma.
-        etransitivity; [ | apply is_state_in'' ]; auto.
-        sepLemma.
-      Qed.
+    Theorem is_state_in2 : forall vs sp args e_stack h F, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h * mallocHeap 0 * F ===> is_state sp (Locals.sel vs "rp") (wordToNat (Locals.sel vs "extra_stack")) e_stack args (vs, h) nil * mallocHeap 0 * F.
+      intros; sepLemma.
+      etransitivity; [ | apply is_state_in'' ]; auto.
+      sepLemma.
+    Qed.
 
   Theorem is_state_out'' sp rp args pairs vs e_stack e_stack' h :
     NoDup args
@@ -330,7 +404,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
   Qed.
 
-      Transparent mult.
+  Transparent mult.
 
     Theorem top_ok : moduleOk top.
       clear_all.
@@ -356,20 +430,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       autorewrite with sepFormula.
       clear H9.
       hiding ltac:(step auto_ext).
-      Lemma body_safe : 
-        forall cenv stmt cst stn fs v1 v2 w1 w2, 
-          env_good_to_use modules imports stn fs -> 
-          fst cenv = from_bedrock_label_map (Labels stn) -> 
-          snd cenv = fs stn -> 
-          stmt = Compile.compile (CompileDFacade.compile body) -> 
-          PreCond v1 v2 -> 
-          good_scalars {(w1, v1); (w2, v2)} -> 
-          Locals.sel (fst cst) argvar1 = w1 -> 
-          Locals.sel (fst cst) argvar2 = w2 -> 
-          snd cst == make_heap {(w1, v1); (w2, v2)} -> 
-          Safe cenv stmt cst.
-        admit.
-      Qed.
       eapply body_safe; eauto; simpl in *; try reflexivity.
       hiding ltac:(step auto_ext).
       repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
@@ -379,30 +439,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | [ x : State |- _ ] => destruct x; simpl in *
       end.
-      Lemma body_runsto : 
-        forall cenv stmt cst cst' stn fs v1 v2 w1 w2, 
-          RunsTo cenv stmt cst cst' -> 
-          env_good_to_use modules imports stn fs -> 
-          fst cenv = from_bedrock_label_map (Labels stn) -> 
-          snd cenv = fs stn -> 
-          stmt = Compile.compile (CompileDFacade.compile body) -> 
-          PreCond v1 v2 -> 
-          good_scalars {(w1, v1); (w2, v2)} -> 
-          Locals.sel (fst cst) argvar1 = w1 -> 
-          Locals.sel (fst cst) argvar2 = w2 -> 
-          snd cst == make_heap {(w1, v1); (w2, v2)} -> 
-          exists vr,
-            let wr := Locals.sel (fst cst') retvar in
-            let pairs := {(wr, vr)} in
-            PostCond v1 v2 vr /\ 
-            snd cst' == make_heap pairs /\
-            good_scalars pairs.
-        admit.
-      Qed.
       rename H10 into Hrunsto.
       eapply body_runsto in Hrunsto; eauto. 
       simpl in *.
-      destruct Hrunsto as [vr [Hpost [Hheq Hgs] ] ].
+      destruct Hrunsto as [vr [Hpost [Hheq [Hdisj Hgs] ] ] ].
       eapply replace_imp.
       set (vs := Locals.upd _ argvar2 _) in *.
       change 20 with (wordToNat (Locals.sel vs "extra_stack")).
