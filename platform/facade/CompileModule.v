@@ -10,6 +10,8 @@ Section ADTValue.
 
   Variable module : FModule ADTValue.
 
+  Require Import GoodModule.
+
   Notation FName := SyntaxFunc.Name.
   Notation MName := GoodModule.Name.
 

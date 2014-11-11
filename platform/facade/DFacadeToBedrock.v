@@ -1,10 +1,5 @@
 Set Implicit Arguments.
 
-Require Import CompileUnit.
-Require Import AutoSepExt.
-Require Import AutoSep.
-Require Import CompileOut.
-
 Require Import MakeWrapper.
 Require Import ADT RepInv.
 

@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-(* Require Import FModule. *)
-(* Require Import CompileDFacade. *)
+Require Import FModule.
+Require Import CompileDFacade.
 Require Import DFacade.
 Require Import StringMap WordMap GLabelMap String List ListFacts3 Cito.NameDecoration.
 Local Open Scope string_scope.
@@ -29,8 +29,7 @@ Section TopSection.
       (* syntax checks, can be discharged by eq_refl for concrete prog *)
       no_assign_to_args : is_disjoint (assigned prog) (StringSetFacts.of_list argvars) = true;
       syntax_ok : is_syntax_ok prog = true;
-      (* will fixed this later *)
-      (* compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (Build_OperationalSpec argvars retvar prog eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok)) = true; *)
+      compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (Build_OperationalSpec argvars retvar prog eq_refl eq_refl no_assign_to_args eq_refl eq_refl syntax_ok)) = true;
       (* imported axiomatic specs *)
       imports : GLabelMap.t (AxiomaticSpec ADTValue);
       import_module_names_ok : let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
