@@ -285,7 +285,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import Made.
 
-    Definition bedrock_module := bimport [[ (module_name!fun_name, spec_op_b) ]]
+    Definition output_module := bimport [[ (module_name!fun_name, spec_op_b) ]]
       bmodule export_module_name {{
         bfunction fun_name(argvar1, argvar2, "R") [compileS pre_cond post_cond]
           "R" <-- Call module_name!fun_name(extra_stack, argvar1, argvar2)
@@ -407,7 +407,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Transparent mult.
 
-    Theorem bedrock_module_ok : moduleOk bedrock_module.
+    Theorem output_module_ok : moduleOk output_module.
       clear_all.
       vcgen.
 
@@ -498,13 +498,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation compile_cito_to_bedrock := link_with_adts.
 
-    Notation bedrock_module_impl := (compile_cito_to_bedrock modules imports).
+    Notation output_module_impl := (compile_cito_to_bedrock modules imports).
 
     Open Scope bool_scope.
 
     Require Import Bool.
 
-    Theorem bedrock_module_impl_ok : moduleOk bedrock_module_impl.
+    Theorem output_module_impl_ok : moduleOk output_module_impl.
     Proof.
 
       Import MakeWrapperMake.LinkMake.
@@ -544,53 +544,73 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut bedrock_module_ok eq_refl bedrock_module_impl_ok.
+    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut output_module_ok eq_refl output_module_impl_ok.
 
-(* hard to do linking for abstract terms *)
-(*
-    Definition all := link bedrock_module bedrock_module_impl.
-
-    Theorem all_ok : moduleOk all.
-
-      Ltac link0 ok1 :=
-        eapply linkOk; [ eapply ok1 | eapply bedrock_module_impl_ok
-                         | reflexivity
-                         | ok_simpl(*; unfold CompileModuleMake.mod_name; unfold impl_module_name;
-                           simpl; unfold StubsMake.StubMake.bimports_diff_bexports;
-                           simpl; unfold StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-                           simpl; unfold StubsMake.StubMake.LinkSpecMake2.impl_label;
-                           unfold impl_module_name; simpl; unfold CompileModuleMake.imports; simpl;
-                           link_simp; eauto*) | ..
-                       ].
-
-      link0 bedrock_module_ok.
-      eauto.
-      Focus 2.
-      simpl.
-      ok_simpl.
-      eauto.
-      Require Import StructuredModuleFacts.
-      eapply importsOk_Compat.
-      unfold impls.
-      rewrite LinkModuleImplsMake.module_imports; eauto.
-      unfold stubs.
-      rewrite StubsMake.module_exports; eauto.
-      eapply to_blm_Compat.
-      symmetry.
-      eapply Compat_empty.
-      simpl.
-      eauto.
-      ok_simpl.
-      link_simp.
-    Qed.
-*)
   End TopSection.
 
-End Make.
+  (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
+  Module LinkUnfoldHelp.
 
-(*
-(* can only use link0 on concrete imports *)
-Theorem all_ok : moduleOk all.
-  link0 compile_ok. (* takes about 30 seconds *)
-Qed.
-*)
+    Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
+
+    Arguments Imports /. 
+              Arguments Exports /. 
+              Arguments CompileModuleMake.mod_name /. 
+              Arguments impl_module_name /.
+              Arguments GName /. 
+              Arguments append /. 
+              Arguments CompileModuleMake.imports /.
+              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
+              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
+              Arguments diff_map /.
+              Arguments GLabelMapFacts.diff_map /. 
+              Arguments List.filter /.
+              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
+              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
+              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
+              Arguments GName /. 
+              Arguments impl_module_name /. 
+              Arguments append /. 
+              Arguments IsGoodModule.FName /. 
+              Arguments CompileModuleMake.mod_name /. 
+              Arguments impl_module_name /.
+              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
+              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
+              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
+              Arguments impl_module_name /. 
+              Arguments CompileModuleMake.imports /.
+
+              Ltac link_simp2 :=
+                simpl Imports; 
+                simpl Exports; 
+                unfold CompileModuleMake.mod_name; 
+                unfold impl_module_name;
+                simpl GName; 
+                simpl append; 
+                unfold CompileModuleMake.imports;
+                unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports, LinkMake.StubsMake.StubMake.bimports_diff_bexports;
+                unfold diff_map, GLabelMapFacts.diff_map; 
+                simpl List.filter;
+                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export, LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label, LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
+                simpl GName; 
+                unfold impl_module_name; 
+                simpl append; 
+                simpl IsGoodModule.FName; 
+                unfold CompileModuleMake.mod_name; 
+                unfold impl_module_name;
+                unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
+                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
+                unfold impl_module_name; 
+                unfold CompileModuleMake.imports.
+
+    Ltac link2 ok1 ok2 :=
+      eapply linkOk; [ eapply ok1 | eapply ok2
+                       | reflexivity
+                       | link_simp2; link_simp; eauto ..
+                     ].
+
+  End LinkUnfoldHelp.
+
+End Make.
