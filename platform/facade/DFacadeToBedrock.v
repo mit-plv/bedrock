@@ -263,8 +263,219 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition make_heap' := fold_right (fun x m => store_pair m x) empty.
 
+    Definition no_clash A (p1 p2 : A * Value ADTValue) :=
+      match snd p1, snd p2 with
+        | ADT _, ADT _ => (fst p1 <> fst p2)%type
+        | _, _ => True
+      end.
+
+    Definition no_clash_ls A p := List.Forall (@no_clash A p).
+
+    Definition not_in_heap elt w (v : Value ADTValue) (h : WordMap.t elt) :=
+      match v with
+        | SCA _ => True
+        | ADT _ => ~ WordMap.In w h
+      end.
+
+    Add Morphism store_pair with signature Equal ==> eq ==> Equal as store_pair_Equal_m.
+    Proof.
+      intros st1 st2 Heq [w v].
+      unfold store_pair.
+      unfold Make.InvMake.SemanticsMake.heap_upd; simpl.
+      destruct v.
+      eauto.
+      rewrite Heq.
+      reflexivity.
+    Qed.
+
+    Add Parametric Morphism elt : (@not_in_heap elt) with signature eq ==> eq ==> Equal ==> iff as not_in_heap_Equal_m.
+    Proof.
+      intros w v st1 st2 Heq.
+      destruct v; simpl in *.
+      intuition.
+      rewrite Heq.
+      intuition.
+    Qed.
+
+    Lemma store_pair_comm p1 p2 h : no_clash p1 p2 -> store_pair (store_pair h p1) p2 == store_pair (store_pair h p2) p1.
+    Proof.
+      intros Hnc.
+      intros p.
+      destruct p1 as [w1 v1].
+      destruct p2 as [w2 v2].
+      unfold store_pair.
+      unfold Make.InvMake.SemanticsMake.heap_upd; simpl.
+      destruct v1 as [? | a1]; destruct v2 as [? | a2]; eauto.
+      unfold no_clash in *.
+      simpl in *.
+      destruct (weq p w2) as [? | Hne2].
+      {
+        subst.
+        Import WordMapFacts WordMap.WordMap.
+        rewrite add_eq_o by eauto.
+        rewrite add_neq_o by eauto.
+        rewrite add_eq_o by eauto.
+        eauto.
+      }
+      rewrite add_neq_o by eauto.
+      destruct (weq p w1) as [? | Hne1].
+      {
+        subst.
+        rewrite add_eq_o by eauto.
+        rewrite add_eq_o by eauto.
+        eauto.
+      }
+      rewrite add_neq_o by eauto.
+      rewrite add_neq_o by eauto.
+      rewrite add_neq_o by eauto.
+      eauto.
+    Qed.
+
+    Definition DisjointPtrs A := List.ForallOrdPairs (@no_clash A).
+
+    Definition disjoint_ptrs_ls (p : W * Value ADTValue) (pairs : list (W * Value ADTValue)):=
+      match (snd p) with
+        | SCA _ => True
+        | ADT _ => ~ List.In (fst p) (List.map fst (List.filter (fun p => is_adt (snd p)) pairs))
+      end.
+
+    Lemma disjoint_ptrs_cons_elim' pairs : forall p, disjoint_ptrs (p :: pairs) -> disjoint_ptrs_ls p pairs /\ disjoint_ptrs pairs.
+    Proof.
+      induction pairs; simpl; intros [w1 v1] H.
+      {
+        split.
+        unfold disjoint_ptrs_ls; simpl.
+        destruct v1; intuition.
+        unfold disjoint_ptrs; simpl.
+        econstructor.
+      }
+      destruct a as [w2 v2]; simpl in *.
+      destruct v1 as [? | a1]; destruct v2 as [? | a2]; simpl in *; try solve [unfold disjoint_ptrs, disjoint_ptrs_ls in *; simpl in *; eauto].
+      {
+        inversion H; subst; clear H.
+        split; eauto.
+      }
+      {
+        inversion H; subst; clear H.
+        split; eauto.
+      }
+    Qed.
+
+    Lemma disjoint_ptrs_ls_no_clash_ls pairs : forall p, disjoint_ptrs_ls p pairs -> no_clash_ls p pairs.
+    Proof.
+      induction pairs; simpl; intros [w1 v1] H.
+      {
+        econstructor.
+      }
+      destruct a as [w2 v2]; simpl in *.
+      destruct v1 as [? | a1]; destruct v2 as [? | a2]; simpl in *; eauto.
+      {
+        unfold disjoint_ptrs_ls, no_clash_ls, no_clash in *.
+        econstructor.
+        eauto.
+        eapply Forall_forall.
+        intuition.
+      }
+      {
+        unfold disjoint_ptrs_ls, no_clash_ls, no_clash in *.
+        econstructor.
+        eauto.
+        eapply Forall_forall.
+        intuition.
+      }
+      {
+        unfold disjoint_ptrs_ls, no_clash_ls, no_clash in *; simpl in *.
+        econstructor; simpl in *.
+        eauto.
+        eapply (IHpairs (w1, ADT a1)); eauto.
+      }      
+      {
+        unfold disjoint_ptrs_ls, no_clash_ls, no_clash in *; simpl in *.
+        intuition.
+        econstructor; simpl in *.
+        eauto.
+        eapply (IHpairs (w1, ADT a1)); eauto.
+      }      
+    Qed.
+    Lemma disjoint_ptrs_cons_elim pairs : forall p, disjoint_ptrs (p :: pairs) -> no_clash_ls p pairs /\ disjoint_ptrs pairs.
+      intros p H.
+      eapply disjoint_ptrs_cons_elim' in H.
+      openhyp.
+      split; eauto.
+      eapply disjoint_ptrs_ls_no_clash_ls; eauto.
+    Qed.
+
+    Lemma disjonit_ptrs_DisjointPtrs ls : disjoint_ptrs ls -> DisjointPtrs ls.
+    Proof.
+      induction ls; simpl; intros H.
+      {
+        econstructor.
+      }
+      eapply disjoint_ptrs_cons_elim in H.
+      openhyp.
+      econstructor; eauto.
+      eapply IHls; eauto.
+    Qed.
+
+    Lemma no_clash_ls_not_in_heap pairs : forall w v, no_clash_ls (w, v) pairs -> not_in_heap w v (make_heap' pairs).
+    Proof.
+      induction pairs; simpl; intros w v H.
+      {
+        destruct v; simpl.
+        eauto.
+        intros Hin.
+        eapply empty_in_iff in Hin.
+        eauto.
+      }
+      inversion H; subst.
+      destruct a as [w' v'].
+      destruct v as [? | a]; simpl in *.
+      { eauto. }
+      unfold store_pair.
+      unfold Make.InvMake.SemanticsMake.heap_upd.
+      destruct v' as [? | a']; simpl in *.
+      {
+        eapply IHpairs in H3.
+        simpl in *.
+        eauto.
+      }
+      unfold no_clash in H2; simpl in *.
+      intros Hin.
+      eapply add_in_iff in Hin.
+      destruct Hin as [Hin | Hin].
+      {
+        subst; intuition.
+      }
+      eapply IHpairs in H3.
+      simpl in *.
+      intuition.
+    Qed.
+
+    Lemma fold_left_store_pair_comm pairs : forall w v h1 h2, no_clash_ls (w, v) pairs -> h2 == store_pair h1 (w, v) -> fold_left store_pair pairs h2 == store_pair (fold_left store_pair pairs h1) (w, v).
+    Proof.
+      induction pairs; simpl; intros w v h1 h2 Hnin Hh.
+      rewrite Hh; reflexivity.
+      destruct a as [w' v'].
+      inversion Hnin; subst.
+      eapply IHpairs; eauto.
+      rewrite Hh.
+      rewrite store_pair_comm by eauto.
+      reflexivity.
+    Qed.
+
     Lemma make_heap_make_heap' pairs : disjoint_ptrs pairs -> make_heap pairs == make_heap' pairs.
-      admit.
+    Proof.
+      induction pairs; simpl; intros Hdisj.
+      reflexivity.
+      unfold make_heap in *.
+      unfold Make.InvMake.SemanticsMake.heap_empty in *.
+      simpl.
+      destruct a as [w v].
+      eapply disjoint_ptrs_cons_elim in Hdisj.
+      destruct Hdisj as [Hnin Hdisj].
+      rewrite <- IHpairs by eauto.
+      eapply fold_left_store_pair_comm; eauto.
+      reflexivity.
     Qed.
 
     Import StringMapFacts StringMap.StringMap.
@@ -364,12 +575,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Huni; eauto.
     Qed.
 
-    Definition not_in_heap elt w (v : Value ADTValue) (h : WordMap.t elt) :=
-      match v with
-        | SCA _ => True
-        | ADT _ => ~ WordMap.In w h
-      end.
-
     Lemma related_add st vs h x v w : related st (vs, h) -> w = vs x -> word_scalar_match (w, v) -> not_in_heap w v h -> not_mapsto_adt x st = true  -> related (add x v st) (vs, store_pair h (w, v)).
       intros Hr ? Hmatch Hninw Hninx.
       subst.
@@ -442,9 +647,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       inversion Hnd; subst; clear Hnd.
       rename H1 into Hnink.
       rename H2 into Hnd.
-      Lemma disjoint_ptrs_cons_elim w v pairs : disjoint_ptrs ((w, v) :: pairs) -> not_in_heap w v (make_heap' pairs) /\ disjoint_ptrs pairs.
-        admit.
-      Qed.
       eapply disjoint_ptrs_cons_elim in Hdp.
       destruct Hdp as [Hninw Hdisj].
       eapply related_Equal.
@@ -454,6 +656,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply related_add; trivial.
       {
         eapply IHks; try reflexivity; eauto.
+      }
+      {
+        eapply no_clash_ls_not_in_heap; eauto.
       }
       {
         eapply find_none_not_mapsto_adt.
@@ -527,18 +732,114 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import GeneralTactics5.
 
-    Lemma make_map_related_make_heap ks values pairs st h vs cst : 
-      StringMapFacts.Submap (make_map ks values) st ->
-      (forall k, ~ List.In k ks -> not_mapsto_adt k st = true ) ->
+    Arguments empty {_}.
+    (* a special version of make_map_related_make_heap *)
+    Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs : 
+      StringMapFacts.Submap (add k v empty) st ->
+      (forall k', k' <> k -> not_mapsto_adt k' st = true ) ->
       CompileRunsTo.related st cst ->
-      List.map fst pairs = List.map vs ks ->
-      List.map snd pairs = values ->
+      w = vs k ->
       vs = fst cst ->
       h == snd cst ->
+      pairs = (w, v) :: nil ->
       WordMap.Equal h (make_heap pairs) /\
       disjoint_ptrs pairs /\
       good_scalars pairs.
-      admit.
+    Proof.
+      intros Hst Hnoleak Hr ? ? Hh ? .
+      subst.
+      destruct cst as [vs h']; simpl in *.
+      rewrite Hh.
+      split.
+      {
+        unfold make_heap.
+        unfold Make.InvMake.SemanticsMake.heap_empty.
+        simpl.
+        unfold store_pair; simpl.
+        destruct v as [w | a]; simpl in *.
+        {
+          intros p.
+          Import WordMapFacts WordMap.WordMap.
+          rewrite empty_o.
+          simpl in *.
+          destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
+          {
+            eapply Hr in Hv.
+            destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
+            destruct (string_dec x k) as [? | Hnex].
+            {
+              subst.
+              Import StringMapFacts StringMap.StringMap.
+              specialize (Hst k (SCA _ w)).
+              rewrite Hst in Hfx.
+              discriminate.
+              rewrite add_eq_o by eauto.
+              eauto.
+            }
+            eapply Hnoleak in Hnex.
+            eapply not_mapsto_adt_iff in Hnex.
+            contradict Hnex.
+            eexists; eauto.
+          }
+          eauto.
+        }
+        unfold Make.InvMake.SemanticsMake.heap_upd.
+        intros p.
+        Import WordMapFacts WordMap.WordMap.
+        destruct (weq p (vs k)) as [? | Hnep].
+        {
+          subst.
+          rewrite add_eq_o by eauto.
+          specialize (Hst k (ADT a)).
+          Import StringMapFacts StringMap.StringMap.
+          rewrite add_eq_o in Hst by eauto.
+          specialize (Hst eq_refl).
+          eapply Hr in Hst.
+          simpl in *.
+          eauto.
+        }
+        Import WordMapFacts WordMap.WordMap.
+        rewrite add_neq_o by eauto.
+        rewrite empty_o.
+        destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
+        {
+          eapply Hr in Hv.
+          destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
+          destruct (string_dec x k) as [? | Hnex].
+          {
+            subst.
+            intuition.
+          }
+          eapply Hnoleak in Hnex.
+          eapply not_mapsto_adt_iff in Hnex.
+          contradict Hnex.
+          eexists; eauto.
+        }
+        eauto.
+      }
+      split.
+      {
+        unfold disjoint_ptrs; simpl in *.
+        destruct v; simpl in *; intuition.
+      }
+      unfold good_scalars.
+      destruct v as [w | a]; simpl in *.
+      {
+        econstructor; intuition.
+        unfold word_scalar_match; simpl.
+        Import StringMapFacts StringMap.StringMap.
+        specialize (Hst k (SCA _ w)).
+        rewrite add_eq_o in Hst by eauto.
+        specialize (Hst eq_refl).
+        eapply Hr in Hst.
+        simpl in *.
+        eauto.
+      }
+      {
+        econstructor; intuition.
+        unfold word_scalar_match; simpl.
+        eauto.
+      }
     Qed.
 
     Lemma prog_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
@@ -583,7 +884,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply dfacade_runsto in Hrt; eauto.
         2 : reflexivity.
         destruct Hrt as [ret [Hst' [Hnoleak Hpost] ] ].
-        eapply make_map_related_make_heap in Hr.
+        eapply make_map_related_make_heap_singleton in Hr.
         {
           destruct Hr as [Hh' [Hgs' Hdisj'] ].
           exists ret.
@@ -594,23 +895,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           - eauto.
         }
         {
-          instantiate (1 := ret :: nil).
-          instantiate (1 := retvar :: nil).
+          instantiate (1 := ret).
+          instantiate (1 := retvar).
           eauto.
         }
         {
           intros k Hnin.
-          eapply Hnoleak.
-          eapply singleton_iff_not in Hnin; eauto.
-        }
-        {
-          reflexivity.
-        }
-        {
-          reflexivity.
-        }
-        {
           eauto.
+        }
+        {
+          reflexivity.
+        }
+        {
+          reflexivity.
         }
         {
           simpl.
@@ -618,6 +915,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           rewrite diff_same.
           rewrite diff_empty.
           reflexivity.
+        }
+        {
+          eauto.
         }
       }
       {
