@@ -38,11 +38,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation prog := (CompileUnit.prog compile_unit).
     Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
     Definition unit_syntax_ok := (CompileUnit.syntax_ok compile_unit).
-    (* Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit). *)
-    Require FModule CompileDFacade.
-    Lemma unit_compile_syntax_ok : FModule.is_syntax_ok (CompileDFacade.compile_op (DFacade.Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok)) = true.
-      admit.
-    Qed.
+    Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit).
     Notation imports := (CompileUnit.imports compile_unit).
 
     Notation Value := (@Value ADTValue).
@@ -78,6 +74,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition modules := good_module :: nil.
 
     Require Import GoodModuleDec.
+    Require Import GoodModuleDecFacts.
 
     Definition dummy_gf : GoodFunction.
       refine (to_good_function f _).
@@ -504,8 +501,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation bedrock_module_impl := (compile_cito_to_bedrock modules imports).
 
     Open Scope bool_scope.
-      admit.
-    Qed.
 
     Require Import Bool.
 
@@ -527,8 +522,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       pose (Himn := import_module_names_ok).
       eapply andb_true_iff in Himn.
       destruct Himn as [Himn1 Himn2].
-      eapply andb_true_iff in Himn1.
-      destruct Himn1 as [Himn11 Himn12].
       eapply andb_true_iff.
       split.
       eapply andb_true_iff.
@@ -539,7 +532,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         eapply forallb_forall.
         intros x Hin.
-        eapply forallb_forall in Himn12.
+        eapply forallb_forall in Himn1.
         2 : solve [eapply Hin].
         destruct (in_dec string_dec x (List.map GName modules)); simpl in *.
         - intuition.

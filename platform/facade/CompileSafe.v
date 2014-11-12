@@ -318,6 +318,8 @@ Section ADTValue.
       rename H1 into Hlbl2.
       eapply Henv in Hlbl2.
       intuition.
+      rewrite H in Hlbl2.
+      discriminate.
     }
 
   Qed.

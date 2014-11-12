@@ -83,10 +83,14 @@ Section ADTValue.
   Notation cRunsTo := Semantics.RunsTo.
   Lemma eval_ceval : forall s_st vs h e w, eval s_st e = Some (SCA _ w) -> related s_st (vs, h) -> ceval vs e = w.
   Proof.
-    induction e; simpl; intuition.
+    induction e; simpl in *; intuition.
     unfold related in *.
     openhyp.
     eapply H0 in H.
+    simpl in *.
+    eauto.
+
+    inject H.
     eauto.
 
     unfold eval_binop_m in *.
@@ -1404,9 +1408,13 @@ Section ADTValue.
           apply add_mapsto_iff in H; intuition subst.
           eauto.
           left; intuition.
+          inject H3.
+          eauto.
           eauto 2.
           apply remove_mapsto_iff in H; intuition subst.
           left; intuition.
+          inject H3.
+          eauto.
           eauto 2.
           destruct H0.
           eauto.
@@ -1958,7 +1966,7 @@ Section ADTValue.
       destruct ret; simpl in *.
       discriminate.
       inject H21.
-      solve [unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition].
+      solve [unfold ret_doesn't_matter in *; simpl in *; openhyp; intuition; discriminate].
       rewrite StringMapFacts.add_neq_o in * by eauto.
       rewrite Locals.sel_upd_ne in * by eauto.
       eapply find_ADT_add_remove_many in H19; eauto; openhyp.
@@ -2196,7 +2204,7 @@ Section ADTValue.
       split.
       eauto.
       split.
-      solve [intros; openhyp; intuition].
+      solve [intros; openhyp; intuition; rewrite H4 in H5; discriminate].
       eapply related_Equal; pick_related; eauto.
       solve [rewrite diff_submap_cancel; eauto].
     }
@@ -2216,7 +2224,9 @@ Section ADTValue.
       split.
       eauto.
       split.
-      solve [intros; openhyp; intuition].
+      intros; openhyp; intuition.
+      rewrite H0 in H5.
+      discriminate.
       eapply related_Equal; pick_related; eauto.
       solve [rewrite diff_submap_cancel; eauto].
     }
@@ -2274,7 +2284,9 @@ Section ADTValue.
       discriminate.
       rewrite Locals.sel_upd_ne in * by eauto.
       rewrite is_mapsto_adt_neq in * by eauto.
-      solve [intros; openhyp; intuition].
+      intros; openhyp; intuition.
+      rewrite H in Hmt'.
+      discriminate.
     Qed.
 
     {
