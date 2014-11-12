@@ -25,6 +25,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import CompileUnit CompileOut.
   Module Import CompileOutMake := CompileOut.Make E M.
+  Export CompileOutMake.
 
   Section TopSection.
 
@@ -94,41 +95,389 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Local Open Scope fmap_scope.
 
     Lemma env_good_to_use_cenv_impls_env modules stn fs : env_good_to_use modules imports stn fs -> cenv_impls_env (from_bedrock_label_map (Labels stn), fs stn) (GLabelMap.map (@Axiomatic _) imports).
-      admit.
+    Proof.
+      intros Hgu.
+      unfold env_good_to_use, cenv_impls_env in *.
+      destruct Hgu as [Hsgu [Hinj Hfsgu] ].
+      unfold stn_good_to_use, fs_good_to_use in *.
+      split.
+      {
+        intros lbl spec Hflbl.
+        Require Import GLabelMapFacts.
+        rewrite map_o in Hflbl.
+        Require Import Option.
+        eapply option_map_some_elim in Hflbl.
+        destruct Hflbl as [aspec [Hflbl' ?] ].
+        subst.
+        simpl in *.
+        assert (Hlblin : label_in modules imports lbl).
+        {
+          unfold label_in.
+          right; eauto.
+          eapply find_Some_in; eauto.
+        }
+        eapply Hsgu in Hlblin.
+        eapply ex_up in Hlblin.
+        destruct Hlblin as [w Hw].
+        assert (fs stn w = Some (Foreign aspec)).
+        {
+          eapply Hfsgu.
+          exists lbl.
+          split; eauto.
+          unfold label_mapsto.
+          right.
+          exists aspec.
+          split; eauto.
+        }
+        exists w.
+        split; eauto.
+      }
+      intros k.
+      intros k' w Hin1 Hin2 Hf1 Hf2.
+      simpl in *.
+      eapply in_find_Some in Hin1.
+      destruct Hin1 as [s1 Hs1].
+      rewrite map_o in Hs1.
+      eapply option_map_some_elim in Hs1.
+      destruct Hs1 as [as1 [Has1 ?] ].
+      subst; simpl in *.
+      eapply in_find_Some in Hin2.
+      destruct Hin2 as [s2 Hs2].
+      rewrite map_o in Hs2.
+      eapply option_map_some_elim in Hs2.
+      destruct Hs2 as [as2 [Has2 ?] ].
+      subst; simpl in *.
+      eapply Hinj; eauto.
+      {
+        unfold label_in.
+        right; eauto.
+        eapply find_Some_in; eauto.
+      }
+      {
+        unfold label_in.
+        right; eauto.
+        eapply find_Some_in; eauto.
+      }
     Qed.
 
+    Require Import CompileRunsTo.
     Lemma empty_related vs : @CompileRunsTo.related ADTValue (StringMap.empty _) (vs, (WordMap.empty _)).
-      admit.
-    Qed.
-
-    Require Import Setoid.
-    Global Add Morphism (@CompileRunsTo.related ADTValue) with signature StringMap.Equal ==> Logic.eq ==> iff as related_m.
-    admit.
-    Qed.
-
-    Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == WordMap.empty elt -> b == a.
-      admit.
+    Proof.
+      unfold related.
+      split.
+      {
+        intros x v Hf.
+        Require Import StringMapFacts.
+        rewrite empty_o in Hf.
+        discriminate.
+      }
+      intros p a Hf.
+      simpl in *.
+      rewrite WordMapFacts.empty_o in Hf.
+      discriminate.
     Qed.
 
     Import StringMapFacts.FMapNotations.
 
+    Lemma related_Equal st1 st2 vs1 vs2 h1 h2 : @related ADTValue st1 (vs1, h1) -> st2 == st1 -> (forall k, vs2 k = vs1 k) -> WordMap.Equal h2 h1 -> related st2 (vs2, h2).
+    Proof.
+      intros Hr Heq Hvs Hh.
+      unfold related in *; simpl in *.
+      split.
+      {
+        intros x v Hf.
+        rewrite Heq in Hf.
+        rewrite Hh.
+        rewrite Hvs.
+        eapply Hr in Hf.
+        eauto.
+      }
+      intros p a Hf.
+      rewrite Hh in Hf.
+      eapply Hr in Hf.
+      destruct Hf as [x [Hex Huni] ].
+      rewrite <- Heq in Hex.
+      rewrite <- Hvs in Hex.
+      exists x.
+      split.
+      - eauto.
+      - intros x' Hx'.
+        rewrite Heq in Hx'.
+        rewrite Hvs in Hx'.
+        eauto.
+    Qed.
+
+    Require Import Setoid.
+    Global Add Morphism (@CompileRunsTo.related ADTValue) with signature StringMap.Equal ==> Logic.eq ==> iff as related_Equal_m.
+    Proof.
+      intros st1 st2 Heq cst.
+      destruct cst as [vs h] in *.
+      split; intros.
+      eapply related_Equal; eauto.
+      symmetry; eauto.
+      reflexivity.
+      eapply related_Equal; eauto.
+      reflexivity.
+    Qed.
+
     Import WordMapFacts.FMapNotations.
 
+    Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == WordMap.empty elt -> b == a.
+    Proof.
+      intros Hsm Hdiff.
+      intros k.
+      Require Import WordMapFacts.
+      Import WordMap.WordMap.
+      destruct (option_dec (find k a)) as [ [v Hv] | Hnone].
+      {
+        rewrite Hv.
+        eapply Hsm; eauto.
+      }
+      rewrite Hnone.
+      destruct (option_dec (find k b)) as [ [v Hv] | Hnone'].
+      {
+        assert (MapsTo k v (b - a)).
+        {
+          eapply diff_mapsto_iff.
+          split.
+          - eapply find_mapsto_iff; eauto.
+          - eapply not_find_in_iff; eauto.
+        }
+        rewrite Hdiff in H.
+        eapply empty_mapsto_iff in H.
+        intuition.
+      }
+      eauto.
+    Qed.
+
     Lemma submap_refl elt (m : WordMap.t elt) : m <= m.
+    Proof.
+      intros k.
+      intros; eauto.
+    Qed.
+
+    Require Import StringMapFacts.
+
+    Require Import GeneralTactics4.
+    Arguments empty {_}.
+
+    Definition make_heap' := fold_right (fun x m => store_pair m x) empty.
+
+    Lemma make_heap_make_heap' pairs : disjoint_ptrs pairs -> make_heap pairs == make_heap' pairs.
       admit.
     Qed.
 
-    Lemma make_map_make_heap_related ks values pairs st h vs cst : 
-      StringMap.Equal st (make_map ks values) ->
-      WordMap.Equal h (make_heap pairs) ->
-      good_scalars pairs ->
-      disjoint_ptrs pairs ->
-      List.map fst pairs = List.map vs ks ->
-      List.map snd pairs = values ->
-      vs = fst cst ->
-      h = snd cst ->
-      CompileRunsTo.related st cst.
-      admit.
+    Import StringMapFacts StringMap.StringMap.
+
+    Lemma related_add_adt st vs h x (a : ADTValue) w : related st (vs, h) -> w = vs x -> ~ WordMap.In w h -> not_mapsto_adt x st = true -> related (add x (ADT a) st) (vs, WordMap.add w a h).
+      intros Hr ? Hninw Hninx.
+      subst.
+      
+      unfold related in *; simpl in *.
+      split.
+      {
+        intros x' v' Hf.
+        destruct (string_dec x' x) as [Heq | Hne].
+        {
+          subst.
+          rewrite add_eq_o in Hf by eauto.
+          inject Hf.
+          simpl in *.
+          rewrite WordMapFacts.add_eq_o by eauto.
+          eauto.
+        }
+        rewrite add_neq_o in Hf by eauto.
+        eapply Hr in Hf.
+        destruct v' as [w' | a']; simpl in *.
+        {
+          eauto.
+        }
+        unfold Locals.sel in *.
+        destruct (weq (vs x') (vs x)) as [Heqw | Hnew].
+        {
+          rewrite Heqw in *.
+          contradict Hninw.
+          eapply WordMapFacts.find_Some_in; eauto.
+        }
+        rewrite WordMapFacts.add_neq_o by eauto.
+        eauto.
+      }
+      intros p a' Hf.
+      destruct (weq p (vs x)) as [? | Hne].
+      {
+        subst.
+        rewrite WordMapFacts.add_eq_o in Hf by eauto.
+        inject Hf.
+        exists x.
+        split.
+        {
+          split.
+          - eauto.
+          - rewrite add_eq_o by eauto.
+            eauto.
+        }
+        intros x' [Hvsx' Hfx'].
+        destruct (string_dec x' x) as [? | Hne].
+        {
+          eauto.
+        }
+        rewrite add_neq_o in Hfx' by eauto.
+        eapply Hr in Hfx'.
+        simpl in *.
+        unfold Locals.sel in *.
+        rewrite Hvsx' in *.
+        contradict Hninw.
+        eapply WordMapFacts.find_Some_in; eauto.
+      }
+      rewrite WordMapFacts.add_neq_o in Hf by eauto.
+      eapply Hr in Hf.
+      destruct Hf as [x' [ [Hvsx' Hfx'] Huni] ].
+      exists x'.
+      split.
+      {
+        split; eauto.
+        destruct (string_dec x' x) as [? | Hnex].
+        {
+          subst.
+          eapply not_mapsto_adt_iff in Hninx.
+          contradict Hninx.
+          eexists; eauto.
+        }
+        rewrite add_neq_o by eauto.
+        eauto.
+      }
+      intros x'' [Hvsx'' Hfx''].
+      subst.
+      unfold Locals.sel in *.
+      destruct (string_dec x'' x) as [? | Hnex''].
+      {
+        subst.
+        rewrite add_eq_o in Hfx'' by eauto.
+        inject Hfx''.
+        eapply Hr in Hfx'.
+        simpl in *.
+        rewrite Hvsx'' in *.
+        contradict Hninw.
+        eapply WordMapFacts.find_Some_in; eauto.
+      }
+      rewrite add_neq_o in Hfx'' by eauto.
+      eapply Huni; eauto.
+    Qed.
+
+    Definition not_in_heap elt w (v : Value ADTValue) (h : WordMap.t elt) :=
+      match v with
+        | SCA _ => True
+        | ADT _ => ~ WordMap.In w h
+      end.
+
+    Lemma related_add st vs h x v w : related st (vs, h) -> w = vs x -> word_scalar_match (w, v) -> not_in_heap w v h -> not_mapsto_adt x st = true  -> related (add x v st) (vs, store_pair h (w, v)).
+      intros Hr ? Hmatch Hninw Hninx.
+      subst.
+      destruct v as [w | a].
+      {
+        eapply related_Equal.
+        {
+          eapply related_add_sca; eauto.
+          reflexivity.
+        }
+        { reflexivity. }
+        {
+          unfold word_scalar_match in *; simpl in *.
+          subst.
+          intros k.
+          destruct (string_dec k x) as [? | Hne].
+          - subst.
+            symmetry; eapply Locals.sel_upd_eq; eauto.
+          - symmetry; eapply Locals.sel_upd_ne; eauto.
+        }
+        unfold store_pair; simpl.
+        reflexivity.
+      }
+      eapply related_Equal.
+      {
+        eapply related_add_adt; eauto.
+      }
+      {
+        reflexivity.
+      }
+      { eauto. }
+      {
+        reflexivity.
+      }
+    Qed.
+
+    Lemma make_map_make_heap_related' ks : 
+      forall values pairs st h vs cst,
+        NoDup ks ->
+        StringMap.Equal st (make_map ks values) ->
+        WordMap.Equal h (make_heap' pairs) ->
+        good_scalars pairs ->
+        disjoint_ptrs pairs ->
+        List.map fst pairs = List.map vs ks ->
+        List.map snd pairs = values ->
+        vs = fst cst ->
+        h = snd cst ->
+        CompileRunsTo.related st cst.
+    Proof.
+      induction ks; destruct values; destruct pairs; simpl; try solve [intros; try discriminate]; intros st h vs cst Hnd Hst Hh Hgs Hdp Hfst Hsnd ? ?; subst; destruct cst as [vs h]; simpl in *.
+      {
+        unfold make_heap in *; simpl in *.
+        eapply related_Equal.
+        - eapply empty_related.
+        - eauto.
+        - intros; eauto.
+        - eauto.
+      }
+      rename a into k.
+      destruct p as [w v]; simpl in *.
+      inject Hsnd.
+      inject Hfst.
+      rename H into Hfst.
+      unfold make_heap' in *.
+      simpl in *.
+      unfold good_scalars in *.
+      inversion Hgs; subst; clear Hgs.
+      rename H1 into Hmatch.
+      rename H2 into Hgs.
+      inversion Hnd; subst; clear Hnd.
+      rename H1 into Hnink.
+      rename H2 into Hnd.
+      Lemma disjoint_ptrs_cons_elim w v pairs : disjoint_ptrs ((w, v) :: pairs) -> not_in_heap w v (make_heap' pairs) /\ disjoint_ptrs pairs.
+        admit.
+      Qed.
+      eapply disjoint_ptrs_cons_elim in Hdp.
+      destruct Hdp as [Hninw Hdisj].
+      eapply related_Equal.
+      2 : eapply Hst.
+      3 : eapply Hh.
+      2 : solve [eauto].
+      eapply related_add; trivial.
+      {
+        eapply IHks; try reflexivity; eauto.
+      }
+      {
+        eapply find_none_not_mapsto_adt.
+        eapply not_find_in_iff.
+        eapply make_map_not_in; eauto.
+      }
+    Qed.
+
+    Lemma make_map_make_heap_related ks : 
+      forall values pairs st h vs cst,
+        NoDup ks ->
+        StringMap.Equal st (make_map ks values) ->
+        WordMap.Equal h (make_heap pairs) ->
+        good_scalars pairs ->
+        disjoint_ptrs pairs ->
+        List.map fst pairs = List.map vs ks ->
+        List.map snd pairs = values ->
+        vs = fst cst ->
+        h = snd cst ->
+        CompileRunsTo.related st cst.
+    Proof.
+      intros; eapply make_map_make_heap_related'; eauto.
+      rewrite <- make_heap_make_heap' by eauto.
+      eauto.
     Qed.
 
     Lemma prog_safe cenv stmt cst stn fs v1 v2 w1 w2 :
@@ -163,8 +512,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply submap_refl.
       }
       {
-        eapply make_map_make_heap_related; eauto; simpl in *.
-        instantiate (1 := argvars).
+        eapply make_map_make_heap_related with (ks := argvars); eauto; simpl in *.
         reflexivity.
         eauto.
       }
@@ -180,7 +528,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import GeneralTactics5.
 
     Lemma make_map_related_make_heap ks values pairs st h vs cst : 
-      StringMap.Equal st (make_map ks values) ->
+      StringMapFacts.Submap (make_map ks values) st ->
+      (forall k, ~ List.In k ks -> not_mapsto_adt k st = true ) ->
       CompileRunsTo.related st cst ->
       List.map fst pairs = List.map vs ks ->
       List.map snd pairs = values ->
@@ -217,14 +566,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct cst' as [vs' h']; simpl in *.
       intros Hrt Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
       subst.
-      eapply compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
+      eapply CompileDFacadeToCito.compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
       destruct Hrt as [st' [Hrt [Hsm Hr] ] ].
       6 : eapply env_good_to_use_cenv_impls_env; eauto.
       2 : eapply unit_syntax_ok.
       Focus 3.
       {
-        eapply make_map_make_heap_related; eauto; simpl in *.
-        instantiate (1 := argvars).
+        eapply make_map_make_heap_related with (ks := argvars); eauto; simpl in *.
         reflexivity.
         eauto.
         eauto.
@@ -248,11 +596,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         {
           instantiate (1 := ret :: nil).
           instantiate (1 := retvar :: nil).
-          admit.
-          (*
-          rewrite Hst'.
-          reflexivity.
-           *)
+          eauto.
+        }
+        {
+          intros k Hnin.
+          eapply Hnoleak.
+          eapply singleton_iff_not in Hnin; eauto.
         }
         {
           reflexivity.
