@@ -32,6 +32,8 @@ FACADE := \
 	facade/CompileUnit \
 
 FACADE_ALL := \
+	facade/examples/FiatADTs \
+	facade/examples/FiatRepInv \
 	facade/examples/FiatImpl \
 	facade/DFacadeToBedrock \
 
