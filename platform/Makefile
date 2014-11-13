@@ -82,6 +82,10 @@ install-facade-all:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
+install-facade-allv:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
 install-cito:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(CITO))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install

@@ -1,6 +1,6 @@
 MODULE:=Bedrock
 
-.PHONY: default examples platform cito facade src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-src install-examples
+.PHONY: default examples platform cito facade src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples
 
 default: examples
 
@@ -46,13 +46,16 @@ install-facade:
 install-facade-all:
 	$(MAKE) -C platform install-facade-all
 
+install-facade-allv:
+	$(MAKE) -C platform install-facade-allv
+
 install-cito:
 	$(MAKE) -C platform install-cito
 
 install-examples:
 	$(MAKE) -C examples install
 
-install: install-src install-platform install-facade install-cito install-facade-all install-examples
+install: install-src install-platform install-facade install-cito install-facade-all install-facade-allv install-examples
 
 .dir-locals.el: tools/dir-locals.el Makefile
 	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el | sed s,MOD,$(MODULE),g > .dir-locals.el
