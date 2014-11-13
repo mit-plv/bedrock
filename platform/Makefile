@@ -71,7 +71,7 @@ build:
 
 # we want to install everything, so we need to remake the makefile
 install:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL) $(CITO) $(MODULES))) -o Makefile.coq
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV) $(CITO) $(MODULES))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
 install-facade:
