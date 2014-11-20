@@ -32,6 +32,8 @@ FACADE := \
 	facade/CompileUnit \
 
 FACADE_ALL := \
+	facade/examples/FiatADTs \
+	facade/examples/FiatRepInv \
 	facade/examples/FiatImpl \
 	facade/DFacadeToBedrock \
 
@@ -69,7 +71,7 @@ build:
 
 # we want to install everything, so we need to remake the makefile
 install:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL) $(CITO) $(MODULES))) -o Makefile.coq
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV) $(CITO) $(MODULES))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
 install-facade:
@@ -78,6 +80,10 @@ install-facade:
 
 install-facade-all:
 	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade-allv:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV))) -o Makefile.coq
 	$(MAKE) -f Makefile.coq install
 
 install-cito:

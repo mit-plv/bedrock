@@ -25,18 +25,18 @@ Instance seq_Listy : Listy Stmt Stmt := {
 Existing Instance list_Listy.
 
 (* for free-standing stmt seq *)
-Infix ";;" := DFacade.Seq : dfacade_scope.
+Infix ";;" := DFacade.Seq (right associativity, at level 95) : dfacade_scope.
 
 Delimit Scope dfacade_scope with dfacade.
 Local Open Scope dfacade_scope.
 
-Notation "'skip'" := DFacade.Skip : dfacade_scope.
+Notation skip := DFacade.Skip.
 
 Notation if_ := DFacade.If.
 
 Notation while_ := DFacade.While.
 
-Notation "x <- e" := (DFacade.Assign x e) : dfacade_scope.
+Notation "x <- e" := (DFacade.Assign x e) (no associativity, at level 90) : dfacade_scope.
 
 Notation "'call_' f ()" := (DFacade.Call "_tmp" f nil)
   (no associativity, at level 95, f at level 0) : dfacade_scope.
@@ -48,9 +48,10 @@ Notation "x <-- 'call_' f ()" := (DFacade.Call x f nil)
 
 Notation "x <-- 'call_' f ( x1 , .. , xN )" := (DFacade.Call x f (cons x1 (.. (cons xN nil) ..))) (no associativity, at level 95, f at level 0) : dfacade_scope.
 
-Notation "a ! b" := (a, b) (only parsing) : dfacade_scope.
+Notation "a ! b" := (a, b) (at level 0, only parsing) : dfacade_scope.
 
 Local Open Scope expr_scope.
+Local Open Scope string_scope.
 
 (* can mix { a ; b } and ( a ;; b ) *)
 Definition test_stmt :=
@@ -201,4 +202,5 @@ Module OpenScopes.
   Open Scope listy_scope.
   Open Scope dfacade_scope.
   Open Scope expr_scope.
+  Open Scope string_scope.
 End OpenScopes.
