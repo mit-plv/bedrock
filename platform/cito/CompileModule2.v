@@ -80,9 +80,13 @@ Module Make (Import E : ADT).
 
   Module Make (Import M : RepInv E).
     
+    Require Import LayoutHints3.
+    Module Import LayoutHints3Make := Make E M.
     Module Import LinkSpecMakeMake := LinkSpecMake.Make M.
     Require Import MakeWrapper.
     Module Import MakeWrapperMake := Make E M.
+    Require LayoutHints2.
+    Module LayoutHints2Make := LayoutHints2.Make E M.
 
     Section M.
 
@@ -278,7 +282,7 @@ Module Make (Import E : ADT).
             {
               instantiate (2 := rv).
               instantiate (2 := retv rv (snd x1)).
-              instantiate (2 := List.map (fun p => WordMap.find p (snd x1)) arr).
+              instantiate (2 := List.map (heap_sel (snd x1)) arr).
               instantiate (4 := x2).
               instantiate (3 := x4).
               instantiate (1 := List.map (fst x1) avars).
@@ -290,8 +294,84 @@ Module Make (Import E : ADT).
               rewrite Hsp in *.
               rename x1 into v_callee'.
               destruct v_callee' as [vs_callee'' h']; simpl in *.
-              
-              (* interp [ ] *) admit.
+              set (h'2 := fold_left _ _ _).
+              set (ret_w := fst (decide_ret _ _)).
+              set (ret_a := snd (decide_ret _ _)).
+              assert (Hsep : separated h'2 ret_w ret_a) by admit.
+              Require Import WordMap WordMapFacts.
+              Import WordMap.WordMap WordMapFacts.FMapNotations.
+              Local Open Scope fmap_scope.
+              assert (Hh'2 : h' == heap_upd_option h'2 ret_w ret_a) by admit.
+              set (args' := List.map vs_callee'' avars).
+              assert (Hargs' : args' = toArray avars vs_callee'') by admit.
+              assert (Hleq : length args' = length avars) by admit.
+
+              unfold is_state.
+              unfold has_extra_stack.
+              simpl.
+              simpl_array_nil.
+              simpl_locals_nil.
+              rewrite plus_0_r in *.
+              rewrite mult_0_r in *.
+              rewrite wplus_0 in *.
+
+              rewrite  Hleq in *.
+              rewrite Hargs' in *.
+
+              clear IHls Hegu Hpre Hrt.
+              unfold locals.
+              simpl.
+              hiding ltac:(step auto_ext).
+              Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
+              Proof.
+                intros Hsep.
+                unfold is_heap_upd_option, separated, Semantics.separated in *.
+                destruct a as [a| ]; simpl in *.
+                {
+                  destruct Hsep as [? | Hsep]; try discriminate.
+                  eapply Himp_trans.
+                  eapply Himp_trans.
+                  2 : eapply LayoutHints2Make.split_heap.
+                  {
+                    unfold LayoutHints2Make.heap_to_split.
+                    eapply Himp_refl.
+                  }
+                  {
+                    instantiate (1 := (addr, ADT a) :: nil).
+                    admit. (* good inputs *)
+                  }
+                  {
+                    simpl.
+                    Import LayoutHints2Make.U.InvMake.
+                    Import LayoutHints2Make.U.InvMake2.
+                    Import SemanticsMake.
+                    unfold make_heap.
+                    unfold store_pair.
+                    unfold heap_upd.
+                    simpl.
+                    eapply Himp_star_frame.
+                    {
+                      unfold is_heap.
+                      unfold heap_elements.
+                      simpl.
+                      eapply Himp_trans.
+                      eapply Himp_star_comm.
+                      eapply Himp_star_Emp.
+                    }
+                    {
+                      eapply Made.Inner.is_heap_Equal.
+                      admit. (* Equal *)
+                    }
+                  }
+                }
+                {
+                  sepLemma.
+                }
+              Qed.
+              eapply Himp_trans.
+              2 : solve [eapply is_heap_upd_option_fwd; eauto].
+              unfold is_heap_upd_option.
+              eapply Made.Inner.is_heap_Equal; eauto.
             }
             {
               (* side conditions *) admit.
@@ -299,7 +379,9 @@ Module Make (Import E : ADT).
           }
         }
         {
-          (* match LabelMap.find ... *) admit.
+          assert (Hf : LabelMap.find (tgt a0 : label) (fullImports bimports stubs) = Some (tgt_spec a0 b0)) by admit.
+          rewrite Hf.
+          eauto.
         }
         (* universe inconsistency *)
         Set Printing Universes.
