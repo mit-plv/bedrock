@@ -136,6 +136,7 @@ Definition m := cmodule "count" {{
 }}.
 
 Require Import GoodModuleDec.
+Require Import GoodModuleDecFacts.
 
 Lemma good : IsGoodModule m.
   eapply is_good_module_sound.
