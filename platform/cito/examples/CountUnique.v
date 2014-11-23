@@ -5,14 +5,12 @@ Require Import MakeWrapper ExampleADT ExampleRepInv.
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
+Require Import ExampleImpl.
+
 Require Import Notations4.
-Module Import Notations4Make := Make ExampleADT.
 
 Require Import Arith.
-Import ProgramLogicMake.
 Open Scope nat.
-
-Require Import ExampleImpl.
 
 Require Import FiniteSet.
 Require Import WordMap.
@@ -126,6 +124,8 @@ Definition main_body := (
       h' == h /\ V' "ret" = 2 ]
 )%stmtex.
 
+Require Import ProgramLogic2.
+
 Definition m := cmodule "count" {{
   cfunction "count"("arr", "len")
     count_body
@@ -198,13 +198,9 @@ Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printIn
   }}.
 
 Import Semantics.
-Import SemanticsMake.
 Require Import GLabelMap.
 Import GLabelMap.GLabelMap.
 Require Import ChangeSpec.
-Module Import ChangeSpecMake := Make ExampleADT.
-Import SemanticsFacts4Make.
-Import TransitMake.
 
 Require AxSpec.
 Import AxSpec.ConformTactic.
@@ -239,7 +235,7 @@ Definition specs_change_table :=
 Definition specs_op := make_specs modules imports.
 Definition specs := apply_specs_diff specs_op specs_change_table.
 
-Definition empty_precond : assert := fun _ v0 v => v0 = v.
+Definition empty_precond : assert ADTValue := fun _ v0 v => v0 = v.
 
 Require Import WordFacts2 WordFacts5.
 Require Import WordMapFacts.
@@ -313,7 +309,7 @@ Lemma singleton_disj : forall elt k v h, ~ @In elt k h <-> Disjoint h (k --> v).
   eauto.
   eapply singleton_in_iff; eauto.
 Qed.
-Lemma separated_star : forall h k v, separated h k (Some v) -> add k v h === h ** k --> v.
+Lemma separated_star : forall elt h k (v : elt), separated h k (Some v) -> add k v h === h ** k --> v.
   intros.
   unfold separated, Semantics.separated in *.
   openhyp.
@@ -401,7 +397,7 @@ Ltac split_all :=
            | |- _ /\ _ => split
          end.
 
-Definition count_pre : assert := 
+Definition count_pre : assert ADTValue := 
   fun _ v0 v => 
     v0 = v /\ 
     let vs := fst v in 
@@ -421,14 +417,9 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   simpl.
   intros.
   openhyp.
-  Import Notations4Make.
-  Import ProgramLogicMake.
-  Import TransitMake.
-  unfold TransitSafe.
   descend.
   instantiate (1 := [[ ]]).
   eauto.
-  Import SemanticsMake.
   repeat econstructor.
   eauto.
 
@@ -436,7 +427,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   intros.
   Ltac destruct_state :=
     repeat match goal with
-             | [ x : ProgramLogicMake.SemanticsMake.State |- _ ] => destruct x; simpl in *
+             | [ x : State _ |- _ ] => destruct x; simpl in *
            end.
 
   destruct_state.
@@ -445,11 +436,11 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
-  unfold TransitTo in *.
   openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
+  (*here*)
   eapply_in_any triples_intro; try eassumption.
   subst; simpl in *.
   descend; eauto.

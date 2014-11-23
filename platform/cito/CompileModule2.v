@@ -321,11 +321,7 @@ Module Make (Import E : ADT).
 
             Require Import WordMap.
 
-            Definition retv p (h : Heap) : Ret := 
-              match WordMap.find p h with
-                | Some a => ADT a
-                | None => SCA p
-              end.
+            Definition retv p (h : Heap) : Ret := combine_ret p (WordMap.find p h).
 
             Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
               RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->

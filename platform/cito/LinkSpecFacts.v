@@ -7,7 +7,6 @@ Module Make (Import E : ADT).
   Require Import LinkSpec.
   Module Import LinkSpecMake := Make E.
   Require Import ProgramLogic2.
-  Module Import ProgramLogicMake := Make E.
 
   Section TopSection.
 
