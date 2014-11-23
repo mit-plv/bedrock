@@ -300,7 +300,8 @@ Section ADTValue.
           destruct Hr as [Hsm2 Hr].
           repeat eexists_split.
           - eauto.
-          - instantiate (1 := reachable_heap vs args input).
+          - Require Import SemanticsFacts8.
+            instantiate (1 := reachable_heap vs args input).
             eapply submap_trans; eauto.
           - eapply change_var_names; eauto.
             eapply is_no_dup_sound; eauto.

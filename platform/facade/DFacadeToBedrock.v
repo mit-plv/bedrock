@@ -261,7 +261,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import GeneralTactics4.
     Arguments empty {_}.
 
-    Definition make_heap' := fold_right (fun x m => store_pair m x) empty.
+    Require Import SemanticsUtil.
+
+    Definition make_heap' := fold_right (fun x m => @store_pair ADTValue m x) empty.
 
     Definition no_clash A (p1 p2 : A * Value ADTValue) :=
       match snd p1, snd p2 with
@@ -277,7 +279,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | ADT _ => ~ WordMap.In w h
       end.
 
-    Add Morphism store_pair with signature Equal ==> eq ==> Equal as store_pair_Equal_m.
+    Add Morphism (@store_pair ADTValue) with signature Equal ==> eq ==> Equal as store_pair_Equal_m.
     Proof.
       intros st1 st2 Heq [w v].
       unfold store_pair.
@@ -450,6 +452,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl in *.
       intuition.
     Qed.
+
+    Arguments store_pair {_} _ _.
 
     Lemma fold_left_store_pair_comm pairs : forall w v h1 h2, no_clash_ls (w, v) pairs -> h2 == store_pair h1 (w, v) -> fold_left store_pair pairs h2 == store_pair (fold_left store_pair pairs h1) (w, v).
     Proof.
@@ -634,7 +638,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         - eauto.
       }
       rename a into k.
-      destruct p as [w v]; simpl in *.
+      destruct p as [w v']; simpl in *.
       inject Hsnd.
       inject Hfst.
       rename H into Hfst.
@@ -1017,7 +1021,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     2 : eapply is_state_out''; eauto.
     2 : eapply toArray_map_length; eauto.
     change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
-    change LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.make_heap with make_heap.
     unfold is_state, locals, Inv.has_extra_stack; simpl.
     rewrite H2.
     Require Import Mult.

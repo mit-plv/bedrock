@@ -36,7 +36,8 @@ Lemma readd_FEnsemble : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, FEnsemble rv') (heap_elements (WordMap.add c (FEnsemble rv') (heap_upd heap_empty c (FEnsemble rv))))).
-  Import LayoutHintsUtil.
+  Require Import SemanticsFacts5.
+  Require Import LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.

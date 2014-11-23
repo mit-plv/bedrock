@@ -329,6 +329,8 @@ Section ADTValue.
       Require Import ListFacts4.
       Import WordMap.
       
+      Require Import SemanticsFacts8.
+
       Lemma related_no_aliasM st args input vs h :
         mapM (sel st) args = Some input -> 
         related st (vs, h) -> 
@@ -583,6 +585,7 @@ Section ADTValue.
           rewrite Locals.sel_upd_eq by eauto.
           inject Hf.
           unfold_related H13.
+          Require Import Facade.
           set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
           eapply H13 in H.
           Lemma submap_represent p h1 h2 v : represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
@@ -1195,7 +1198,9 @@ Section ADTValue.
         eapply diff_find_Some_iff in Hf.
         openhyp.
 
-        rewrite (@split_triples triples words_cinput coutput) by eauto.
+        Require Import SemanticsFacts7.
+
+        rewrite (@split_triples _ triples words_cinput coutput) by eauto.
 
         eapply find_Some_fold_store_out.
         eauto.
@@ -1289,7 +1294,7 @@ Section ADTValue.
         solve [intuition].
       }
 
-      Lemma not_reachable_p_not_reachable st vs args words cinput x :
+      Lemma not_reachable_p_not_reachable (st : Facade.State ADTValue) vs args words cinput x :
         List.map (fun x => vs x) args = words -> 
         mapM (sel st) args = Some cinput -> 
         not_reachable_p (vs x) (combine words cinput) -> 
@@ -1367,7 +1372,7 @@ Section ADTValue.
         assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
         
         rewrite He.
-        erewrite (@split_triples' triples) by eauto.
+        erewrite (@split_triples' _ triples) by eauto.
         split; intro Hf.
 
         (* direction 1 *)

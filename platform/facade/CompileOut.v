@@ -6,7 +6,7 @@ Local Open Scope string_scope.
 
 (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
 Notation export_module_name := "export".
-Notation extra_stack := 20.
+Notation extra_stack := 2000.
 
 Require Import ADT RepInv.
 Module Make (Import E : ADT) (Import M : RepInv E).
@@ -14,6 +14,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
   Require Import Semantics.
+  Require Import SemanticsUtil.
 
   Section TopSection.
 
