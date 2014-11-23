@@ -5,16 +5,15 @@ Require Import ADT.
 Module Make (Import E : ADT).
 
   Require Import ChangeSpec.
-  Module Import ChangeSpecMake := Make E.
-  Import SemanticsFacts4Make.
-  Import ProgramLogicMake.
-  Import TransitMake.
+  Require Import SemanticsFacts4.
+  Require Import ProgramLogic2.
+  Require Import Transit.
   Require Import Semantics.
-  Import SemanticsMake.
   Require Import LinkSpecFacts.
   Module Import LinkSpecFactsMake := Make E.
   Require Import LinkSpec.
   Import LinkSpecMake.
+  Import SemanticsMake.
 
   Require Import GLabelMap.
   Require Import StringMap.
@@ -182,7 +181,267 @@ Module Make (Import E : ADT).
       Require Import Wrap.
       Require Import Inv.
 
+      Import SemanticsMake.
+      Notation gl2w := from_bedrock_label_map.
+      Notation specs := (specs m imports exports ax_mod_name op_mod_name op_mod_name_ok).
+      Require Import GeneralTactics5.
+      Require Import SemanticsUtil.
+      Lemma disjoint_ptrs_good_scalars_good_inputs pairs :
+        disjoint_ptrs pairs ->
+        good_scalars pairs ->
+        good_inputs (make_heap pairs) pairs.
+      Proof.
+        intros Hdisj Hgs.
+        split.
+        Lemma good_scalars_forall_word_adt_match : forall pairs, List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (make_heap pairs)) pairs.
+          admit.
+        Qed.
+        - eapply good_scalars_forall_word_adt_match; eauto.
+        - eauto.
+      Qed.
+
+      Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
+      Lemma strengthen_elim_single stn fs fname op_spec ax_spec : List.In (fname, (op_spec, ax_spec)) (elements content) -> env_good_to_use modules imports stn fs -> strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
+        admit.
+      Qed.
+
+      Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
+        List.In (fun_name, (op_spec, ax_spec)) (elements content) ->
+        env_good_to_use modules imports stn fs ->
+        toArray (ArgVars op_spec) vs_callee = List.map fst pairs ->
+        PreCond ax_spec (List.map snd pairs) ->
+        disjoint_ptrs pairs ->
+        good_scalars pairs ->
+        Safe (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs).
+      Proof.
+        intros Hin Hegu Hfst Hpre Hdisj Hgs.
+        eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
+        { 
+          eapply strengthen_elim_single in Hegu; eauto.
+          eapply Hegu.
+          simpl in *.
+          unfold toArray in *; simpl in *.
+          unfold TransitSafe.
+          repeat try_split; eauto.
+          {
+            repeat rewrite map_length in *.
+            Require Import ListFacts5.
+            eapply map_eq_length_eq; eauto.
+          }
+          Ltac remove_sel :=
+            match goal with
+              | H : context [sel ?VS] |- _ => change (sel VS) with VS in H
+              | |- context [sel ?VS] => change (sel VS) with VS
+            end.
+          remove_sel.
+          rewrite Hfst.
+          Require Import ListFacts4.
+          Lemma combine_fst_snd A B (pairs : list (A * B)) : List.combine (List.map fst pairs) (List.map snd pairs) = pairs.
+          Proof.
+            rewrite combine_map.
+            setoid_rewrite <- surjective_pairing.
+            rewrite map_id.
+            eauto.
+          Qed.
+          rewrite combine_fst_snd.
+          eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+        }
+        {
+          eapply new_env_strengthen; eauto.
+        }
+      Qed.
+
+      Arguments SCA {ADTValue} _.
+      Arguments ADT {ADTValue} _.
+
+      Require Import WordMap.
+      Import WordMap.
+
+      Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
+
+      Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+        RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
+        List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
+        env_good_to_use modules imports stn fs ->
+        toArray (ArgVars op_spec) vs_callee = List.map fst pairs ->
+        PreCond ax_spec (List.map snd pairs) ->
+        disjoint_ptrs pairs ->
+        good_scalars pairs ->
+        PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs (List.map (heap_sel h') (List.map fst pairs)))) (retv (sel vs_callee' (RetVar op_spec)) h').
+      Proof.
+        intros Hrt Hin Hegu Hfst Hpre Hdisj Hgs.
+        Require Import GeneralTactics4.
+        copy_as Hegu Hstr; eapply strengthen_elim_single in Hstr; eauto.
+        unfold toArray in *; simpl in *.
+        eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)) in Hrt.
+        {
+          set (words := List.map fst pairs) in *.
+          set (inputs := List.map snd pairs) in *.
+          eapply Hstr with (inputs := inputs) in Hrt; simpl in *.
+          {
+            unfold TransitTo in *.
+            destruct Hrt as [Hleni [Hleno [Hgood [Hpre' [Hpost [Hsep Heqh' ] ] ] ] ] ]; simpl in *.
+            repeat rewrite map_length in *.
+            Require Import WordMap WordMapFacts.
+            Import WordMap.WordMap WordMapFacts.FMapNotations.
+            Local Open Scope fmap_scope.
+            {
+              unfold retv.
+              repeat remove_sel.
+              rewrite Hfst in Hpost.
+              Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples ADTValue pairs outs) = List.combine (List.map snd pairs) outs.
+              Proof.
+                intros.
+                erewrite <- combine_map.
+                Require Import SemanticsFacts6.
+                rewrite make_triples_ADTIn by eauto.
+                Require Import SemanticsFacts7.
+                rewrite make_triples_ADTOut by eauto.
+                eauto.
+              Qed.
+              Require Import GeneralTactics3.
+              rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
+              eauto.
+            }
+          }
+          {
+            unfold TransitSafe.
+            repeat try_split; eauto.
+            {
+              unfold_all.
+              repeat rewrite map_length in *.
+              eapply map_eq_length_eq; eauto.
+            }
+            repeat remove_sel.
+            rewrite Hfst.
+            unfold_all.
+            rewrite combine_fst_snd.
+            eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+          }
+        }
+        {
+          eapply new_env_strengthen; eauto.
+        }                
+        {
+          eapply Hstr.
+          simpl in *.
+          unfold TransitSafe.
+          repeat try_split; eauto.
+          {
+            unfold_all.
+            repeat rewrite map_length in *.
+            eapply map_eq_length_eq; eauto.
+          }
+          repeat remove_sel.
+          rewrite Hfst.
+          unfold_all.
+          rewrite combine_fst_snd.
+          eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+        }                
+      Qed.
+
+      Lemma good_inputs_add addr a h : ~ In addr h -> good_inputs (add addr a h) ((addr, ADT a) :: nil).
+      Proof.
+        intros Hnin.
+        unfold good_inputs.
+        unfold Semantics.good_inputs.
+        unfold Semantics.disjoint_ptrs.
+        unfold Semantics.word_adt_match.
+        simpl.
+        split.
+        - repeat econstructor; simpl.
+          rewrite add_eq_o by eauto.
+          eauto.
+        - repeat econstructor; eauto.
+      Qed.
+
+      Require Import WordMapFacts.
+      Arguments empty {elt}.
+
+      Lemma singleton_in_iff elt k' k (v : elt) : In k' (add k v empty) <-> k = k'.
+      Proof.
+        split; intros H.
+        {
+          eapply add_in_iff in H.
+          destruct H as [? | H]; trivial.
+          eapply empty_in_iff in H; intuition.
+        }
+        subst.
+        eapply add_in_iff; eauto.
+      Qed.
+
+      Lemma add_diff_singleton elt k (v : elt) d : ~ In k d -> add k v d - add k v empty == d.
+      Proof.
+        intros Hnin.
+        intros k'.
+        destruct (weq k' k) as [? | Heq].
+        {
+          subst.
+          rewrite diff_o_none.
+          - eapply not_find_in_iff in Hnin; eauto.
+          - eapply add_in_iff; eauto.
+        }
+        {
+          rewrite diff_o.
+          - rewrite add_neq_o by eauto; eauto.
+          - intros Hin.
+            eapply singleton_in_iff in Hin.
+            subst; intuition.
+        }
+      Qed.
+
+      Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
+      Proof.
+        intros Hsep.
+        unfold is_heap_upd_option, separated, Semantics.separated in *.
+        destruct a as [a| ]; simpl in *.
+        {
+          destruct Hsep as [? | Hsep]; try discriminate.
+          eapply Himp_trans.
+          eapply Himp_trans.
+          2 : eapply LayoutHints2Make.split_heap.
+          {
+            unfold LayoutHints2Make.heap_to_split.
+            eapply Himp_refl.
+          }
+          {
+            instantiate (1 := (addr, ADT a) :: nil).
+            eapply good_inputs_add; eauto.
+          }
+          {
+            simpl.
+            Import LayoutHints2Make.InvMake.
+            Import LayoutHints2Make.InvMake2.
+            Import SemanticsMake.
+            unfold make_heap.
+            unfold store_pair.
+            unfold heap_upd.
+            simpl.
+            eapply Himp_star_frame.
+            {
+              unfold is_heap.
+              unfold heap_elements.
+              simpl.
+              eapply Himp_trans.
+              eapply Himp_star_comm.
+              eapply Himp_star_Emp.
+            }
+            {
+              eapply Made.Inner.is_heap_Equal.
+              eapply add_diff_singleton; eauto.
+            }
+          }
+        }
+        {
+          clear Hewi.
+          sepLemma.
+        }
+      Qed.
+
       Opaque mult.
+
+      Require Import StringMap.
+      Import StringMap.
 
       Lemma good_vcs ls : List.incl ls (elements content) -> vcs (makeVcs bimports stubs (List.map make_stub' ls)).
       Proof.
@@ -225,6 +484,7 @@ Module Make (Import E : ADT).
           rename H6 into Hpre.
           rename H into Hgs.
           rename H3 into Hdisj.
+          Import CompileFuncSpecMake.InvMake2.
           unfold is_state, has_extra_stack in Hst.
           simpl in *.
 
@@ -269,117 +529,6 @@ Module Make (Import E : ADT).
             repeat hiding ltac:(step auto_ext).
           }
           {
-            Import SemanticsMake.
-            Notation gl2w := from_bedrock_label_map.
-            Notation specs := (specs m imports exports ax_mod_name op_mod_name op_mod_name_ok).
-            Require Import GeneralTactics5.
-            Lemma disjoint_ptrs_good_scalars_good_inputs pairs :
-              disjoint_ptrs pairs ->
-              good_scalars pairs ->
-              good_inputs (make_heap pairs) pairs.
-            Proof.
-              intros Hdisj Hgs.
-              split.
-              Lemma good_scalars_forall_word_adt_match : forall pairs, List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (make_heap pairs)) pairs.
-                admit.
-              Qed.
-              - eapply good_scalars_forall_word_adt_match; eauto.
-              - eauto.
-            Qed.
-
-            Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
-            Lemma strengthen_elim_single stn fs fname op_spec ax_spec : List.In (fname, (op_spec, ax_spec)) (elements content) -> env_good_to_use modules imports stn fs -> strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
-              admit.
-            Qed.
-
-            Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
-              List.In (fun_name, (op_spec, ax_spec)) (elements content) ->
-              env_good_to_use modules imports stn fs ->
-              toArray (ArgVars op_spec) vs_callee = map fst pairs ->
-              PreCond ax_spec (map snd pairs) ->
-              disjoint_ptrs pairs ->
-              good_scalars pairs ->
-              Safe (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs).
-            Proof.
-              intros Hin Hegu Hfst Hpre Hdisj Hgs.
-              eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
-              { 
-                eapply strengthen_elim_single in Hegu; eauto.
-                eapply Hegu.
-                simpl in *.
-                eexists pairs.
-                repeat try_split; eauto.
-                eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
-              }
-              {
-                eapply new_env_strengthen; eauto.
-              }
-            Qed.
-
-            Arguments SCA {ADTValue} _.
-            Arguments ADT {ADTValue} _.
-
-            Require Import WordMap.
-
-            Definition retv p (h : Heap) : Ret := combine_ret p (WordMap.find p h).
-
-            Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
-              RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
-              List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
-              env_good_to_use modules imports stn fs ->
-              toArray (ArgVars op_spec) vs_callee = List.map fst pairs ->
-              PreCond ax_spec (List.map snd pairs) ->
-              disjoint_ptrs pairs ->
-              good_scalars pairs ->
-              PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs (List.map (heap_sel h') (List.map fst pairs)))) (retv (sel vs_callee' (RetVar op_spec)) h').
-            Proof.
-              intros Hrt Hin Hegu Hfst Hpre Hdisj Hgs.
-              Require Import GeneralTactics4.
-              copy_as Hegu Hstr; eapply strengthen_elim_single in Hstr; eauto.
-              eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)) in Hrt.
-              {
-                eapply Hstr in Hrt; simpl in *.
-                {
-                  destruct Hrt as [triples Htri]; simpl in *.
-                  destruct Htri as [addr [ret Htr] ].
-                  destruct Htr as [Hw [Hgi [Hpre' [Hpost [Hsep [Heqh' Hretv ] ] ] ] ] ]; simpl in *.
-                  unfold toArray in *; simpl in *.
-                  Require Import WordMap WordMapFacts.
-                  Import WordMap.WordMap WordMapFacts.FMapNotations.
-                  Local Open Scope fmap_scope.
-                  Import SemanticsFacts4Make.TransitMake.SemanticsMake.
-                  set (retw := sel vs_callee' (RetVar _)) in *.
-                  assert (Hret : ret = retv retw h').
-                  {
-                    unfold retv.
-                    rewrite Heqh'.
-                    destruct ret as [w | a]; simpl in *.
-                    {
-                      subst.
-                      admit.
-                    }
-                    admit.
-                  }
-                  admit.
-                }
-                {
-                  eexists pairs.
-                  repeat try_split; eauto.
-                  eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
-                }
-              }
-              {
-                eapply new_env_strengthen; eauto.
-              }                
-              {
-                eapply Hstr.
-                simpl in *.
-                eexists pairs.
-                repeat try_split; eauto.
-                eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
-              }                
-            Qed.
-
             eapply safe_intro; eauto.
           }
           {
@@ -433,109 +582,6 @@ Module Make (Import E : ADT).
               unfold locals.
               simpl.
               hiding ltac:(step auto_ext).
-              Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
-              Proof.
-                intros Hsep.
-                unfold is_heap_upd_option, separated, Semantics.separated in *.
-                destruct a as [a| ]; simpl in *.
-                {
-                  destruct Hsep as [? | Hsep]; try discriminate.
-                  eapply Himp_trans.
-                  eapply Himp_trans.
-                  2 : eapply LayoutHints2Make.split_heap.
-                  {
-                    unfold LayoutHints2Make.heap_to_split.
-                    eapply Himp_refl.
-                  }
-                  {
-                    instantiate (1 := (addr, ADT a) :: nil).
-                    Lemma good_inputs_add addr a h : ~ In addr h -> good_inputs (add addr a h) ((addr, ADT a) :: nil).
-                    Proof.
-                      intros Hnin.
-                      unfold good_inputs.
-                      unfold Semantics.good_inputs.
-                      unfold Semantics.disjoint_ptrs.
-                      unfold Semantics.word_adt_match.
-                      simpl.
-                      split.
-                      - repeat econstructor; simpl.
-                        rewrite add_eq_o by eauto.
-                        eauto.
-                      - repeat econstructor; eauto.
-                    Qed.
-                    eapply good_inputs_add; eauto.
-                  }
-                  {
-                    simpl.
-                    Import LayoutHints2Make.U.InvMake.
-                    Import LayoutHints2Make.U.InvMake2.
-                    Import SemanticsMake.
-                    unfold make_heap.
-                    unfold store_pair.
-                    unfold heap_upd.
-                    simpl.
-                    eapply Himp_star_frame.
-                    {
-                      unfold is_heap.
-                      unfold heap_elements.
-                      simpl.
-                      eapply Himp_trans.
-                      eapply Himp_star_comm.
-                      eapply Himp_star_Emp.
-                    }
-                    {
-                      eapply Made.Inner.is_heap_Equal.
-                      Require Import WordMapFacts.
-                      Arguments empty {elt}.
-                      Lemma add_diff_singleton elt k (v : elt) d : ~ In k d -> add k v d - add k v empty == d.
-                      Proof.
-                        intros Hnin.
-                        intros k'.
-                        destruct (weq k' k) as [? | Heq].
-                        {
-                          subst.
-                          rewrite diff_o_none.
-                          {
-                            eapply not_find_in_iff in Hnin.
-                            eauto.
-                          }
-                          {
-                            eapply add_in_iff; eauto.
-                          }
-                        }
-                        {
-                          rewrite diff_o.
-                          {
-                            rewrite add_neq_o by eauto.
-                            eauto.
-                          }
-                          {
-                            intros Hin.
-                            Lemma singleton_in_iff elt k' k (v : elt) : In k' (add k v empty) <-> k = k'.
-                            Proof.
-                              split; intros H.
-                              {
-                                eapply add_in_iff in H.
-                                destruct H as [? | H]; trivial.
-                                eapply empty_in_iff in H; intuition.
-                              }
-                              subst.
-                              eapply add_in_iff; eauto.
-                            Qed.
-                            eapply singleton_in_iff in Hin.
-                            subst; intuition.
-                          }
-                        }
-                      Qed.
-                      eapply add_diff_singleton; eauto.
-                    }
-                  }
-                }
-                {
-                  clear Hewi.
-                  sepLemma.
-                }
-              Qed.
               eapply Himp_trans.
               2 : solve [eapply is_heap_upd_option_fwd; eauto].
               unfold is_heap_upd_option.
@@ -561,7 +607,7 @@ Module Make (Import E : ADT).
               split.
               {
                 unfold_all.
-                rewrite Made.Hints.make_triples_length; repeat rewrite map_length; trivial.
+                rewrite make_triples_length; repeat rewrite map_length; trivial.
                 Require Import ListFacts5.
                 unfold toArray in *; simpl in *.
                 eapply map_eq_length_eq in Hta.
@@ -569,6 +615,7 @@ Module Make (Import E : ADT).
               }
               split; trivial.
               unfold retv.
+              Import WordMap.WordMap.
               destruct (find rv h'); simpl; eauto.
             }
           }
@@ -580,8 +627,7 @@ Module Make (Import E : ADT).
         }
         (* universe inconsistency *)
         Set Printing Universes.
-        Admitted.
-      (* Qed.         *)
+      Qed.
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
         eapply bmoduleOk.
