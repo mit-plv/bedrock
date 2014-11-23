@@ -1145,7 +1145,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Notation compile_cito_to_bedrock := link_with_adts.
+    Notation compile_cito_to_bedrock := compile_to_bedrock.
 
     Notation output_module_impl := (compile_cito_to_bedrock modules imports).
 
@@ -1160,7 +1160,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
       match goal with
-        | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
+        | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
           let H := fresh in
           assert (GoodToLink_bool Modules Imports = true); 
             [ unfold GoodToLink_bool(*; simpl*) |

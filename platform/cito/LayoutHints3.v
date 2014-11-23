@@ -6,12 +6,16 @@ Require Import RepInv.
 Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import Inv.
-  Module Import U := LayoutHintsUtil.Make E M.
-  Import InvMake InvMake2 Sem WordMap.
+  Module Import InvMake := Inv.Make E.
+  Module Import InvMake2 := InvMake.Make M.
+  Import SemanticsMake.
+  Import WordMap.
 
   Section TopSection.
 
     Definition is_heap_upd_option h addr a := is_heap (heap_upd_option h addr a).
+
+    Require Import SemanticsFacts5.
 
     Lemma is_heap_upd_option_bwd : forall h addr a, is_heap h * layout_option addr a ===> is_heap_upd_option h addr a.
       unfold is_heap_upd_option, heap_upd_option, Semantics.heap_upd_option, layout_option; intros.
@@ -167,7 +171,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eexists.
       injection H2; intros; subst; eauto.
       apply InA_In; apply WordMap.elements_1.
-      apply Properties.F.add_mapsto_iff.
+      Require Import WordMapFacts.
+      apply add_mapsto_iff.
       right; intuition subst.
       apply H0; eexists; eauto.
 
@@ -176,7 +181,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct x0.
       apply In_InA' in H3; apply WordMap.elements_2 in H3.
       apply InA_In; apply WordMap.elements_1.
-      apply Properties.F.add_mapsto_iff in H3.
+      apply add_mapsto_iff in H3.
       intuition subst.
       tauto.
     Qed.
@@ -268,16 +273,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply Himp_star_pure_c; intro.
       apply starL_join; try (apply NoDupA_NoDup; apply WordMap.elements_3w); intros.
       intuition idtac; l.
-      apply Properties.update_mapsto_iff in H0; intuition idtac.
+      apply update_mapsto_iff in H0; intuition idtac.
       right; l; auto.
       left; l; auto.
-      apply Properties.update_mapsto_iff.
+      apply update_mapsto_iff.
       right; intuition idtac.
       destruct H0.
       eapply H.
       apply InA_In; apply WordMap.elements_1; eauto.
       apply InA_In; apply WordMap.elements_1; eauto.
-      apply Properties.update_mapsto_iff; intuition idtac.
+      apply update_mapsto_iff; intuition idtac.
       destruct x; eauto.
     Qed.
 
@@ -309,7 +314,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       sepLemma.
       eapply change_hyp in H1; eauto.
       assert (rep_inv addr a * is_heap_merge h1 h2 * other
-        ===> [| ~WordMap.In addr (Properties.update h1 h2) |] * rep_inv addr a * is_heap_merge h1 h2 * other).
+        ===> [| ~WordMap.In addr (update h1 h2) |] * rep_inv addr a * is_heap_merge h1 h2 * other).
       eapply Himp_trans; [ apply Himp_star_assoc | ].
       eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply Himp_star_comm ] | ].
       eapply Himp_trans; [ apply Himp_star_assoc' | ].

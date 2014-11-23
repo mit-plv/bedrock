@@ -22,25 +22,12 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
-  Fixpoint make_triples pairs (outs : list ArgOut) :=
-    match pairs, outs with
-      | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
-      | _, _ => nil
-    end.
-
-  Definition store_pair heap (p : W * ArgIn) :=
-    match snd p with
-      | SCA _ => heap
-      | ADT a => heap_upd heap (fst p) a
-    end.
-
-  Definition make_heap pairs := fold_left store_pair pairs heap_empty.
-
   Require Import RepInv.
 
   Module Make (Import R : RepInv E).
 
     Require Import Bags.
+    Require Import SemanticsUtil.
 
     Definition is_heap (h : Heap) : HProp := starL (fun p => rep_inv (fst p) (snd p)) (heap_elements h).
 

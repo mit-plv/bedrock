@@ -36,7 +36,7 @@ Section TopLevel.
   Definition depth := max_list 0 (map depth exprs).
 
   Require CompileExpr.
-  Require Import ListFactsNew.
+  Require Import ListFacts5.
 
   Local Open Scope nat.
 

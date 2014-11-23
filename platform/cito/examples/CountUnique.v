@@ -1534,7 +1534,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Definition all := link top (link_with_adts modules imports).
+Definition all := link top (compile_to_bedrock modules imports).
 
 Theorem all_ok : moduleOk all.
   link0 top_ok.

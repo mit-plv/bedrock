@@ -1,5 +1,5 @@
 Require Import AutoSep.
-Require Import ListFactsNew.
+Require Import ListFacts5.
 
 Ltac hide_upd_sublist :=
   repeat match goal with

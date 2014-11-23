@@ -37,11 +37,12 @@ Lemma readd : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, Cell rv') (heap_elements (WordMap.add c (Cell rv') (heap_upd heap_empty c (Cell rv))))).
-  Import LayoutHintsUtil.
+  Require Import SemanticsFacts5.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
   auto.
+  Require Import LayoutHintsUtil.
   eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
   destruct H; intuition idtac.
   eapply Himp_trans; [ | apply H0 ].
@@ -64,7 +65,6 @@ Lemma readd_Arr : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, Arr rv') (heap_elements (WordMap.add c (Arr rv') (heap_upd heap_empty c (Arr rv))))).
-  Import LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.

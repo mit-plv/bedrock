@@ -566,7 +566,7 @@ Module Make (Import E : ADT).
               {
                 unfold_all.
                 rewrite Made.Hints.make_triples_length; repeat rewrite map_length; trivial.
-                Require Import ListFactsNew.
+                Require Import ListFacts5.
                 unfold toArray in *; simpl in *.
                 eapply map_eq_length_eq in Hta.
                 eauto.

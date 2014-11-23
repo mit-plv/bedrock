@@ -14,6 +14,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import StubsMake StubMake ConvertLabelMap GoodModule GoodOptimizer.
   Import LinkSpecMake LinkSpecMake2.
+  Require Import SemanticsUtil.
 
   Definition wrapper_module mname impls (fs : list (string * ForeignFuncSpec * nat * label)) :=
     StructuredModule.bmodule_ impls
@@ -126,6 +127,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
       apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
     simpl.
+    unfold ArgIn.
     generalize (map fst pairs); intro.
     unfold array at 1; simpl.
     apply pure_extend with (goodSize e_stack).
@@ -313,6 +315,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     intros.
     unfold is_heap at 1.
     assert (In (w, v) (heap_elements (heap_upd h w v))).
+    Require Import SemanticsFacts5.
     apply InA_In.
     apply WordMap.elements_1.
     apply Properties.F.add_mapsto_iff; auto.
