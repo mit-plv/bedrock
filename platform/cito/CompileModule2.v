@@ -337,22 +337,64 @@ Module Make (Import E : ADT).
       Notation specs := (specs m imports exports ax_mod_name op_mod_name op_mod_name_ok).
       Require Import GeneralTactics5.
       Require Import SemanticsUtil.
+      Require Import SemanticsFacts9.
+
+      Arguments store_pair {_} _ _.
+      
+      Require Import Setoid.
+
+      Require Import WordMap WordMapFacts.
+      Import WordMap.WordMap WordMapFacts.FMapNotations.
+
+      Add Morphism (@Semantics.word_adt_match ADTValue) with signature Equal ==> eq ==> iff as word_adt_match_Equal_m.
+      Proof.
+        intros st1 st2 Heq [w v].
+        unfold Semantics.word_adt_match.
+        simpl.
+        destruct v.
+        {
+          intuition.
+        }
+        rewrite Heq.
+        intuition.
+      Qed.
+
+      Lemma DisjointPtrs_good_scalars_forall_word_adt_match : forall pairs h, DisjointPtrs pairs -> List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (fold_left store_pair pairs h)) pairs.
+      Proof.
+        induction pairs; simpl; try solve [intuition].
+        intros h Hdisj H.
+        inversion H; subst.
+        inversion Hdisj; subst.
+        destruct a as [w v]; simpl in *.
+        econstructor.
+        {
+          rewrite fold_left_store_pair_comm; try reflexivity; trivial.
+          unfold word_adt_match.
+          unfold Semantics.word_adt_match.
+          unfold word_scalar_match in *.
+          simpl in *.
+          destruct v; simpl in *; trivial.
+          unfold store_pair; simpl.
+          rewrite add_eq_o by eauto.
+          eauto.
+        }
+        eapply IHpairs; eauto.
+      Qed.
+
       Lemma disjoint_ptrs_good_scalars_good_inputs pairs :
         disjoint_ptrs pairs ->
         good_scalars pairs ->
         good_inputs (make_heap pairs) pairs.
       Proof.
         intros Hdisj Hgs.
-        split.
-        Lemma good_scalars_forall_word_adt_match : forall pairs, List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (make_heap pairs)) pairs.
-          admit.
-        Qed.
-        - eapply good_scalars_forall_word_adt_match; eauto.
-        - eauto.
+        split; eauto.
+        eapply DisjointPtrs_good_scalars_forall_word_adt_match; eauto.
+        eapply disjoint_ptrs_DisjointPtrs; eauto.
       Qed.
 
       Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
-      Lemma strengthen_elim_single stn fs fname op_spec ax_spec : List.In (fname, (op_spec, ax_spec)) (elements content) -> env_good_to_use modules imports stn fs -> strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
+
+      Lemma strengthen_elim_single stn fs fname op_spec ax_spec : List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> env_good_to_use modules imports stn fs -> strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
         admit.
       Qed.
 
