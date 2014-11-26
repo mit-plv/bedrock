@@ -356,10 +356,70 @@ Module Make (Import E : ADT).
         admit.
       Qed.
 
+      Ltac remove_sel :=
+        match goal with
+          | H : context [sel ?VS] |- _ => change (sel VS) with VS in H
+          | |- context [sel ?VS] => change (sel VS) with VS
+        end.
+
+      Lemma combine_fst_snd A B (pairs : list (A * B)) : List.combine (List.map fst pairs) (List.map snd pairs) = pairs.
+      Proof.
+        rewrite combine_map.
+        setoid_rewrite <- surjective_pairing.
+        rewrite map_id.
+        eauto.
+      Qed.
+
+      Arguments SCA {ADTValue} _.
+      Arguments ADT {ADTValue} _.
+
+      Require Import WordMap.
+      Import WordMap.
+
+      Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples ADTValue pairs outs) = List.combine (List.map snd pairs) outs.
+      Proof.
+        intros.
+        erewrite <- combine_map.
+        Require Import SemanticsFacts6.
+        rewrite make_triples_ADTIn by eauto.
+        Require Import SemanticsFacts7.
+        rewrite make_triples_ADTOut by eauto.
+        eauto.
+      Qed.
+
+      Require Import GeneralTactics3.
+      Require Import GeneralTactics4.
+
+      Require Import WordMap WordMapFacts.
+      Import WordMap.WordMap WordMapFacts.FMapNotations.
+      Local Open Scope fmap_scope.
+
+      Require Import ListFacts5.
+
+      Lemma TransitSafe_intro fun_name op_spec ax_spec pairs : 
+        let words := List.map fst pairs in
+        let inputs := List.map snd pairs in
+        List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
+        PreCond ax_spec inputs ->
+        disjoint_ptrs pairs ->
+        good_scalars pairs ->
+        TransitSafe ax_spec words inputs (make_heap pairs).
+      Proof.
+        simpl.
+        intros Hin Hpre Hdisj Hgs.
+        unfold TransitSafe.
+        repeat try_split; eauto.
+        {
+          repeat rewrite map_length in *; eauto.
+        }
+        rewrite combine_fst_snd.
+        eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+      Qed.
+
       Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
-        List.In (fun_name, (op_spec, ax_spec)) (elements content) ->
+        List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
         env_good_to_use modules imports stn fs ->
-        toArray (ArgVars op_spec) vs_callee = List.map fst pairs ->
+        List.map (sel vs_callee) (ArgVars op_spec) = List.map fst pairs ->
         PreCond ax_spec (List.map snd pairs) ->
         disjoint_ptrs pairs ->
         good_scalars pairs ->
@@ -371,102 +431,44 @@ Module Make (Import E : ADT).
           eapply strengthen_elim_single in Hegu; eauto.
           eapply Hegu.
           simpl in *.
-          unfold toArray in *; simpl in *.
-          unfold TransitSafe.
-          repeat try_split; eauto.
-          {
-            repeat rewrite map_length in *.
-            Require Import ListFacts5.
-            eapply map_eq_length_eq; eauto.
-          }
-          Ltac remove_sel :=
-            match goal with
-              | H : context [sel ?VS] |- _ => change (sel VS) with VS in H
-              | |- context [sel ?VS] => change (sel VS) with VS
-            end.
-          remove_sel.
           rewrite Hfst.
-          Lemma combine_fst_snd A B (pairs : list (A * B)) : List.combine (List.map fst pairs) (List.map snd pairs) = pairs.
-          Proof.
-            rewrite combine_map.
-            setoid_rewrite <- surjective_pairing.
-            rewrite map_id.
-            eauto.
-          Qed.
-          rewrite combine_fst_snd.
-          eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+          eapply TransitSafe_intro; eauto.
         }
         {
           eapply new_env_strengthen; eauto.
         }
       Qed.
 
-      Arguments SCA {ADTValue} _.
-      Arguments ADT {ADTValue} _.
-
-      Require Import WordMap.
-      Import WordMap.
-
-      Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
-
-      Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+      Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+        let words := List.map fst pairs in
+        let inputs := List.map snd pairs in
+        let outputs := List.map (fun k => find k h') words in
+        let ret_w := sel vs_callee' (RetVar op_spec) in
+        let ret_a := find ret_w h' in
         RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
         List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
         env_good_to_use modules imports stn fs ->
-        toArray (ArgVars op_spec) vs_callee = List.map fst pairs ->
-        PreCond ax_spec (List.map snd pairs) ->
+        List.map (sel vs_callee) (ArgVars op_spec) = words ->
+        PreCond ax_spec inputs ->
         disjoint_ptrs pairs ->
         good_scalars pairs ->
-        PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs (List.map (heap_sel h') (List.map fst pairs)))) (retv (sel vs_callee' (RetVar op_spec)) h').
+        TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
       Proof.
+        simpl.
         intros Hrt Hin Hegu Hfst Hpre Hdisj Hgs.
-        Require Import GeneralTactics4.
         copy_as Hegu Hstr; eapply strengthen_elim_single in Hstr; eauto.
-        unfold toArray in *; simpl in *.
         eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)) in Hrt.
         {
           set (words := List.map fst pairs) in *.
           set (inputs := List.map snd pairs) in *.
           eapply Hstr with (inputs := inputs) in Hrt; simpl in *.
           {
-            unfold TransitTo in *.
-            destruct Hrt as [Hleni [Hleno [Hgood [Hpre' [Hpost [Hsep Heqh' ] ] ] ] ] ]; simpl in *.
-            repeat rewrite map_length in *.
-            Require Import WordMap WordMapFacts.
-            Import WordMap.WordMap WordMapFacts.FMapNotations.
-            Local Open Scope fmap_scope.
-            {
-              unfold retv.
-              repeat remove_sel.
-              rewrite Hfst in Hpost.
-              Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples ADTValue pairs outs) = List.combine (List.map snd pairs) outs.
-              Proof.
-                intros.
-                erewrite <- combine_map.
-                Require Import SemanticsFacts6.
-                rewrite make_triples_ADTIn by eauto.
-                Require Import SemanticsFacts7.
-                rewrite make_triples_ADTOut by eauto.
-                eauto.
-              Qed.
-              Require Import GeneralTactics3.
-              rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
-              eauto.
-            }
+            rewrite Hfst in *.
+            eauto.
           }
           {
-            unfold TransitSafe.
-            repeat try_split; eauto.
-            {
-              unfold_all.
-              repeat rewrite map_length in *.
-              eapply map_eq_length_eq; eauto.
-            }
-            repeat remove_sel.
-            rewrite Hfst.
-            unfold_all.
-            rewrite combine_fst_snd.
-            eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+            rewrite Hfst in *.
+            eapply TransitSafe_intro; eauto.
           }
         }
         {
@@ -475,19 +477,32 @@ Module Make (Import E : ADT).
         {
           eapply Hstr.
           simpl in *.
-          unfold TransitSafe.
-          repeat try_split; eauto.
-          {
-            unfold_all.
-            repeat rewrite map_length in *.
-            eapply map_eq_length_eq; eauto.
-          }
-          repeat remove_sel.
-          rewrite Hfst.
-          unfold_all.
-          rewrite combine_fst_snd.
-          eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
+          rewrite Hfst in *.
+          eapply TransitSafe_intro; eauto.
         }                
+      Qed.
+
+      Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
+
+      Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+        let words := List.map fst pairs in
+        let inputs := List.map snd pairs in
+        let outputs := List.map (fun k => find k h') words in
+        let ret_w := sel vs_callee' (RetVar op_spec) in
+        RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
+        List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
+        env_good_to_use modules imports stn fs ->
+        List.map (sel vs_callee) (ArgVars op_spec) = words ->
+        PreCond ax_spec inputs ->
+        disjoint_ptrs pairs ->
+        good_scalars pairs ->
+        PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs outputs)) (retv ret_w h').
+      Proof.
+        simpl; intros Hrt; intros.
+        eapply runsto_TransitTo in Hrt; eauto.
+        unfold TransitTo in *; openhyp.
+        rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
+        eauto.
       Qed.
 
       Lemma good_inputs_add addr a h : ~ In addr h -> good_inputs (add addr a h) ((addr, ADT a) :: nil).
@@ -588,6 +603,15 @@ Module Make (Import E : ADT).
         }
       Qed.
 
+      Lemma NoDup_ArgVars (f : CFun) : NoDup (ArgVars f).
+      Proof.
+        destruct f; simpl.
+        Require Import GoodModuleDecFacts.
+        eapply is_good_func_sound in good_func.
+        destruct good_func.
+        eauto.
+      Qed.
+
       Opaque mult.
 
       Require Import StringMap.
@@ -648,16 +672,34 @@ Module Make (Import E : ADT).
           set (avars := ArgVars op_spec) in *.
           Require Import SepHints3.
           rewrite (@replace_array_to_locals arr _ avars) in Hst.
-          assert (Halok : array_to_locals_ok arr avars) by admit.
+          assert (Halok : array_to_locals_ok arr avars).
+          {
+            unfold array_to_locals_ok.
+            unfold_all.
+            split.
+            {
+              eapply strengthen_elim_single in Hegu; eauto.
+              eapply Hegu in Hpre.
+              repeat rewrite map_length in *.
+              eauto.
+            }
+            {
+              eapply NoDup_ArgVars.
+            }
+          }
           Ltac gd t := generalize dependent t.
           
           gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
           clear Hewi.
+          (* cause of universe inconsistency *)
+          rename H1 into Haugment.
+          clear Haugment.
           hiding ltac:(evaluate hints_array_to_locals).
+          unfold toArray in *; simpl in *.
           intros.
-          rename H13 into Hta.
+          rename H11 into Havars.
           rename x0 into vs_callee.
-          rename H3 into Hst.
+          rename H2 into Hst.
 
           eexists.
           Import CompileFuncSpecMake.InvMake.
@@ -678,7 +720,13 @@ Module Make (Import E : ADT).
             Ltac simpl_locals_nil := let h0 := fresh in set (h0 := locals nil _ _ _) in *; unfold locals in h0; unfold array in h0; simpl in h0; subst h0.
             simpl_array_nil.
             simpl_locals_nil.
-            assert (Hleq : length arr = length avars) by admit.
+            assert (Hleq : length arr = length avars).
+            {
+              unfold_all.
+              unfold toArray in *; simpl in *.
+              repeat rewrite map_length in *.
+              eapply map_eq_length_eq; eauto.
+            }
             rewrite  Hleq in *.
 
             clear Hvcs Hegu Hpre Hewi.
@@ -695,7 +743,6 @@ Module Make (Import E : ADT).
             set (rv := Regs x0 Rv) in *.
             Import SemanticsMake.
 
-            hiding ltac:(step auto_ext).
             hiding ltac:(step auto_ext).
             hiding ltac:(step auto_ext).
             {
@@ -716,11 +763,43 @@ Module Make (Import E : ADT).
               set (h'2 := fold_left _ _ _).
               set (ret_w := fst (decide_ret _ _)).
               set (ret_a := snd (decide_ret _ _)).
-              assert (Hsep : separated h'2 ret_w ret_a) by admit.
-              assert (Hh'2 : h' == heap_upd_option h'2 ret_w ret_a) by admit.
+              assert (Hsep : separated h'2 ret_w ret_a).
+              {
+                unfold_all.
+                unfold retv.
+                rewrite fst_decide_ret_combine_ret.
+                rewrite snd_decide_ret_combine_ret.
+                rewrite Hrv.
+                eapply runsto_TransitTo in Hrt; eauto.
+                unfold TransitTo in *; openhyp.
+                rewrite combine_fst_snd in *.
+                eauto.
+              }
+              assert (Hh'2 : h' == heap_upd_option h'2 ret_w ret_a).
+              {
+                unfold_all.
+                unfold retv.
+                rewrite fst_decide_ret_combine_ret.
+                rewrite snd_decide_ret_combine_ret.
+                rewrite Hrv.
+                eapply runsto_TransitTo in Hrt; eauto.
+                unfold TransitTo in *; openhyp.
+                rewrite combine_fst_snd in *.
+                eauto.
+              }                
               set (args' := List.map vs_callee'' avars).
-              assert (Hargs' : args' = toArray avars vs_callee'') by admit.
-              assert (Hleq : length args' = length avars) by admit.
+              assert (Hargs' : args' = toArray avars vs_callee'').
+              {
+                unfold_all.
+                unfold toArray in *; simpl in *.
+                eauto.
+              }
+              assert (Hleq : length args' = length avars).
+              {
+                subst.
+                rewrite map_length.
+                eauto.
+              }
 
               unfold is_state.
               unfold has_extra_stack.
@@ -766,8 +845,7 @@ Module Make (Import E : ADT).
                 rewrite make_triples_length; repeat rewrite map_length; trivial.
                 Require Import ListFacts5.
                 unfold toArray in *; simpl in *.
-                eapply map_eq_length_eq in Hta.
-                eauto.
+                eapply map_eq_length_eq; eauto.
               }
               split; trivial.
               unfold retv.
@@ -776,10 +854,7 @@ Module Make (Import E : ADT).
             }
           }
         }
-        (* universe inconsistency *)
-        Set Printing Universes.
-        Admitted.
-      (* Qed. *)
+      Qed.
 
       Theorem make_module_ok : XCAP.moduleOk make_module.
       Proof.
