@@ -43,7 +43,7 @@ Module Make (Import E : ADT).
 
     Arguments GLabelMap.empty {elt}.
 
-    Definition map_aug_mod_name elt m_name (m : StringMap.t elt) := StringMap.fold (fun k v a => GLabelMap.add (aug_mod_name m_name k) v a) m GLabelMap.empty.
+    Definition map_aug_mod_name elt m_name (m : StringMap.t elt) := GLabelMapFacts.of_list (List.map (fun p => (aug_mod_name m_name (fst p), (snd p))) (StringMap.elements m)).
 
     Definition specs_op := make_specs modules imports.
     Definition exports_with_glabel := map_aug_mod_name ax_mod_name exports.
@@ -75,6 +75,68 @@ Module Make (Import E : ADT).
         eapply specs_equal_agree; eauto.
         eapply specs_op_equal; eauto.
       - intros; simpl; eauto.
+    Qed.
+
+    Import StringMap.StringMap.
+    Require Import StringMapFacts.
+
+    Arguments StringMap.empty {elt}.
+
+    Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := fold (fun k v1 acc => match find k d2 with | Some v2 => add k (v1, v2) acc | None => acc end) d1 empty.
+
+    Definition content := inter (Funs m) exports.
+
+    Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
+
+    Notation gl2w := from_bedrock_label_map.
+
+    Lemma map_aug_mod_name_intro elt k mod_name k' d (v : elt) : k = (mod_name, k') -> StringMap.find k' d = Some v -> GLabelMap.find k (map_aug_mod_name mod_name d) = Some v.
+      admit.
+    Qed.
+
+    Lemma in_elements_find elt k (v : elt) d : List.In (k, v) (elements d) -> find k d = Some v.
+    Proof.
+      intros Hin.
+      eapply InA_eqke_In in Hin.
+      eapply elements_2 in Hin.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma find_inter_elim A B k d1 d2 (v1 : A) (v2 : B) : find k (inter d1 d2) = Some (v1, v2) -> find k d1 = Some v1 /\ find k d2 = Some v2.
+      admit.
+    Qed.
+
+    Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
+      List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> 
+      env_good_to_use modules imports stn fs -> 
+      strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
+    Proof.
+      intros Hin Hegu.
+      unfold exports_weakens_impl in *.
+      eapply in_elements_find in Hin.
+      eapply find_inter_elim in Hin.
+      destruct Hin as [Hin1 Hin2].
+      eapply strengthen_diff_elim in Hewi; try (eapply map_aug_mod_name_intro; eauto).
+      Focus 2.
+      {
+        eapply change_env_agree; eauto.
+        - eapply specs_equal_domain; eauto.
+        - eapply specs_equal_agree; eauto.
+          eapply specs_op_equal; eauto.
+      }
+      Unfocus.
+      destruct Hewi as [Hewi' | Hewi']; clear Hewi.
+      {
+        unfold specs_op in *.
+        admit.
+      }
+      {
+        Require Import GeneralTactics.
+        destruct Hewi' as [op_spec' [Hin1' Hstr] ].
+        unfold specs_op in *.
+        (*here*)
+        admit.
+      }
     Qed.
 
   End M.
@@ -158,16 +220,12 @@ Module Make (Import E : ADT).
 
       Import StringMap.
 
-      Arguments StringMap.empty {elt}.
-
-      Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := fold (fun k v1 acc => match find k d2 with | Some v2 => add k (v1, v2) acc | None => acc end) d1 empty.
-
-      Definition content := inter (Funs m) exports.
-
       Definition tgt_spec_as_import {unused} (x : string * (CFun * unused)) : import := 
         let fname := fst x in
         let f := fst (snd x) in
         (tgt_label fname, tgt_spec fname f).
+
+      Notation content := (content m exports).
 
       Definition bimports : list import := List.map tgt_spec_as_import (elements content).
 
@@ -333,7 +391,6 @@ Module Make (Import E : ADT).
       Require Import Inv.
 
       Import SemanticsMake.
-      Notation gl2w := from_bedrock_label_map.
       Notation specs := (specs m imports exports ax_mod_name op_mod_name op_mod_name_ok).
       Require Import GeneralTactics5.
       Require Import SemanticsUtil.
@@ -390,12 +447,6 @@ Module Make (Import E : ADT).
         split; eauto.
         eapply DisjointPtrs_good_scalars_forall_word_adt_match; eauto.
         eapply disjoint_ptrs_DisjointPtrs; eauto.
-      Qed.
-
-      Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
-
-      Lemma strengthen_elim_single stn fs fname op_spec ax_spec : List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> env_good_to_use modules imports stn fs -> strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
-        admit.
       Qed.
 
       Ltac remove_sel :=
@@ -457,6 +508,8 @@ Module Make (Import E : ADT).
         rewrite combine_fst_snd.
         eapply disjoint_ptrs_good_scalars_good_inputs; eauto.
       Qed.
+
+      Notation gl2w := from_bedrock_label_map.
 
       Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
         List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
