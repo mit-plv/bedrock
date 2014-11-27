@@ -27,8 +27,8 @@ Module Make (Import E : ADT).
 
     Variable exports : StringMap.t ForeignFuncSpec.
 
-    (* the name of the module that contains axiomatic export specs *)
-    Variable ax_mod_name : string.
+    Definition sub_domain' elt1 elt2 m1 m2 := forall k, @StringMap.In elt1 k m1 -> @StringMap.In elt2 k m2.
+    Hypothesis exports_in_domain : sub_domain' exports (Funs m).
 
     (* the name of the module that contains operational export specs *)
     Variable op_mod_name : string.
@@ -45,20 +45,220 @@ Module Make (Import E : ADT).
 
     Definition map_aug_mod_name elt m_name (m : StringMap.t elt) := GLabelMapFacts.of_list (List.map (fun p => (aug_mod_name m_name (fst p), (snd p))) (StringMap.elements m)).
 
-    Definition specs_op := make_specs modules imports.
-    Definition exports_with_glabel := map_aug_mod_name ax_mod_name exports.
+    Require Import GLabelMap GLabelMapFacts.
+    Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
+    Open Scope fmap_scope.
+
+    Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
+
+    Definition specs_op := map Foreign imports + map (fun (f : CFun) => Internal f) (map_aug_mod_name op_mod_name (Funs m)).
+    Definition exports_with_glabel := map_aug_mod_name op_mod_name exports.
     Definition specs := apply_specs_diff specs_op exports_with_glabel.
 
     Definition exports_weakens_impl := forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op exports_with_glabel env_ax.
 
     Hypothesis Hewi : exports_weakens_impl.
 
-    Lemma specs_op_equal : specs_equal specs_op modules imports.
+    Import StringMap.StringMap.
+    Require Import StringMapFacts.
+
+    Lemma in_elements_find elt k (v : elt) d : List.In (k, v) (elements d) -> find k d = Some v.
+    Proof.
+      intros H.
+      eapply InA_eqke_In in H.
+      eapply elements_2 in H.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma find_in_elements elt k (v : elt) d : find k d = Some v -> List.In (k, v) (elements d).
+    Proof.
+      intros H.
+      eapply InA_eqke_In.
+      eapply elements_1.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Import GLabelMap.GLabelMap.
+    Require Import GLabelMapFacts.
+
+    Lemma sub_domain_refl A a : @sub_domain A A a a.
+      admit.
+    Qed.
+
+    Lemma sub_domain_update_1 A B a b c : @sub_domain A B a b -> sub_domain a (b + c).
+      admit.
+    Qed.
+
+    Lemma sub_domain_update_2 A B a b c : @sub_domain A B a c -> sub_domain a (b + c).
+      admit.
+    Qed.
+
+    Lemma sub_domain_map_1 A B C (f : A -> C) a b : @sub_domain A B a b -> sub_domain (map f a) b.
+      admit.
+    Qed.
+
+    Lemma sub_domain_map_2 A B C (f : B -> C) a b : @sub_domain A B a b -> sub_domain a (map f b).
+      admit.
+    Qed.
+
+    Lemma sub_domain_update_sub_domain A a b : @sub_domain A A b a -> sub_domain (a + b) a.
+      admit.
+    Qed.
+
+    Lemma sub_domain_apply_specs_diff_equal_domain a b : sub_domain b a -> equal_domain (@apply_specs_diff ADTValue a b) a.
+    Proof.
+      unfold apply_specs_diff.
+      unfold equal_domain.
+      intros H.
+      split.
+      {
+        eapply sub_domain_update_sub_domain; eauto.
+        eapply sub_domain_map_1; eauto.
+      }
+      {
+        eapply sub_domain_update_1.
+        eapply sub_domain_refl.
+      }
+    Qed.
+
+    Require Import GeneralTactics.
+    Require Import GeneralTactics4.
+
+    Require Import ListFacts1.
+
+    Definition Injective A B (f : A -> B) := forall x1 x2, f x1 = f x2 -> x1 = x2.
+
+    Lemma Injective_IsInjection A B (f : A -> B) : Injective f -> IsInjection f.
+    Proof.
+      unfold Injective, IsInjection in *; intuition.
+    Qed.
+
+    Lemma aug_mod_name_Injection mod_name : IsInjection (aug_mod_name mod_name).
+    Proof.
+      eapply Injective_IsInjection.
+      intros s1 s2.
+      intros H.
+      inject H.
+      eauto.
+    Qed.
+
+    Lemma NoDupKey_aug_mod_name A B mod_name (f : string * A -> string * string * B) d : (forall p, fst (f p) = aug_mod_name mod_name (fst p)) -> NoDupKey (List.map f (StringMap.elements d)).
+    Proof.
+      intros H.
+      eapply NoDupKey_NoDup_fst.
+      rewrite map_map; simpl.
+      setoid_rewrite H.
+      rewrite <- map_map.
+      eapply Injection_NoDup.
+      {
+        eapply aug_mod_name_Injection.
+      }
+      eapply StringMapFacts.NoDup_elements.
+    Qed.
+
+    Lemma map_aug_mod_name_intro elt k mod_name k' d (v : elt) : k = (mod_name, k') -> StringMap.find k' d = Some v -> GLabelMap.find k (map_aug_mod_name mod_name d) = Some v.
+    Proof.
+      intros ? H.
+      subst.
+      unfold map_aug_mod_name.
+      eapply find_mapsto_iff.
+      eapply MapsTo_to_map.
+      {
+        eapply NoDupKey_aug_mod_name.
+        intros; simpl; eauto.
+      }
+      eapply in_map_iff.
+      unfold aug_mod_name.
+      exists (k', v); split; eauto.
+      eapply find_in_elements; eauto.
+    Qed.
+
+    Lemma map_aug_mod_name_sub_domain A B nm a b : @sub_domain' A B a b -> sub_domain (map_aug_mod_name nm a) (map_aug_mod_name nm b).
       admit.
     Qed.
 
     Lemma specs_equal_domain : equal_domain specs specs_op.
+    Proof.
+      unfold specs.
+      eapply sub_domain_apply_specs_diff_equal_domain.
+      unfold specs_op, exports_with_glabel.
+      eapply sub_domain_update_2.
+      eapply sub_domain_map_2.
+      eapply map_aug_mod_name_sub_domain.
+      eauto.
+    Qed.
+
+    Lemma specs_op_intro fname op_spec : StringMap.find fname (Funs m) = Some op_spec -> find (op_mod_name, fname) specs_op = Some (Internal op_spec).
+    Proof.
+      intros H.
+      unfold specs_op in *.
+      eapply find_mapsto_iff.
+      eapply update_mapsto_iff.
+      left.
+      eapply map_mapsto_iff.
+      eexists; split; eauto.
+      eapply find_mapsto_iff.
+      eapply map_aug_mod_name_intro; eauto.
+    Qed.
+
+    Lemma map_aug_mod_name_elim elt k mod_name d (v : elt) : find k (map_aug_mod_name mod_name d) = Some v -> exists k', k = (mod_name, k') /\ StringMap.find k' d = Some v.
       admit.
+    Qed.
+
+    Import StringMap.StringMap.
+    Require Import StringMapFacts.
+    Lemma find_Funs_label_mapsto fname op_spec : 
+      find fname (Funs m) = Some (op_spec) ->
+      exists (ispec : InternalFuncSpec) (m0 : GoodModule) (f : GoodFunction),
+        Internal op_spec = Internal ispec /\
+        List.In m0 (cmodule_to_gmodule op_mod_name op_mod_name_ok m :: nil) /\
+        List.In f (Functions m0) /\
+        ispec = f /\ (op_mod_name, fname) = (GoodModule.Name m0, Name f).
+    Proof.
+      admit.
+    Qed.
+
+    Import GLabelMap.GLabelMap.
+    Require Import GLabelMapFacts.
+
+    Lemma specs_op_equal : specs_equal specs_op modules imports.
+    Proof.
+      unfold specs_equal.
+      unfold label_mapsto.
+      unfold specs_op.
+      intros lbl spec.
+      split.
+      {
+        intros H.
+        eapply find_mapsto_iff in H.
+        eapply update_mapsto_iff in H.
+        destruct H as [H | H].
+        {
+          left.
+          eapply map_mapsto_iff in H.
+          destruct H as [op_spec [? H] ].
+          subst.
+          eapply find_mapsto_iff in H.
+          eapply map_aug_mod_name_elim in H.
+          destruct H as [fname [? H] ].
+          subst.
+          unfold modules.
+          unfold cmod.
+          eapply find_Funs_label_mapsto; eauto.
+        }
+        {
+          right.
+          destruct H as [H Hnin].
+          eapply map_mapsto_iff in H.
+          destruct H as [ax_spec [? H] ].
+          subst.
+          eexists; split; eauto.
+          eapply find_mapsto_iff; eauto.
+        }
+      }
+      {
+        admit.
+      }
     Qed.
 
     Lemma new_env_strengthen : forall stn fs, env_good_to_use modules imports stn fs -> strengthen (from_bedrock_label_map (Labels stn), fs stn) (change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
@@ -66,14 +266,14 @@ Module Make (Import E : ADT).
       eapply strengthen_diff_strenghthen.
       - eapply Hewi; eauto.
         eapply change_env_agree; eauto.
-        eapply specs_equal_domain; eauto.
-        eapply specs_equal_agree; eauto.
-        eapply specs_op_equal; eauto.
+        + eapply specs_equal_domain; eauto.
+        + eapply specs_equal_agree; eauto.
+          eapply specs_op_equal; eauto.
       - eapply specs_equal_agree; eauto; eapply specs_op_equal; eauto.
       - eapply change_env_agree; eauto.
-        eapply specs_equal_domain; eauto.
-        eapply specs_equal_agree; eauto.
-        eapply specs_op_equal; eauto.
+        + eapply specs_equal_domain; eauto.
+        + eapply specs_equal_agree; eauto.
+          eapply specs_op_equal; eauto.
       - intros; simpl; eauto.
     Qed.
 
@@ -82,29 +282,36 @@ Module Make (Import E : ADT).
 
     Arguments StringMap.empty {elt}.
 
-    Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := fold (fun k v1 acc => match find k d2 with | Some v2 => add k (v1, v2) acc | None => acc end) d1 empty.
+    Definition filterM A B (f : string -> A -> option B) d :=  fold (fun k v acc => match f k v with | Some v' => add k v' acc | None => acc end) d empty.
+    Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := filterM (fun k v1 => match find k d2 with | Some v2 => Some (v1, v2) | None => None end ) d1.
 
-    Definition content := inter (Funs m) exports.
-
-    Coercion cfun_to_copspec (f : CFun) : InternalFuncSpec := cfun_to_gfun "" f.
-
-    Notation gl2w := from_bedrock_label_map.
-
-    Lemma map_aug_mod_name_intro elt k mod_name k' d (v : elt) : k = (mod_name, k') -> StringMap.find k' d = Some v -> GLabelMap.find k (map_aug_mod_name mod_name d) = Some v.
+    Lemma filterM_elim A B f k (b : B) d : find k (filterM f d) = Some b -> exists a : A, find k d = Some a /\ f k a = Some b.
       admit.
-    Qed.
-
-    Lemma in_elements_find elt k (v : elt) d : List.In (k, v) (elements d) -> find k d = Some v.
-    Proof.
-      intros Hin.
-      eapply InA_eqke_In in Hin.
-      eapply elements_2 in Hin.
-      eapply find_mapsto_iff; eauto.
     Qed.
 
     Lemma find_inter_elim A B k d1 d2 (v1 : A) (v2 : B) : find k (inter d1 d2) = Some (v1, v2) -> find k d1 = Some v1 /\ find k d2 = Some v2.
-      admit.
+    Proof.
+      intros H.
+      unfold inter in *.
+      eapply filterM_elim in H.
+      destruct H as [v1' [H1 H2] ].
+      Require Import Option.
+      destruct (option_dec (find k d2)) as [ [v2' Heq] | Heq ]; rewrite Heq in *.
+      {
+        inject H2.
+        eauto.
+      }
+      discriminate.
     Qed.
+
+    Definition content := inter (Funs m) exports.
+
+    Notation gl2w := from_bedrock_label_map.
+
+    Require Import ListFacts4.
+
+    Require Import GLabelMap GLabelMapFacts.
+    Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
 
     Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
       List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> 
@@ -127,15 +334,14 @@ Module Make (Import E : ADT).
       Unfocus.
       destruct Hewi as [Hewi' | Hewi']; clear Hewi.
       {
-        unfold specs_op in *.
-        admit.
+        erewrite specs_op_intro in Hewi' by eauto.
+        discriminate.
       }
       {
-        Require Import GeneralTactics.
         destruct Hewi' as [op_spec' [Hin1' Hstr] ].
-        unfold specs_op in *.
-        (*here*)
-        admit.
+        erewrite specs_op_intro in Hin1' by eauto.
+        inject Hin1'.
+        eauto.
       }
     Qed.
 
@@ -161,6 +367,7 @@ Module Make (Import E : ADT).
 
       Variable exports : StringMap.t ForeignFuncSpec.
 
+      (* the name of the module that contains axiomatic export specs *)
       Variable ax_mod_name : string.
 
       Variable op_mod_name : string.
@@ -171,7 +378,7 @@ Module Make (Import E : ADT).
 
       Hypothesis name_neq : negb (string_bool ax_mod_name op_mod_name) = true.
 
-      Notation exports_weakens_impl := (exports_weakens_impl m imports exports ax_mod_name op_mod_name op_mod_name_ok).
+      Notation exports_weakens_impl := (exports_weakens_impl m imports exports op_mod_name).
 
       Hypothesis Hewi : exports_weakens_impl.
 
@@ -246,58 +453,19 @@ Module Make (Import E : ADT).
 
       Require Import ListFacts1.
 
-      Definition Injective A B (f : A -> B) := forall x1 x2, f x1 = f x2 -> x1 = x2.
-
-      Lemma Injective_IsInjection A B (f : A -> B) : Injective f -> IsInjection f.
-      Proof.
-        unfold Injective, IsInjection in *; intuition.
-      Qed.
-
-      Require Import GeneralTactics4.
-
-      Lemma aug_mod_name_Injection mod_name : IsInjection (aug_mod_name mod_name).
-      Proof.
-        eapply Injective_IsInjection.
-        intros s1 s2.
-        intros H.
-        inject H.
-        eauto.
-      Qed.
-
       Lemma NoDupKey_bimports : NoDupKey bimports.
       Proof.
-        unfold bimports.
-        eapply NoDupKey_NoDup_fst.
-        rewrite map_map.
-        unfold tgt_spec_as_import; simpl.
-        rewrite <- map_map.
-        eapply Injection_NoDup.
-        {
-          eapply aug_mod_name_Injection.
-        }
-        eapply StringMapFacts.NoDup_elements.
-      Qed.
-
-      Require Import ListFacts4.
-
-      Lemma fold_aug_mod_name {A} mod_name (x : string * A) : (mod_name, fst x) = aug_mod_name mod_name (fst x).
-      Proof.
-        eauto.
+        unfold bimports, tgt_spec_as_import, tgt_label.
+        eapply NoDupKey_aug_mod_name.
+        intros; simpl; eauto.
       Qed.
 
       Lemma NoDupKey_stubs : NoDupKey (List.map (@func_to_import ax_mod_name) stubs).
       Proof.
-        eapply NoDupKey_NoDup_fst.
-        unfold func_to_import.
-        unfold stubs, make_stub', make_stub; simpl.
+        unfold func_to_import, stubs, make_stub', make_stub.
         repeat rewrite map_map; simpl.
-        setoid_rewrite fold_aug_mod_name.
-        rewrite <- map_map.
-        eapply Injection_NoDup.
-        {
-          eapply aug_mod_name_Injection.
-        }
-        eapply StringMapFacts.NoDup_elements.
+        eapply NoDupKey_aug_mod_name.
+        intros; simpl; eauto.
       Qed.
 
       Lemma no_dup_func_names : NoDupFuncNames stubs.
@@ -391,7 +559,6 @@ Module Make (Import E : ADT).
       Require Import Inv.
 
       Import SemanticsMake.
-      Notation specs := (specs m imports exports ax_mod_name op_mod_name op_mod_name_ok).
       Require Import GeneralTactics5.
       Require Import SemanticsUtil.
       Require Import SemanticsFacts9.
@@ -510,6 +677,7 @@ Module Make (Import E : ADT).
       Qed.
 
       Notation gl2w := from_bedrock_label_map.
+      Notation specs := (specs m imports exports op_mod_name op_mod_name_ok).
 
       Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
         List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
