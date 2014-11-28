@@ -67,7 +67,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypotheses ImportsGoodModuleName : forall l, In l imports -> IsGoodModuleName (fst l).
 
-    Notation exports := (LinkSpecMake.exports_IFS modules).
+    Notation exports := (exports_IFS modules).
 
     Definition accessible_labels := keys imports ++ keys exports.
 
@@ -385,9 +385,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Notation fs := (LinkSpecMake.fs modules imports).
-      Notation is_export := (LinkSpecMake.is_export modules).
-      Notation is_import := (LinkSpecMake.is_import imports).
+      Notation fs := (fs modules imports).
+      Notation is_export := (is_export modules).
+      Notation is_import := (is_import imports).
 
       Require Import Option.
       Require Import Label2WordFacts.
@@ -400,14 +400,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             Labels stn lbl = Some p.
       Proof.
         intros.
-        unfold LinkSpecMake.fs in *.
+        unfold LinkSpec.fs in *.
         destruct (option_dec (is_export stn p)).
         {
           destruct s.
           rewrite e in H.
           injection H; intros.
           subst.
-          unfold LinkSpecMake.is_export in *.
+          unfold LinkSpec.is_export in *.
           eapply find_by_word_elements_elim; eauto.
         }
         rewrite e in H.
@@ -616,7 +616,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             Labels stn lbl = Some p.
       Proof.
         intros.
-        unfold LinkSpecMake.fs in *.
+        unfold LinkSpec.fs in *.
         destruct (option_dec (is_export stn p)).
         {
           destruct s.
@@ -630,7 +630,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           destruct s.
           rewrite e0 in H.
           injection H; intros; subst.
-          unfold LinkSpecMake.is_import in *.
+          unfold LinkSpec.is_import in *.
           eapply find_by_word_elements_elim; eauto.
         }
         rewrite e0 in H; discriminate.
@@ -1225,7 +1225,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro HH.
         split; intros.
         {
-          unfold LinkSpecMake.is_export in *.
+          unfold LinkSpec.is_export in *.
           eapply find_by_word_elements_elim in H; eauto.
           openhyp.
           eexists; split.
@@ -1233,7 +1233,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           - eauto.
         }
         openhyp.
-        unfold LinkSpecMake.is_export in *.
+        unfold LinkSpec.is_export in *.
         eapply find_by_word_elements_intro; eauto.
         - intros lbl1 lbl2 p' Hin1 Hin2 Hp1 Hp2.
           eapply augment_injective_exports; eauto.
@@ -1246,7 +1246,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intro HH.
         split; intros.
         {
-          unfold LinkSpecMake.is_import in *.
+          unfold LinkSpec.is_import in *.
           eapply find_by_word_elements_elim in H; eauto.
           openhyp.
           eexists; split.
@@ -1255,14 +1255,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
 
         openhyp.
-        unfold LinkSpecMake.is_import in *.
+        unfold LinkSpec.is_import in *.
         eapply find_by_word_elements_intro; eauto.
         - intros lbl1 lbl2 p' Hin1 Hin2 Hp1 Hp2.
           eapply augment_injective_imports; eauto.
         - eapply find_mapsto_iff; eauto.
       Qed.
 
-      Notation fs_good_to_use := (LinkSpecMake.fs_good_to_use modules imports fs).
+      Notation fs_good_to_use := (LinkSpec.fs_good_to_use modules imports fs).
 
       Lemma augment_fs_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> fs_good_to_use stn.
         split; intros; unfold label_mapsto in *.
@@ -1292,7 +1292,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         (* in exports *)
         subst.
-        unfold LinkSpecMake.fs.
+        unfold LinkSpec.fs.
         assert (is_export stn p = Some (x2 : InternalFuncSpec)).
         eapply is_export_iff; eauto.
         descend; eauto.
@@ -1304,7 +1304,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         (* in imports *)
         subst.
-        unfold LinkSpecMake.fs.
+        unfold LinkSpec.fs.
         destruct (option_dec (is_export stn p)).
         destruct s.
         rewrite e.
@@ -1376,11 +1376,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intuition.
       Qed.
 
-      Notation stn_good_to_use := (LinkSpecMake.stn_good_to_use modules imports).
+      Notation stn_good_to_use := (LinkSpec.stn_good_to_use modules imports).
 
       Lemma augment_stn_good_to_use : forall specs stn, augment (fullImports bimports_diff_bexports stubs) specs stn accessible_labels -> stn_good_to_use stn.
       Proof.
-        unfold LinkSpecMake.stn_good_to_use.
+        unfold LinkSpec.stn_good_to_use.
         unfold label_in.
         intros.
         openhyp.

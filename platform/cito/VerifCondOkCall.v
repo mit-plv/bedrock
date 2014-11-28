@@ -763,14 +763,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_split_heap).
       unfold Semantics.good_inputs in *; openhyp; eauto.
       unfold Semantics.good_inputs in *; openhyp.
-      Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall word_scalar_match pairs.
+      Require Import SemanticsUtil.
+      Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
         intros.
         eapply Forall_weaken.
         2 : eassumption.
         intros.
         destruct x.
         unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
-        destruct a; simpl in *; intuition.
+        destruct v; simpl in *; intuition.
       Qed.
       eapply forall_word_adt_match_good_scalars; eauto.
       eauto.
