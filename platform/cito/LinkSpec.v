@@ -4,6 +4,95 @@ Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunct
 Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration Label2Word.
 Import GLabelMap.
 
+Section TopSection.
+
+  Variable ADTValue : Type.
+
+  Variable modules : list GoodModule.
+  
+  Require Import Semantics.
+  Require Import AxSpec.
+
+  Variable imports : GLabelMap.t (AxiomaticSpec ADTValue).
+
+  Notation FName := SyntaxFunc.Name.
+  Notation MName := GoodModule.Name.
+
+  Definition label_in (lbl : glabel) :=
+    (exists m f,
+       List.In m modules /\
+       List.In f (Functions m) /\
+       lbl = (MName m, FName f)) \/
+    In lbl imports.
+
+  Notation Internal := (@Internal ADTValue).
+
+  Definition label_mapsto lbl spec :=
+    (exists ispec m f,
+       spec = Internal ispec /\
+       List.In m modules /\
+       List.In f (Functions m) /\
+       ispec = f /\ 
+       lbl = (MName m, FName f)) \/
+    (exists fspec,
+       spec = Foreign fspec /\
+       find lbl imports = Some fspec).
+
+  Definition stn_good_to_use (stn : settings) :=
+    forall lbl : glabel,
+      label_in lbl ->
+      Labels stn lbl <> None.
+
+  Notation Callee := (@Callee ADTValue).
+
+  Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
+    forall p spec, 
+      fs stn p = Some spec <-> 
+      exists lbl : glabel,
+        Labels stn lbl = Some p /\
+        label_mapsto lbl spec.
+
+  Definition glabel2w (stn : settings) (lbl : glabel) : option W := Labels stn lbl.
+  
+  Definition env_good_to_use stn fs :=
+    stn_good_to_use stn /\
+    stn_injective label_in (glabel2w stn) /\
+    fs_good_to_use fs stn.
+
+  Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
+  
+  Definition module_exports_IFS m := 
+    List.map (func_export_IFS m) (Functions m).
+
+  Require Import ListFacts1.
+
+  Definition exports_IFS :=
+    to_map
+      (app_all 
+         (List.map module_exports_IFS modules)).
+
+  Section fs.
+
+    Variable stn : settings.
+
+    Definition is_export := find_by_word (glabel2w stn) (elements exports_IFS).
+
+    Definition is_import := find_by_word (glabel2w stn) (elements imports).
+
+    Definition fs (p : W) : option Callee :=
+      match is_export p with
+        | Some spec => Some (Internal spec)
+        | None => 
+          match is_import p with
+            | Some spec => Some (Foreign spec)
+            | None => None
+          end
+      end.
+
+  End fs.
+
+End TopSection.
+
 Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
 
 Require Import ADT.
@@ -13,86 +102,6 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Make E.
   Export Semantics SemanticsMake.
-
-  Section TopSection.
-
-    Variable modules : list GoodModule.
-
-    Variable imports : t ForeignFuncSpec.
-
-    Notation FName := SyntaxFunc.Name.
-    Notation MName := GoodModule.Name.
-
-    Definition label_in (lbl : glabel) :=
-      (exists m f,
-         List.In m modules /\
-         List.In f (Functions m) /\
-         lbl = (MName m, FName f)) \/
-      In lbl imports.
-
-    Definition label_mapsto lbl spec :=
-      (exists ispec m f,
-         spec = Internal ispec /\
-         List.In m modules /\
-         List.In f (Functions m) /\
-         ispec = f /\ 
-         lbl = (MName m, FName f)) \/
-      (exists fspec,
-         spec = Foreign fspec /\
-         find lbl imports = Some fspec).
-
-    Definition stn_good_to_use (stn : settings) :=
-      forall lbl : glabel,
-        label_in lbl ->
-        Labels stn lbl <> None.
-
-    Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
-      forall p spec, 
-        fs stn p = Some spec <-> 
-        exists lbl : glabel,
-          Labels stn lbl = Some p /\
-          label_mapsto lbl spec.
-
-    Definition glabel2w (stn : settings) (lbl : glabel) : option W := Labels stn lbl.
-  
-    Definition env_good_to_use stn fs :=
-      stn_good_to_use stn /\
-      stn_injective label_in (glabel2w stn) /\
-      fs_good_to_use fs stn.
-
-    Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
-        
-    Definition module_exports_IFS m := 
-      List.map (func_export_IFS m) (Functions m).
-
-    Require Import ListFacts1.
-
-    Definition exports_IFS :=
-      to_map
-        (app_all 
-           (List.map module_exports_IFS modules)).
-
-    Section fs.
-
-      Variable stn : settings.
-
-      Definition is_export := find_by_word (glabel2w stn) (elements exports_IFS).
-
-      Definition is_import := find_by_word (glabel2w stn) (elements imports).
-
-      Definition fs (p : W) : option Callee :=
-        match is_export p with
-          | Some spec => Some (Internal spec)
-          | None => 
-            match is_import p with
-              | Some spec => Some (Foreign spec)
-              | None => None
-            end
-        end.
-
-    End fs.
-
-  End TopSection.
 
   Require Import RepInv.
 
