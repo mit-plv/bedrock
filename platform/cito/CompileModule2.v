@@ -208,7 +208,7 @@ Module Make (Import E : ADT).
     Import StringMap.StringMap.
     Require Import StringMapFacts.
     Lemma find_Funs_label_mapsto fname op_spec : 
-      find fname (Funs m) = Some (op_spec) ->
+      find fname (Funs m) = Some (op_spec) <->
       exists (ispec : InternalFuncSpec) (m0 : GoodModule) (f : GoodFunction),
         Internal op_spec = Internal ispec /\
         List.In m0 (cmodule_to_gmodule op_mod_name op_mod_name_ok m :: nil) /\
@@ -216,6 +216,34 @@ Module Make (Import E : ADT).
         ispec = f /\ (op_mod_name, fname) = (GoodModule.Name m0, Name f).
     Proof.
       admit.
+    Qed.
+
+    Require Import GeneralTactics5.
+
+    Lemma in_singleton_elim A (x' x : A) : List.In x' (x :: nil) -> x' = x.
+    Proof.
+      intros; simpl in *; intuition.
+    Qed.
+
+    Lemma label_mapsto_find_Funs (m' : GoodModule) (f : GoodFunction) :
+      List.In m' (cmodule_to_gmodule op_mod_name op_mod_name_ok m :: nil) ->
+      List.In f (Functions m') ->
+      exists (f' : CFun) ,
+        Internal f = Internal f' /\
+        GoodModule.Name m' = op_mod_name /\
+        find (Name f) (Funs m) = Some f'.
+    Proof.
+      intros Hinm Hinf.
+      eapply in_singleton_elim in Hinm.
+      subst.
+      simpl in *.
+      unfold cfuns_to_gfuns in *.
+      eapply in_map_iff in Hinf.
+      destruct Hinf as [ [fname f'] [Heq Hin] ].
+      unfold uncurry in *; simpl in *.
+      subst.
+      eapply in_elements_find in Hin.
+      exists f'; repeat try_split; eauto.
     Qed.
 
     Import GLabelMap.GLabelMap.
@@ -257,7 +285,51 @@ Module Make (Import E : ADT).
         }
       }
       {
-        admit.
+        intros [H | H].
+        {
+          eapply find_mapsto_iff.
+          eapply update_mapsto_iff.
+          left.
+          eapply map_mapsto_iff.
+          destruct spec as [ax_spec | op_spec].
+          { openhyp; discriminate. }
+          destruct H as [ispec [m' [f H ] ] ].
+          destruct H as [Heq [Hinm [Hinf [? ?] ] ] ].
+          subst.
+          inject Heq.
+          unfold modules, cmod in Hinm.
+          eapply label_mapsto_find_Funs in Hinm; eauto.
+          openhyp.
+          eexists; split; eauto.
+          eapply find_mapsto_iff.
+          eapply map_aug_mod_name_intro.
+          - subst; eauto.
+          - eauto.
+        }
+        {
+          destruct H as [ax_spec [? H] ].
+          subst.
+          eapply find_mapsto_iff.
+          eapply update_mapsto_iff.
+          right.
+          split.
+          {
+            eapply map_mapsto_iff.
+            eexists; split; eauto.
+            eapply find_mapsto_iff; eauto.
+          }
+          {
+            intro H2.
+            eapply map_2 in H2.
+            eapply in_find_Some in H2.
+            destruct H2 as [op_spec H2].
+            eapply map_aug_mod_name_elim in H2.
+            destruct H2 as [fname [? H2] ].
+            subst.
+            (*here*)
+            admit.
+          }
+        }
       }
     Qed.
 
@@ -559,7 +631,6 @@ Module Make (Import E : ADT).
       Require Import Inv.
 
       Import SemanticsMake.
-      Require Import GeneralTactics5.
       Require Import SemanticsUtil.
       Require Import SemanticsFacts9.
 
