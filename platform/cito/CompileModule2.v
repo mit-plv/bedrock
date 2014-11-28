@@ -579,11 +579,12 @@ Module Make (Import E : ADT).
 
   Module Make (Import M : RepInv E).
     
+    Require Import InvFacts.
+    Module Import InvFactsMake := Make E.
+    Module Import InvFactsMake2 := InvFactsMake.Make M.
     Require Import LayoutHints3.
     Module Import LayoutHints3Make := Make E M.
     Module Import LinkSpecMakeMake := LinkSpecMake.Make M.
-    Require Import MakeWrapper.
-    Module Import MakeWrapperMake := Make E M.
     Require LayoutHints2.
     Module LayoutHints2Make := LayoutHints2.Make E M.
 
@@ -717,6 +718,8 @@ Module Make (Import E : ADT).
         unfold sumbool_to_bool in *.
         destruct (string_dec ax_mod_name op_mod_name); intuition.
       Qed.
+
+      Require Import GeneralTactics.
 
       Lemma DisjointKey_bimports_stubs : DisjointKey bimports (List.map (@func_to_import ax_mod_name) stubs).
       Proof.
@@ -1091,12 +1094,17 @@ Module Make (Import E : ADT).
               eapply Himp_star_Emp.
             }
             {
-              eapply Made.Inner.is_heap_Equal.
+              eapply is_heap_Equal.
               eapply add_diff_singleton; eauto.
             }
           }
         }
         {
+          Ltac clear_all :=
+            repeat match goal with
+                     | H : _ |- _ => clear H
+                   end.
+
           clear_all.
           sepLemma.
         }
@@ -1135,7 +1143,7 @@ Module Make (Import E : ADT).
         subst.
         {
           unfold name_marker.
-          hiding ltac:(step auto_ext).
+          step auto_ext.
           unfold spec_without_funcs_ok.
           post.
           subst.
@@ -1194,6 +1202,19 @@ Module Make (Import E : ADT).
           rename H1 into Haugment.
           clear Haugment.
           clear import_module_names_ok.
+          Import InvMake.SemanticsMake.
+          Require Import CompileStmtTactics.
+          Ltac hiding tac :=
+            clear_imports;
+            ((let P := fresh "P" in
+              match goal with
+                | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
+                | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
+                | H : fs_good_to_use ?a ?b ?c ?d |- _ => set (P := fs_good_to_use a b c d) in *
+              end;
+              hiding tac;
+              subst P) || tac).
+
           hiding ltac:(evaluate hints_array_to_locals).
           unfold toArray in *; simpl in *.
           intros.
@@ -1317,10 +1338,13 @@ Module Make (Import E : ADT).
               unfold locals.
               simpl.
               hiding ltac:(step auto_ext).
+              {
+                econstructor.
+              }
               eapply Himp_trans.
               2 : solve [eapply is_heap_upd_option_fwd; eauto].
               unfold is_heap_upd_option.
-              eapply Made.Inner.is_heap_Equal; eauto.
+              eapply is_heap_Equal; eauto.
             }
             {
               Import CompileFuncSpecMake.InvMake.SemanticsMake.
