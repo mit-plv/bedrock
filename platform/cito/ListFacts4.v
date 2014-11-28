@@ -217,3 +217,23 @@ Global Add Parametric Morphism A B : (@List.map A B)
 Proof.
   intros; eapply map_ext; eauto.
 Qed.
+
+Lemma in_singleton_iff A (x' x : A) : List.In x' (x :: nil) <-> x' = x.
+Proof.
+  intros; subst; simpl in *; intuition.
+Qed.
+
+Require Import GeneralTactics2.
+
+Lemma singleton_iff_not : forall elt (e e' : elt), ~ List.In e' (e :: nil) <-> e <> e'.
+  unfold List.In; split; intros; not_not; intuition.
+Qed.
+
+Lemma combine_fst_snd A B (pairs : list (A * B)) : List.combine (List.map fst pairs) (List.map snd pairs) = pairs.
+Proof.
+  rewrite combine_map.
+  setoid_rewrite <- surjective_pairing.
+  rewrite map_id.
+  eauto.
+Qed.
+

@@ -1341,10 +1341,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       solve [eapply no_dupM_cons_elim; eauto].
     Qed.
 
-    Lemma singleton_iff_not : forall elt (e e' : elt), ~ List.In e' [e] <-> e <> e'.
-      unfold List.In; split; intros; not_not; intuition.
-    Qed.
-
     Lemma add_new_submap elt k m : ~ In k m -> forall (v : elt), m <= add k v m.
     Proof.
       intros Hni v.
@@ -1614,6 +1610,235 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       intros k v Hin.
       rewrite empty_o in Hin.
       discriminate.
+    Qed.
+
+    Definition sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forall k, In k m1 -> In k m2.
+
+    Definition equal_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := sub_domain m1 m2 /\ sub_domain m2 m1.
+
+    Definition is_sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forallb (fun k => mem k m2) (keys m1).
+
+    Require Import SetoidListFacts.
+
+    Lemma is_sub_domain_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), is_sub_domain m1 m2 = true -> sub_domain m1 m2.
+      intros.
+      unfold is_sub_domain, sub_domain in *.
+      intros.
+      eapply forallb_forall in H.
+      eapply mem_in_iff; eauto.
+      eapply InA_In.
+      eapply In_In_keys; eauto.
+    Qed.
+
+    Definition equal_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := (is_sub_domain m1 m2 && is_sub_domain m2 m1)%bool.
+
+    Lemma equal_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), equal_domain_dec m1 m2 = true -> equal_domain m1 m2.
+      unfold equal_domain_dec, equal_domain; intros.
+      eapply Bool.andb_true_iff in H; openhyp.
+      eapply is_sub_domain_sound in H.
+      eapply is_sub_domain_sound in H0.
+      eauto.
+    Qed.
+
+    Lemma in_elements_find elt k (v : elt) d : List.In (k, v) (elements d) -> find k d = Some v.
+    Proof.
+      intros H.
+      eapply InA_eqke_In in H.
+      eapply elements_2 in H.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma find_in_elements elt k (v : elt) d : find k d = Some v -> List.In (k, v) (elements d).
+    Proof.
+      intros H.
+      eapply InA_eqke_In.
+      eapply elements_1.
+      eapply find_mapsto_iff; eauto.
+    Qed.
+
+    Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == empty elt -> b == a.
+    Proof.
+      intros Hsm Hdiff.
+      intros k.
+      destruct (option_dec (find k a)) as [ [v Hv] | Hnone].
+      {
+        rewrite Hv.
+        eapply Hsm; eauto.
+      }
+      rewrite Hnone.
+      destruct (option_dec (find k b)) as [ [v Hv] | Hnone'].
+      {
+        assert (MapsTo k v (b - a)).
+        {
+          eapply diff_mapsto_iff.
+          split.
+          - eapply find_mapsto_iff; eauto.
+          - eapply not_find_in_iff; eauto.
+        }
+        rewrite Hdiff in H.
+        eapply empty_mapsto_iff in H.
+        intuition.
+      }
+      eauto.
+    Qed.
+
+    Lemma submap_refl elt (m : t elt) : m <= m.
+    Proof.
+      intros k.
+      intros; eauto.
+    Qed.
+
+    Lemma sub_domain_refl A a : @sub_domain A A a a.
+    Proof.
+      intros k; eauto.
+    Qed.
+
+    Lemma sub_domain_update_1 A B a b c : @sub_domain A B a b -> sub_domain a (b + c).
+    Proof.
+      intros Hsd.
+      intros k H.
+      eapply update_in_iff.
+      left; eauto.
+    Qed.
+
+    Lemma sub_domain_update_2 A B a b c : @sub_domain A B a c -> sub_domain a (b + c).
+    Proof.
+      intros Hsd.
+      intros k H.
+      eapply update_in_iff.
+      right; eauto.
+    Qed.
+
+    Lemma sub_domain_map_1 A B C (f : A -> C) a b : @sub_domain A B a b -> sub_domain (map f a) b.
+    Proof.
+      intros Hsd.
+      intros k H.
+      eapply map_4 in H; eauto.
+    Qed.
+
+    Lemma sub_domain_map_2 A B C (f : B -> C) a b : @sub_domain A B a b -> sub_domain a (map f b).
+    Proof.
+      intros Hsd.
+      intros k H.
+      eapply map_3; eauto.
+    Qed.
+
+    Lemma sub_domain_update_sub_domain A a b : @sub_domain A A b a -> sub_domain (a + b) a.
+    Proof.
+      intros Hsd.
+      intros k H.
+      eapply update_in_iff in H.
+      intuition.
+    Qed.
+
+    Arguments empty {elt}.
+
+    Definition filterM_f {A B} (f : key -> A -> option B) k v acc := match f k v with | Some v' => add k v' acc | None => acc end.
+
+    Definition filterM A B (f : key -> A -> option B) d :=  fold (filterM_f f) d empty.
+
+    Lemma filterM_elim A B f k (b : B) d : find k (filterM f d) = Some b -> exists a : A, find k d = Some a /\ f k a = Some b.
+    Proof.
+      unfold filterM.
+      eapply fold_rec_bis.
+      {
+        intros m1 m2 a Heq H1 H.
+        rewrite <- Heq.
+        eauto.
+      }
+      {
+        intros H.
+        rewrite empty_o in H.
+        discriminate.
+      }
+      {
+        intros k' e a d'.
+        intros Hk' Hnin H1 H.
+        unfold filterM_f in *.
+        destruct (option_dec (f k' e)) as [ [v Heq] | Heq ]; rewrite Heq in *.
+        {
+          destruct (eq_dec k k') as [? | Hneq].
+          {
+            subst.
+            rewrite add_eq_o in H by eauto.
+            inject H.
+            exists e.
+            split; eauto.
+            rewrite add_eq_o by eauto.
+            eauto.
+          }
+          {
+            rewrite add_neq_o in H by eauto.
+            eapply H1 in H.
+            destruct H as [v' [H Heq'] ].
+            exists v'; split; eauto.
+            rewrite add_neq_o by eauto.
+            eauto.
+          }
+        }
+        {
+          eapply H1 in H.
+          destruct H as [v [H Heq'] ].
+          destruct (eq_dec k k') as [? | Hneq].
+          {
+            subst.
+            contradict Hnin.
+            eapply find_Some_in; eauto.
+          }
+          {
+            exists v; split; eauto.
+            rewrite add_neq_o by eauto; eauto.
+          }
+        }
+      }
+    Qed.
+
+    Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := filterM (fun k v1 => match find k d2 with | Some v2 => Some (v1, v2) | None => None end ) d1.
+
+    Lemma find_inter_elim A B k d1 d2 (v1 : A) (v2 : B) : find k (inter d1 d2) = Some (v1, v2) -> find k d1 = Some v1 /\ find k d2 = Some v2.
+    Proof.
+      intros H.
+      unfold inter in *.
+      eapply filterM_elim in H.
+      destruct H as [v1' [H1 H2] ].
+      destruct (option_dec (find k d2)) as [ [v2' Heq] | Heq ]; rewrite Heq in *.
+      {
+        inject H2.
+        eauto.
+      }
+      discriminate.
+    Qed.
+
+    Lemma singleton_in_iff elt k' k (v : elt) : In k' (add k v empty) <-> k = k'.
+    Proof.
+      split; intros H.
+      {
+        eapply add_in_iff in H.
+        destruct H as [? | H]; trivial.
+        eapply empty_in_iff in H; intuition.
+      }
+      subst.
+      eapply add_in_iff; eauto.
+    Qed.
+
+    Lemma add_diff_singleton elt k (v : elt) d : ~ In k d -> add k v d - add k v empty == d.
+    Proof.
+      intros Hnin.
+      intros k'.
+      destruct (eq_dec k' k) as [? | Heq].
+      {
+        subst.
+        rewrite diff_o_none.
+        - eapply not_find_in_iff in Hnin; eauto.
+        - eapply add_in_iff; eauto.
+      }
+      {
+        rewrite diff_o.
+        - rewrite add_neq_o by eauto; eauto.
+        - intros Hin.
+          eapply singleton_in_iff in Hin.
+          subst; intuition.
+      }
     Qed.
 
   End TopSection.

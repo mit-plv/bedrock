@@ -243,4 +243,67 @@ Section ADTValue.
     reflexivity.
   Qed.
 
+  Add Morphism (@Semantics.word_adt_match ADTValue) with signature Equal ==> eq ==> iff as word_adt_match_Equal_m.
+  Proof.
+    intros st1 st2 Heq [w v].
+    unfold Semantics.word_adt_match.
+    simpl.
+    destruct v.
+    {
+      intuition.
+    }
+    rewrite Heq.
+    intuition.
+  Qed.
+
+  Arguments word_scalar_match {ADTValue} _.
+
+  Lemma DisjointPtrs_good_scalars_forall_word_adt_match : forall pairs h, DisjointPtrs pairs -> List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (fold_left store_pair pairs h)) pairs.
+  Proof.
+    induction pairs; simpl; try solve [intuition].
+    intros h Hdisj H.
+    inversion H; subst.
+    inversion Hdisj; subst.
+    destruct a as [w v]; simpl in *.
+    econstructor.
+    {
+      rewrite fold_left_store_pair_comm; try reflexivity; trivial.
+      unfold word_adt_match.
+      unfold Semantics.word_adt_match.
+      unfold word_scalar_match in *.
+      simpl in *.
+      destruct v; simpl in *; trivial.
+      unfold store_pair; simpl.
+      rewrite add_eq_o by eauto.
+      eauto.
+    }
+    eapply IHpairs; eauto.
+  Qed.
+
+  Lemma disjoint_ptrs_good_scalars_good_inputs pairs :
+    @disjoint_ptrs ADTValue pairs ->
+    good_scalars pairs ->
+    good_inputs (make_heap pairs) pairs.
+  Proof.
+    intros Hdisj Hgs.
+    split; eauto.
+    eapply DisjointPtrs_good_scalars_forall_word_adt_match; eauto.
+    eapply disjoint_ptrs_DisjointPtrs; eauto.
+  Qed.
+
+  Lemma good_inputs_add addr (a : ADTValue) h : ~ In addr h -> good_inputs (add addr a h) ((addr, ADT a) :: nil).
+  Proof.
+    intros Hnin.
+    unfold good_inputs.
+    unfold Semantics.good_inputs.
+    unfold Semantics.disjoint_ptrs.
+    unfold Semantics.word_adt_match.
+    simpl.
+    split.
+    - repeat econstructor; simpl.
+      rewrite add_eq_o by eauto.
+      eauto.
+    - repeat econstructor; eauto.
+  Qed.
+
 End ADTValue.

@@ -27,8 +27,8 @@ Module Make (Import E : ADT).
 
     Variable exports : StringMap.t ForeignFuncSpec.
 
-    Definition sub_domain' elt1 elt2 m1 m2 := forall k, @StringMap.In elt1 k m1 -> @StringMap.In elt2 k m2.
-    Hypothesis exports_in_domain : sub_domain' exports (Funs m).
+    Require Import StringMapFacts.
+    Hypothesis exports_in_domain : is_sub_domain exports (Funs m) = true.
 
     (* the name of the module that contains operational export specs *)
     Variable op_mod_name : string.
@@ -41,6 +41,7 @@ Module Make (Import E : ADT).
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
 
+    Require Import CModuleFacts.
     Definition cmod := cmodule_to_gmodule op_mod_name op_mod_name_ok m.
 
     Definition modules := cmod :: nil.
@@ -68,95 +69,18 @@ Module Make (Import E : ADT).
     Import StringMap.StringMap.
     Require Import StringMapFacts.
 
-    Lemma in_elements_find elt k (v : elt) d : List.In (k, v) (elements d) -> find k d = Some v.
+    Lemma exports_sub_domain : sub_domain exports (Funs m).
     Proof.
-      intros H.
-      eapply InA_eqke_In in H.
-      eapply elements_2 in H.
-      eapply find_mapsto_iff; eauto.
-    Qed.
-
-    Lemma find_in_elements elt k (v : elt) d : find k d = Some v -> List.In (k, v) (elements d).
-    Proof.
-      intros H.
-      eapply InA_eqke_In.
-      eapply elements_1.
-      eapply find_mapsto_iff; eauto.
+      eapply is_sub_domain_sound; eauto.
     Qed.
 
     Import GLabelMap.GLabelMap.
     Require Import GLabelMapFacts.
 
-    Lemma sub_domain_refl A a : @sub_domain A A a a.
-    Proof.
-      intros k; eauto.
-    Qed.
-
-    Lemma sub_domain_update_1 A B a b c : @sub_domain A B a b -> sub_domain a (b + c).
-    Proof.
-      intros Hsd.
-      intros k H.
-      eapply update_in_iff.
-      left; eauto.
-    Qed.
-
-    Lemma sub_domain_update_2 A B a b c : @sub_domain A B a c -> sub_domain a (b + c).
-    Proof.
-      intros Hsd.
-      intros k H.
-      eapply update_in_iff.
-      right; eauto.
-    Qed.
-
-    Lemma sub_domain_map_1 A B C (f : A -> C) a b : @sub_domain A B a b -> sub_domain (map f a) b.
-    Proof.
-      intros Hsd.
-      intros k H.
-      eapply map_4 in H; eauto.
-    Qed.
-
-    Lemma sub_domain_map_2 A B C (f : B -> C) a b : @sub_domain A B a b -> sub_domain a (map f b).
-    Proof.
-      intros Hsd.
-      intros k H.
-      eapply map_3; eauto.
-    Qed.
-
-    Lemma sub_domain_update_sub_domain A a b : @sub_domain A A b a -> sub_domain (a + b) a.
-    Proof.
-      intros Hsd.
-      intros k H.
-      eapply update_in_iff in H.
-      intuition.
-    Qed.
-
-    Lemma sub_domain_apply_specs_diff_equal_domain a b : sub_domain b a -> equal_domain (@apply_specs_diff ADTValue a b) a.
-    Proof.
-      unfold apply_specs_diff.
-      unfold equal_domain.
-      intros H.
-      split.
-      {
-        eapply sub_domain_update_sub_domain; eauto.
-        eapply sub_domain_map_1; eauto.
-      }
-      {
-        eapply sub_domain_update_1.
-        eapply sub_domain_refl.
-      }
-    Qed.
-
     Require Import GeneralTactics.
     Require Import GeneralTactics4.
 
     Require Import ListFacts1.
-
-    Definition Injective A B (f : A -> B) := forall x1 x2, f x1 = f x2 -> x1 = x2.
-
-    Lemma Injective_IsInjection A B (f : A -> B) : Injective f -> IsInjection f.
-    Proof.
-      unfold Injective, IsInjection in *; intuition.
-    Qed.
 
     Lemma aug_mod_name_Injection mod_name : IsInjection (aug_mod_name mod_name).
     Proof.
@@ -195,7 +119,7 @@ Module Make (Import E : ADT).
       eapply in_map_iff.
       unfold aug_mod_name.
       exists (k', v); split; eauto.
-      eapply find_in_elements; eauto.
+      eapply StringMapFacts.find_in_elements; eauto.
     Qed.
 
     Require Import GeneralTactics5.
@@ -211,14 +135,14 @@ Module Make (Import E : ADT).
         unfold aug_mod_name in *.
         destruct H as  [ [k' v'] [Heq H] ].
         inject Heq.
-        eapply in_elements_find in H.
+        eapply StringMapFacts.in_elements_find in H.
         repeat eexists_split; eauto.
       }
       eapply NoDupKey_aug_mod_name.
       intros; simpl; eauto.
     Qed.
 
-    Lemma map_aug_mod_name_sub_domain A B nm a b : @sub_domain' A B a b -> sub_domain (map_aug_mod_name nm a) (map_aug_mod_name nm b).
+    Lemma map_aug_mod_name_sub_domain A B nm a b : @StringMapFacts.sub_domain A B a b -> sub_domain (map_aug_mod_name nm a) (map_aug_mod_name nm b).
     Proof.
       unfold sub_domain in *.
       intros Hsd lbl.
@@ -248,7 +172,7 @@ Module Make (Import E : ADT).
       eapply sub_domain_update_2.
       eapply sub_domain_map_2.
       eapply map_aug_mod_name_sub_domain.
-      eauto.
+      eapply exports_sub_domain; eauto.
     Qed.
 
     Lemma specs_op_intro fname op_spec : StringMap.find fname (Funs m) = Some op_spec -> find (op_mod_name, fname) specs_op = Some (Internal op_spec).
@@ -267,10 +191,7 @@ Module Make (Import E : ADT).
     Import StringMap.StringMap.
     Require Import StringMapFacts.
 
-    Lemma in_singleton_iff A (x' x : A) : List.In x' (x :: nil) <-> x' = x.
-    Proof.
-      intros; subst; simpl in *; intuition.
-    Qed.
+    Require Import ListFacts4.
 
     Lemma find_Funs_label_mapsto fname op_spec : 
       find fname (Funs m) = Some (op_spec) ->
@@ -329,14 +250,6 @@ Module Make (Import E : ADT).
     Require Import Option.
     Require Import Bool.
       
-    Lemma find_in_elements' elt k (v : elt) d : find k d = Some v -> List.In (k, v) (elements d).
-    Proof.
-      intros H.
-      eapply InA_eqke_In.
-      eapply elements_1.
-      eapply find_mapsto_iff; eauto.
-    Qed.
-
     Lemma find_op_mod_name_imports_none fname : find (op_mod_name, fname) imports = None.
     Proof.
       simpl in *.
@@ -351,7 +264,7 @@ Module Make (Import E : ADT).
       }        
       eapply in_map_iff.
       exists (op_mod_name, fname, v); simpl; split; trivial.
-      eapply find_in_elements'; eauto.
+      eapply find_in_elements; eauto.
     Qed.
 
     Lemma specs_op_equal : specs_equal specs_op modules imports.
@@ -456,87 +369,9 @@ Module Make (Import E : ADT).
     Import StringMap.StringMap.
     Require Import StringMapFacts.
 
-    Arguments StringMap.empty {elt}.
-
-    Definition filterM_f {A B} (f : string -> A -> option B) k v acc := match f k v with | Some v' => add k v' acc | None => acc end.
-    Definition filterM A B (f : string -> A -> option B) d :=  fold (filterM_f f) d empty.
-    Definition inter elt1 elt2 (d1 : t elt1) (d2 : t elt2) := filterM (fun k v1 => match find k d2 with | Some v2 => Some (v1, v2) | None => None end ) d1.
-
-    Lemma filterM_elim A B f k (b : B) d : find k (filterM f d) = Some b -> exists a : A, find k d = Some a /\ f k a = Some b.
-    Proof.
-      unfold filterM.
-      eapply fold_rec_bis.
-      {
-        intros m1 m2 a Heq H1 H.
-        rewrite <- Heq.
-        eauto.
-      }
-      {
-        intros H.
-        rewrite empty_o in H.
-        discriminate.
-      }
-      {
-        intros k' e a d'.
-        intros Hk' Hnin H1 H.
-        unfold filterM_f in *.
-        destruct (option_dec (f k' e)) as [ [v Heq] | Heq ]; rewrite Heq in *.
-        {
-          destruct (string_dec k k') as [? | Hneq].
-          {
-            subst.
-            rewrite add_eq_o in H by eauto.
-            inject H.
-            exists e.
-            split; eauto.
-            rewrite add_eq_o by eauto.
-            eauto.
-          }
-          {
-            rewrite add_neq_o in H by eauto.
-            eapply H1 in H.
-            destruct H as [v' [H Heq'] ].
-            exists v'; split; eauto.
-            rewrite add_neq_o by eauto.
-            eauto.
-          }
-        }
-        {
-          eapply H1 in H.
-          destruct H as [v [H Heq'] ].
-          destruct (string_dec k k') as [? | Hneq].
-          {
-            subst.
-            contradict Hnin.
-            eapply find_Some_in; eauto.
-          }
-          {
-            exists v; split; eauto.
-            rewrite add_neq_o by eauto; eauto.
-          }
-        }
-      }
-    Qed.
-
-    Lemma find_inter_elim A B k d1 d2 (v1 : A) (v2 : B) : find k (inter d1 d2) = Some (v1, v2) -> find k d1 = Some v1 /\ find k d2 = Some v2.
-    Proof.
-      intros H.
-      unfold inter in *.
-      eapply filterM_elim in H.
-      destruct H as [v1' [H1 H2] ].
-      destruct (option_dec (find k d2)) as [ [v2' Heq] | Heq ]; rewrite Heq in *.
-      {
-        inject H2.
-        eauto.
-      }
-      discriminate.
-    Qed.
-
     Definition content := inter (Funs m) exports.
 
     Notation gl2w := from_bedrock_label_map.
-
-    Require Import ListFacts4.
 
     Require Import GLabelMap GLabelMapFacts.
     Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
@@ -548,8 +383,8 @@ Module Make (Import E : ADT).
     Proof.
       intros Hin Hegu.
       unfold exports_weakens_impl in *.
-      eapply in_elements_find in Hin.
-      eapply find_inter_elim in Hin.
+      eapply StringMapFacts.in_elements_find in Hin.
+      eapply StringMapFacts.find_inter_elim in Hin.
       destruct Hin as [Hin1 Hin2].
       eapply strengthen_diff_elim in Hewi; try (eapply map_aug_mod_name_intro; eauto).
       Focus 2.
@@ -579,6 +414,8 @@ Module Make (Import E : ADT).
 
   Module Make (Import M : RepInv E).
     
+    Require LayoutHints4.
+    Module LayoutHints4Make := LayoutHints4.Make E M.
     Require Import InvFacts.
     Module Import InvFactsMake := Make E.
     Module Import InvFactsMake2 := InvFactsMake.Make M.
@@ -596,7 +433,8 @@ Module Make (Import E : ADT).
 
       Variable exports : StringMap.t ForeignFuncSpec.
 
-      Hypothesis exports_in_domain : sub_domain' exports (Funs m).
+      Require Import StringMapFacts.
+      Hypothesis exports_in_domain : is_sub_domain exports (Funs m) = true.
 
       (* the name of the module that contains axiomatic export specs *)
       Variable ax_mod_name : string.
@@ -617,6 +455,7 @@ Module Make (Import E : ADT).
 
       Hypothesis Hewi : exports_weakens_impl.
 
+      Require Import CModuleFacts.
       Definition cmod := cmodule_to_gmodule op_mod_name op_mod_name_ok m.
 
       Definition modules := cmod :: nil.
@@ -806,52 +645,6 @@ Module Make (Import E : ADT).
       Require Import WordMap WordMapFacts.
       Import WordMap.WordMap WordMapFacts.FMapNotations.
 
-      Add Morphism (@Semantics.word_adt_match ADTValue) with signature Equal ==> eq ==> iff as word_adt_match_Equal_m.
-      Proof.
-        intros st1 st2 Heq [w v].
-        unfold Semantics.word_adt_match.
-        simpl.
-        destruct v.
-        {
-          intuition.
-        }
-        rewrite Heq.
-        intuition.
-      Qed.
-
-      Lemma DisjointPtrs_good_scalars_forall_word_adt_match : forall pairs h, DisjointPtrs pairs -> List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (fold_left store_pair pairs h)) pairs.
-      Proof.
-        induction pairs; simpl; try solve [intuition].
-        intros h Hdisj H.
-        inversion H; subst.
-        inversion Hdisj; subst.
-        destruct a as [w v]; simpl in *.
-        econstructor.
-        {
-          rewrite fold_left_store_pair_comm; try reflexivity; trivial.
-          unfold word_adt_match.
-          unfold Semantics.word_adt_match.
-          unfold word_scalar_match in *.
-          simpl in *.
-          destruct v; simpl in *; trivial.
-          unfold store_pair; simpl.
-          rewrite add_eq_o by eauto.
-          eauto.
-        }
-        eapply IHpairs; eauto.
-      Qed.
-
-      Lemma disjoint_ptrs_good_scalars_good_inputs pairs :
-        disjoint_ptrs pairs ->
-        good_scalars pairs ->
-        good_inputs (make_heap pairs) pairs.
-      Proof.
-        intros Hdisj Hgs.
-        split; eauto.
-        eapply DisjointPtrs_good_scalars_forall_word_adt_match; eauto.
-        eapply disjoint_ptrs_DisjointPtrs; eauto.
-      Qed.
-
       Ltac remove_sel :=
         match goal with
           | H : context [sel ?VS] |- _ => change (sel VS) with VS in H
@@ -860,30 +653,11 @@ Module Make (Import E : ADT).
 
       Require Import ListFacts4.
 
-      Lemma combine_fst_snd A B (pairs : list (A * B)) : List.combine (List.map fst pairs) (List.map snd pairs) = pairs.
-      Proof.
-        rewrite combine_map.
-        setoid_rewrite <- surjective_pairing.
-        rewrite map_id.
-        eauto.
-      Qed.
-
       Arguments SCA {ADTValue} _.
       Arguments ADT {ADTValue} _.
 
       Require Import WordMap.
       Import WordMap.
-
-      Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples ADTValue pairs outs) = List.combine (List.map snd pairs) outs.
-      Proof.
-        intros.
-        erewrite <- combine_map.
-        Require Import SemanticsFacts6.
-        rewrite make_triples_ADTIn by eauto.
-        Require Import SemanticsFacts7.
-        rewrite make_triples_ADTOut by eauto.
-        eauto.
-      Qed.
 
       Require Import GeneralTactics3.
       Require Import GeneralTactics4.
@@ -1003,121 +777,13 @@ Module Make (Import E : ADT).
         simpl; intros Hrt; intros.
         eapply runsto_TransitTo in Hrt; eauto.
         unfold TransitTo in *; openhyp.
+        Require Import SemanticsFacts7.
         rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
         eauto.
       Qed.
 
-      Lemma good_inputs_add addr a h : ~ In addr h -> good_inputs (add addr a h) ((addr, ADT a) :: nil).
-      Proof.
-        intros Hnin.
-        unfold good_inputs.
-        unfold Semantics.good_inputs.
-        unfold Semantics.disjoint_ptrs.
-        unfold Semantics.word_adt_match.
-        simpl.
-        split.
-        - repeat econstructor; simpl.
-          rewrite add_eq_o by eauto.
-          eauto.
-        - repeat econstructor; eauto.
-      Qed.
-
       Require Import WordMapFacts.
       Arguments empty {elt}.
-
-      Lemma singleton_in_iff elt k' k (v : elt) : In k' (add k v empty) <-> k = k'.
-      Proof.
-        split; intros H.
-        {
-          eapply add_in_iff in H.
-          destruct H as [? | H]; trivial.
-          eapply empty_in_iff in H; intuition.
-        }
-        subst.
-        eapply add_in_iff; eauto.
-      Qed.
-
-      Lemma add_diff_singleton elt k (v : elt) d : ~ In k d -> add k v d - add k v empty == d.
-      Proof.
-        intros Hnin.
-        intros k'.
-        destruct (weq k' k) as [? | Heq].
-        {
-          subst.
-          rewrite diff_o_none.
-          - eapply not_find_in_iff in Hnin; eauto.
-          - eapply add_in_iff; eauto.
-        }
-        {
-          rewrite diff_o.
-          - rewrite add_neq_o by eauto; eauto.
-          - intros Hin.
-            eapply singleton_in_iff in Hin.
-            subst; intuition.
-        }
-      Qed.
-
-      Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
-      Proof.
-        intros Hsep.
-        unfold is_heap_upd_option, separated, Semantics.separated in *.
-        destruct a as [a| ]; simpl in *.
-        {
-          destruct Hsep as [? | Hsep]; try discriminate.
-          eapply Himp_trans.
-          eapply Himp_trans.
-          2 : eapply LayoutHints2Make.split_heap.
-          {
-            unfold LayoutHints2Make.heap_to_split.
-            eapply Himp_refl.
-          }
-          {
-            instantiate (1 := (addr, ADT a) :: nil).
-            eapply good_inputs_add; eauto.
-          }
-          {
-            simpl.
-            Import LayoutHints2Make.InvMake.
-            Import LayoutHints2Make.InvMake2.
-            Import SemanticsMake.
-            unfold make_heap.
-            unfold store_pair.
-            unfold heap_upd.
-            simpl.
-            eapply Himp_star_frame.
-            {
-              unfold is_heap.
-              unfold heap_elements.
-              simpl.
-              eapply Himp_trans.
-              eapply Himp_star_comm.
-              eapply Himp_star_Emp.
-            }
-            {
-              eapply is_heap_Equal.
-              eapply add_diff_singleton; eauto.
-            }
-          }
-        }
-        {
-          Ltac clear_all :=
-            repeat match goal with
-                     | H : _ |- _ => clear H
-                   end.
-
-          clear_all.
-          sepLemma.
-        }
-      Qed.
-
-      Lemma NoDup_ArgVars (f : CFun) : NoDup (ArgVars f).
-      Proof.
-        destruct f; simpl.
-        Require Import GoodModuleDecFacts.
-        eapply is_good_func_sound in good_func.
-        destruct good_func.
-        eauto.
-      Qed.
 
       Opaque mult.
 
@@ -1342,7 +1008,11 @@ Module Make (Import E : ADT).
                 econstructor.
               }
               eapply Himp_trans.
-              2 : solve [eapply is_heap_upd_option_fwd; eauto].
+              Focus 2.
+              {
+                eapply LayoutHints4Make.is_heap_upd_option_fwd; eauto.
+              }
+              Unfocus.
               unfold is_heap_upd_option.
               eapply is_heap_Equal; eauto.
             }
@@ -1366,6 +1036,7 @@ Module Make (Import E : ADT).
               split.
               {
                 unfold_all.
+                Require Import SemanticsFacts6.
                 rewrite make_triples_length; repeat rewrite map_length; trivial.
                 Require Import ListFacts5.
                 unfold toArray in *; simpl in *.

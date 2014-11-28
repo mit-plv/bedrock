@@ -14,6 +14,13 @@ Section TopSection.
 
   Definition IsInjection A B (f : A -> B) := forall x y, x <> y -> f x <> f y.
 
+  Definition Injective A B (f : A -> B) := forall x1 x2, f x1 = f x2 -> x1 = x2.
+
+  Lemma Injective_IsInjection A B (f : A -> B) : Injective f -> IsInjection f.
+  Proof.
+    unfold Injective, IsInjection in *; intuition.
+  Qed.
+
   Variable t : Type.
   Variable B : Type.
 

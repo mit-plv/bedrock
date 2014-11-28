@@ -232,6 +232,35 @@ Definition specs_change_table :=
         "count"!"main" @ [main_spec]
     ]]%stmtex.
 
+Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
+
+(*
+    Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
+
+    Lemma make_specs_equal : 
+      forall modules imports, 
+        List.NoDup (List.map GName modules) ->
+        ListFacts1.Disjoint (List.map GName modules) (List.map fst2 (elements imports)) ->
+        specs_equal (make_specs modules imports) modules imports.
+    Proof.
+      unfold specs_equal.
+      induction modules0; simpl; split; intros.
+      eapply find_mapsto_iff in H1.
+      eapply map_mapsto_iff in H1; openhyp.
+      subst; simpl in *.
+      right; descend; eauto.
+      eapply find_mapsto_iff; eauto.
+      unfold label_mapsto in *.
+      openhyp.
+      intuition.
+      subst; simpl in *.
+      unfold ForeignFuncSpec in *.
+      rewrite map_o; rewrite H2; eauto.
+
+      simpl in *.
+    Qed.
+ *)
+
 Definition specs_op := make_specs modules imports.
 Definition specs := apply_specs_diff specs_op specs_change_table.
 

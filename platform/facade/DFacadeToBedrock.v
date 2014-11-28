@@ -222,40 +222,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import WordMapFacts.FMapNotations.
 
-    Lemma submap_diff_empty_equal elt a b : a <= b -> b - a == WordMap.empty elt -> b == a.
-    Proof.
-      intros Hsm Hdiff.
-      intros k.
-      Require Import WordMapFacts.
-      Import WordMap.WordMap.
-      destruct (option_dec (find k a)) as [ [v Hv] | Hnone].
-      {
-        rewrite Hv.
-        eapply Hsm; eauto.
-      }
-      rewrite Hnone.
-      destruct (option_dec (find k b)) as [ [v Hv] | Hnone'].
-      {
-        assert (MapsTo k v (b - a)).
-        {
-          eapply diff_mapsto_iff.
-          split.
-          - eapply find_mapsto_iff; eauto.
-          - eapply not_find_in_iff; eauto.
-        }
-        rewrite Hdiff in H.
-        eapply empty_mapsto_iff in H.
-        intuition.
-      }
-      eauto.
-    Qed.
-
-    Lemma submap_refl elt (m : WordMap.t elt) : m <= m.
-    Proof.
-      intros k.
-      intros; eauto.
-    Qed.
-
     Require Import StringMapFacts.
 
     Require Import GeneralTactics4.

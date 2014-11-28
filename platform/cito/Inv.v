@@ -51,16 +51,6 @@ Module Make (Import E : ADT).
           | Some a => rep_inv addr a
         end.
 
-      Definition word_scalar_match (p : W * ArgIn) :=
-        let word := fst p in
-        let in_ := snd p in
-        match in_ with
-          | SCA w => word = w
-          | _ => True
-        end.
-
-      Definition good_scalars pairs := List.Forall word_scalar_match pairs.
-
       Open Scope type.
 
       Require Import ConvertLabel.

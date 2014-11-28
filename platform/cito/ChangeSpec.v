@@ -151,9 +151,6 @@ Section ADTValue.
     eapply strengthen_diff_strengthen_specs; eauto.
   Qed.
 
-  Definition sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forall k, In k m1 -> In k m2.
-  Definition equal_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := sub_domain m1 m2 /\ sub_domain m2 m1.
-
   Notation Callee := (@Callee ADTValue).
 
   Definition is_pointer_of_label specs (stn : glabel -> option W) w : option Callee :=
@@ -330,64 +327,22 @@ Section ADTValue.
     eapply is_pointer_of_label_intro; eauto.
     eapply equal_domain_specs_stn_injective; eauto.
     rewrite H5; eauto.
-
   Qed.
 
-  Require Import GoodModule.
-  Require Import GoodFunction.
-
-  Notation GName := GoodModule.Name.
-  Notation FName := SyntaxFunc.Name.
-
-  Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
-
-  (*
-    Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
-
-    Lemma make_specs_equal : 
-      forall modules imports, 
-        List.NoDup (List.map GName modules) ->
-        ListFacts1.Disjoint (List.map GName modules) (List.map fst2 (elements imports)) ->
-        specs_equal (make_specs modules imports) modules imports.
-    Proof.
-      unfold specs_equal.
-      induction modules0; simpl; split; intros.
-      eapply find_mapsto_iff in H1.
-      eapply map_mapsto_iff in H1; openhyp.
-      subst; simpl in *.
-      right; descend; eauto.
-      eapply find_mapsto_iff; eauto.
-      unfold label_mapsto in *.
-      openhyp.
-      intuition.
-      subst; simpl in *.
-      unfold ForeignFuncSpec in *.
-      rewrite map_o; rewrite H2; eauto.
-
-      simpl in *.
-    Qed.
-   *)
-
-  Definition sub_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forallb (fun k => mem k m2) (keys m1).
-  Lemma sub_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), sub_domain_dec m1 m2 = true -> sub_domain m1 m2.
-    intros.
-    unfold sub_domain_dec, sub_domain in *.
-    intros.
-    eapply forallb_forall in H.
-    eapply mem_in_iff; eauto.
-    Require Import SetoidListFacts.
-    eapply InA_In.
-    eapply In_In_keys; eauto.
-  Qed.
-
-  Definition equal_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := (sub_domain_dec m1 m2 && sub_domain_dec m2 m1)%bool.
-
-  Lemma equal_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), equal_domain_dec m1 m2 = true -> equal_domain m1 m2.
-    unfold equal_domain_dec, equal_domain; intros.
-    eapply Bool.andb_true_iff in H; openhyp.
-    eapply sub_domain_dec_sound in H.
-    eapply sub_domain_dec_sound in H0.
-    eauto.
+  Lemma sub_domain_apply_specs_diff_equal_domain a b : sub_domain b a -> equal_domain (apply_specs_diff a b) a.
+  Proof.
+    unfold apply_specs_diff.
+    unfold equal_domain.
+    intros H.
+    split.
+    {
+      eapply sub_domain_update_sub_domain; eauto.
+      eapply sub_domain_map_1; eauto.
+    }
+    {
+      eapply sub_domain_update_1.
+      eapply sub_domain_refl.
+    }
   Qed.
 
 End ADTValue.

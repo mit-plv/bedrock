@@ -55,4 +55,16 @@ Section ADTValue.
     f_equal; auto.
   Qed.
 
+  Require Import SemanticsFacts6.
+  Require Import ListFacts4.
+
+  Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples pairs outs) = List.combine (List.map snd pairs) outs.
+  Proof.
+    intros.
+    erewrite <- combine_map.
+    rewrite make_triples_ADTIn by eauto.
+    rewrite make_triples_ADTOut by eauto.
+    eauto.
+  Qed.
+
 End ADTValue.
