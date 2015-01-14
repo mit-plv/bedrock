@@ -1560,10 +1560,10 @@ Notation "'Al' x : A , P" := (Forall (fun x : A => P)) (x ident, at level 89) : 
 Notation "'Ex' x , P" := (Exists (fun x => P)) (x ident, at level 89) : PropX_scope.
 Notation "'Ex' x : A , P" := (Exists (fun x : A => P)) (x ident, at level 89) : PropX_scope.
 
-Notation "'AlX' , P" := (ForallX P) (x ident, at level 89) : PropX_scope.
-Notation "'AlX' : A , P" := (ForallX (A := A) P) (x ident, at level 89) : PropX_scope.
-Notation "'ExX' , P" := (ExistsX P) (x ident, at level 89) : PropX_scope.
-Notation "'ExX' : A , P" := (ExistsX (A := A) P) (x ident, at level 89) : PropX_scope.
+Notation "'AlX' , P" := (ForallX P) (at level 89) : PropX_scope.
+Notation "'AlX' : A , P" := (ForallX (A := A) P) (at level 89) : PropX_scope.
+Notation "'ExX' , P" := (ExistsX P) (at level 89) : PropX_scope.
+Notation "'ExX' : A , P" := (ExistsX (A := A) P) (at level 89) : PropX_scope.
 
 Notation "#0" := (fun x => Var0 x) : PropX_scope.
 Notation "#1" := (fun x => Lift (Var0 x)) : PropX_scope.
