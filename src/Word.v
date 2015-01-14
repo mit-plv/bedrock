@@ -998,10 +998,10 @@ Notation "w1 >= w2" := (~(@wlt _ w1%word w2%word)) : word_scope.
 Notation "w1 < w2" := (@wlt _ w1%word w2%word) : word_scope.
 Notation "w1 <= w2" := (~(@wlt _ w2%word w1%word)) : word_scope.
 
-Notation "w1 '>s' w2" := (@wslt _ w2%word w1%word) (at level 70, arguments at next level) : word_scope.
-Notation "w1 '>s=' w2" := (~(@wslt _ w1%word w2%word)) (at level 70, arguments at next level) : word_scope.
-Notation "w1 '<s' w2" := (@wslt _ w1%word w2%word) (at level 70, arguments at next level) : word_scope.
-Notation "w1 '<s=' w2" := (~(@wslt _ w2%word w1%word)) (at level 70, arguments at next level) : word_scope.
+Notation "w1 '>s' w2" := (@wslt _ w2%word w1%word) (at level 70) : word_scope.
+Notation "w1 '>s=' w2" := (~(@wslt _ w1%word w2%word)) (at level 70) : word_scope.
+Notation "w1 '<s' w2" := (@wslt _ w1%word w2%word) (at level 70) : word_scope.
+Notation "w1 '<s=' w2" := (~(@wslt _ w2%word w1%word)) (at level 70) : word_scope.
 
 Definition wlt_dec : forall sz (l r : word sz), {l < r} + {l >= r}.
   refine (fun sz l r =>
