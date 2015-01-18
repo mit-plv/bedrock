@@ -2,6 +2,7 @@ Require Import Heaps Memory.
 Require Import PropX PropXTac.
 Require Import SepTheoryX.
 Require IL.
+Require PropXRel.
 
 Require Import RelationClasses.
 
@@ -157,7 +158,7 @@ Module Make (H' : Heap) <:
                end.
 *)
 
-    Require Import PropXRel.
+    Import PropXRel.
 
     Hint Immediate HT.split_comm : heaps.
     Hint Resolve HT.split_assoc HT.disjoint_split_join HT.split_split_disjoint : heaps.

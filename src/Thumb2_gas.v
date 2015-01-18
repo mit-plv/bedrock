@@ -13,6 +13,8 @@ Require Import List.  Import ListNotations.
 
 Require Import FastString.
 
+Require Ascii Memory Word.
+
 
 (** A function application operator, à la Haskell, makes quite a bit of the
 code below much more readable. *)
@@ -26,10 +28,10 @@ We support only a subset of the Thumb-2 ISA.  Should other opcodes become
 useful at a later date, it will be easy to add them. *)
 
 Module Thumb.
-  Require Import Ascii.
+  Import Ascii.
 
-  Require Import Memory.
-  Require Import Word.
+  Import Memory.
+  Import Word.
 
   Local Open Scope nat.
   Local Open Scope string.

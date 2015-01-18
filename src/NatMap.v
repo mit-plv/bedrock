@@ -25,7 +25,6 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
     intros; etransitivity; eauto.
   Qed.
 
-  Require Import Omega.
   Theorem lt_trans : forall a b c, lt a b -> lt b c -> lt a c.
     intros. unfold lt in *. omega.
   Qed.

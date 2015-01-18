@@ -1,6 +1,8 @@
 Require Import Heaps Memory.
 Require Import PropX PropXTac.
 Require Import RelationClasses.
+Require Setoid Classes.Morphisms.
+Require List.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -163,7 +165,7 @@ End SepTheoryX.
 
 Module SepTheoryX_Rewrites (Import ST : SepTheoryX).
 
-  Require Import Setoid Classes.Morphisms.
+  Import Setoid Classes.Morphisms.
 
   Section env.
     Variable p s : Type.
@@ -244,7 +246,7 @@ Module SepTheoryX_Rewrites (Import ST : SepTheoryX).
 End SepTheoryX_Rewrites.
 
 Module SepTheoryX_Ext (ST : SepTheoryX).
-  Require Import List.
+  Import List.
   Module Import ST_RW := SepTheoryX_Rewrites ST.
   Fixpoint functionTypeD (domain : list Type) (range : Type) : Type :=
     match domain with
