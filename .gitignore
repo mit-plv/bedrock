@@ -4,6 +4,7 @@
 *.depend
 Makefile.coq
 *.vo
+*.vio
 *.glob
 *.v.d
 deps.dot
@@ -19,6 +20,7 @@ Bedrock/reification/reif.ml4
 *.log
 *.out
 timing/
+.coq-native/
 *.cmo
 *.cmx
 *.cmxs
