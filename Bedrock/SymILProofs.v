@@ -190,6 +190,8 @@ Module SymIL_Correct.
                    (eapply sym_evalRval_correct in H; think); [ simpl in * ]
                  | [ H : sym_lvalueD _ _ _ _ = _ |- _ ] =>
                    (eapply sym_evalLval_correct in H; think); [ simpl in * ]
+                 | [ H : sym_lvalueD _ _ _ _ = _ |- _ ] =>
+                   (eapply sym_evalLval_correct in H; think); solve [ think ]
                  | [ H : _ = _ |- _ ] => rewrite H
                  | [ |- _ ] => progress (simpl in * )
                  | [ b : binop |- _ ] =>
