@@ -626,6 +626,101 @@ Section spec_functions.
       congruence.
     Qed.
 
+    Lemma smem_set'_present : forall p v ls m m',
+      smem_set' ls p v m = Some m'
+      -> exists v', smem_get' ls p m = Some v'.
+      clear; induction ls; simpl; intuition.
+      discriminate.
+      destruct (H.addr_dec a p); subst; eauto.
+      destruct (DepList.hlist_hd m); eauto; discriminate.
+      specialize (IHls (DepList.hlist_tl m)).
+      destruct (smem_set' ls p v (DepList.hlist_tl m)); eauto; discriminate.
+    Qed.
+
+    Lemma smem_set_present : forall p v m m',
+      smem_set p v m = Some m'
+      -> exists v', smem_get p m = Some v'.
+      intros; eapply smem_set'_present; eauto.
+    Qed.
+
+    Lemma smem_set'_disjoint : forall p v ls m m' m'',
+      smem_set' ls p v m = Some m'
+      -> disjoint' ls m m''
+      -> disjoint' ls m' m''.
+      clear; induction ls; simpl; intuition.
+      destruct (H.addr_dec a p); subst.
+      rewrite H0 in H; discriminate.
+      specialize (IHls (DepList.hlist_tl m)).
+      destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+      injection H; clear H; intros; subst; auto.
+      destruct (H.addr_dec a p); subst.
+      rewrite H0 in H; discriminate.
+      specialize (IHls (DepList.hlist_tl m)).
+      destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+      injection H; clear H; intros; subst; auto.
+      destruct (H.addr_dec a p); subst.
+      destruct (DepList.hlist_hd m); try discriminate.
+      injection H; clear H; intros; subst; auto.
+      specialize (IHls (DepList.hlist_tl m)).
+      destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
+      injection H; clear H; intros; subst; auto.
+    Qed.
+
+    Lemma smem_set_disjoint : forall p v m m' m'',
+      smem_set p v m = Some m'
+      -> disjoint m m''
+      -> disjoint m' m''.
+      intros; eapply smem_set'_disjoint; eauto.
+    Qed.
+
+    Lemma parts : forall A (B : A -> Type) x ls (h1 h2 : B x) (t1 t2 : DepList.hlist B ls),
+      DepList.HCons h1 t1 = DepList.HCons h2 t2
+      -> h1 = h2 /\ t1 = t2.
+      clear; intros.
+      assert (DepList.hlist_hd (DepList.HCons h1 t1) = DepList.hlist_hd (DepList.HCons h2 t2)) by congruence.
+      assert (DepList.hlist_tl (DepList.HCons h1 t1) = DepList.hlist_tl (DepList.HCons h2 t2)) by congruence.
+      auto.
+    Qed.
+
+    Lemma memoryIn'_agree : forall ls m1 m2,
+      List.Forall (fun p => m1 p = m2 p) ls
+      -> memoryIn' m1 ls = memoryIn' m2 ls.
+      clear; induction 1; simpl; intuition.
+      f_equal; auto.
+    Qed.
+
+    Lemma memoryIn'_join : forall m p v ls, NoDup ls
+      -> forall m1 m2 m1',
+        memoryIn' m ls = join' ls m1 m2
+        -> smem_set' ls p v m1 = Some m1'
+        -> memoryIn' (fun p' => if weq p' p then Some v else m p') ls = join' ls m1' m2.
+      clear; induction 1; simpl; intuition.
+      apply parts in H1; destruct H1.
+      destruct (H.addr_dec x p); subst.
+      destruct (DepList.hlist_hd m1); try discriminate.
+      injection H2; clear H2; intros; subst.
+      simpl.
+      f_equal.
+      unfold H.mem_get, ReadByte; destruct (weq p p); tauto.
+      rewrite (@memoryIn'_agree _ _ m); auto.
+      apply Forall_forall; intros.
+      destruct (weq x p); subst; tauto.
+      specialize (IHNoDup (DepList.hlist_tl m1)).
+      destruct (smem_set' l p v (DepList.hlist_tl m1)); try discriminate.
+      rewrite (IHNoDup _ _ H3 eq_refl); clear IHNoDup.
+      injection H2; clear H2; intros; subst; simpl.
+      f_equal; auto.
+      unfold H.mem_get, ReadByte.
+      destruct (weq x p); intuition.
+    Qed.
+
+    Lemma memoryIn_join : forall m m1 m2 p v m1',
+      memoryIn m = join m1 m2
+      -> smem_set p v m1 = Some m1'
+      -> memoryIn (fun p' => if weq p' p then Some v else m p') = join m1' m2.
+      intros; eapply memoryIn'_join; eauto using H.NoDup_all_addr.
+    Qed.
+
     Lemma mep_correct : @MEVAL.PredEval.MemEvalPred_correct types pcT stT (IL.settings * IL.state)
       (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte mep pred funcs.
     Proof.
@@ -712,23 +807,6 @@ Section spec_functions.
         revert H8. consider (smem_set p (WtoB v) x); try contradiction; intros.
         unfold IL_WriteByte, WriteByte in *.
 
-        Lemma smem_set'_present : forall p v ls m m',
-          smem_set' ls p v m = Some m'
-          -> exists v', smem_get' ls p m = Some v'.
-          clear; induction ls; simpl; intuition.
-          discriminate.
-          destruct (H.addr_dec a p); subst; eauto.
-          destruct (DepList.hlist_hd m); eauto; discriminate.
-          specialize (IHls (DepList.hlist_tl m)).
-          destruct (smem_set' ls p v (DepList.hlist_tl m)); eauto; discriminate.
-        Qed.
-
-        Lemma smem_set_present : forall p v m m',
-          smem_set p v m = Some m'
-          -> exists v', smem_get p m = Some v'.
-          intros; eapply smem_set'_present; eauto.
-        Qed.
-
         destruct (smem_set_present _ _ _ H8).
         generalize H5; intro Ho; eapply split_smem_get in Ho; eauto.
         eapply satisfies_get in Ho; eauto.
@@ -737,85 +815,7 @@ Section spec_functions.
         exists s; exists x0; intuition.
         unfold split in *; intuition.
 
-        Lemma smem_set'_disjoint : forall p v ls m m' m'',
-          smem_set' ls p v m = Some m'
-          -> disjoint' ls m m''
-          -> disjoint' ls m' m''.
-          clear; induction ls; simpl; intuition.
-          destruct (H.addr_dec a p); subst.
-          rewrite H0 in H; discriminate.
-          specialize (IHls (DepList.hlist_tl m)).
-          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
-          injection H; clear H; intros; subst; auto.
-          destruct (H.addr_dec a p); subst.
-          rewrite H0 in H; discriminate.
-          specialize (IHls (DepList.hlist_tl m)).
-          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
-          injection H; clear H; intros; subst; auto.
-          destruct (H.addr_dec a p); subst.
-          destruct (DepList.hlist_hd m); try discriminate.
-          injection H; clear H; intros; subst; auto.
-          specialize (IHls (DepList.hlist_tl m)).
-          destruct (smem_set' ls p v (DepList.hlist_tl m)); try discriminate.
-          injection H; clear H; intros; subst; auto.
-        Qed.
-
-        Lemma smem_set_disjoint : forall p v m m' m'',
-          smem_set p v m = Some m'
-          -> disjoint m m''
-          -> disjoint m' m''.
-          intros; eapply smem_set'_disjoint; eauto.
-        Qed.
-
         eauto using smem_set_disjoint.
-
-        Lemma parts : forall A (B : A -> Type) x ls (h1 h2 : B x) (t1 t2 : DepList.hlist B ls),
-          DepList.HCons h1 t1 = DepList.HCons h2 t2
-          -> h1 = h2 /\ t1 = t2.
-          clear; intros.
-          assert (DepList.hlist_hd (DepList.HCons h1 t1) = DepList.hlist_hd (DepList.HCons h2 t2)) by congruence.
-          assert (DepList.hlist_tl (DepList.HCons h1 t1) = DepList.hlist_tl (DepList.HCons h2 t2)) by congruence.
-          auto.
-        Qed.
-
-        Lemma memoryIn'_agree : forall ls m1 m2,
-          List.Forall (fun p => m1 p = m2 p) ls
-          -> memoryIn' m1 ls = memoryIn' m2 ls.
-          clear; induction 1; simpl; intuition.
-          f_equal; auto.
-        Qed.
-
-        Lemma memoryIn'_join : forall m p v ls, NoDup ls
-          -> forall m1 m2 m1',
-            memoryIn' m ls = join' ls m1 m2
-            -> smem_set' ls p v m1 = Some m1'
-            -> memoryIn' (fun p' => if weq p' p then Some v else m p') ls = join' ls m1' m2.
-          clear; induction 1; simpl; intuition.
-          apply parts in H1; destruct H1.
-          destruct (H.addr_dec x p); subst.
-          destruct (DepList.hlist_hd m1); try discriminate.
-          injection H2; clear H2; intros; subst.
-          simpl.
-          f_equal.
-          unfold H.mem_get, ReadByte; destruct (weq p p); tauto.
-          rewrite (@memoryIn'_agree _ _ m); auto.
-          apply Forall_forall; intros.
-          destruct (weq x p); subst; tauto.
-          specialize (IHNoDup (DepList.hlist_tl m1)).
-          destruct (smem_set' l p v (DepList.hlist_tl m1)); try discriminate.
-          rewrite (IHNoDup _ _ H3 eq_refl); clear IHNoDup.
-          injection H2; clear H2; intros; subst; simpl.
-          f_equal; auto.
-          unfold H.mem_get, ReadByte.
-          destruct (weq x p); intuition.
-        Qed.
-
-        Lemma memoryIn_join : forall m m1 m2 p v m1',
-          memoryIn m = join m1 m2
-          -> smem_set p v m1 = Some m1'
-          -> memoryIn (fun p' => if weq p' p then Some v else m p') = join m1' m2.
-          intros; eapply memoryIn'_join; eauto using H.NoDup_all_addr.
-        Qed.
 
         eauto using memoryIn_join. }
     Qed.
