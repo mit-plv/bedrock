@@ -1,7 +1,7 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
-DECLARE PLUGIN "Bedrock"
+DECLARE PLUGIN "reif"
 
 let debug = false
 
