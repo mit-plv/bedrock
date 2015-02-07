@@ -65,8 +65,8 @@ Definition Lambda_ (vars : list string) (pre : spec) (Body : chunk) : chunk := f
 
 Notation "rv <-- 'Lambda' () [ p ] b 'end'" :=
   (Seq (Lambda_ nil p b) (Assign' rv Rp))
-  (no associativity, at level 95, f at level 0) : SP_scope.
+  (no associativity, at level 95) : SP_scope.
 
 Notation "rv <-- 'Lambda' ( x1 , .. , xN ) [ p ] b 'end'" :=
   (Seq (Lambda_ (cons x1 (.. (cons xN nil) ..)) p b) (Assign' rv Rp))
-  (no associativity, at level 95, f at level 0) : SP_scope.
+  (no associativity, at level 95) : SP_scope.
