@@ -734,10 +734,13 @@ Module Make (SH : SepHeap) (U : SynUnifier).
         eapply implyEach_sem. intros. eapply implyEach_sem in H1; eauto.
 
         clear H1 specs. unfold WellTyped_lemma in *. think. generalize dependent (Hyps lem).
-        induction l; simpl; intros; auto. think. intuition. clear H5 H7.
+        induction l; simpl; intros; auto. think. intuition.
         unfold Provable in *.
         generalize (liftInstantiate_spec U_or_G U G nil (F := env)). simpl. erewrite <- Subst_to_env_typeof_env by eassumption.
-        intro. eapply H5 in H; eauto. rewrite H.
+        intro.
+        match goal with
+          | [ H5 : _, H : _ |- _ ] => eapply H5 in H; eauto; rewrite H
+        end.
         consider (exprD funcs U G (liftInstantiate U_or_G (length U) (length G) 0 sub a) tvProp); try contradiction; intros.
         erewrite exprD_weaken_quant by eauto. auto.
       Qed.

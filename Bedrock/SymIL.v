@@ -616,13 +616,14 @@ Section spec_functions.
     Proof.
       clear.
       unfold Memory.mem_set_word; do 2 intro. destruct (H.footprint_w p).
-      destruct p1. destruct p1. do 2 destruct p0. destruct p1.
       repeat match goal with
+               | [ H : _ -> _ * _ |- _ ] => destruct H
+               | [ H : _ * _ |- _ ] => destruct H
                | [ |- match ?X with _ => _ end = _ -> _ ] => case_eq X; try congruence; intro; intro
-               | [ |- _ -> _ ] => intros
+               | [ |- _ -> _ ] => intro
                | [ H : H.mem_set _ _ _ = Some _ |- _ ] =>
                  eapply mem_set_relevant_memoryIn in H
-             end.
+             end;
       congruence.
     Qed.
 

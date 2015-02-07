@@ -276,7 +276,10 @@ Section Query.
     -> exists v : domain qs, interp specs (k (qspecOut' qs v)).
     induction qs; simpl; propxFo.
     exists tt; auto.
-    apply H0 in H1; destruct H1.
+    match goal with
+      | [ H0 : forall a k, interp _ _ -> _, H1 : interp _ _ |- _ ]
+        => apply H0 in H1; destruct H1 as [x0 ?]
+    end.
     exists (existT _ x x0); eauto.
   Qed.
 
@@ -374,7 +377,7 @@ Section Query.
     -> wleb w1 w2 = true.
     unfold wleb; intros; destruct (weq w1 w2); destruct (wlt_dec w1 w2); auto.
     elimtype False; apply n.
-    assert (wordToNat w1 = wordToNat w2) by nomega.
+    assert (H1 : wordToNat w1 = wordToNat w2) by nomega.
     apply (f_equal (fun w => natToWord 32 w)) in H1.
     repeat rewrite natToWord_wordToNat in H1.
     assumption.
@@ -478,9 +481,16 @@ Section Query.
     -> exists v', interp specs (![qspecOut' (invPre qs (ws ++ ws') wsAll V) v' * fr] (stn, st)).
     induction ws'; simpl; intuition; autorewrite with sepFormula; eauto.
 
-    eapply H0 in H4.
+    match goal with
+      | [ H0 : forall specs stn st V qs ws wsAll this v fr, (satisfies _ _ _ _ -> False) -> _,
+            H4 : satisfies _ _ _ _ -> False |- _ ]
+        => eapply H0 in H4
+    end.
     post.
-    apply IHws' in H2; [ | post; auto | auto ].
+    match goal with
+      | [ H2 : interp _ _ |- _ ]
+        => apply IHws' in H2; [ | post; auto | auto ]
+    end.
     autorewrite with sepFormula in *; eauto.
     autorewrite with sepFormula in *; auto.
     eauto.
@@ -577,7 +587,10 @@ Section Query.
     -> noMatches V ws' (length ws + index)
     -> noMatches V (ws ++ ws') index.
     induction ws; simpl; intuition.
-    replace (S (length ws + index0)) with (length ws + (index0 + 1)) in H1 by omega.
+    match goal with
+      | [ H1 : noMatches _ _ (S (length ?ws + ?index0)) |- _ ]
+        => replace (S (length ws + index0)) with (length ws + (index0 + 1)) in H1 by omega
+    end.
     auto.
   Qed.
 
@@ -640,8 +653,7 @@ Section Query.
       -> ~satisfies V ind val c'
       -> ~satisfies V' ind val c'.
     intuition.
-    apply H2; eapply satisfies_incidentals; [ eauto | | eauto ].
-    intros; symmetry; apply H1; auto.
+    eauto using satisfies_incidentals, eq_sym.
   Qed.
 
   Lemma length_tl : forall A (ls : list A),
@@ -847,7 +859,10 @@ Section Query.
     -> ind < siz
     -> goodSize (length (ls1 ++ ls2))
     -> (S (length ls1) <= length ls1 + length ls2)%nat.
-    intros; subst; autorewrite with sepFormula in *; apply lt_goodSize' in H2; eauto.
+    intros; subst; autorewrite with sepFormula in *.
+    match goal with
+      | [ H : _ |- _ ] => solve [ apply lt_goodSize' in H; eauto ]
+    end.
   Qed.
 
   Hint Extern 1 (S _ <= _)%nat => eapply goodSize_S'; [ eassumption | eassumption | eassumption
