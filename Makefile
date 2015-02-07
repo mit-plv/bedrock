@@ -1,7 +1,11 @@
 STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
+	examples-quick platform-quick cito-quick facade-quick facade-all-quick facade-allv-quick src-quick reification-quick \
+	examples-vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo src-vio2vo reification-vio2vo \
+	examples-checkproofs platform-checkproofs cito-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs src-checkproofs reification-checkproofs \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
+	selective-vio2vo selective-checkproofs \
 	native ltac version dist time
 
 submodule-update: .gitmodules
@@ -80,6 +84,7 @@ REIFICATION_VO := \
 	$(filter Bedrock/reification/%,$(VOFILES)) $(CMOFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES))
 
 examples facade facade-all facade-allv cito platform src: reification
+examples-quick facade-quick facade-all-quick facade-allv-quick cito-quick platform-quick src-quick: reification
 examples: $(EXAMPLES_VO)
 facade: $(FACADE_VO)
 facade-all: $(FACADE_ALL_VO)
@@ -87,6 +92,41 @@ facade-allv: $(FACADE_ALLVO)
 cito: $(CITO_VO)
 platform: $(PLATFORM_VO)
 src: $(SRC_VO)
+examples-quick: $(addsuffix .vio,$(basename $(EXAMPLES_VO)))
+facade-quick: $(addsuffix .vio,$(basename $(FACADE_VO)))
+facade-all-quick: $(addsuffix .vio,$(basename $(FACADE_ALL_VO)))
+facade-allv-quick: $(addsuffix .vio,$(basename $(FACADE_ALLVO)))
+cito-quick: $(addsuffix .vio,$(basename $(CITO_VO)))
+platform-quick: $(addsuffix .vio,$(basename $(PLATFORM_VO)))
+src-quick: $(addsuffix .vio,$(basename $(SRC_VO)))
+
+# Based on http://stackoverflow.com/a/28652045/377022, aggregate .vo
+# files for the -checkproofs and -vio2vo targets
+T :=
+ifneq ($(filter-out examples-vio2vo examples-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(EXAMPLES_VO)
+endif
+ifneq ($(filter-out facade-vio2vo facade-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(FACADE_VO)
+endif
+ifneq ($(filter-out facade-all-vio2vo facade-all-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(FACADE_ALL_VO)
+endif
+ifneq ($(filter-out facade-allv-vio2vo facade-allv-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(FACADE_ALLVO)
+endif
+ifneq ($(filter-out cito-vio2vo cito-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(CITO_VO)
+endif
+ifneq ($(filter-out platform-vio2vo platform-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(PLATFORM_VO)
+endif
+ifneq ($(filter-out src-vio2vo src-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(SRC_VO)
+endif
+
+examples-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo cito-vio2vo platform-vio2vo src-vio2vo: selective-vio2vo
+examples-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs cito-checkproofs platform-checkproofs src-checkproofs: selective-checkproofs
 
 
 install-examples: T = $(EXAMPLES_VO)
@@ -101,6 +141,12 @@ install-src: T = $(SRC_VO)
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(call vo_to_installv,$(T))" install
+
+selective-vio2vo:
+	$(COQC) $(COQDEBUG) $(COQFLAGS) -schedule-vio2vo $(J) $(addsuffix .vio,$(basename $(call vo_closure,$(filter %.vo,$(T)))))
+
+selective-checkproofs:
+	$(COQC) $(COQDEBUG) $(COQFLAGS) -schedule-vio-checking $(J) $(addsuffix .vio,$(basename $(call vo_closure,$(filter %.vo,$(T)))))
 
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
