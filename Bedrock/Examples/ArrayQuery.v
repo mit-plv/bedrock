@@ -638,13 +638,9 @@ Section Query.
     induction c'; simpl; intuition eauto.
     destruct e1; destruct e2; simpl in *; intuition idtac;
       repeat match goal with
-               | [ H : _ |- _ ] => rewrite <- H0 by tauto
+               | [ H : _ |- _ ] => rewrite <- H by tauto
              end; tauto.
-    apply H3.
-    eapply H1.
-    intros.
-    symmetry; apply H2; auto.
-    auto.
+    eauto using eq_sym.
   Qed.
 
   Lemma not_satisfies_incidentals : forall ind val c',
