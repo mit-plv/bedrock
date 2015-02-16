@@ -13,7 +13,6 @@ Require Import Bedrock.ILTacCommon.
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Add ML Path "reification".
 Declare ML Module "extlib".
 Declare ML Module "reif".
 
