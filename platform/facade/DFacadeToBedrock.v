@@ -10,8 +10,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import LinkSpecMake.
   Require Import LinkSpecFacts.
-  Module Import LinkSpecFactsMake := Make E.
-  Import LinkSpecMake.
 
   Require Import Inv.
   Module Import InvMake := Make E.
@@ -329,7 +327,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Huni; eauto.
     Qed.
 
-    Lemma related_add st vs h x v w : related st (vs, h) -> w = vs x -> word_scalar_match (w, v) -> not_in_heap w v h -> not_mapsto_adt x st = true  -> related (add x v st) (vs, store_pair h (w, v)).
+    Lemma related_add st vs h x v w : @related ADTValue st (vs, h) -> w = vs x -> word_scalar_match (w, v) -> not_in_heap w v h -> not_mapsto_adt x st = true  -> related (add x v st) (vs, store_pair h (w, v)).
       intros Hr ? Hmatch Hninw Hninx.
       subst.
       destruct v as [w | a].
@@ -369,7 +367,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       forall values pairs st h vs cst,
         NoDup ks ->
         StringMap.Equal st (make_map ks values) ->
-        WordMap.Equal h (make_heap' pairs) ->
+        WordMap.Equal h (@make_heap' ADTValue pairs) ->
         good_scalars pairs ->
         disjoint_ptrs pairs ->
         List.map fst pairs = List.map vs ks ->
@@ -425,7 +423,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       forall values pairs st h vs cst,
         NoDup ks ->
         StringMap.Equal st (make_map ks values) ->
-        WordMap.Equal h (make_heap pairs) ->
+        WordMap.Equal h (@make_heap ADTValue pairs) ->
         good_scalars pairs ->
         disjoint_ptrs pairs ->
         List.map fst pairs = List.map vs ks ->
@@ -468,7 +466,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       }
       {
-        eapply submap_refl.
+        eapply WordMapFacts.submap_refl.
       }
       {
         eapply make_map_make_heap_related with (ks := argvars); eauto; simpl in *.
@@ -490,7 +488,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     (* a special version of make_map_related_make_heap *)
     Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs : 
       StringMapFacts.Submap (add k v empty) st ->
-      (forall k', k' <> k -> not_mapsto_adt k' st = true ) ->
+      (forall k', k' <> k -> @not_mapsto_adt ADTValue k' st = true ) ->
       CompileRunsTo.related st cst ->
       w = vs k ->
       vs = fst cst ->

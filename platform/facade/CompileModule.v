@@ -34,6 +34,8 @@ Section ADTValue.
 
   Hypothesis good_name : is_good_module_name name = true.
 
+  Require Import CModuleFacts.
+
   Definition compile_to_gmodule : GoodModule.GoodModule := cmodule_to_gmodule name good_name compile_to_cmodule.
 
 End ADTValue.
