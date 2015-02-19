@@ -6,7 +6,9 @@ Local Open Scope string_scope.
 
 (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
 Notation export_module_name := "export".
-Notation extra_stack := 200.
+(* Be careful about extra_stack! Setting it too large (e.g. 200) will greatly slow compilation, while setting it too small (e.g. 10) will cause run-time stack overflow *)
+(* Notation extra_stack := 200. *)
+Notation extra_stack := 10.
 
 Require Import ADT RepInv.
 Module Make (Import E : ADT) (Import M : RepInv E).
