@@ -555,6 +555,7 @@ Section module.
     generalize e; intro e'.
     eapply LabelMap.add_1 in e'.
 
+
     hnf in e.
     rewrite <- e in *.
     eapply MapsTo_func in e'.
@@ -691,7 +692,8 @@ Section module.
 
     apply MapsTo_fullImports in H9; intuition.
     assert (~LabelMap.In l (blocks functions 1)).
-    generalize NoSelfImport H11; clear.
+    pose proof importsNotThis' as importsNotThis'.
+    generalize NoSelfImport H11; clear -importsNotThis'.
     generalize false at 2.
     generalize 1.
     induction functions as [ | [ [ ] ] ]; simpl; intuition.

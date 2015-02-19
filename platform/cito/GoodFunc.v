@@ -81,7 +81,8 @@ Section TopSection.
     eapply StringSet.StringFacts.diff_iff in H4.
     openhyp.
     contradict H5.
-    eapply SF1.of_list_spec; eauto.
+    Require Import StringSetFacts.
+    eapply of_list_spec; eauto.
   Qed.
 
 End TopSection.

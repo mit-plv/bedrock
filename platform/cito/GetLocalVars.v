@@ -3,11 +3,7 @@ Set Implicit Arguments.
 Require Import FreeVars.
 Require Import StringSet.
 Import StringSet.
-Require Import Equalities.
-Module SK_as_UDT := Make_UDT StringKey.
-Require Import FSetFacts1.
-Module Import SF1 := UWFacts_fun SK_as_UDT StringSet.
-Import P FM.
+Require Import StringSetFacts.
 
 Definition get_local_vars stmt arg_vars ret_var :=
   elements (diff (add ret_var (free_vars stmt)) (of_list arg_vars)).

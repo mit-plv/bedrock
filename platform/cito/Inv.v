@@ -22,25 +22,12 @@ Module Make (Import E : ADT).
   Require Import Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
-  Fixpoint make_triples pairs (outs : list ArgOut) :=
-    match pairs, outs with
-      | p :: ps, o :: os => {| Word := fst p; ADTIn := snd p; ADTOut := o |} :: make_triples ps os
-      | _, _ => nil
-    end.
-
-  Definition store_pair heap (p : W * ArgIn) :=
-    match snd p with
-      | inl _ => heap
-      | inr a => heap_upd heap (fst p) a
-    end.
-
-  Definition make_heap pairs := fold_left store_pair pairs heap_empty.
-
   Require Import RepInv.
 
   Module Make (Import R : RepInv E).
 
     Require Import Bags.
+    Require Import SemanticsUtil.
 
     Definition is_heap (h : Heap) : HProp := starL (fun p => rep_inv (fst p) (snd p)) (heap_elements h).
 
@@ -63,16 +50,6 @@ Module Make (Import E : ADT).
           | None  => ([| True |])%Sep
           | Some a => rep_inv addr a
         end.
-
-      Definition word_scalar_match (p : W * ArgIn) :=
-        let word := fst p in
-        let in_ := snd p in
-        match in_ with
-          | inl w => word = w
-          | _ => True
-        end.
-
-      Definition good_scalars pairs := List.Forall word_scalar_match pairs.
 
       Open Scope type.
 

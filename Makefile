@@ -1,25 +1,25 @@
 MODULE:=Bedrock
 
-.PHONY: all clean dist native ltac version
+.PHONY: default examples platform cito facade facade_all src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples
 
-all:
-	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
-	$(MAKE) -C src/reification
-	$(MAKE) -C src
+default: examples
+
+# BEWARE: This will probably take a long time (and may require up to 11GB of memory)!
+examples: src
 	$(MAKE) -C examples
 
-cito:
-	# BEWARE: This will probably take a long time (and may require up to 4GB of memory)!
+platform cito facade facade_all: src
+	$(MAKE) -C platform $@
+
+src:
 	$(MAKE) -C src/reification
 	$(MAKE) -C src
-	$(MAKE) -C platform -f Makefile.cito
 
 clean:
 	$(MAKE) -C src/reification clean
 	$(MAKE) -C src clean
 	$(MAKE) -C examples clean
 	$(MAKE) -C platform clean
-	$(MAKE) -C platform clean -f Makefile.cito
 
 native:
 	$(MAKE) -C src native
@@ -33,6 +33,30 @@ version:
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
+install-src:
+	$(MAKE) -C src/reification install
+	$(MAKE) -C src install
+
+install-platform:
+	$(MAKE) -C platform install-platform
+
+install-facade:
+	$(MAKE) -C platform install-facade
+
+install-facade-all:
+	$(MAKE) -C platform install-facade-all
+
+install-facade-allv:
+	$(MAKE) -C platform install-facade-allv
+
+install-cito:
+	$(MAKE) -C platform install-cito
+
+install-examples:
+	$(MAKE) -C examples install
+
+install: install-src install-platform install-facade install-cito install-facade-all install-facade-allv install-examples
+
 .dir-locals.el: tools/dir-locals.el Makefile
 	@ sed s,PWD,$(shell pwd -P),g tools/dir-locals.el | sed s,MOD,$(MODULE),g > .dir-locals.el
 
@@ -40,6 +64,6 @@ time:
 	@ rm -rf timing
 	@ ./tools/timer.py timing/ src/*.v examples/*.v src/*/*.v
 	@ cp Makefile timing/Makefile
-	@ cp -r src/Makefile src/Makefile.coq src/reification/ timing/src 
+	@ cp -r src/Makefile src/Makefile.coq src/reification/ timing/src
 	@ cp examples/Makefile examples/Makefile.coq timing/examples
 	@ (cd timing; $(MAKE) all)

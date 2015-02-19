@@ -53,7 +53,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Proof.
 
       Require Import SynReqFacts.
-      Require Import ListFactsNew.
+      Require Import ListFacts5.
       Require Import StringSet.
       Import StringSet.
       Require Import StringSetTactics.

@@ -1,90 +1,230 @@
 Set Implicit Arguments.
 
-Require Import ADT.
+Section ADTValue.
 
-Module Make (Import E : ADT).
-
-  Require Import AutoSep.
+  Variable ADTValue : Type.
 
   Require Import Semantics.
-  Module Import SemanticsMake := Make E.
 
-  Section TopSection.
+  Notation Value := (@Value ADTValue).
 
-    Require Import Syntax.
-    Require Import SemanticsExpr.
-    Require Import WordMap.
-    Infix "==" := WordMap.Equal.
+  Arguments SCA {_} _.
 
-    Definition TransitTo spec args heap r heap' :=
-      exists triples addr ret,
-        args = List.map (@Word _) triples /\
-        good_inputs heap (List.map (fun x => (Word x, ADTIn x)) triples) /\
-        PreCond spec (List.map (@ADTIn _) triples) /\
-        PostCond spec (List.map (fun x => (ADTIn x, ADTOut x)) triples) ret /\
-        let heap := fold_left store_out triples heap in
-        let t := decide_ret addr ret in
-        let ret_w := fst t in
-        let ret_a := snd t in
-        separated heap ret_w ret_a /\
-        heap' == heap_upd_option heap ret_w ret_a /\
-        r = ret_w.
+  Require Import SemanticsExpr.
+  Require Import List.
+  Require Import WordMap.
+  Import WordMap.
+  Require Import WordMapFacts.
+  Import FMapNotations.
+  Open Scope fmap_scope.
+  Require Import SemanticsUtil.
 
-    Definition match_ret vs rvar rvalue :=
-      match rvar with
-        | Some x => rvalue = sel vs x
-        | None => True
-      end.
+  Definition combine_ret w o : Value := 
+    match o with
+      | Some a => ADT a
+      | None => SCA w
+    end.
 
-    Require Import GeneralTactics GeneralTactics2 GeneralTactics3 BedrockTactics.
+  Arguments store_out {_} _ _.
 
-    Lemma RunsTo_TransitTo : forall r f args env spec v v', let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call r f args) v v' -> exists ret, TransitTo spec (List.map (eval (fst v)) args) (snd v) ret (snd v') /\ match_ret (fst v') r ret.
-      simpl.
-      intros.
-      inv_clear H0.
-      rewrite H4 in H; discriminate.
-      rewrite H4 in H; injection H; intros; subst.
-      descend.
+  Definition TransitTo spec words inputs outputs ret_w ret_a (heap heap' : Heap ADTValue) :=
+    let ret := combine_ret ret_w ret_a in
+    let words_inputs := List.combine words inputs in
+    length inputs = length words /\
+    length outputs = length words /\
+    good_inputs heap words_inputs /\
+    PreCond spec inputs /\
+    PostCond spec (combine inputs outputs) ret /\
+    let heap := fold_left store_out (make_triples words_inputs outputs) heap in
+    separated heap ret_w ret_a /\
+    heap' == heap_upd_option heap ret_w ret_a.
+
+  Definition TransitSafe spec words inputs (heap : Heap ADTValue) :=
+    let words_inputs := List.combine words inputs in
+    length inputs = length words /\
+    good_inputs heap words_inputs /\
+    PreCond spec inputs.
+
+  Require Import BedrockTactics.
+  Require Import GeneralTactics GeneralTactics2 GeneralTactics3.
+
+  Definition match_ret vs (lhs : option string) (ret_w : W) :=
+    match lhs with 
+      | Some x => ret_w = vs x 
+      | None => True
+    end.
+
+  Require Import ListFacts5.
+  Require Import ListFacts4.
+
+  Lemma RunsTo_TransitTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call lhs f args) v v' -> exists inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') /\ match_ret (fst v') lhs ret_w.
+  Proof.
+    simpl.
+    intros.
+    inv_clear H0.
+    rewrite H4 in H; discriminate.
+    rewrite H4 in H; injection H; intros; subst.
+    Arguments ADTIn {_} _.
+    Arguments ADTOut {_} _.
+    set (inputs := List.map ADTIn triples) in *.
+    set (outputs := List.map ADTOut triples) in *.
+    set (ret_w := fst (decide_ret _ _)) in *.
+    set (ret_a := snd (decide_ret _ _)) in *.
+    exists inputs, outputs, ret_w, ret_a.
+    descend.
+    {
       unfold TransitTo.
-      descend; eauto.
-      unfold match_ret.
-      destruct r; simpl in *.
+      descend; trivial.
+      {
+        unfold_all.
+        repeat rewrite map_length.
+        eapply map_eq_length_eq in H5.
+        eauto.
+      }
+      {
+        unfold_all.
+        repeat rewrite map_length.
+        eapply map_eq_length_eq in H5.
+        eauto.
+      }
+      {
+        unfold_all.
+        rewrite H5.
+        rewrite combine_map.
+        eauto.
+      }
+      {
+        unfold_all.
+        rewrite combine_map.
+        Lemma combine_ret_decide_ret addr ret : combine_ret (fst (decide_ret addr ret)) (snd (decide_ret addr ret)) = ret.
+        Proof.
+          destruct ret; simpl; eauto.
+        Qed.
+        rewrite combine_ret_decide_ret.
+        eauto.
+      }
+      {
+        unfold_all.
+        rewrite H5.
+        rewrite combine_map.
+        Require Import SemanticsFacts7.
+        erewrite <- split_triples; eauto.
+      }
+      {
+        unfold_all.
+        rewrite H5.
+        rewrite combine_map.
+        erewrite <- split_triples; eauto.
+      }
+    }
+    unfold match_ret.
+    destruct lhs; simpl in *.
+    {
       sel_upd_simpl; eauto.
+    }
+    eauto.
+  Qed.
+
+  Require Import List.
+
+  Lemma TransitTo_RunsTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') -> fst v' = upd_option (fst v) lhs ret_w -> RunsTo env (Syntax.Call lhs f args) v v'.
+  Proof.
+    simpl.
+    intros.
+    destruct v; destruct v'; simpl in *.
+    unfold TransitTo in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    Lemma fst_decide_ret_combine_ret ret_w ret_a : fst (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_w.
+    Proof.
+      destruct ret_a; simpl; eauto.
+    Qed.
+    Lemma snd_decide_ret_combine_ret ret_w ret_a : snd (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_a.
+    Proof.
+      destruct ret_a; simpl; eauto.
+    Qed.
+    rewrite <- (fst_decide_ret_combine_ret ret_w ret_a).
+    set (words_inputs := List.combine (List.map (eval w) args) inputs) in *.
+    set (triples := make_triples words_inputs outputs) in *.
+    repeat rewrite map_length in *.
+    eapply RunsToCallForeign; simpl; eauto.
+    {
+      instantiate (1 := triples).
+      unfold_all.
+      Require Import SemanticsFacts6.
+      rewrite make_triples_Word by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
+      rewrite map_fst_combine by (repeat rewrite map_length; eauto).
       eauto.
-    Qed.
+    }
+    {
+      unfold_all.
+      rewrite make_triples_Word_ADTIn by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
+      eauto.
+    }
+    {
+      unfold_all.
+      rewrite make_triples_ADTIn by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
+      rewrite map_snd_combine by (repeat rewrite map_length; eauto).
+      eauto.
+    }
+    {
+      unfold_all.
+      erewrite <- combine_map.
+      rewrite make_triples_ADTIn by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
+      rewrite make_triples_ADTOut by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
+      rewrite map_snd_combine by (repeat rewrite map_length; eauto).
+      eauto.
+    }
+    {
+      rewrite fst_decide_ret_combine_ret.
+      rewrite snd_decide_ret_combine_ret.
+      eauto.
+    }
+    {
+      rewrite fst_decide_ret_combine_ret.
+      rewrite snd_decide_ret_combine_ret.
+      eauto.
+    }
+  Qed.
 
-    Lemma TransitTo_RunsTo : forall r f args env spec v v', let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall ret, TransitTo spec (List.map (eval (fst v)) args) (snd v) ret (snd v') -> fst v' = upd_option (fst v) r ret -> RunsTo env (Syntax.Call r f args) v v'.
-      simpl.
-      intros.
-      destruct v; destruct v'; simpl in *.
-      unfold TransitTo in *; simpl in *.
-      openhyp.
-      subst; simpl in *.
-      eapply RunsToCallForeign; eauto.
-    Qed.
+  Lemma Safe_TransitSafe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall lhs, Safe env (Syntax.Call lhs f args) v -> exists inputs, TransitSafe spec (List.map (eval (fst v)) args) inputs (snd v).
+  Proof.
+    simpl; intros.
+    inv_clear H0.
+    rewrite H in H4; discriminate.
+    rewrite H in H4; injection H4; intros; subst.
+    unfold TransitSafe in *.
+    destruct v as [vs h]; simpl in *.
+    set (inputs := List.map snd _) in *.
+    exists inputs.
+    descend; eauto.
+    {
+      unfold_all.
+      repeat rewrite map_length.
+      eapply map_eq_length_eq.
+      eauto.
+    }
+    unfold_all.
+    rewrite H5.
+    rewrite combine_map.
+    setoid_rewrite <- surjective_pairing.
+    rewrite map_id.
+    eauto.
+  Qed.
 
-    Definition TransitSafe spec args heap :=
-      exists pairs,
-        args = List.map fst pairs /\
-        good_inputs heap pairs /\
-        PreCond spec (List.map snd pairs).
+  Lemma TransitSafe_Safe f args env spec v : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall inputs, TransitSafe spec (List.map (eval (fst v)) args) inputs (snd v) -> forall lhs, Safe env (Syntax.Call lhs f args) v.
+    simpl; intros.
+    unfold TransitSafe in *.
+    openhyp.
+    destruct v as [vs h]; simpl in *.
+    repeat rewrite map_length in *.
+    eapply SafeCallForeign; simpl; eauto.
+    {
+      rewrite map_fst_combine by (repeat rewrite map_length; eauto).
+      eauto.
+    }        
+    rewrite map_snd_combine by (repeat rewrite map_length; eauto).
+    eauto.
+  Qed.
 
-    Lemma TransitSafe_Safe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> TransitSafe spec (List.map (eval (fst v)) args) (snd v) -> forall r, Safe env (Syntax.Call r f args) v.
-      simpl; intros.
-      unfold TransitSafe in *.
-      openhyp.
-      eapply SafeCallForeign; simpl; eauto.
-    Qed.
-
-    Lemma Safe_TransitSafe : forall f args env spec v, let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall r, Safe env (Syntax.Call r f args) v -> TransitSafe spec (List.map (eval (fst v)) args) (snd v).
-      simpl; intros.
-      inv_clear H0.
-      rewrite H in H4; discriminate.
-      rewrite H in H4; injection H4; intros; subst.
-      unfold TransitSafe in *.
-      descend; eauto.
-    Qed.
-
-  End TopSection.
-
-End Make.
+End ADTValue.

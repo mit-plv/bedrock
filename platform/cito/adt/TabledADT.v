@@ -31,11 +31,20 @@ Definition product_adt (a b : ADTEntry) : ADTEntry.
   refine (
       {|
         Model := (Model a * Model b)%type;
-        RepInv := _;
+        RepInv := fun p adt => (Ex x, Ex y, (p ==*> x, y) * RepInv a x (fst adt) * RepInv b y (snd adt))%Sep;
         RepInvGood := _
       |}).
-  Admitted.
-
+  
+  intros.
+  destruct a0; simpl in *.
+  unfold any.
+  sepLemma.
+  unfold himp.
+  intros.
+  step auto_ext.
+  eauto.
+Defined.
+  
 Section TableSection.
 
   Variable primitive_table : PrimitiveTable.

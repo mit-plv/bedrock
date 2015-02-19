@@ -167,6 +167,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
 
+  Require Import SemanticsUtil.
+
   Opaque mult.
 
   Theorem is_state_out'' : forall sp rp args pairs vs e_stack e_stack',
@@ -191,6 +193,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
       apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
     simpl.
+    unfold SemanticsMake.ArgIn.
     generalize (List.map fst pairs); intro.
     unfold array at 1; simpl.
     sepLemma.
@@ -221,7 +224,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     * [| sel vs' "extra_stack" = e_stack|]
     * mallocHeap 0 * F.
     intros.
-    change heap_empty with (make_heap nil).
+    change heap_empty with (@make_heap ADTValue nil).
     change (@nil W) with (List.map (@fst W ArgIn) nil).
     eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out'' | ]; eauto.
     instantiate (1 := 0); simpl; tauto.
@@ -301,7 +304,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     2 : eapply is_state_out''; eauto.
     2 : eapply toArray_map_length; eauto.
     change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
-    change LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.make_heap with make_heap.
     unfold is_state, locals, Inv.has_extra_stack; simpl.
     rewrite H2.
     rewrite mult_0_r.
@@ -318,7 +320,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eauto.
   Qed.
 
-  Lemma make_heap_heap_empty : forall ls, make_heap (List.map (fun w : W => (w, inl w)) ls) = heap_empty.
+  Lemma make_heap_heap_empty : forall ls, make_heap (List.map (fun w : W => (w, SCA _ w)) ls) = heap_empty.
     induction ls; simpl; intuition.
   Qed.
 
@@ -336,13 +338,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                                                                                                   * [| sel vs' "extra_stack" = e_stack|]
                                                                                                   * mallocHeap 0 * F.
     intros.
-    assert (make_heap (List.map (fun w => (w, inl w)) (toArray args vs)) = heap_empty).
+    assert (make_heap (List.map (fun w => (w, SCA ADTValue w)) (toArray args vs)) = heap_empty).
     eapply make_heap_heap_empty.
     rewrite <- H2.
     eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out''' | ]; eauto.
     rewrite map_map; simpl.
     symmetry; eapply map_id.
-    repeat rewrite H2.
+    rewrite H2.
     set (_ :: _ :: _).
     set (List.map _ _).
     clear_all.
@@ -421,14 +423,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import GLabelMap.
 
-  Definition link_with_adts modules imports := result modules imports opt_good.
+  Definition compile_to_bedrock modules imports := result modules imports opt_good.
 
   Require Import LinkFacts.
   Module Import LinkFactsMake := Make E.
 
   Ltac impl_ok :=
     match goal with
-      | |- moduleOk (link_with_adts ?Modules ?Imports ) =>
+      | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
         let H := fresh in
         assert (GoodToLink_bool Modules Imports = true);
           [ unfold GoodToLink_bool; simpl |

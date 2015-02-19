@@ -39,7 +39,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
     Require Import SynReqFacts.
-    Require Import ListFactsNew.
+    Require Import ListFacts5.
     Require Import StringSet.
     Import StringSet.
     Require Import StringSetTactics.

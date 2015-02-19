@@ -15,6 +15,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import StubsMake StubMake ConvertLabelMap GoodModule GoodOptimizer.
   Import LinkSpecMake LinkSpecMake2.
+  Require Import SemanticsUtil.
 
   Definition wrapper_module mname impls (fs : list (string * ForeignFuncSpec * nat * label)) :=
     StructuredModule.bmodule_ impls
@@ -127,6 +128,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
       apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
     simpl.
+    unfold ArgIn.
     generalize (map fst pairs); intro.
     unfold array at 1; simpl.
     apply pure_extend with (goodSize e_stack).
@@ -293,12 +295,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Lemma store_pair_inl_fwd : forall h w v,
-    is_heap (store_pair h (w, inl v)) ===> is_heap h.
+    is_heap (store_pair h (w, SCA _ v)) ===> is_heap h.
     intros; apply Himp_refl.
   Qed.
 
   Lemma store_pair_inl_bwd : forall h w v,
-    is_heap h ===> is_heap (store_pair h (w, inl v)).
+    is_heap h ===> is_heap (store_pair h (w, SCA _ v)).
     intros; apply Himp_refl.
   Qed.
 
@@ -309,11 +311,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Lemma store_pair_inr_fwd : forall h w v,
     ~WordMap.In w h
-    -> is_heap (store_pair h (w, inr v)) ===> rep_inv w v * is_heap h.
+    -> is_heap (store_pair h (w, ADT v)) ===> rep_inv w v * is_heap h.
     unfold store_pair; simpl.
     intros.
     unfold is_heap at 1.
     assert (In (w, v) (heap_elements (heap_upd h w v))).
+    Require Import SemanticsFacts5.
     apply InA_In.
     apply WordMap.elements_1.
     apply Properties.F.add_mapsto_iff; auto.
@@ -352,7 +355,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Lemma store_pair_inr_bwd : forall h w v,
     ~WordMap.In w h
-    -> rep_inv w v * is_heap h ===> is_heap (store_pair h (w, inr v)).
+    -> rep_inv w v * is_heap h ===> is_heap (store_pair h (w, ADT v)).
     unfold store_pair; simpl.
     intros.
     unfold is_heap at 2.
@@ -513,14 +516,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     match goal with
       | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
         let w := fresh "w" in evar (w : W); let w' := eval unfold w in w in clear w;
-          equate X (Regs a b); equate Y (@inl _ ADTValue w'); reflexivity
+          equate X (Regs a b); equate Y (@SCA ADTValue w'); reflexivity
     end.
 
   Ltac returnAdt1 :=
     match goal with
       | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
         let a := fresh "a" in evar (a : ADTValue); let a' := eval unfold a in a in clear a;
-          equate X (Regs a b); equate Y (@inr W _ a'); reflexivity
+          equate X (Regs a b); equate Y (ADT a'); reflexivity
     end.
 
   Ltac returnSomething := intuition; (cbv beta; simpl;

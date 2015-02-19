@@ -49,7 +49,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import SemanticsFacts.
     Require Import SynReqFacts.
-    Require Import ListFactsNew.
+    Require Import ListFacts5.
     Require Import StringSet.
     Import StringSet.
     Require Import StringSetTactics.
@@ -764,14 +764,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_split_heap).
       unfold Semantics.good_inputs in *; openhyp; eauto.
       unfold Semantics.good_inputs in *; openhyp.
-      Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall word_scalar_match pairs.
+      Require Import SemanticsUtil.
+      Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
         intros.
         eapply Forall_weaken.
         2 : eassumption.
         intros.
         destruct x.
         unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
-        destruct a; simpl in *; intuition.
+        destruct v; simpl in *; intuition.
       Qed.
       eapply forall_word_adt_match_good_scalars; eauto.
       eauto.
@@ -779,9 +780,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       (* post call *)
       eapply existsR.
-      change U.InvMake2.is_heap with is_heap in *.
-      change U.InvMake.SemanticsMake.heap_diff with heap_diff in *.
-      change U.InvMake.make_heap with make_heap in *.
+      change LayoutHints2Make.InvMake2.is_heap with is_heap in *.
+      change LayoutHints2Make.InvMake.SemanticsMake.heap_diff with heap_diff in *.
       change CompileStmtImplMake.InvMake2.funcs_ok with funcs_ok in *.
       change CompileStmtImplMake.InvMake.SemanticsMake.Heap with Heap in *.
       change CompileStmtImplMake.InvMake2.is_state with is_state in *.
@@ -843,6 +843,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : map _ _ = map _ _ |- _ => generalize H; eapply map_eq_length_eq in H; intro
       end.
+      Require Import SemanticsFacts6.
       rewrite make_triples_length in * by eauto.
       assert (length x15 = length l) by (rewriter; eauto).
       repeat match goal with
@@ -852,7 +853,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       clear_all.
       intros.
       set (fold_left _ _ _) in *.
-      set (U.Sem.heap_diff _ _) in *.
+      set (heap_diff _ _) in *.
       hiding ltac:(step auto_ext).
       assert (to_elim x15) by (unfold to_elim; eauto).
       hiding ltac:(step hints_array_elim).
@@ -885,6 +886,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H
       end.
+      Require Import SemanticsFacts5.
       eapply Safe_Equal; eauto.
       auto_apply.
       econstructor; simpl in *.

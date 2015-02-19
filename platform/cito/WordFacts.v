@@ -1,5 +1,3 @@
-Require Import Omega.
-Require Import AutoSep.
 Require Import Arith.
 
 Set Implicit Arguments.
@@ -18,9 +16,15 @@ Lemma fold_4_mult_1 : 4 * 1 = 4.
   eauto.
 Qed.
 
+Require Import Word.
+Require Import IL.
+Require Import Memory.
+
 Lemma wplus_0 : forall w : W, w ^+ $0 = w.
   intros; rewrite wplus_comm; eapply wplus_unit.
 Qed.
+
+Require Import SepIL.
 
 Ltac rewrite_natToW_plus :=
   repeat match goal with
@@ -29,10 +33,10 @@ Ltac rewrite_natToW_plus :=
          end.
 
 Lemma wplus_wminus : forall (a b : W), a ^+ b ^- b = a.
-  intros; words.
+  intros; W_eq.
 Qed.
 
-Lemma wordToNat_natToW_le : forall n, wordToNat (natToW n) <= n.
+Lemma wordToNat_natToW_le : forall n, (wordToNat (natToW n) <= n)%nat.
   unfold natToW; intros.
   edestruct wordToNat_natToWord as [ ? [ ] ].
   rewrite H.
@@ -40,7 +44,9 @@ Lemma wordToNat_natToW_le : forall n, wordToNat (natToW n) <= n.
   omega.
 Qed.
 
-Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> a <= b.
+Require Import Arrays.
+
+Lemma wle_goodSize_le : forall a b, (natToW a <= natToW b)%word -> goodSize a -> (a <= b)%nat.
   intros; eapply le_wordToN in H; eauto; eapply le_trans; eauto; eapply wordToNat_natToW_le.
 Qed.
 

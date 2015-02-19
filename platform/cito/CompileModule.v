@@ -16,7 +16,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import List.
   Require Import GoodModule.
   Require Import StructuredModule.
-  Require Import NameDecoration.
+  Require Import Cito.NameDecoration.
   Require Import GoodFunction.
   Require Import Structured.
   Require Import Wrap.

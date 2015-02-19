@@ -23,15 +23,15 @@ Module Make (Import E : ADT).
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
     Require Import ListFacts3.
-    Require Import GoodModuleFacts.
+    Require Import Cito.NameDecoration.
 
     Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) :=
       let imported_module_names := List.map fst2 (elements imports) in
       let module_names := List.map Name modules in
       ! sumbool_to_bool (zerop (length modules)) &&
-        NoDup_bool string_bool module_names &&
+        is_no_dup module_names &&
         forallb (fun s => ! sumbool_to_bool (in_dec string_dec s module_names)) imported_module_names &&
-        forallb GoodModuleName_bool imported_module_names.
+        forallb is_good_module_name imported_module_names.
 
     Require Import GeneralTactics.
     Require Import ListFacts1.
@@ -55,7 +55,7 @@ Module Make (Import E : ADT).
       destruct (zerop _); intuition.
       subst; simpl in *; intuition.
       split.
-      eapply NoDup_bool_string_eq_sound; eauto.
+      eapply is_no_dup_sound; eauto.
       split.
       unfold ListFacts1.Disjoint; intuition.
       eapply forallb_forall in H1; eauto.
@@ -64,7 +64,6 @@ Module Make (Import E : ADT).
       destruct (in_dec _ _ _); intuition.
       intros.
       eapply forallb_forall in H0; eauto.
-      eapply GoodModuleName_bool_sound; eauto.
       rewrite <- map_map.
       eapply in_map.
       Require Import GLabelMapFacts.

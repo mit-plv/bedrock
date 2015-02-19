@@ -6,8 +6,11 @@ Require Import RepInv WordMap.
 Module Make (Import E : ADT) (Import M : RepInv E).
 
   Require Import Inv.
-  Module Import U := LayoutHintsUtil.Make E M.
-  Import InvMake InvMake2 Sem.
+  Module Import InvMake := Inv.Make E.
+  Module Import InvMake2 := InvMake.Make M.
+  Import SemanticsMake.
+  Require Import SemanticsFacts5.
+  Require Import SemanticsUtil.
 
   Section TopSection.
 
@@ -32,13 +35,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply InA_In.
       apply WordMap.elements_1.
       apply WordMap.elements_2 in H0.
-      apply Properties.diff_mapsto_iff.
+      Require Import WordMapFacts.
+      apply diff_mapsto_iff.
       intuition.
       destruct H1.
       eapply WordMap.empty_1; eauto.
       apply In_InA' in H0.
       apply WordMap.elements_2 in H0.
-      apply Properties.diff_mapsto_iff in H0.
+      apply diff_mapsto_iff in H0.
       intuition.
       apply InA_In.
       apply WordMap.elements_1; auto.
@@ -52,14 +56,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite H in *; subst.
       unfold make_heap; simpl.
       unfold store_pair at 2 4.
-      unfold ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn.
+      unfold ArgIn, SemanticsMake.ArgIn.
       unfold WordMap.key in H.
       rewrite H.
       apply IHpairs.
       split; auto.
       hnf.
       simpl in H0.
-      unfold ArgIn, Semantics.ArgIn in H0.
+      unfold ArgIn, SemanticsMake.ArgIn in H0.
       rewrite H in H0.
       auto.
 
@@ -77,33 +81,34 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold make_heap; simpl.
 
       apply InA_In.
-      apply Properties.F.elements_mapsto_iff.
+      apply elements_mapsto_iff.
       simpl in H0.
-      unfold Semantics.is_adt in H0.
-      unfold WordMap.key, Semantics.ArgIn in *.
+      unfold is_adt in H0.
+      unfold WordMap.key, SemanticsMake.ArgIn in *.
       rewrite H in *; simpl in *.
       inversion_clear H0.
       apply preserve_store; auto.
       apply Forall_forall; intros.
       case_eq (snd x0); intuition idtac.
       unfold store_pair in H8.
-      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn in *.
+      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn in *.
       rewrite H in H8.
       unfold heap_upd in H8.
-      eapply Properties.F.add_in_iff in H8; intuition idtac.
+      eapply add_in_iff in H8; intuition idtac.
       2: destruct H9; eapply WordMap.empty_1; eauto.
       destruct a; simpl in *; subst.
       destruct x0; simpl in *; subst.
 
       eauto using keep_key.
       unfold store_pair.
-      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn, Semantics.ArgIn in *.
+      unfold WordMap.key, ArgIn, SemanticsMake.ArgIn in *.
       rewrite H.
       unfold heap_upd.
       apply WordMap.add_1; auto.
 
       simpl in *.
       destruct a; simpl in *; subst; simpl in *.
+      rename w into k.
       inversion_clear H0.
       eapply Himp_trans; [ | apply Himp_star_frame; [ apply starL_permute | apply Himp_refl ] ].
       instantiate (1 := (k, a0) :: heap_elements (make_heap pairs)).
@@ -116,7 +121,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       apply store_keys in H0; intuition idtac.
       apply H.
-      change k with (fst (k, @inr W _ a0)).
+      change k with (fst (k, AxSpec.ADT a0)).
       apply in_map; apply filter_In; tauto.
       eapply WordMap.empty_1; eauto.
       apply NoDupA_NoDup; apply WordMap.elements_3w.
@@ -150,7 +155,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply WordMap.elements_1.
       apply store_keys'; auto.
       unfold store_pair in H7; simpl in H7.
-      apply Properties.F.add_mapsto_iff in H7; intuition subst.
+      apply add_mapsto_iff in H7; intuition subst.
       auto.
       exfalso; eapply WordMap.empty_1; eauto.
 
@@ -165,7 +170,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply InA_In.
       destruct x0.
       apply WordMap.elements_1.
-      apply Properties.F.remove_mapsto_iff.
+      apply remove_mapsto_iff.
       apply H6 in H0.
       destruct H0; split; auto.
       2: apply WordMap.elements_2; apply In_InA'; auto.
@@ -174,7 +179,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       congruence.
       apply In_InA' in H0.
       destruct x0; apply WordMap.elements_2 in H0.
-      apply Properties.F.remove_mapsto_iff in H0.
+      apply remove_mapsto_iff in H0.
       apply H6; intuition (try congruence).
       apply InA_In; apply WordMap.elements_1; auto.
 
@@ -184,13 +189,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Forall_forall in H2; [ | apply H0 ].
       hnf in H2; hnf.
       destruct x0; simpl in *.
-      destruct s; auto.
+      rename w into k0.
+      destruct v; auto.
       apply WordMap.find_1.
-      apply Properties.F.remove_mapsto_iff.
+      apply remove_mapsto_iff.
       apply WordMap.find_2 in H2.
       intuition subst.
       apply H.
-      change k0 with (@fst W (Semantics.ArgIn ADTValue) (k0, inr a)).
+      change k0 with (fst (k0, AxSpec.ADT a)).
       apply in_map.
       apply filter_In; auto.
 
@@ -198,9 +204,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply starL_permute; try (apply NoDupA_NoDup; apply WordMap.elements_3w); intros.
       intuition; apply InA_In; apply WordMap.elements_1;
         apply In_InA' in H0; apply WordMap.elements_2 in H0;
-          apply Properties.diff_mapsto_iff; apply Properties.diff_mapsto_iff in H0; intuition idtac.
-      apply Properties.F.remove_mapsto_iff in H7; tauto.
-      apply Properties.F.remove_mapsto_iff in H7; intuition subst.
+          apply diff_mapsto_iff; apply diff_mapsto_iff in H0; intuition idtac.
+      apply remove_mapsto_iff in H7; tauto.
+      apply remove_mapsto_iff in H7; intuition subst.
       destruct H0.
       eapply store_keys in H0; intuition idtac.
       simpl in *; intuition (try congruence).
@@ -208,7 +214,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eexists.
       eapply store_keys'; eauto.
       exfalso; eapply WordMap.empty_1; eauto.
-      apply Properties.F.remove_mapsto_iff; intuition subst.
+      apply remove_mapsto_iff; intuition subst.
       apply H8.
       eexists; eapply store_keys'; eauto.
       simpl; eauto.

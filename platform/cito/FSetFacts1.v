@@ -11,8 +11,14 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Module FSetNotations.
     Infix "+" := union : fset_scope.
+    Infix "-" := diff : fset_scope.
+    Infix "*" := inter : fset_scope.
     Infix "<=" := Subset : fset_scope.
     Delimit Scope fset_scope with fset.
+    Module FSetNotationsTrial.
+      Notation " [ ] " := empty : fset_scope.
+      Notation "m %- k" := (remove k m) (at level 60) : fset_scope.
+    End FSetNotationsTrial.
   End FSetNotations.
 
   Definition Disjoint a b := forall x, ~ (In x a /\ In x b).
@@ -118,6 +124,96 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Lemma Equal_Subset_iff : forall s1 s2, Equal s1 s2 <-> (Subset s1 s2 /\ Subset s2 s1).
     unfold Equal, Subset; firstorder.
+  Qed.
+
+  Lemma iff_not_iff P Q : (P <-> Q) -> (~ P <-> ~ Q).
+  Proof.
+    split; intros; intuition.
+  Qed.
+
+  Lemma singleton_not_iff x x' : ~ In x' (singleton x) <-> x <> x'.
+  Proof.
+    eapply iff_not_iff.
+    eapply singleton_iff.
+  Qed.
+
+  Lemma union_not_iff a b x : ~ In x (union a b) <-> (~ In x a /\ ~ In x b).
+  Proof.
+    etransitivity.
+    - eapply iff_not_iff.
+      eapply union_iff.
+    - intuition.
+  Qed.
+
+  Lemma of_list_not_iff x ls : ~ In x (of_list ls) <-> ~ List.In x ls.
+    eapply iff_not_iff.
+    eapply of_list_spec.
+  Qed.
+
+  Require ListFacts1.
+
+  Lemma set_disjoint_list_disjoint ls1 ls2 : Disjoint (of_list ls1) (of_list ls2) -> ListFacts1.Disjoint ls1 ls2.
+    unfold ListFacts1.Disjoint, Disjoint.
+    intros Hdisj e [Hin1 Hin2].
+    eapply Hdisj; split; eapply of_list_spec; eauto.
+  Qed.
+
+  Lemma list_disjoint_set_disjoint ls1 ls2 : ListFacts1.Disjoint ls1 ls2 -> Disjoint (of_list ls1) (of_list ls2).
+    unfold ListFacts1.Disjoint, Disjoint.
+    intros Hdisj e [Hin1 Hin2].
+    eapply Hdisj; split; eapply of_list_spec; eauto.
+  Qed.
+
+  Lemma compat_bool_f A (f : A -> bool) : SetoidList.compat_bool Logic.eq f.
+    unfold SetoidList.compat_bool.
+    intuition.
+  Qed.
+
+  Lemma for_all_elim p s : for_all p s = true -> forall x, In x s -> p x = true.
+  Proof.
+    intros H x Hin.
+    eapply for_all_iff in H; eauto.
+    eapply compat_bool_f; eauto.
+  Qed.
+
+  Global Arguments for_all_elim [p s] _ _ _.
+
+  Lemma for_all_intro p s : (forall x, In x s -> p x = true) -> for_all p s = true.
+  Proof.
+    intros H.
+    eapply for_all_iff; eauto.
+    eapply compat_bool_f; eauto.
+  Qed.
+
+  Lemma for_all_singleton_elim p x : for_all p (singleton x) = true -> p x = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    eapply HH.
+    eapply singleton_iff; eauto.
+  Qed.
+
+  Lemma for_all_union_elim p a b : for_all p (union a b) = true -> for_all p a = true /\ for_all p b = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    split.
+    - eapply for_all_intro.
+      intros; eapply HH.
+      eapply union_iff; intuition.
+    - eapply for_all_intro.
+      intros; eapply HH.
+      eapply union_iff; intuition.
+  Qed.
+
+  Lemma for_all_of_list_elim p ls : for_all p (of_list ls) = true -> List.forallb p ls = true.
+  Proof.
+    intros H.
+    specialize (for_all_elim H); intros HH.
+    eapply List.forallb_forall.
+    intros x Hin.
+    eapply HH.
+    eapply of_list_spec; eauto.
   Qed.
 
 End UWFacts_fun.

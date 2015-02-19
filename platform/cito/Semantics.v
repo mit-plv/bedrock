@@ -21,6 +21,8 @@ Coercion Fun : InternalFuncSpec >-> FuncCore.
 Require Import Syntax SemanticsExpr.
 Require Import GLabel.
 Require Import WordMap.
+Require Import AxSpec.
+Export AxSpec.
 
 Section ADTValue.
 
@@ -30,37 +32,24 @@ Section ADTValue.
 
   Definition State := (vals * Heap)%type.
 
-  Definition ArgIn := (W + ADTValue)%type.
+  Notation Value := (@Value ADTValue).
+  Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+  Arguments SCA {ADTValue} _.
+  Arguments ADT {ADTValue} _.
 
-  Definition ArgOut := option ADTValue.
-
-  Definition Ret := (W + ADTValue)%type.
-
-  Record ForeignFuncSpec :=
-    {
-      PreCond: list ArgIn -> Prop;
-      PostCond : list (ArgIn * ArgOut) -> Ret -> Prop
-    }.
-
-  Inductive Callee :=
-  | Foreign : ForeignFuncSpec -> Callee
+  Inductive Callee := 
+  | Foreign : AxiomaticSpec -> Callee
   | Internal : InternalFuncSpec -> Callee.
 
-  Definition word_adt_match (heap : Heap) p :=
+  Definition word_adt_match (heap : Heap) (p : W * Value) :=
     let word := fst p in
     let in_ := snd p in
     match in_ with
-      | inl w => word = w
-      | inr a => WordMap.find word heap = Some a
+      | SCA w => word = w
+      | ADT a => WordMap.find word heap = Some a
     end.
 
-  Definition is_adt (a : ArgIn) :=
-    match a with
-      | inl _ => false
-      | inr _ => true
-    end.
-
-  Definition disjoint_ptrs (pairs : list (W * ArgIn)) :=
+  Definition disjoint_ptrs (pairs : list (W * Value)) := 
     let pairs := filter (fun p => is_adt (snd p)) pairs in
     NoDup (List.map fst pairs).
 
@@ -71,21 +60,21 @@ Section ADTValue.
   Record ArgTriple :=
     {
       Word : W;
-      ADTIn : ArgIn;
-      ADTOut : ArgOut
+      ADTIn : Value;
+      ADTOut : option ADTValue
     }.
 
   Definition store_out (heap : Heap) t :=
-    match ADTIn t, ADTOut t with
-      | inl _, _ => heap
-      | inr _, None => WordMap.remove (Word t) heap
-      | inr _, Some a => WordMap.add (Word t) a heap
+    match ADTIn t, ADTOut t with 
+      | SCA _, _ => heap
+      | ADT _, None => WordMap.remove (Word t) heap
+      | ADT _, Some a => WordMap.add (Word t) a heap
     end.
 
-  Definition decide_ret addr (ret : Ret) :=
+  Definition decide_ret addr (ret : Value) :=
     match ret with
-      | inl w => (w, None)
-      | inr a => (addr, Some a)
+      | SCA w => (w, None)
+      | ADT a => (addr, Some a)
     end.
 
   Definition separated heap ret_w (ret_a : option ADTValue) :=
@@ -311,13 +300,13 @@ Module Make (Import E : ADT).
 
   Definition State := @State ADTValue.
 
-  Definition ArgIn := @ArgIn ADTValue.
+  Definition ArgIn := @Value ADTValue.
 
-  Definition ArgOut := @ArgOut ADTValue.
+  Definition ArgOut := option ADTValue.
 
-  Definition Ret := @Ret ADTValue.
+  Definition Ret := @Value ADTValue.
 
-  Definition ForeignFuncSpec := @ForeignFuncSpec ADTValue.
+  Definition ForeignFuncSpec := @AxiomaticSpec ADTValue.
 
   Definition Callee := @Callee ADTValue.
 

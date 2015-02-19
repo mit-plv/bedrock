@@ -240,7 +240,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   destruct v'; simpl in *.
   unfold TransitSafe.
   descend.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 0)), ($42, inl ($42)) ]]).
+  instantiate (1 := [[ (sel v0 "c", ADT (Cell 0)), ($42, SCA ($42)) ]]).
   eauto.
   unfold good_inputs.
   split.
@@ -293,7 +293,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold TransitSafe.
   descend.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
+  instantiate (1 := [[ (sel v0 "c", ADT (Cell 42)) ]]).
   eauto.
   split.
   unfold Semantics.word_adt_match.
@@ -348,7 +348,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold TransitSafe.
   descend.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", inr (Cell 42)) ]]).
+  instantiate (1 := [[ (sel v0 "c", ADT (Cell 42)) ]]).
   eauto.
   split.
   unfold Semantics.word_adt_match.
@@ -461,7 +461,7 @@ Theorem top_ok : moduleOk top.
   sep_auto.
 Qed.
 
-Definition all := link top (link_with_adts modules imports).
+Definition all := link top (compile_to_bedrock modules imports).
 
 Theorem all_ok : moduleOk all.
   link0 top_ok.

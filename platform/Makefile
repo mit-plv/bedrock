@@ -1,4 +1,5 @@
 ROOT    := ..
+
 MODULES := Conditional AutoSepExt PreAutoSep \
 	   Wrap \
            Util \
@@ -21,23 +22,85 @@ MODULES := Conditional AutoSepExt PreAutoSep \
            tests/RtosDriver \
            tests/Increment
 
-VS      := $(MODULES:%=%.v)
+VNAME := -name \*.v ! -name \*.\#\*
 
-.PHONY: coq clean master rtos32 rtos64
+CITO := $(shell find cito $(VNAME))
+
+FACADE_ALLV := $(shell find facade $(VNAME))
+
+FACADE := \
+	facade/Facade \
+	facade/DFacade \
+	facade/CompileUnit \
+
+FACADE_ALL := \
+	facade/examples/FiatADTs \
+	facade/examples/FiatRepInv \
+	facade/examples/FiatImpl \
+	facade/DFacadeToBedrock \
+
+.PHONY: default platform cito facade facade_all facade_allv build clean master install install-platform install-cito install-facade install-facade-all rtos32 rtos64
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
-coq: Makefile.coq
-	$(MAKE) -f Makefile.coq
+default: platform
 
-COQARGS := -R $(ROOT)/src Bedrock -I tests
+platform: T=$(MODULES)
+platform: build
+
+cito: T=$(CITO)
+cito: build
+
+facade: T=$(FACADE)
+facade: build
+
+facade_all: T=$(FACADE_ALL)
+facade_all: build
+
+facade_allv: T=$(FACADE_ALLV)
+facade_allv: build
+
+COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
+
 COQC    := $(COQBIN)coqc $(COQARGS)
 
-Makefile.coq: Makefile $(VS)
-	$(COQBIN)coq_makefile $(COQARGS) $(VS) -o Makefile.coq
+# N.B. (Jason Gross): This Makefile does not consistently support
+# building cito and facade simultaneously with multiple threads; the
+# Makefile.coqs will overwrite each other
+build:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
+	@echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
+	$(MAKE) -f Makefile.coq
 
-clean:: Makefile.coq
-	$(MAKE) -f Makefile.coq clean
+# we want to install everything, so we need to remake the makefile
+install:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV) $(CITO) $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade-all:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-facade-allv:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-cito:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(CITO))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+install-platform:
+	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(MODULES))) -o Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
+clean:
 	rm -f Makefile.coq .depend
+	./rmr .v.d
+	./rmr .vo
+	./rmr .glob
 
 tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
 	cat tests/ignoreFail.ml >$@
@@ -121,6 +184,33 @@ master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 	cp tests/RosMaster32.gen.s /tmp/master/RosMaster.s
 	cp Makefile.ros /tmp/master/Makefile
 	cd /tmp ; tar zcf master.tgz master
+
+LIB := tests
+CITO_EXAMPLES_DIR := cito/examples
+
+$(CITO_EXAMPLES_DIR)/%.gen.ml: $(CITO_EXAMPLES_DIR)/%AMD64.v $(CITO_EXAMPLES_DIR)/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
+	cat $(LIB)/ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
+		| sed 's/let rec nuke/type set = unit\n\nlet rec nuke/' \
+		>>$@
+	cat $(LIB)/printCode.ml >>$@
+
+$(CITO_EXAMPLES_DIR)/%.gen.s: $(CITO_EXAMPLES_DIR)/%.gen.ml
+	echo "	.data" >$@
+	echo "	.global bedrock_heap" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024+50),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
+	echo >>$@
+	ocaml -w -x $< >>$@
+
+$(CITO_EXAMPLES_DIR)/%.exe: %.gen.o $(LIB)/sys.o $(LIB)/driver.o
+	cc $^ -o $@
 
 rtos64: tests/sys.c tests/driver.s tests/Rtos.gen.s tests/rtos.s tests/bedrock.h tests/rtos_app.c
 	mkdir -p /tmp/brtos64
