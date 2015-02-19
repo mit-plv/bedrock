@@ -1,6 +1,6 @@
 MODULE:=Bedrock
 
-.PHONY: default examples platform cito facade src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples
+.PHONY: default examples platform cito facade facade_all src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples
 
 default: examples
 
@@ -8,7 +8,7 @@ default: examples
 examples: src
 	$(MAKE) -C examples
 
-platform cito facade: src
+platform cito facade facade_all: src
 	$(MAKE) -C platform $@
 
 src:
