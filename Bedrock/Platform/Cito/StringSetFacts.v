@@ -9,4 +9,5 @@ Include (Properties M).
 Require Import Coq.FSets.FSetFacts.
 Include (Facts M).
 Require Import Bedrock.Platform.Cito.FSetFacts1.
-Include (UWFacts_fun K M).
+Module bug_4066_workaround := UWFacts_fun K M.
+Include bug_4066_workaround.
