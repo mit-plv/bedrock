@@ -55,10 +55,10 @@ Fixpoint eatEasy pc state G (P : propX pc state G)
   match P in propX _ _ G return list (propX _ _ G) * list (propX _ _ G) with
     | Inj _ p => (Inj p :: nil, nil)
     | Cptr _ pc f => (Cptr pc f :: nil, nil)
-    | And _ Q R => let (easy1, hard1) := eatEasy Q in
+    | PropX.And _ Q R => let (easy1, hard1) := eatEasy Q in
       let (easy2, hard2) := eatEasy R in
         (easy1 ++ easy2, hard1 ++ hard2)
-    | Or _ Q R => (nil, Or Q R :: nil)
+    | PropX.Or _ Q R => (nil, Or Q R :: nil)
     | Imply _ Q R => (nil, Imply Q R :: nil)
     | Forall _ _ Q => (nil, Forall Q :: nil)
     | Exists _ _ Q => (nil, Exists Q :: nil)

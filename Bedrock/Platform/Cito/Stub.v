@@ -1041,7 +1041,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Definition proj_and1 pc state G (p : propX pc state G) : propX pc state G :=
         match p with
-          | And _ p1 _ => p1
+          | PropX.And _ p1 _ => p1
           | p' => p'
         end.
 
