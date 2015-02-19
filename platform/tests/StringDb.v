@@ -266,7 +266,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "sys"!"abort" @ [abort
           };;
 
           If ("matched" = 1) {
-            Assert [Al b, Al i, Al c, Al p1, Al p2, Al t1, Al t2, 
+            Assert [Al b, Al i, Al c, Al p1, Al p2, Al t1, Al t2,
               PRE[V] [| V "p" <> 0 |] * V "t" =*> V "p" * (V "p" ==*> i, c, p1, p2)
                 * tree'' b t1 p1 c * tree' b t2 p2
                 * V "key" =?>8 wordToNat (V "keyLen") * mallocHeap 0

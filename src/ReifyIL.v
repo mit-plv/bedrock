@@ -12,7 +12,7 @@ Ltac collectTypes_loc isConst l Ts k :=
   end.
 Ltac reify_loc isConst l types funcs uvars vars k :=
   match l with
-    | Reg ?r => 
+    | Reg ?r =>
       let res := constr:(@SymReg types r) in
         k uvars funcs res
     | Imm ?i =>
@@ -32,11 +32,11 @@ Ltac collectTypes_lvalue isConst l Ts k :=
 
 Ltac reify_lvalue isConst l types funcs uvars vars k :=
   match l with
-    | LvReg ?r => let l := constr:(@SymLvReg types r) in k uvars funcs l 
-    | LvMem ?l => 
+    | LvReg ?r => let l := constr:(@SymLvReg types r) in k uvars funcs l
+    | LvMem ?l =>
       reify_loc isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
         let l := constr:(@SymLvMem types l) in k uvars funcs l)
-    | LvMem8 ?l => 
+    | LvMem8 ?l =>
       reify_loc isConst l types funcs uvars vars ltac:(fun uvars funcs l =>
         let l := constr:(@SymLvMem8 types l) in k uvars funcs l)
   end.
@@ -56,17 +56,17 @@ Ltac reify_rvalue isConst r types funcs uvars vars k :=
     | RvImm ?i =>
       ReifyExpr.reify_expr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>
         let l := constr:(@SymRvImm types i) in k uvars funcs l)
-    | RvLabel ?l => 
+    | RvLabel ?l =>
       let r := constr:(@SymRvLabel types l) in k uvars funcs r
   end.
 
 Ltac collectTypes_instr isConst i Ts k :=
   match i with
     | Assign ?l ?r =>
-      collectTypes_lvalue isConst l Ts ltac:(fun Ts => 
+      collectTypes_lvalue isConst l Ts ltac:(fun Ts =>
         collectTypes_rvalue isConst r Ts k)
     | Binop ?l ?r1 _ ?r2 =>
-      collectTypes_lvalue isConst l Ts ltac:(fun Ts => 
+      collectTypes_lvalue isConst l Ts ltac:(fun Ts =>
         collectTypes_rvalue isConst r1 Ts ltac:(fun Ts =>
           collectTypes_rvalue isConst r2 Ts k ))
   end.
@@ -86,13 +86,13 @@ Ltac reify_instr isConst i types funcs uvars vars k :=
 Ltac collectTypes_instrs isConst is Ts k :=
   match is with
     | nil => k Ts
-    | ?i :: ?is => 
+    | ?i :: ?is =>
       collectTypes_instr isConst i Ts ltac:(fun Ts =>
         collectTypes_instrs isConst is Ts k)
   end.
 Ltac reify_instrs isConst is types funcs uvars vars k :=
   match is with
-    | nil => 
+    | nil =>
       let is := constr:(@nil (sym_instr types)) in k uvars funcs is
     | ?i :: ?is =>
       reify_instr isConst i types funcs uvars vars ltac:(fun uvars funcs i =>

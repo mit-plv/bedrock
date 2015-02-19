@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import SepHintsUtil SepHints2.
 
 Set Implicit Arguments.

@@ -12,12 +12,12 @@ Local Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 Section ReflexivityProver.
   Context {types : list type}.
   Variable fs : functions types.
-  
+
   Definition reflexivityValid (_ _ : env types) (_ : unit) := True.
 
   Definition reflexivitySummarize (_ : list (expr types)) := tt.
 
-  Definition reflexivityProve (_ : unit) (goal : expr types) := 
+  Definition reflexivityProve (_ : unit) (goal : expr types) :=
     match goal with
       | Equal _ x y => if expr_seq_dec x y then true else false
       | _ => false
@@ -33,7 +33,7 @@ Section ReflexivityProver.
   Qed.
 
   Lemma reflexivityLearnCorrect : forall uvars vars sum,
-    reflexivityValid uvars vars sum -> forall hyps, 
+    reflexivityValid uvars vars sum -> forall hyps,
     AllProvable fs uvars vars hyps ->
     reflexivityValid uvars vars (reflexivityLearn sum hyps).
   Proof.
@@ -69,12 +69,12 @@ Ltac unfold_reflexivityProver H :=
       cbv delta [
         reflexivityProver
         reflexivitySummarize reflexivityLearn reflexivityProve
-        expr_seq_dec 
+        expr_seq_dec
       ]
     | _ =>
       cbv delta [
         reflexivityProver
         reflexivitySummarize reflexivityLearn reflexivityProve
-        expr_seq_dec 
-      ] in H        
+        expr_seq_dec
+      ] in H
   end.

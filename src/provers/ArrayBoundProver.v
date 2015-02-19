@@ -1,9 +1,11 @@
+Require Import Omega.
 Require Import List Arith Bool.
 Require Import Expr Env.
 Require Import EquivDec EqdepClass.
 Require Import DepList.
 Require Import Word Prover.
 Require Import sep.Array IL.
+Require Import Arrays.
 
 Set Implicit Arguments.
 
@@ -62,7 +64,7 @@ Section ArrayBoundProver.
       | (i, a) :: summ' => (expr_seq_dec i (fst fact) && expr_seq_dec a (snd fact)) || hypMatches fact summ'
     end.
 
-  Definition boundProve (summ : boundSummary) (goal : expr types) := 
+  Definition boundProve (summ : boundSummary) (goal : expr types) :=
     match factIn goal with
       | None => false
       | Some fact => hypMatches fact summ
@@ -83,6 +85,17 @@ Section ArrayBoundProver.
     specialize (IHls (n + a)); omega.
   Qed.
 
+  Lemma repr_nth_error : forall A (v : A) r ls n,
+    nth_error r.(footprint) n = Some (Some v)
+    -> nth_error (repr r ls) n = Some v.
+    destruct r; simpl; induction footprint; simpl; intuition.
+    destruct n; simpl in *; discriminate.
+    destruct n; simpl in *.
+    injection H; clear H; intros; subst; reflexivity.
+    eapply IHfootprint in H; clear IHfootprint.
+    destruct a; eauto.
+  Qed.
+
   Lemma deupd_correct : forall uvars vars sz (e : expr types),
     (size e <= sz)%nat
     -> match exprD funcs uvars vars e listWT with
@@ -100,18 +113,6 @@ Section ArrayBoundProver.
           end ].
 
     specialize (plus_monotone (map size l) 1); omega.
-
-    Lemma repr_nth_error : forall A (v : A) r ls n,
-      nth_error r.(footprint) n = Some (Some v)
-      -> nth_error (repr r ls) n = Some v.
-      destruct r; simpl; induction footprint; simpl; intuition.
-      destruct n; simpl in *; discriminate.
-      destruct n; simpl in *.
-      injection H; clear H; intros; subst; reflexivity.
-      eapply IHfootprint in H; clear IHfootprint.
-      destruct a; eauto.
-    Qed.
-
     do 8 (destruct f; [ t | ]).
     destruct f; [ | t ].
 
@@ -128,7 +129,6 @@ Section ArrayBoundProver.
     destruct (exprD funcs uvars vars (deupd e) listWT); try tauto.
     destruct (exprD funcs uvars vars e0 wordT); auto.
     destruct (exprD funcs uvars vars e1 wordT); auto.
-    Require Import Arrays.
     rewrite upd_length; assumption.
   Qed.
 
@@ -158,7 +158,7 @@ Section ArrayBoundProver.
     destruct (equiv_dec (Range s) tvProp); auto.
     destruct s; simpl in e2.
     hnf in e2; subst.
-    
+
     simpl applyD.
     duh'.
     destruct e0; auto.
@@ -203,10 +203,10 @@ Section ArrayBoundProver.
       exists i, exprD funcs uvars vars (fst p) wordT = Some i
         /\ exists a, exprD funcs uvars vars (snd p) listWT = Some a
           /\ i < $(length a).
-    
+
     Definition boundValid (summ : boundSummary) :=
       List.Forall pairValid summ.
-    
+
     Theorem boundLearn1Correct : forall sum,
       boundValid sum
       -> forall hyp, Provable funcs uvars vars hyp

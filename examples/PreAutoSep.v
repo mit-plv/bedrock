@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSepExt.
 Export AutoSepExt.
 
@@ -78,7 +79,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
 
 Ltac vcgen :=
 (*TIME time "vcgen:structured_auto" ( *)
-  structured_auto vcgen_simp 
+  structured_auto vcgen_simp
 (*TIME ) *);
 (*TIME time "vcgen:finish" ( *)
   autorewrite with sepFormula in *; simpl in *;
@@ -108,7 +109,7 @@ Ltac rereg :=
                                 end) ?r] ] =>
              change (Regs (let (_, y) := st in y) r) with (st#r) in *
          end.
-  
+
 Ltac sep_firstorder := sep_easy;
   repeat match goal with
            | [ H : Logic.ex _ |- _ ] => destruct H
@@ -130,12 +131,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
   match H with
   | tt =>
       cbv beta iota zeta
-       delta [s1 s2 s3 hints 
+       delta [s1 s2 s3 hints
          (** Symbolic Evaluation **)
          SymIL.MEVAL.PredEval.fold_args
          SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
          SymIL.MEVAL.PredEval.pred_write_word SymIL.MEVAL.PredEval.pred_read_byte SymIL.MEVAL.PredEval.pred_write_byte
-         SymIL.MEVAL.LearnHookDefault.LearnHook_default 
+         SymIL.MEVAL.LearnHookDefault.LearnHook_default
          SymIL.IL_ReadWord SymIL.IL_WriteWord SymIL.IL_ReadByte SymIL.IL_WriteByte
          SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
@@ -147,24 +148,24 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          SymIL.sym_setReg SymIL.sym_getReg
          SymIL.SymMem SymIL.SymRegs SymIL.SymPures
 (*         SymIL.SymVars SymIL.SymUVars *)
-         SymIL.stateD 
+         SymIL.stateD
          SymILTac.quantifyNewVars
          SymILTac.unfolder_LearnHook
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word SymIL.MEVAL.sread_byte SymIL.MEVAL.swrite_byte
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
-         (*SymIL.quantifyNewVars*) 
+         (*SymIL.quantifyNewVars*)
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
 
          SymEval.quantD SymEval.appendQ
          SymEval.qex SymEval.qall
          SymEval.gatherAll SymEval.gatherEx
          SymILTac.sym_eval
-   
+
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
-         ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r 
-         ILEnv.bedrock_types 
+         ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r
+         ILEnv.bedrock_types
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
          ILEnv.bedrock_type_W ILEnv.bedrock_type_nat
@@ -180,7 +181,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.word_nat_r
          ILEnv.word_state_r
 (*         ILEnv.word_test_r *)
-         
+
          ILEnv.wplus_r
          ILEnv.wminus_r
          ILEnv.wmult_r
@@ -190,7 +191,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.wlt_r
          ILEnv.natToW_r
 
-             
+
          (** Env **)
          Env.repr_combine Env.default Env.footprint Env.repr'
          Env.updateAt Env.nil_Repr Env.repr Env.updateAt
@@ -207,9 +208,9 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Provable Expr.tvarD
          Expr.tvar_rec Expr.tvar_rect
          Expr.Default_signature Expr.EmptySet_type
-         Expr.expr_seq_dec 
+         Expr.expr_seq_dec
          Expr.Eqb Expr.liftExpr Expr.exprSubstU
-         Expr.typeof Expr.typeof_env 
+         Expr.typeof Expr.typeof_env
          Expr.typeof_sig Expr.typeof_funcs
          Expr.expr_ind
          Expr.get_Eq
@@ -219,7 +220,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.tvar_seqb_correct
          Expr.mentionsU
          ReifyExpr.default_type
-         
+
          (** ExprUnify **)
          CancelIL.U.exprUnify CancelIL.U.exprUnify_recursor
          CancelIL.U.exprInstantiate CancelIL.U.subst_exprInstantiate
@@ -234,7 +235,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
          CancelIL.U.FM.Raw.t_left CancelIL.U.FM.Raw.t_opt CancelIL.U.FM.Raw.t_right
          CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.empty CancelIL.U.FM.Raw.is_empty
-         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find   
+         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find
          CancelIL.U.FM.Raw.add  CancelIL.U.FM.Raw.remove
          CancelIL.U.FM.Raw.fold CancelIL.U.FM.Raw.map CancelIL.U.FM.Raw.mapi CancelIL.U.FM.Raw.map2
 
@@ -250,16 +251,16 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
-         Unfolder.FM.find 
+         Unfolder.FM.find
          UNF.Vars UNF.UVars UNF.Heap
          UNF.LEM.Foralls UNF.LEM.Hyps UNF.LEM.Lhs UNF.LEM.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward
          UNF.Backward UNF.backward UNF.unfoldBackward
-         UNF.findWithRest UNF.find equiv_dec 
-         UNF.findWithRest' 
-         Folds.allb 
+         UNF.findWithRest UNF.find equiv_dec
+         UNF.findWithRest'
+         Folds.allb
          UNF.find UNF.default_hintsPayload
-         UNF.openForUnification 
+         UNF.openForUnification
          UNF.quant
          UNF.liftInstantiate
          SH.applySHeap
@@ -272,7 +273,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NatMap.IntMap.Raw.bal NatMap.IntMap.Raw.remove_min NatMap.IntMap.Raw.merge NatMap.IntMap.Raw.join
          NatMap.IntMap.Raw.t_left NatMap.IntMap.Raw.t_opt NatMap.IntMap.Raw.t_right
          NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.empty NatMap.IntMap.Raw.is_empty
-         NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find   
+         NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find
          NatMap.IntMap.Raw.add  NatMap.IntMap.Raw.remove
          NatMap.IntMap.Raw.fold NatMap.IntMap.Raw.map NatMap.IntMap.Raw.mapi NatMap.IntMap.Raw.map2
 
@@ -283,25 +284,25 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NatMap.IntMap.map NatMap.IntMap.mapi NatMap.IntMap.map2
          NatMap.IntMap.elements NatMap.IntMap.cardinal NatMap.IntMap.fold
          NatMap.IntMap.equal
-        
+
          Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
          Int.Z_as_Int.plus Int.Z_as_Int.max
          Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
-         
+
          ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
-         ZArith_dec.Z_gt_dec 
+         ZArith_dec.Z_gt_dec
          ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
-         
+
          BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
          BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
-    
+
          BinInt.Z.compare
 
-         BinPos.Pos.add BinPos.Pos.compare 
+         BinPos.Pos.add BinPos.Pos.compare
          BinPos.Pos.succ BinPos.Pos.compare_cont
 
-         Compare_dec.nat_compare CompOpp 
-         
+         Compare_dec.nat_compare CompOpp
+
          NatMap.Ordered_nat.compare
 
          sumor_rec sumor_rect
@@ -317,27 +318,27 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
 (*
          (** TransitivityProver **)
-         provers.TransitivityProver.transitivitySummarize 
+         provers.TransitivityProver.transitivitySummarize
          provers.TransitivityProver.transitivityLearn
          provers.TransitivityProver.transitivityProve
-         provers.TransitivityProver.groupsOf 
+         provers.TransitivityProver.groupsOf
          provers.TransitivityProver.addEquality
          provers.TransitivityProver.proveEqual
          provers.TransitivityProver.transitivityLearn
-         provers.TransitivityProver.inSameGroup 
-         provers.TransitivityProver.in_seq 
+         provers.TransitivityProver.inSameGroup
+         provers.TransitivityProver.in_seq
          provers.TransitivityProver.groupWith
          provers.TransitivityProver.transitivityProver
 *)
 
          (** AssumptionProver **)
-         provers.AssumptionProver.assumptionProver 
+         provers.AssumptionProver.assumptionProver
          provers.AssumptionProver.assumptionSummarize
          provers.AssumptionProver.assumptionLearn
          provers.AssumptionProver.assumptionProve
 
          (** ReflexivityProver **)
-         provers.ReflexivityProver.reflexivityProver 
+         provers.ReflexivityProver.reflexivityProver
          provers.ReflexivityProver.reflexivitySummarize
          provers.ReflexivityProver.reflexivityLearn
          provers.ReflexivityProver.reflexivityProve
@@ -363,7 +364,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.ArrayBoundProver.types
 
          (** Induction **)
-         list_ind list_rec list_rect 
+         list_ind list_rec list_rect
          sumbool_rect sumbool_rec
          nat_rect nat_ind
          eq_rect_r eq_rec_r eq_rec eq_rect eq_ind
@@ -387,7 +388,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NPeano.leb NPeano.ltb
 
          (** SepExpr **)
-         SEP.SDomain SEP.SDenotation 
+         SEP.SDomain SEP.SDenotation
          SEP.Default_predicate
          SEP.himp SEP.sexprD
          SEP.heq
@@ -397,55 +398,55 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** SepHeap **)
          SH.impures SH.pures SH.other
          SH.liftSHeap UNF.HEAP_FACTS.sheapSubstU
-         SH.starred SH.hash 
-         SH.star_SHeap 
-         SH.SHeap_empty 
+         SH.starred SH.hash
+         SH.star_SHeap
+         SH.SHeap_empty
          SH.sheapD
 
          SepHeap.FM.empty
          SepHeap.FM.map
          SepHeap.FM.find
-         SepHeap.FM.add 
-         SepHeap.FM.remove 
+         SepHeap.FM.add
+         SepHeap.FM.remove
          SepHeap.FM.fold
 
          (** SepCancel **)
-         CancelIL.CANCEL.sepCancel 
+         CancelIL.CANCEL.sepCancel
          CancelIL.CANCEL.expr_count_meta
          CancelIL.CANCEL.exprs_count_meta
          CancelIL.CANCEL.expr_size
          CancelIL.CANCEL.meta_order_funcs
          CancelIL.CANCEL.meta_order_args
-         CancelIL.CANCEL.order_impures 
+         CancelIL.CANCEL.order_impures
          CancelIL.CANCEL.cancel_in_order
          CancelIL.CANCEL.unify_remove CancelIL.CANCEL.unifyArgs
          CancelIL.CANCEL.expr_size
 
          CancelIL.canceller
          CancelIL.substInEnv
-         CancelIL.existsMaybe 
+         CancelIL.existsMaybe
          CancelIL.existsSubst
-         
+
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
-         
+
          (** Multimaps **)
          SepHeap.MM.mmap_add SepHeap.MM.mmap_extend SepHeap.MM.mmap_join
          SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
          SepHeap.MM.empty
 
          (** PtsTo Plugin **)
-         Plugin_PtsTo.ptsto32_ssig 
+         Plugin_PtsTo.ptsto32_ssig
          Plugin_PtsTo.expr_equal Plugin_PtsTo.sym_read_word_ptsto32
          Plugin_PtsTo.sym_write_word_ptsto32 Plugin_PtsTo.ptsto32_types_r
-         Plugin_PtsTo.types 
+         Plugin_PtsTo.types
          Plugin_PtsTo.MemEval_ptsto32
          Plugin_PtsTo.MemEvaluator_ptsto32
 
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
-         GenRec.guard Acc_rect well_founded_ind 
-         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr  
+         GenRec.guard Acc_rect well_founded_ind
+         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr
 
          (** Folds **)
          Folds.fold_left_2_opt Folds.fold_left_3_opt
@@ -456,7 +457,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          rev_append map app fold_left
 
          (** Aux Functions **)
-         fst snd projT1 projT2 Basics.impl value error 
+         fst snd projT1 projT2 Basics.impl value error
          projT1 projT2 andb orb
          plus minus
 
@@ -480,7 +481,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
-         EqNat.beq_nat 
+         EqNat.beq_nat
 
 
          (** TODO: sort these **)
@@ -494,22 +495,22 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
           Env.repr_combine Env.footprint Env.nil_Repr
           Env.listToRepr
           app map
-          
-          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
+
+          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r
           ILAlgoTypes.AllAlgos_composite
-          ILAlgoTypes.oplus Prover.composite_ProverT 
+          ILAlgoTypes.oplus Prover.composite_ProverT
           (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
 
           Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
        ]
   | _ =>
     cbv beta iota zeta
-       delta [s1 s2 s3 hints 
+       delta [s1 s2 s3 hints
          (** Symbolic Evaluation **)
          SymIL.MEVAL.PredEval.fold_args
          SymIL.MEVAL.PredEval.fold_args_update SymIL.MEVAL.PredEval.pred_read_word
          SymIL.MEVAL.PredEval.pred_write_word SymIL.MEVAL.PredEval.pred_read_byte SymIL.MEVAL.PredEval.pred_write_byte
-         SymIL.MEVAL.LearnHookDefault.LearnHook_default 
+         SymIL.MEVAL.LearnHookDefault.LearnHook_default
          SymIL.IL_ReadWord SymIL.IL_WriteWord SymIL.IL_ReadByte SymIL.IL_WriteByte
          SymILTac.unfolder_LearnHook
          SymIL.MEVAL.Composite.MemEvaluator_composite
@@ -527,18 +528,18 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILAlgoTypes.Hints ILAlgoTypes.Prover
          SymIL.MEVAL.sread_word SymIL.MEVAL.swrite_word SymIL.MEVAL.sread_byte SymIL.MEVAL.swrite_byte
          ILAlgoTypes.MemEval ILAlgoTypes.Env ILAlgoTypes.Algos
-         (*SymIL.quantifyNewVars*) 
+         (*SymIL.quantifyNewVars*)
          ILAlgoTypes.Algos ILAlgoTypes.Hints ILAlgoTypes.Prover
 
          SymEval.quantD SymEval.appendQ
          SymEval.qex SymEval.qall
          SymEval.gatherAll SymEval.gatherEx
          SymILTac.sym_eval
-   
+
          (** ILEnv **)
          ILEnv.comparator ILEnv.fPlus ILEnv.fMinus ILEnv.fMult
-         ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r 
-         ILEnv.bedrock_types 
+         ILEnv.bedrock_types_r ILEnv.bedrock_funcs_r
+         ILEnv.bedrock_types
          ILEnv.BedrockCoreEnv.core
          ILEnv.BedrockCoreEnv.pc ILEnv.BedrockCoreEnv.st
          ILEnv.bedrock_type_W ILEnv.bedrock_type_nat
@@ -554,7 +555,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.word_nat_r
          ILEnv.word_state_r
 (*         ILEnv.word_test_r *)
-         
+
          ILEnv.wplus_r
          ILEnv.wminus_r
          ILEnv.wmult_r
@@ -563,7 +564,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          ILEnv.Regs_r
          ILEnv.wlt_r
          ILEnv.natToW_r
-             
+
          (** Env **)
          Env.repr_combine Env.default Env.footprint Env.repr'
          Env.updateAt Env.nil_Repr Env.repr Env.updateAt
@@ -581,13 +582,13 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Expr.Provable Expr.tvarD
          Expr.expr_seq_dec
          Expr.applyD Expr.exprD Expr.Range Expr.Domain Expr.Denotation
-         Expr.lookupAs 
+         Expr.lookupAs
          Expr.tvarD Expr.Eqb
          Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
-         Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect 
+         Expr.Default_signature Expr.EmptySet_type Expr.Impl Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
          Expr.expr_seq_dec  Expr.expr_seq_dec
          Expr.tvar_val_seqb  Expr.liftExpr Expr.exprSubstU
-         Expr.typeof Expr.typeof_env 
+         Expr.typeof Expr.typeof_env
          Expr.typeof_sig Expr.typeof_funcs
          Expr.Impl_ Expr.exprD
          Expr.expr_ind
@@ -615,7 +616,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          CancelIL.U.FM.Raw.bal CancelIL.U.FM.Raw.remove_min CancelIL.U.FM.Raw.merge CancelIL.U.FM.Raw.join
          CancelIL.U.FM.Raw.t_left CancelIL.U.FM.Raw.t_opt CancelIL.U.FM.Raw.t_right
          CancelIL.U.FM.Raw.cardinal CancelIL.U.FM.Raw.empty CancelIL.U.FM.Raw.is_empty
-         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find   
+         CancelIL.U.FM.Raw.mem CancelIL.U.FM.Raw.find
          CancelIL.U.FM.Raw.add  CancelIL.U.FM.Raw.remove
          CancelIL.U.FM.Raw.fold CancelIL.U.FM.Raw.map CancelIL.U.FM.Raw.mapi CancelIL.U.FM.Raw.map2
 
@@ -631,14 +632,14 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** Unfolder **)
          Unfolder.FM.empty Unfolder.FM.add Unfolder.FM.remove
          Unfolder.FM.fold Unfolder.FM.map
-         Unfolder.FM.find 
+         Unfolder.FM.find
          UNF.LEM.Foralls UNF.Vars
          UNF.UVars UNF.Heap UNF.LEM.Hyps UNF.LEM.Lhs UNF.LEM.Rhs
          UNF.Forward UNF.forward UNF.unfoldForward UNF.Backward
-         UNF.backward UNF.unfoldBackward  equiv_dec 
-         UNF.find UNF.findWithRest UNF.findWithRest' 
-         Folds.allb 
-         UNF.openForUnification 
+         UNF.backward UNF.unfoldBackward  equiv_dec
+         UNF.find UNF.findWithRest UNF.findWithRest'
+         Folds.allb
+         UNF.openForUnification
          UNF.quant
          UNF.liftInstantiate
          SH.applySHeap
@@ -651,7 +652,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NatMap.IntMap.Raw.bal NatMap.IntMap.Raw.remove_min NatMap.IntMap.Raw.merge NatMap.IntMap.Raw.join
          NatMap.IntMap.Raw.t_left NatMap.IntMap.Raw.t_opt NatMap.IntMap.Raw.t_right
          NatMap.IntMap.Raw.cardinal NatMap.IntMap.Raw.empty NatMap.IntMap.Raw.is_empty
-         NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find   
+         NatMap.IntMap.Raw.mem NatMap.IntMap.Raw.find
          NatMap.IntMap.Raw.add  NatMap.IntMap.Raw.remove
          NatMap.IntMap.Raw.fold NatMap.IntMap.Raw.map NatMap.IntMap.Raw.mapi NatMap.IntMap.Raw.map2
 
@@ -662,25 +663,25 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NatMap.IntMap.map NatMap.IntMap.mapi NatMap.IntMap.map2
          NatMap.IntMap.elements NatMap.IntMap.cardinal NatMap.IntMap.fold
          NatMap.IntMap.equal
-        
+
          Int.Z_as_Int._0 Int.Z_as_Int._1 Int.Z_as_Int._2 Int.Z_as_Int._3
          Int.Z_as_Int.plus Int.Z_as_Int.max
          Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec
-         
+
          ZArith_dec.Z_gt_le_dec ZArith_dec.Z_ge_lt_dec ZArith_dec.Z_ge_dec
-         ZArith_dec.Z_gt_dec 
+         ZArith_dec.Z_gt_dec
          ZArith_dec.Zcompare_rec ZArith_dec.Zcompare_rect
-         
+
          BinInt.Z.add BinInt.Z.max BinInt.Z.pos_sub
          BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
-    
+
          BinInt.Z.compare
 
-         BinPos.Pos.add BinPos.Pos.compare 
+         BinPos.Pos.add BinPos.Pos.compare
          BinPos.Pos.succ BinPos.Pos.compare_cont
 
-         Compare_dec.nat_compare CompOpp 
-         
+         Compare_dec.nat_compare CompOpp
+
          NatMap.Ordered_nat.compare
 
          sumor_rec sumor_rect
@@ -696,27 +697,27 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
 
 (*
          (** TransitivityProver **)
-         provers.TransitivityProver.transitivitySummarize 
+         provers.TransitivityProver.transitivitySummarize
          provers.TransitivityProver.transitivityLearn
          provers.TransitivityProver.transitivityProve
-         provers.TransitivityProver.groupsOf 
+         provers.TransitivityProver.groupsOf
          provers.TransitivityProver.addEquality
          provers.TransitivityProver.proveEqual
          provers.TransitivityProver.transitivityLearn
-         provers.TransitivityProver.inSameGroup 
-         provers.TransitivityProver.in_seq 
+         provers.TransitivityProver.inSameGroup
+         provers.TransitivityProver.in_seq
          provers.TransitivityProver.groupWith
          provers.TransitivityProver.transitivityProver
 *)
 
          (** AssumptionProver **)
-         provers.AssumptionProver.assumptionProver 
+         provers.AssumptionProver.assumptionProver
          provers.AssumptionProver.assumptionSummarize
          provers.AssumptionProver.assumptionLearn
          provers.AssumptionProver.assumptionProve
 
          (** ReflexivityProver **)
-         provers.ReflexivityProver.reflexivityProver 
+         provers.ReflexivityProver.reflexivityProver
          provers.ReflexivityProver.reflexivitySummarize
          provers.ReflexivityProver.reflexivityLearn
          provers.ReflexivityProver.reflexivityProve
@@ -742,12 +743,12 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          provers.ArrayBoundProver.types
 
          (** Induction **)
-         list_ind list_rec list_rect 
+         list_ind list_rec list_rect
          sumbool_rect sumbool_rec
-         sumor_rec sumor_rect 
+         sumor_rec sumor_rect
          nat_rec nat_rect nat_ind
          eq_rect_r eq_rec_r eq_rec eq_rect
-         eq_sym f_equal 
+         eq_sym f_equal
          nat_rect eq_ind eq_rec eq_rect
          eq_rec_r eq_rect eq_rec nat_rec nat_rect
          sumbool_rec sumbool_rect
@@ -769,7 +770,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          NPeano.leb NPeano.ltb
 
          (** SepExpr **)
-         SEP.SDomain SEP.SDenotation 
+         SEP.SDomain SEP.SDenotation
          SEP.Default_predicate
          SEP.himp SEP.sexprD
          SEP.heq
@@ -779,56 +780,56 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          (** SepHeap **)
          SH.impures SH.pures SH.other
          SH.liftSHeap UNF.HEAP_FACTS.sheapSubstU
-         SH.starred SH.hash 
-         SH.star_SHeap 
-         SH.SHeap_empty 
+         SH.starred SH.hash
+         SH.star_SHeap
+         SH.SHeap_empty
          SH.sheapD
 
          SepHeap.FM.empty
          SepHeap.FM.map
          SepHeap.FM.find
-         SepHeap.FM.add 
-         SepHeap.FM.remove 
+         SepHeap.FM.add
+         SepHeap.FM.remove
          SepHeap.FM.fold
 
          (** SepCancel **)
-         CancelIL.CANCEL.sepCancel 
+         CancelIL.CANCEL.sepCancel
          CancelIL.CANCEL.expr_count_meta
          CancelIL.CANCEL.exprs_count_meta
          CancelIL.CANCEL.expr_size
          CancelIL.CANCEL.meta_order_funcs
          CancelIL.CANCEL.meta_order_args
-         CancelIL.CANCEL.order_impures 
+         CancelIL.CANCEL.order_impures
          CancelIL.CANCEL.cancel_in_order
          CancelIL.CANCEL.unify_remove
          CancelIL.CANCEL.unifyArgs
          CancelIL.CANCEL.expr_size
-          
+
          CancelIL.canceller
-         CancelIL.substInEnv 
+         CancelIL.substInEnv
          CancelIL.existsMaybe
          CancelIL.existsSubst
-         
+
          (** Ordering **)
          Ordering.insert_in_order Ordering.list_lex_cmp Ordering.sort
-         
+
          (** Multimaps **)
          SepHeap.MM.mmap_add SepHeap.MM.mmap_extend SepHeap.MM.mmap_join
          SepHeap.MM.mmap_mapi SepHeap.MM.mmap_map
          SepHeap.MM.empty
 
          (** PtsTo Plugin **)
-         Plugin_PtsTo.ptsto32_ssig 
+         Plugin_PtsTo.ptsto32_ssig
          Plugin_PtsTo.expr_equal Plugin_PtsTo.sym_read_word_ptsto32
          Plugin_PtsTo.sym_write_word_ptsto32 Plugin_PtsTo.ptsto32_types_r
-         Plugin_PtsTo.types 
+         Plugin_PtsTo.types
          Plugin_PtsTo.MemEval_ptsto32
          Plugin_PtsTo.MemEvaluator_ptsto32
 
          (** General Recursion **)
          Fix Fix_F GenRec.wf_R_pair GenRec.wf_R_nat
-         GenRec.guard Acc_rect well_founded_ind 
-         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr  
+         GenRec.guard Acc_rect well_founded_ind
+         well_founded_induction_type Acc_inv ExprUnify.wf_R_expr
 
          (** Folds **)
          Folds.fold_left_2_opt Folds.fold_left_3_opt
@@ -839,7 +840,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          rev_append List.map app fold_left
 
          (** Aux Functions **)
-         fst snd projT1 projT2 Basics.impl value error 
+         fst snd projT1 projT2 Basics.impl value error
          projT1 projT2 andb orb
          plus minus
 
@@ -859,7 +860,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Locals.ascii_eq Locals.string_eq Bool.eqb
          Locals.nil_r Locals.cons_r Locals.sel_r Locals.upd_r
          Locals.deref Locals.listIn Locals.sym_sel Locals.sym_read Locals.sym_write
-         
+
          (** ?? **)
          DepList.hlist_hd DepList.hlist_tl
          eq_sym eq_trans
@@ -876,10 +877,10 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          Env.repr_combine Env.footprint Env.nil_Repr
          Env.listToRepr
          app map
-         
-         ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
+
+         ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r
          ILAlgoTypes.AllAlgos_composite
-         ILAlgoTypes.oplus Prover.composite_ProverT 
+         ILAlgoTypes.oplus Prover.composite_ProverT
          (*TacPackIL.MEVAL.Composite.MemEvaluator_composite*) Env.listToRepr
 
          Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig
@@ -1009,9 +1010,9 @@ Theorem use_HProp_extensional : forall p, HProp_extensional p
   auto.
 Qed.
 
-Ltac descend := 
+Ltac descend :=
   (*TIME time "descend:descend" *)
-  Programming.descend; 
+  Programming.descend;
   (*TIME time "descend:reduce" *)
   reduce;
   (*TIME time "descend:unfold_simpl" ( *)
@@ -1099,8 +1100,8 @@ Theorem init_out : forall ns ns' ns'' vs avail p avail',
   unfold ok_out; intuition; subst; apply prelude_out; auto.
 Qed.
 
-Ltac prepare fwd bwd := 
-  let the_unfold_tac x := 
+Ltac prepare fwd bwd :=
+  let the_unfold_tac x :=
     eval unfold empB, injB, injBX, starB, exB, hvarB in x
   in
   ILAlgoTypes.Tactics.Extension.extend the_unfold_tac
@@ -1201,9 +1202,9 @@ Ltac slotVariables E :=
     | nil => constr:(@nil string)
   end.
 
-Ltac post := 
+Ltac post :=
   (*TIME time "post:propxFo" *)
-  propxFo; 
+  propxFo;
   (*TIME time "post:autorewrite" ( *)
   autorewrite with sepFormula in *
   (*TIME ) *) ;
@@ -1228,7 +1229,7 @@ Ltac post :=
                            reflexivity
                            | split; [simpl; omega
                              | split; [ repeat constructor; simpl; intuition congruence
-                               | reflexivity ] ] ])                        
+                               | reflexivity ] ] ])
                  end)
                 || (let offset := eval simpl in (4 * List.length ns) in
                   change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
@@ -1255,7 +1256,7 @@ Ltac post :=
         end
   (*TIME ) *).
 
-Ltac sep' ext := 
+Ltac sep' ext :=
   post; evaluate ext; descend; repeat (step ext; descend).
 
 Ltac sep ext :=

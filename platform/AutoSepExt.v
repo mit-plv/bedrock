@@ -11,7 +11,7 @@ Require Import Provers.
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.
 
-Definition TacPackage : Type := 
+Definition TacPackage : Type :=
   @ILAlgoTypes.TypedPackage.
 
 Definition auto_ext' : TacPackage.
@@ -20,8 +20,8 @@ Definition auto_ext' : TacPackage.
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array.pack ltac:(fun c =>
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Locals.pack ltac:(fun d =>
   ILAlgoTypes.Tactics.build_mem_pack Bedrock.sep.Array8.pack ltac:(fun e =>
-    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c, d, e) ltac:(fun res => 
-      let res := 
+    ILAlgoTypes.Tactics.glue_packs (ILAlgoTypes.BedrockPackage.bedrock_package, a, b, c, d, e) ltac:(fun res =>
+      let res :=
         eval cbv beta iota zeta delta [
           ILAlgoTypes.Env ILAlgoTypes.Algos ILAlgoTypes.Algos_correct
           ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs
@@ -33,16 +33,16 @@ Definition auto_ext' : TacPackage.
           Env.repr_combine Env.footprint Env.nil_Repr
           Env.listToRepr
           app map
-          
-          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r 
+
+          ILEnv.bedrock_funcs_r ILEnv.bedrock_types_r
           ILAlgoTypes.AllAlgos_composite
-          ILAlgoTypes.oplus Prover.composite_ProverT 
+          ILAlgoTypes.oplus Prover.composite_ProverT
           Env.listToRepr
 
           Plugin_PtsTo.ptsto32_ssig Bedrock.sep.Array.ssig Bedrock.sep.Locals.ssig Bedrock.sep.Array8.ssig
 
           Bedrock.sep.Locals.types_r Bedrock.sep.Locals.funcs_r
-          
+
           comboTypes comboFuncs
           Bedrock.sep.Array.types_r Bedrock.sep.Array.funcs_r
           Bedrock.sep.Array8.types_r Bedrock.sep.Array8.funcs_r

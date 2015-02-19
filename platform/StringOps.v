@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Ascii Wrap Arrays8.
 
 Set Implicit Arguments.
@@ -53,7 +54,7 @@ Section Params.
     change (goodSize offset); eapply goodSize_weaken; eauto.
     instantiate (1 := len'); auto.
   Qed.
-  
+
   Implicit Arguments bound_narrow [len len' pos offset spacing].
 
   Ltac evalu :=

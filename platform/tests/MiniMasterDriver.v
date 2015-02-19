@@ -12,7 +12,7 @@ Module M.
       Address := dbaddr 0;
       Schema := "key" :: "value" :: nil
     |}
-    
+
     :: nil.
 
   Definition pr := SimpleROS (

@@ -23,7 +23,7 @@ Definition factS : spec := SPEC("n") reserving 1
 Definition fact := bmodule "fact" {{
   bfunction "fact"("n", "acc") [factS]
     "acc" <- 1;;
-    
+
     [PRE[V] Emp
      POST[R] [| exists r, factR (V "n") r /\ R = V "acc" ^* r |] ]
     While ("n" <> 0) {

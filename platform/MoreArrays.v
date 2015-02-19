@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep.
 
 
@@ -93,7 +94,7 @@ Lemma inc : forall n (w : W) l,
   erewrite <- next; eauto.
   unfold natToW in *; rewrite natToWord_wordToNat in *.
   auto.
-Qed.  
+Qed.
 
 Theorem natToW_wordToNat : forall w : W,
   natToW (wordToNat w) = w.

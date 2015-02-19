@@ -12,7 +12,7 @@ Module Make (SL : SepLemma).
   Ltac collectTypes_hint' isConst P types k :=
     match P with
       | fun x => @?H x -> @?P x =>
-         ReifyExpr.collectTypes_expr ltac:(isConst) H types ltac:(fun types => 
+         ReifyExpr.collectTypes_expr ltac:(isConst) H types ltac:(fun types =>
           collectTypes_hint' ltac:(isConst) P types k)
       | fun x => forall cs, @SE.ST.himp ?pcT ?stT cs (@?L x) (@?R x) =>
         SEP_REIFY.collectTypes_sexpr ltac:(isConst) L types ltac:(fun types =>
@@ -116,7 +116,7 @@ Module Make (SL : SepLemma).
   Ltac prove Ps :=
     match Ps with
       | tt => constructor
-      | (?P1, ?P2) => 
+      | (?P1, ?P2) =>
            (apply Folds.Forall_app; [ prove P1 | prove P2 ])
         || (constructor; [ split; [ reflexivity | exact P1 ] | prove P2 ])
       | _ => constructor; [ split; [ reflexivity | exact Ps ] | constructor ]
@@ -143,7 +143,7 @@ Ltac lift_signature_over_repr s rp :=
 Ltac lift_signatures_over_repr fs rp :=
   match eval hnf in fs with
     | nil => constr:(fun ts' => @nil (signature (repr rp ts')))
-    | ?f :: ?fs => 
+    | ?f :: ?fs =>
       let f := lift_signature_over_repr f rp in
       let fs := lift_signatures_over_repr fs rp in
       constr:(fun ts' => (f ts') :: (fs ts'))
@@ -157,7 +157,7 @@ Ltac lift_ssignature_over_repr s rp pc st :=
 Ltac lift_ssignatures_over_repr fs rp pc st :=
   match eval hnf in fs with
     | nil => constr:(fun ts' => @nil (SE.predicate (repr rp ts') pc st))
-    | ?f :: ?fs => 
+    | ?f :: ?fs =>
       let f := lift_ssignature_over_repr f rp pc st in
       let fs := lift_ssignatures_over_repr fs rp pc st in
       constr:(fun ts' => (f ts') :: (fs ts'))
@@ -191,7 +191,7 @@ with lift_exprs_over_repr es rp :=
 Ltac lift_sexpr_over_repr e rp pc st :=
   match eval hnf in e with
     | @SE.Emp _ _ _ => constr:(fun ts => @SE.Emp (repr rp ts) pc st)
-    | @SE.Inj _ _ _ ?e => 
+    | @SE.Inj _ _ _ ?e =>
       let e := lift_expr_over_repr e rp in
       constr:(fun ts => @SE.Inj (repr rp ts) pc st (e ts))
     | @SE.Star _ _ _ ?l ?r =>
@@ -201,7 +201,7 @@ Ltac lift_sexpr_over_repr e rp pc st :=
     | @SE.Exists _ _ _ ?t ?e =>
       let e := lift_sexpr_over_repr e rp pc st in
       constr:(fun ts => @SE.Exists (repr rp ts) pc st t (e ts))
-    | @SE.Func _ _ _ ?f ?args => 
+    | @SE.Func _ _ _ ?f ?args =>
       let args := lift_exprs_over_repr args rp in
       constr:(fun ts => @SE.Func (repr rp ts) pc st f (args ts))
     | @SE.Const _ _ _ ?b => constr:(fun ts => @SE.Const (repr rp ts) pc st b)
@@ -213,7 +213,7 @@ Ltac lift_lemma_over_repr lm rp pc st :=
        ; SL.Hyps := ?h
        ; SL.Lhs := ?l
        ; SL.Rhs := ?r
-       |} => 
+       |} =>
     let h := lift_exprs_over_repr h rp in
     let l := lift_sexpr_over_repr l rp pc st in
     let r := lift_sexpr_over_repr r rp pc st in
@@ -252,16 +252,16 @@ Module Packaged (CE : TypedPackage.CoreEnv).
     HintsOk : forall ts fs ps, hintsSoundness (repr (Functions ts) fs) (repr (Predicates ts) ps) (Hints ts)
   }.
 *)
-  
+
   Module PACK := TypedPackage.Make SE CE.
-  
+
   Ltac prepareHints unfoldTac pcType stateType isConst env fwd bwd ret :=
-    let types := 
+    let types :=
       match type of env with
-        | PACK.TypeEnv => 
+        | PACK.TypeEnv =>
           let ts := eval cbv beta iota zeta delta [ env PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
           eval simpl in ts
-        | PACK.TypeEnv => 
+        | PACK.TypeEnv =>
           let ts := eval cbv beta iota zeta delta [ PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
           eval simpl in ts
       end
@@ -279,7 +279,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
             let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
             let types_rV := fresh "types" in
             (pose (types_rV := types_r) || fail 1000);
-            let funcs_r := lift_signatures_over_repr funcs types_rV in 
+            let funcs_r := lift_signatures_over_repr funcs types_rV in
             let funcs_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (funcs_r ts) (Default_signature (repr types_rV ts))) in
             let funcs_rV := fresh "funcs" in
             pose (funcs_rV := funcs_r) ;
@@ -290,7 +290,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
             let fwd' := lift_lemmas_over_repr fwd' types_rV pcT stateT in
             let bwd' := lift_lemmas_over_repr bwd' types_rV pcT stateT in
             let pf := fresh "fwd_pf" in
-            assert (pf : forall ts fs ps, hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| Forward := fwd' ts ; Backward := bwd' ts |})) by 
+            assert (pf : forall ts fs ps, hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| Forward := fwd' ts ; Backward := bwd' ts |})) by
               (abstract (constructor; [ prove fwd | prove bwd ])) ;
             let res := constr:(
               {| Types      := types_rV
@@ -345,7 +345,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
       Impl := nat;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
@@ -353,7 +353,7 @@ Module Packaged (CE : TypedPackage.CoreEnv).
       Impl := bool;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
@@ -361,15 +361,15 @@ Module Packaged (CE : TypedPackage.CoreEnv).
       Impl := unit;
       Eq := fun x y => match equiv_dec x y with
                          | left pf => Some pf
-                         | _ => None 
+                         | _ => None
                        end
       |}.
 
     Definition types0 := nat_type :: bool_type :: unit_type :: nil.
 
     Definition env0 : PACK.TypeEnv  :=
-      {| PACK.Types := listToRepr 
-           ({| Impl := pc ; Eq := fun _ _ => None |} :: 
+      {| PACK.Types := listToRepr
+           ({| Impl := pc ; Eq := fun _ _ => None |} ::
             {| Impl := state ; Eq := fun _ _ => None |} :: nil) EmptySet_type
        ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
        ; PACK.Preds := fun ts => nil_Repr (SE.Default_predicate _ _ _)

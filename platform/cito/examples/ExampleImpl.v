@@ -348,7 +348,7 @@ Theorem ok0 : moduleOk m0.
   do_delegate2 (@nil string).
 
   (* delete *)
-  
+
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
@@ -511,7 +511,7 @@ Theorem ok0 : moduleOk m0.
   do_delegate2 (@nil string).
 
   (* delete *)
-  
+
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).
   do_abort ("self" :: nil).

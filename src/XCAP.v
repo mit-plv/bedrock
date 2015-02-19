@@ -152,7 +152,7 @@ Section moduleOk.
         -> SetoidList.InA P' x' ls.
       induction 1; simpl; intuition.
     Qed.
-    
+
     Lemma specs_nochange' : forall v w (bls : list (LabelMap.key * (assert * block))),
       List.fold_left (fun pre l_p =>
         match pre with
@@ -562,7 +562,7 @@ Section link.
       | None => P
       | Some pre' => pre = pre' /\ P
     end) (Imports m1) True.
-  
+
   Theorem MapsTo_union : forall A k v (mp1 mp2 : LabelMap.t A),
     LabelMap.MapsTo k v (union mp1 mp2)
     -> LabelMap.MapsTo k v mp1 \/ LabelMap.MapsTo k v mp2.
@@ -628,7 +628,7 @@ Section link.
     induction (LabelMap.elements (Blocks m')); simpl; intuition; simpl in *.
     inversion H2; clear H2; intros; subst; simpl in *.
     specialize (IHl _ H5 H0).
-    
+
     assert (LabelMap.MapsTo k v t -> LabelMap.MapsTo k v (LabelMap.add a0 a t)).
     intros; apply LabelMap.add_2; auto.
     intro; subst.
@@ -666,7 +666,7 @@ Section link.
     apply H4; auto.
     constructor.
     reflexivity.
-    
+
     intuition.
     inversion H0; clear H0; intros; subst.
     apply H in H6; clear H; auto.
@@ -739,7 +739,7 @@ Section link.
     apply H2.
     constructor.
     red; reflexivity.
-    
+
     eauto.
   Qed.
 
@@ -881,7 +881,7 @@ Section link.
     destruct H2.
     apply LabelFacts.add_mapsto_iff in H2; intuition; subst.
     apply LabelMap.mem_1 in H3; congruence.
-    unfold LabelMap.In, LabelMap.Raw.In0 in *; eauto.    
+    unfold LabelMap.In, LabelMap.Raw.In0 in *; eauto.
   Qed.
 
   Lemma MapsTo_diff : forall A B k v (mp1 : LabelMap.t A) (mp2 : LabelMap.t B),
@@ -971,7 +971,7 @@ Section link.
       end) l P
     -> P.
     induction l; simpl; intuition; simpl in *.
-    
+
     destruct (LabelMap.find a0 exp).
     apply IHl in H; tauto.
     apply IHl in H; tauto.
@@ -1058,7 +1058,7 @@ Section link.
     apply IHls in H; tauto.
     apply IHls in H; tauto.
   Qed.
-  
+
   Theorem linkOk : moduleOk link.
     destruct m1Ok; clear m1Ok.
     destruct m2Ok; clear m2Ok.
@@ -1123,7 +1123,7 @@ Section link.
     destruct (ImportsGlobal1 _ _ H1).
     destruct k0; simpl in *; subst.
     apply ExportsComplete0 in H2.
-    apply LabelMap.find_1 in H2.    
+    apply LabelMap.find_1 in H2.
     specialize (use_importsOk _ ImportsOk2 H1 H2); intro; subst.
     right.
     apply LabelMap.find_2 in H2.

@@ -4,14 +4,14 @@ Require Import GoodFunc.
 Require Import SyntaxFunc.
 Export SyntaxFunc.
 
-Record GoodFunction := 
+Record GoodFunction :=
   {
     Fun : Func;
     IsGoodFunc : GoodFunc Fun
   }.
 
 Coercion Fun : GoodFunction >-> Func.
-    
+
 Definition to_good_function (f : Func) : GoodFunc f -> GoodFunction.
   intros.
   econstructor.
@@ -28,7 +28,7 @@ Qed.
 
 Lemma to_func_good : forall (f : GoodFunction), GoodFunc f.
   intros; destruct f; eauto.
-Qed.    
+Qed.
 
 Require Import Semantics.
 

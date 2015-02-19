@@ -69,7 +69,7 @@ Section TopSection.
   Fixpoint elim_dead s used : Stmt * SET :=
     match s with
       | skip => (s, used)
-      | a ;; b => 
+      | a ;; b =>
         let result := elim_dead b used in
         let b := fst result in
         let used := snd result in
@@ -77,7 +77,7 @@ Section TopSection.
         let a := fst result in
         let used := snd result in
         (a ;; b, used)
-      | Syntax.If e t f => 
+      | Syntax.If e t f =>
         let result := elim_dead t used in
         let t := fst result in
         let used_t := snd result in
@@ -85,7 +85,7 @@ Section TopSection.
         let f := fst result in
         let used_f := snd result in
         (Syntax.If e t f, used_vars e + used_t + used_f)
-      | Syntax.While e body => 
+      | Syntax.While e body =>
         let result := elim_dead body (used + used_vars e + used_vars_stmt body) in
         let body := fst result in
         let used' := snd result in
@@ -150,7 +150,7 @@ Section TopSection.
 
   Hint Resolve upd_out_agree_in.
 
-  Lemma elim_dead_upper_bound : 
+  Lemma elim_dead_upper_bound :
     forall s used,
       let result := elim_dead s used in
       let used' := snd result in
@@ -232,7 +232,7 @@ Module Make (Import E : ADT).
           (
             let s := body in
 
-            forall (used : SET) (vs vt : vals) (heap : Heap) 
+            forall (used : SET) (vs vt : vals) (heap : Heap)
                    (vt' : vals) (heap' : Heap),
               let result := elim_dead s used in
               let t := fst result in
@@ -259,7 +259,7 @@ Module Make (Import E : ADT).
       openhyp.
       descend.
       econstructor.
-      simpl. 
+      simpl.
       repeat erewrite (@eval_agree_in _ vs w) by eauto.
       eauto.
       eauto.
@@ -284,8 +284,8 @@ Module Make (Import E : ADT).
 
     Hint Resolve subset_diff_empty.
 
-    Lemma elim_dead_is_bp : 
-      forall fs s used vs vt heap vt' heap', 
+    Lemma elim_dead_is_bp :
+      forall fs s used vs vt heap vt' heap',
         let result := elim_dead s used in
         let t := fst result in
         let used' := snd result in
@@ -416,8 +416,8 @@ Module Make (Import E : ADT).
       Focus 4.
       intros.
       unfold_all.
-      eapply 
-        (Safe_coind 
+      eapply
+        (Safe_coind
            (fun t v =>
               (exists vs c b used,
                  let s := While c b in
@@ -554,7 +554,7 @@ Module Make (Import E : ADT).
       simpl; intros; openhyp'; simpl in *; eauto.
       inversion_clear H.
       econstructor; eauto.
-    Qed.  
+    Qed.
 
     Require Import FreeVars.
 

@@ -13,7 +13,7 @@ Lemma syn_req_Label_in : forall vars temp_size x lbl k, syn_req vars temp_size (
 Qed.
 
 Lemma syn_req_Assign_in : forall vars temp_size x e k, syn_req vars temp_size (Syntax.Assign x e ;; k) -> List.In x vars.
-  unfold syn_req, in_scope; simpl; intuition.  
+  unfold syn_req, in_scope; simpl; intuition.
   apply Subset_union_left in H; intuition.
   apply Subset_union_left in H0; intuition.
   apply Subset_singleton in H.

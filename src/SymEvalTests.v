@@ -20,7 +20,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       end.
 
     Definition addr_type : Expr.type :=
-      {| Expr.Impl := B.addr 
+      {| Expr.Impl := B.addr
        ; Expr.Eq := fun x y => match B.addr_dec x y with
                                  | left pf => Some pf
                                  | right _ => None
@@ -36,9 +36,9 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        |}.
 
     Definition a_type : Expr.type :=
-      {| Expr.Impl := a 
+      {| Expr.Impl := a
        ; Eq := fun _ _ => None
-       |}.   
+       |}.
     Definition b_type : Expr.type :=
       {| Expr.Impl := b
        ; Eq := fun _ _ => None
@@ -46,7 +46,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Require Import Word.
 
-    Definition pre_types : list Expr.type := 
+    Definition pre_types : list Expr.type :=
       a_type :: b_type :: addr_type :: W_type :: nil.
 
     (** I need to universally quantify SymEval_word over the functions list
@@ -62,9 +62,9 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
          (ST.hprop (tvarD (wtypes pre_types 2 3) (tvType 0))
            (tvarD (wtypes pre_types 2 3) (tvType 1)) nil)
        |} :: nil.
-    
+
     Definition Satisfies cs stn (P : ST.hprop a b nil) m : Prop :=
-      exists sm, 
+      exists sm,
           ST.satisfies cs P stn sm
        /\ ST.HT.satisfies sm m.
 
@@ -75,23 +75,23 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Definition known : list nat := 0 :: nil.
 
     Definition evaluators : DepList.hlist (fun n : nat => match nth_error sfuncs n with
-                                                            | None => Empty_set 
-                                                            | Some ss => 
+                                                            | None => Empty_set
+                                                            | Some ss =>
                                                               SymEval_word pre_types addr_not_state
                                                                 funcs
                                                                 (pcIndex := 0) (stateIndex := 1) ss
                                                           end) known.
       refine (DepList.HCons _ DepList.HNil); simpl.
       refine (
-        {| sym_read_word := fun _ args p => 
+        {| sym_read_word := fun _ args p =>
            match args with
-             | p' :: v :: nil => 
+             | p' :: v :: nil =>
                if seq_dec p p' then Some v else None
              | _ => None
            end
          ; sym_write_word := fun _ args p v =>
            match args with
-             | p' :: v' :: nil => 
+             | p' :: v' :: nil =>
                if seq_dec p p' then Some (p' :: v :: nil) else None
              | _ => None
            end
@@ -118,22 +118,22 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Ltac lift_evaluators_w es nt nf ns :=
       let rec lift es :=
         match es with
-          | @DepList.HNil _ (fun n : nat => 
+          | @DepList.HNil _ (fun n : nat =>
             match nth_error _ n with
               | None => Empty_set
-              | Some ss => @SymEval_word _ ?stI ?pcI ?ptrI ?wI ?pf _ _ 
+              | Some ss => @SymEval_word _ ?stI ?pcI ?ptrI ?wI ?pf _ _
             end) =>
-            let k := 
+            let k :=
               constr:(@DepList.HNil nat (fun n : nat =>
                 match nth_error ns n with
                   | None => Empty_set
                   | Some ss => @SymEval_word nt stI pcI ptrI wI pf nf ss
                 end))
-            in k 
-          | @DepList.HCons _ (fun n : nat => 
+            in k
+          | @DepList.HCons _ (fun n : nat =>
             match nth_error _ n with
               | None => Empty_set
-              | Some ss => @SymEval_word _ ?stI ?pcI ?ptrI ?wI ?pf _ _ 
+              | Some ss => @SymEval_word _ ?stI ?pcI ?ptrI ?wI ?pf _ _
             end) ?f ?ls ?e ?es =>
           idtac "ok" ;
             let es := lift es in
@@ -152,7 +152,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
     Goal True.
       Set Printing Implicit.
       match goal with
-        | [ |- _ ] => 
+        | [ |- _ ] =>
           let z := eval unfold evaluators in evaluators in
             idtac "foo" z ;
           let r := lift_evaluators_w z pre_types funcs sfuncs in
@@ -160,10 +160,10 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
             idtac r
       end.
 
-            constr:(@DepList.HNil nat (fun n : nat => 
+            constr:(@DepList.HNil nat (fun n : nat =>
               match nth_error sfuncs n with
-                | None => Empty_set 
-                | Some ss => 
+                | None => Empty_set
+                | Some ss =>
                   SymEval_word nt addr_not_state
                   funcs
                   (pcIndex := 0) (stateIndex := 1) ss
@@ -186,7 +186,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         match SEP.reify_sexprs a b ltac:(isConst) types tt tt sexprs with
           | (?types, ?pcType, ?stateType, ?funcs, ?sfuncs, ?P :: nil) =>
             match SEP.reify_exprs ltac:(isConst) types funcs (PTR, tt) with
-              | (?types, ?funcs, ?PTR :: nil) => 
+              | (?types, ?funcs, ?PTR :: nil) =>
                 let hyps := constr:(@nil (expr types)) in
                 let s := eval simpl in (SEP.hash P) in
                 generalize (@symeval_read_word_correct types 1 0 2 3 addr_not_state funcs sfuncs known)
@@ -200,7 +200,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
       intros.
       pose evaluators.
 
-        
+
 
       specialize (H0 evaluators).
       (** TODO : the known list needs to be parameterized appropriately... **)
@@ -210,7 +210,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
 
     Goal forall p1 p2 p3 v1 v2 v3 cs stn m,
       Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v2) (ptsto32 p3 v3))) m
-      -> Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v3) (ptsto32 p3 v3))) 
+      -> Satisfies cs stn (ST.star (ptsto32 p1 v1) (ST.star (ptsto32 p2 v3) (ptsto32 p3 v3)))
            (mem_set_word B.addr B.mem B.footprint_w B.mem_set (IL.explode stn) p2 v3 m).
     Proof.
       intros.
@@ -226,10 +226,10 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
         match SEP.reify_sexprs a b ltac:(isConst) types tt tt sexprs with
           | (?types, ?pcType, ?stateType, ?funcs, ?sfuncs, ?P :: nil) =>
              match SEP.reify_exprs ltac:(isConst) types funcs (PTR, (VAL, tt)) with
-              | (?types, ?funcs, ?PTR :: ?VAL :: nil) => 
+              | (?types, ?funcs, ?PTR :: ?VAL :: nil) =>
                  let hyps := constr:(@nil (expr pre_types)) in
                 let s := eval simpl in (SEP.hash P) in
-                generalize (@symeval_write_word_correct types 1 0 2 3 addr_not_state sfuncs known evaluators 
+                generalize (@symeval_write_word_correct types 1 0 2 3 addr_not_state sfuncs known evaluators
                   hyps PTR VAL (snd s) _ (refl_equal _) CS STN funcs nil nil M _ I (refl_equal _) H)
             end
         end

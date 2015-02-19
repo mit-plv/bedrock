@@ -19,7 +19,7 @@ Module Make (Import E : ADT).
     Definition assert := Env -> State -> State -> Prop.
     Definition entailment := Env -> Prop.
 
-    Inductive StmtEx := 
+    Inductive StmtEx :=
     | SkipEx : StmtEx
     | SeqEx : StmtEx -> StmtEx -> StmtEx
     | IfEx : Expr -> StmtEx -> StmtEx -> StmtEx
@@ -78,14 +78,14 @@ Module Make (Import E : ADT).
       match stmt with
         | SeqEx a b => vc a p ++ vc b (sp a p)
         | IfEx e t f => vc t (p /\ is_true e) ++ vc f (p /\ is_false e)
-        | WhileEx inv e body => 
+        | WhileEx inv e body =>
           (p --> inv) :: (sp body (inv /\ is_true e) --> inv) :: vc body (inv /\ is_true e)
         | AssertEx a => (p --> a) :: nil
         | SkipEx => nil
         | AssignEx _ _ => nil
         | _ => (p --> (fun env _ v => Safe env stmt v)) :: nil
       end.
-    
+
     Definition and_all : list entailment -> entailment := fold_right (fun a b env => a env /\ b env)%type (fun _ => True).
 
     Require Import GeneralTactics.

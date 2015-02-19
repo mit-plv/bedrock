@@ -10,7 +10,7 @@ Definition upd_option vs x value :=
 
 Require Import FuncCore.
 Export FuncCore.
-Record InternalFuncSpec := 
+Record InternalFuncSpec :=
   {
     Fun : FuncCore;
     NoDupArgVars : NoDup (ArgVars Fun)
@@ -53,7 +53,7 @@ Section ADTValue.
     let pairs := filter (fun p => is_adt (snd p)) pairs in
     NoDup (List.map fst pairs).
 
-  Definition good_inputs heap pairs := 
+  Definition good_inputs heap pairs :=
     Forall (word_adt_match heap) pairs /\
     disjoint_ptrs pairs.
 
@@ -77,7 +77,7 @@ Section ADTValue.
       | ADT a => (addr, Some a)
     end.
 
-  Definition separated heap ret_w (ret_a : option ADTValue) := 
+  Definition separated heap ret_w (ret_a : option ADTValue) :=
     ret_a = None \/ ~ @WordMap.In ADTValue ret_w heap.
 
   Definition heap_upd_option m k (v : option ADTValue) :=
@@ -94,34 +94,34 @@ Section ADTValue.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall v, RunsTo Syntax.Skip v v
-    | RunsToSeq : 
+    | RunsToSeq :
         forall a b v v' v'',
-          RunsTo a v v' -> 
-          RunsTo b v' v'' -> 
+          RunsTo a v v' ->
+          RunsTo b v' v'' ->
           RunsTo (Syntax.Seq a b) v v''
-    | RunsToIfTrue : 
-        forall cond t f v v', 
+    | RunsToIfTrue :
+        forall cond t f v v',
           wneb (eval (fst v) cond) $0 = true ->
           RunsTo t v v' ->
           RunsTo (Syntax.If cond t f) v v'
-    | RunsToIfFalse : 
-        forall cond t f v v', 
+    | RunsToIfFalse :
+        forall cond t f v v',
           wneb (eval (fst v) cond) $0 = false ->
           RunsTo f v v' ->
           RunsTo (Syntax.If cond t f) v v'
-    | RunsToWhileTrue : 
-        forall cond body v v' v'', 
+    | RunsToWhileTrue :
+        forall cond body v v' v'',
           let loop := While cond body in
           wneb (eval (fst v) cond) $0 = true ->
           RunsTo body v v' ->
           RunsTo loop v' v'' ->
           RunsTo loop v v''
-    | RunsToWhileFalse : 
-        forall cond body v, 
+    | RunsToWhileFalse :
+        forall cond body v,
           let loop := While cond body in
           wneb (eval (fst v) cond) $0 = false ->
           RunsTo loop v v
-    | RunsToCallInternal : 
+    | RunsToCallInternal :
         forall var f args v spec vs_callee vs_callee' heap',
           let vs := fst v in
           let heap := snd v in
@@ -132,7 +132,7 @@ Section ADTValue.
           let vs := upd_option vs var (Locals.sel vs_callee' (RetVar spec)) in
           let heap := heap' in
           RunsTo (Syntax.Call var f args) v (vs, heap)
-    | RunsToCallForeign : 
+    | RunsToCallForeign :
         forall var f args v spec triples addr ret heap',
           let vs := fst v in
           let heap := snd v in
@@ -151,7 +151,7 @@ Section ADTValue.
           let vs := upd_option vs var ret_w in
           WordMap.Equal heap' heap ->
           RunsTo (Syntax.Call var f args) v (vs, heap')
-    | RunsToLabel : 
+    | RunsToLabel :
         forall x lbl v w,
           fst env lbl = Some w ->
           RunsTo (Syntax.Label x lbl) v (Locals.upd (fst v) x w, snd v)
@@ -161,42 +161,42 @@ Section ADTValue.
           RunsTo (Syntax.Assign x e) v (Locals.upd vs x (eval vs e), snd v).
 
     CoInductive Safe : Stmt -> State -> Prop :=
-    | SafeSkip : 
+    | SafeSkip :
         forall v, Safe Syntax.Skip v
-    | SafeSeq : 
-        forall a b v, 
+    | SafeSeq :
+        forall a b v,
           Safe a v ->
-          (forall v', RunsTo a v v' -> Safe b v') -> 
+          (forall v', RunsTo a v v' -> Safe b v') ->
           Safe (Syntax.Seq a b) v
-    | SafeIf : 
-        forall cond t f v, 
+    | SafeIf :
+        forall cond t f v,
           let b := wneb (eval (fst v) cond) $0 in
           b = true /\ Safe t v \/ b = false /\ Safe f v ->
           Safe (Syntax.If cond t f) v
-    | SafeWhileTrue : 
-        forall cond body v, 
+    | SafeWhileTrue :
+        forall cond body v,
           let loop := While cond body in
           wneb (eval (fst v) cond) $0 = true ->
           Safe body v ->
           (forall v', RunsTo body v v' -> Safe loop v') ->
           Safe loop v
-    | SafeWhileFalse : 
-        forall cond body v, 
+    | SafeWhileFalse :
+        forall cond body v,
           let loop := While cond body in
           wneb (eval (fst v) cond) $0 = false ->
           Safe loop v
-    | SafeCallInternal : 
+    | SafeCallInternal :
         forall var f args v spec,
           let vs := fst v in
           let heap := snd v in
           let fs := snd env in
           fs (eval vs f) = Some (Internal spec) ->
           length (ArgVars spec) = length args ->
-          (forall vs_arg, 
-             map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+          (forall vs_arg,
+             map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args
              -> Safe (Body spec) (vs_arg, heap)) ->
           Safe (Syntax.Call var f args) v
-    | SafeCallForeign : 
+    | SafeCallForeign :
         forall var f args v spec pairs,
           let vs := fst v in
           let heap := snd v in
@@ -221,11 +221,11 @@ Section ADTValue.
 
       Hypothesis IfCase : forall cond t f v, R (Syntax.If cond t f) v -> (wneb (eval (fst v) cond) $0 = true /\ R t v) \/ (wneb (eval (fst v) cond) $0 = false /\ R f v).
 
-      Hypothesis WhileCase : 
-        forall cond body v, 
-          let loop := Syntax.While cond body in 
-          R loop v -> 
-          (wneb (eval (fst v) cond) $0 = true /\ R body v /\ (forall v', RunsTo body v v' -> R loop v')) \/ 
+      Hypothesis WhileCase :
+        forall cond body v,
+          let loop := Syntax.While cond body in
+          R loop v ->
+          (wneb (eval (fst v) cond) $0 = true /\ R body v /\ (forall v', RunsTo body v v' -> R loop v')) \/
           (wneb (eval (fst v) cond) $0 = false).
 
       Hypothesis CallCase : forall var f args v,
@@ -235,8 +235,8 @@ Section ADTValue.
             let fs := snd env in
               fs (eval vs f) = Some (Internal spec) /\
               length (ArgVars spec) = length args /\
-              (forall vs_arg, 
-                map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args 
+              (forall vs_arg,
+                map (Locals.sel vs_arg) (ArgVars spec) = map (eval vs) args
                 -> R (Body spec) (vs_arg, heap)))
         \/ (exists spec, exists pairs, let vs := fst v in
           let heap := snd v in
@@ -245,14 +245,14 @@ Section ADTValue.
               map (eval vs) args = map fst pairs /\
               good_inputs heap pairs /\
               PreCond spec (map snd pairs)).
-          
+
       Hypothesis LabelCase : forall x lbl v,
         R (Syntax.Label x lbl) v
         -> fst env lbl <> None.
 
       Hint Constructors Safe.
 
-      Ltac openhyp := 
+      Ltac openhyp :=
         repeat match goal with
                  | H : _ /\ _ |- _  => destruct H
                  | H : _ \/ _ |- _ => destruct H

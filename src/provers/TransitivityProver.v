@@ -43,7 +43,7 @@ Section Grouper.
   Fixpoint inSameGroup (grps : list (list A)) (a : A) (b : A) :=
     match grps with
       | nil => false
-      | g :: grps' => 
+      | g :: grps' =>
         if in_seq g a then
           if in_seq g b
             then true
@@ -120,7 +120,7 @@ Section Grouper.
     Forall groupEqual grps
     -> Forall (R x) xs
     -> Forall groupEqual (groupWith grps xs x).
-    induction 1; t. eauto 10. 
+    induction 1; t. eauto 10.
       apply in_seq_correct in H3. eauto 7.
   Qed.
 
@@ -130,10 +130,10 @@ Section Grouper.
     groupsEqual grps
     -> R x y
     -> groupsEqual (addEquality grps x y).
-    induction 1; t; 
+    induction 1; t;
       match goal with
         | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
-      end; eauto 7. 
+      end; eauto 7.
   Qed.
 
   Theorem inSameGroup_sound : forall grps, groupsEqual grps
@@ -142,7 +142,7 @@ Section Grouper.
     induction 1; t;
       repeat match goal with
         | [ H : _ |- _ ] => apply A_seq_correct in H || apply in_seq_correct in H
-      end; eauto 7. 
+      end; eauto 7.
   Qed.
 End Grouper.
 
@@ -182,7 +182,7 @@ Section TransitivityProver.
 (*
   Theorem eqD_refl_wt : forall e1 e2, e1 = e2 ->
     match is_well_typed (typeof_funcs fs) uvars vars e1 (typeof (typeof_funcs fs) uvars vars e1) return Prop with
-      | None => True 
+      | None => True
       | Some t => eqD e1 e2
     end.
   Proof.
@@ -215,7 +215,7 @@ Section TransitivityProver.
     (x y : expr types) := inSameGroup (@expr_seq_dec _) groups x y.
 
   Fixpoint proveEqual (groups : transitivity_summary) (e1 e2 : expr types) {struct e1} :=
-    expr_seq_dec e1 e2 || 
+    expr_seq_dec e1 e2 ||
       (inSameGroup (@expr_seq_dec _) groups e1 e2
         || match e1, e2 with
              | Func f1 args1, Func f2 args2 =>
@@ -264,7 +264,7 @@ Section TransitivityProver.
     end.
 
   Ltac eqD := unfold eqD; intros; repeat eqD1; t.
-  
+
   Theorem eqD_sym : forall x y : expr types, eqD x y -> eqD y x.
     unfold eqD; intros.
     eqD.
@@ -288,13 +288,13 @@ Section TransitivityProver.
     destruct a; auto.
     revert H; case_eq (exprD fs uvars vars (Equal t a1 a2) tvProp); intros; try contradiction.
     simpl in *. apply addEquality_sound; eauto.
-    
+
     Focus 2.
 
     revert H.
     unfold eqD.
     case_eq (exprD fs uvars vars a1 t); try congruence; intros.
-(* 
+(*
     rewrite (exprD_typeof _ _ _ _ _ H). rewrite H. destruct (exprD fs uvars vars a2 t); try congruence.
     inversion H2. subst; auto.
 *)
@@ -323,7 +323,7 @@ Section TransitivityProver.
   Admitted.
 
   Theorem transitivityProverCorrect : ProverCorrect fs transitivityValid transitivityProve.
-    admit. 
+    admit.
 (*
     unfold transitivityProver; hnf; intros;
       destruct goal; try discriminate;
@@ -350,7 +350,7 @@ Section TransitivityProver.
    |}.
 
   Definition transitivityProver_correct : ProverT_correct transitivityProver fs.
-  eapply Build_ProverT_correct with (Valid := transitivityValid); 
+  eapply Build_ProverT_correct with (Valid := transitivityValid);
     eauto using transitivityValid_extensible, transitivitySummarizeCorrect, transitivityLearnCorrect, transitivityProverCorrect.
   Qed.
 
@@ -365,24 +365,24 @@ Definition TransitivityProver : ProverPackage :=
 Ltac unfold_transitivityProver H :=
   match H with
     | tt =>
-      cbv delta [ 
+      cbv delta [
         transitivityProver proveEqual
         transitivitySummarize transitivityLearn transitivityProve
 
         groupsOf addEquality
-        transitivityLearn 
+        transitivityLearn
         inSameGroup
         expr_seq_dec
         in_seq
         groupWith
       ]
-    | _ => 
-      cbv delta [ 
+    | _ =>
+      cbv delta [
         transitivityProver proveEqual
         transitivitySummarize transitivityLearn transitivityProve
 
         groupsOf addEquality
-        transitivityLearn 
+        transitivityLearn
         inSameGroup
         expr_seq_dec
         in_seq

@@ -137,9 +137,9 @@ Module Make (Import E : ADT).
         let lbl := (MName module, FName f) in
         (lbl, func_spec lbl f).
 
-      Definition module_exports m := 
+      Definition module_exports m :=
         of_list
-          (List.map 
+          (List.map
              (func_export m)
              (Functions m)).
 
@@ -150,9 +150,9 @@ Module Make (Import E : ADT).
 
       Definition func_impl_export m (f : GoodFunction) := (impl_label (MName m) (FName f), spec f).
 
-      Definition module_impl_exports m := 
+      Definition module_impl_exports m :=
         of_list
-          (List.map 
+          (List.map
              (func_impl_export m)
              (Functions m)).
 

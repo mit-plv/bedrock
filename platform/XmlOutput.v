@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Wrap StringOps SinglyLinkedList Malloc ArrayOps Bags.
 Require Import RelDb RelDbCondition RelDbSelect.
 
@@ -1430,7 +1431,7 @@ Section Out.
                       let y' := eval unfold y in y in equate U (x', y'); clear x y; simpl
               end
           end; autorewrite with sepFormula in *; my_refold.
-  
+
   Ltac deSpec :=
     repeat match goal with
              | [ H : LabelMap.find _ _ = _ |- _ ] => try rewrite H; clear H

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import PreAutoSep Wrap Conditional.
 
 Import DefineStructured.
@@ -1071,7 +1072,7 @@ Definition aspecForall A (asp : A -> aspec) : aspec :=
   {| Quants := { x : A & Quants (asp x) };
     InvPre := (fun v => InvPre (asp (projT1 v)) (projT2 v));
     InvPost := (fun v => InvPost (asp (projT1 v)) (projT2 v)) |}.
-  
+
 
 Notation "'After' ws 'Approaching' full 'PRE' [ V ] pre 'POST' [ R ] post" :=
   (aspecBase (fun ws full V => pre%qspec%Sep) (fun full V R => post%qspec%Sep))

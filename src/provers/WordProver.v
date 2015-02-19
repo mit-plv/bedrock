@@ -776,7 +776,7 @@ Section WordProver.
              | [ |- exists x, _ ] => eexists; split; [ reflexivity | ]
            end; auto.
   Qed.
-  
+
   Definition wordProver : ProverT types :=
   {| Facts := word_summary
    ; Summarize := wordSummarize

@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Bool.
 Require Import DepList List.
 Require Import Expr SepExpr SymEval.
@@ -50,8 +51,8 @@ Definition bedrock_type_listW : type :=
    ; Expr.Eqb_correct := @ILEnv.all_false_compare _ |}.
 
 Definition types_r : Env.Repr Expr.type :=
-  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-    let lst := 
+  Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+    let lst :=
       Some ILEnv.bedrock_type_W ::
       Some ILEnv.bedrock_type_setting_X_state ::
       None ::
@@ -101,8 +102,8 @@ Section parametric.
   Defined.
 
   Definition funcs_r : Env.Repr (signature types) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         Some (ILEnv.wplus_r types) ::
         None ::
         Some (ILEnv.wmult_r types) ::
@@ -246,8 +247,8 @@ Section correctness.
   Defined.
 
   Definition ssig_r : Env.Repr (SEP.predicate types0 pcT stT) :=
-    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in 
-      let lst := 
+    Eval cbv beta iota zeta delta [ Env.listOptToRepr ] in
+      let lst :=
         None :: Some ssig :: nil
       in Env.listOptToRepr lst (SEP.Default_predicate _ _ _).
 
@@ -274,7 +275,7 @@ Section correctness.
   Lemma div4_correct : forall n m, div4 n = Some m
     -> n = 4 * m.
     intros; eapply div4_correct'; eauto.
-  Qed.    
+  Qed.
 
   Lemma deref_correct : forall uvars vars e w base offset,
     exprD funcs uvars vars e wordT = Some w
@@ -325,7 +326,7 @@ Section correctness.
     exists smem_emp; intuition.
     apply split_comm; apply split_a_semp_a.
     reflexivity.
-    
+
     unfold ptsto32m'.
     apply simplify_bwd.
     exists m.
@@ -480,7 +481,7 @@ Section correctness.
     repeat rewrite <- IHn.
     repeat rewrite <- plus_n_O.
     apply Mult.mult_plus_distr_r.
-  Qed.      
+  Qed.
 
   Lemma array_bound : forall cs ws base stn m,
     interp cs (array ws base stn m)
@@ -519,7 +520,7 @@ Section correctness.
     rewrite natToWord_wordToNat.
     W_eq.
 
-    apply ptsto32m'_in; auto. 
+    apply ptsto32m'_in; auto.
 
     red in H0.
     apply Nlt_out in H0.
@@ -537,7 +538,7 @@ Section correctness.
     sym_read Prover summ args pe = Some ve ->
     Valid Prover_correct uvars vars summ ->
     exprD funcs uvars vars pe wordT = Some p ->
-    match 
+    match
       applyD (exprD funcs uvars vars) (SEP.SDomain ssig) args _ (SEP.SDenotation ssig)
       with
       | None => False
@@ -616,7 +617,7 @@ Section correctness.
     apply simplify_bwd in H0.
     replace m with x; auto.
     symmetry; eapply split_semp.
-    apply split_comm; eauto.    
+    apply split_comm; eauto.
     simpl in H1; tauto.
 
     replace (a ^+ $0) with a in * by W_eq.
@@ -679,7 +680,7 @@ Section correctness.
     exists (HT.join s x0); split.
     destruct H0; subst.
     eapply split_set_word in H4; intuition eauto.
-    
+
     apply simplify_bwd.
     exists s; exists x0.
     split.
@@ -733,7 +734,7 @@ Section correctness.
     apply disjoint_split_join.
     destruct H0; auto.
     eapply split_set_word in H3.
-    2: apply disjoint_comm; eauto.      
+    2: apply disjoint_comm; eauto.
     apply disjoint_comm; tauto.
     split; auto.
   Qed.
@@ -745,7 +746,7 @@ Section correctness.
       /\ ST.satisfies cs (array (upd ws i v) base) stn m'.
     intros.
     destruct (@smem_write_correct'' cs base stn v ws (wordToNat i) m 0).
-    
+
     red in H.
     apply Nlt_out in H.
     repeat rewrite wordToN_nat in *.
@@ -778,11 +779,11 @@ Section correctness.
       | None => False
       | Some p => ST.satisfies cs p stn m
     end ->
-    match 
+    match
       applyD (@exprD _ funcs uvars vars) (SEP.SDomain ssig) args' _ (SEP.SDenotation ssig)
       with
       | None => False
-      | Some pr => 
+      | Some pr =>
         match ST.HT.smem_set_word (IL.explode stn) p v m with
           | None => False
           | Some sm' => ST.satisfies cs pr stn sm'
@@ -829,11 +830,11 @@ Section correctness.
 End correctness.
 
 Definition MemEvaluator types' : MEVAL.MemEvaluator (types types') (tvType 0) (tvType 1) :=
-  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in 
+  Eval cbv beta iota zeta delta [ MEVAL.PredEval.MemEvalPred_to_MemEvaluator ] in
     @MEVAL.PredEval.MemEvalPred_to_MemEvaluator _ (tvType 0) (tvType 1) (MemEval types') 1.
 
 Theorem MemEvaluator_correct types' funcs' preds'
-  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1) 
+  : @MEVAL.MemEvaluator_correct (Env.repr types_r types') (tvType 0) (tvType 1)
   (MemEvaluator (Env.repr types_r types')) (funcs funcs') (Env.repr (ssig_r _) preds')
   (IL.settings * IL.state) (tvType 0) (tvType 0)
   (@IL_mem_satisfies (types types')) (@IL_ReadWord (types types')) (@IL_WriteWord (types types'))
@@ -850,7 +851,7 @@ Qed.
 Definition pack : MEVAL.MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte :=
 
-  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+  @MEVAL.Build_MemEvaluatorPackage types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
   IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte
   types_r
   funcs_r

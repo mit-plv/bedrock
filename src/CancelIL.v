@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import IL SepIL.
 Require Import Word Memory.
 Import List.
@@ -21,17 +22,17 @@ Section existsSubst.
   Variable meta_base : env types.
   Variable var_env : env types.
   Variable sub : U.Subst types.
- 
-  Definition ExistsSubstNone (_ : tvar) (_ : expr types) := 
+
+  Definition ExistsSubstNone (_ : tvar) (_ : expr types) :=
     False.
 
   Fixpoint substInEnv (from : nat) (vals : env types) (ret : env types -> Prop) : Prop :=
-    match vals with 
+    match vals with
       | nil => ret nil
       | val :: vals =>
         match U.Subst_lookup from sub with
           | None => substInEnv (S from) vals (fun e => ret (val :: e))
-          | Some v => 
+          | Some v =>
             match exprD funcs meta_base var_env v (projT1 val) with
               | None => ExistsSubstNone (projT1 val) v
               | Some v' => projT2 val = v' /\ substInEnv (S from) vals (fun e => ret (existT _ (projT1 val) v' :: e))
@@ -58,7 +59,7 @@ Fixpoint consistent {ts} (vals : list { x : tvar & option (tvarD ts x) }) (e : l
       t = t' /\ @consistent _ vals e
     | existT t (Some v) :: vals , existT t' v' :: e =>
       match equiv_dec t t' return Prop with
-        | left pf => 
+        | left pf =>
           v' = match (pf : t = t') in _ = t return tvarD ts t with
                  | refl_equal => v
                end /\ @consistent _ vals e
@@ -88,7 +89,7 @@ Proof.
 Qed.
 
 Lemma substInEnv_sem : forall types funcs meta_env var_env sub vals from ret,
-  @substInEnv types funcs meta_env var_env sub from vals ret <-> 
+  @substInEnv types funcs meta_env var_env sub from vals ret <->
   (U.Subst_equations_to funcs meta_env var_env sub from vals /\ ret vals).
 Proof.
   induction vals; simpl; intros.
@@ -96,7 +97,7 @@ Proof.
   { destruct a; simpl in *.
     consider (U.Subst_lookup from sub); simpl; intros.
     consider (exprD funcs meta_env var_env e x); simpl; intros.
-    { rewrite IHvals. intuition; subst; auto. } 
+    { rewrite IHvals. intuition; subst; auto. }
     { intuition. }
     { rewrite IHvals. intuition. } }
 Qed.
@@ -115,7 +116,7 @@ Lemma AllProvable_impl_AllProvable : forall ts (funcs : functions ts) U G P ps,
   AllProvable funcs U G ps ->
   AllProvable_impl funcs U G P ps ->
   P.
-Proof. clear. induction ps; simpl; intros; eauto. intuition. Qed.    
+Proof. clear. induction ps; simpl; intros; eauto. intuition. Qed.
 
 Section canceller.
   Variable ts : list type.
@@ -134,7 +135,7 @@ Section canceller.
 
   Definition canceller (uvars : list tvar) (hyps : Expr.exprs types)
     (lhs rhs : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st) : option CancellerResult :=
-    let prover := 
+    let prover :=
       match ILAlgoTypes.Prover algos with
         | None => provers.ReflexivityProver.reflexivityProver
         | Some p => p
@@ -142,7 +143,7 @@ Section canceller.
     in
     let hints :=
       match ILAlgoTypes.Hints algos with
-        | None => UNF.default_hintsPayload _ _ _ 
+        | None => UNF.default_hintsPayload _ _ _
         | Some h => h
       end
     in
@@ -175,7 +176,7 @@ Section canceller.
               | Some (l,r,s) =>
                 Some {| AllExt := new_vars
                       ; ExExt  := new_uvars
-                      ; Lhs    := 
+                      ; Lhs    :=
                         (** TODO: this is a hack for the moment to ensure that
                          ** the pure premises are well typed without the new
                          ** unification variables
@@ -187,18 +188,18 @@ Section canceller.
                       ; Rhs    := r
                       ; Subst  := s
                       |}
-              | None => 
+              | None =>
                 if match ql , qr with
                      | nil , nil =>
                        match SH.pures lhs , SH.pures rhs with
-                         | nil, nil => 
+                         | nil, nil =>
                            if EqNat.beq_nat n_forward 10 then EqNat.beq_nat n_backward 10 else false
                          | _ , _ => false
                        end
-                     | _ , _ => false 
+                     | _ , _ => false
                    end then
                   None
-                else 
+                else
                   Some {| AllExt := new_vars
                         ; ExExt  := new_uvars
                         ; Lhs    := lhs
@@ -225,7 +226,7 @@ Section canceller.
     WellTyped_env b d ->
     WellTyped_env (types := ts) (a ++ b) (c ++ d).
   Proof. clear.
-    intros. unfold WellTyped_env in *. unfold typeof_env in *. subst. 
+    intros. unfold WellTyped_env in *. unfold typeof_env in *. subst.
     rewrite map_app. reflexivity.
   Qed.
   Ltac t_list_length := repeat (rewrite typeof_env_length || rewrite rev_length || rewrite map_length || rewrite app_length).
@@ -260,7 +261,7 @@ Section canceller.
       SH.SE.himp funcs preds U G cs P Q) ->
     SH.SE.himp funcs preds U G cs (SEP.Star (@SEP.Inj _ _ _ p) P) Q.
   Proof. clear.
-    intros. unfold SH.SE.himp. simpl. unfold Provable in *. 
+    intros. unfold SH.SE.himp. simpl. unfold Provable in *.
     destruct (exprD funcs U G p tvProp); eapply himp_star_pure_c; intuition.
   Qed.
   Lemma himp_remove_pures_p : forall cs U G ps P Q,
@@ -278,7 +279,7 @@ Section canceller.
     SH.SE.himp funcs preds U G cs P Q ->
     SH.SE.himp funcs preds U G cs P (SEP.Star (@SEP.Inj _ _ _ p) Q).
   Proof. clear.
-    intros. unfold SH.SE.himp. simpl. unfold Provable in *. 
+    intros. unfold SH.SE.himp. simpl. unfold Provable in *.
     destruct (exprD funcs U G p tvProp); eapply himp_star_pure_cc; intuition.
   Qed.
   Lemma himp_remove_pures_c : forall cs U G ps P Q,
@@ -291,7 +292,7 @@ Section canceller.
     { rewrite SH.starred_cons. simpl in *. apply himp_remove_pure_c; intuition. }
   Qed.
 
-  Lemma ApplyCancelSep_with_eq' : 
+  Lemma ApplyCancelSep_with_eq' :
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env types) (hyps : Expr.exprs types),
     Expr.AllProvable funcs meta_env nil hyps ->
@@ -308,12 +309,12 @@ Section canceller.
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-          (existsSubst funcs var_env subst 0 
+          (existsSubst funcs var_env subst 0
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
                 (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
+                  (himp cs
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
@@ -340,12 +341,12 @@ Section canceller.
                           end).
     match goal with
       | [ |- context [ ?X ] ] =>
-        match X with 
+        match X with
           | match ILAlgoTypes.Hints _ with _ => _ end =>
             assert (HC : UNF.hintsSoundness funcs preds X); [ | generalize dependent X ]
         end
     end.
-    { generalize (ILAlgoTypes.Acorrect_Hints algos_correct).     
+    { generalize (ILAlgoTypes.Acorrect_Hints algos_correct).
       destruct (ILAlgoTypes.Hints algos); auto using UNF.hintsSoundness_default. }
     intros h HC p ? PC.
     consider (SH.hash l); intros.
@@ -356,7 +357,7 @@ Section canceller.
     rewrite UNF.ST_EXT.himp_existsEach_p; [ reflexivity | intros ].
     rewrite app_nil_r.
     apply CANCEL.HEAP_FACTS.himp_pull_pures; intro.
-    match goal with 
+    match goal with
       | [ H : context [ Summarize ?P ?ps ] |- _ ] =>
         assert (Valid PC meta_env (rev G) (Summarize P ps)); [ | generalize dependent (Summarize P ps); intros ]
     end.
@@ -386,9 +387,9 @@ Section canceller.
     rewrite UNF.ST_EXT.himp_existsEach_p; [ reflexivity | intros ].
     destruct H8.
     (** NOTE: I can't shift s0 around until I can witness the existential **)
-    
+
     (** Open up everything **)
-    destruct u. 
+    destruct u.
     consider (UNF.backward h p 10 f
            {| UNF.Vars := Vars
             ; UNF.UVars := UVars ++ rev v0
@@ -398,7 +399,7 @@ Section canceller.
 
     assert (AllExt res = Vars0 /\ ExExt res = skipn (length (typeof_env meta_env)) UVars0
             /\ SH.pures (Lhs res) = SH.pures Heap).
-    { clear - H13. 
+    { clear - H13.
       match goal with
         | [ H : match ?X with _ => _ end = _ |- _ ] => destruct X
       end; intros. destruct p0; destruct p0. inversion H13; auto.
@@ -410,7 +411,7 @@ Section canceller.
     rewrite ListFacts.rw_skipn_app in H11 by (auto with list_length).
 
     destruct res. simpl in *. subst AllExt0; subst ExExt0.
-    eapply forallEach_sem with (env := rev G ++ G0) in H1; [ | solve [ env_resolution ] ]. 
+    eapply forallEach_sem with (env := rev G ++ G0) in H1; [ | solve [ env_resolution ] ].
 
     eapply (@CANCEL.HEAP_FACTS.himp_pull_pures types _ _ funcs preds cs meta_env (rev G ++ G0) Heap). intro.
     eapply AllProvable_impl_AllProvable in H1; [ clear H3 | rewrite H19; assumption ].
@@ -418,7 +419,7 @@ Section canceller.
     apply existsSubst_sem in H1. apply existsEach_sem in H1.
     destruct H1. intuition.
     assert (meta_env = firstn (length meta_env) x1 /\
-            typeof_env (skipn (length (rev v0)) (skipn (length meta_env) x1)) = x0 /\ 
+            typeof_env (skipn (length (rev v0)) (skipn (length meta_env) x1)) = x0 /\
             typeof_env (firstn (length (rev v0)) (skipn (length meta_env) x1)) = rev v0).
     { subst. clear - H3 H1.
       generalize (typeof_env_length x1). rewrite H3; intros.
@@ -429,7 +430,7 @@ Section canceller.
       Focus 2. revert H. t_list_length. rewrite firstn_length. intro. rewrite min_l; omega.
       destruct H3.
       rewrite <- firstn_skipn with (n := length (rev v0)) (l := skipn (length meta_env) x1) in H2.
-      rewrite typeof_env_app in *. 
+      rewrite typeof_env_app in *.
       eapply app_inj_length in H2. destruct H2. intuition.
       { eapply consistent_app in H1. destruct H1; clear - H1.
         revert H1. t_list_length. intros.
@@ -448,12 +449,12 @@ Section canceller.
      (UNF.HEAP_FACTS.sheapSubstU 0 (length v0) (length (typeof_env meta_env))
         s0) = true).
     { rewrite <- SH.WellTyped_sheap_WellTyped_sexpr in H7.
-      generalize (@UNF.HEAP_FACTS.sheapSubstU_WellTyped types BedrockCoreEnv.pc BedrockCoreEnv.st (typeof_funcs funcs) (UNF.SE.typeof_preds preds) (typeof_env meta_env) nil (rev v0) nil s0); simpl.   
+      generalize (@UNF.HEAP_FACTS.sheapSubstU_WellTyped types BedrockCoreEnv.pc BedrockCoreEnv.st (typeof_funcs funcs) (UNF.SE.typeof_preds preds) (typeof_env meta_env) nil (rev v0) nil s0); simpl.
       rewrite app_nil_r. intro XX.
       rewrite SH.WellTyped_hash in WTR. rewrite H0 in WTR. simpl in WTR. rewrite app_nil_r in WTR.
       apply XX in WTR. clear XX.
-      eapply SH.WellTyped_sheap_weaken with (tU' := nil) (tG := nil) (tG' := (rev (map (projT1 (P:=tvarD types)) G) ++ x)) in WTR. 
-      simpl in WTR. rewrite app_nil_r in WTR.  
+      eapply SH.WellTyped_sheap_weaken with (tU' := nil) (tG := nil) (tG' := (rev (map (projT1 (P:=tvarD types)) G) ++ x)) in WTR.
+      simpl in WTR. rewrite app_nil_r in WTR.
       rewrite Plus.plus_0_r in *. rewrite rev_length in WTR. apply WTR. }
 
     generalize (@UNF.backward_WellTyped _ _ _ _ _ _ _ HC _ _ _ _ _ H6 H14); simpl.
@@ -463,7 +464,7 @@ Section canceller.
     Focus 2.
     rewrite <- map_rev.
     eapply WellTyped_env_app. eapply typeof_env_WellTyped_env.
-    instantiate (1 := G0). symmetry. apply H11. 
+    instantiate (1 := G0). symmetry. apply H11.
     2: eassumption.
     2: solve [ eapply Valid_weaken; eassumption ].
     intro.
@@ -473,14 +474,14 @@ Section canceller.
     eapply UNF.ST_EXT.himp_existsEach_c. exists (rev (firstn (length (rev v0)) (skipn (length meta_env) x1))); split.
     { rewrite map_rev. unfold typeof_env in H18. rewrite H18. apply rev_involutive. }
     rewrite rev_involutive.
-    
+
     (** In order to call the canceller, they must have the same environments. **)
-    assert (SH.SE.ST.heq cs 
+    assert (SH.SE.ST.heq cs
               (SH.SE.sexprD funcs preds meta_env (rev G ++ G0) (SH.sheapD Heap))
               (SH.SE.sexprD funcs preds x1 (rev G ++ G0) (SH.sheapD Heap))).
     { rewrite <- firstn_skipn with (l := x1) (n := length meta_env).
       rewrite <- H15.
-      generalize (@CANCEL.SEP_FACTS.sexprD_weaken_wt types _ _ funcs preds cs meta_env (skipn (length meta_env) x1) nil 
+      generalize (@CANCEL.SEP_FACTS.sexprD_weaken_wt types _ _ funcs preds cs meta_env (skipn (length meta_env) x1) nil
         (SH.sheapD Heap) (rev G ++ G0)).
       rewrite app_nil_r. intro XX; apply XX; clear XX.
       rewrite <- SH.WellTyped_sheap_WellTyped_sexpr. rewrite <- H10. f_equal.
@@ -488,13 +489,13 @@ Section canceller.
       rewrite <- H11. reflexivity. }
     etransitivity; [ eapply H17 | clear H17 ].
 
-    assert (SH.SE.ST.heq cs 
+    assert (SH.SE.ST.heq cs
               (SH.SE.sexprD funcs preds (meta_env ++ firstn (length (rev v0)) (skipn (length meta_env) x1)) (rev G ++ G0) (SH.sheapD (UNF.HEAP_FACTS.sheapSubstU 0 (length v0)
                        (length (typeof_env meta_env)) s0)))
               (UNF.SE.sexprD funcs preds meta_env
                 (firstn (length (rev v0)) (skipn (length meta_env) x1) ++ nil)
                 (SH.sheapD s0))).
-    { generalize (@UNF.HEAP_FACTS.sheapSubstU_sheapD types _ _ funcs preds cs 
+    { generalize (@UNF.HEAP_FACTS.sheapSubstU_sheapD types _ _ funcs preds cs
         meta_env nil (firstn (length (rev v0)) (skipn (length meta_env) x1)) nil s0).
       simpl. repeat rewrite app_nil_r. intros XX; rewrite XX; clear XX.
       generalize (@CANCEL.SEP_FACTS.sexprD_weaken_wt types _ _ funcs preds cs
@@ -505,12 +506,12 @@ Section canceller.
                0) (length meta_env) s0)) nil).
       simpl. t_list_length.
       intro XX; rewrite XX; clear XX.
-      rewrite H15. rewrite app_ass. 
+      rewrite H15. rewrite app_ass.
       cutrewrite (length (firstn (length meta_env) x1) = length meta_env).
       rewrite app_nil_r.
       cutrewrite (length (firstn (length v0) (skipn (length meta_env) x1)) + 0 = length v0).
       reflexivity.
-      rewrite Plus.plus_0_r. rewrite <- rev_length with (l := v0). 
+      rewrite Plus.plus_0_r. rewrite <- rev_length with (l := v0).
       rewrite <- H18 at 2. t_list_length. reflexivity.
       rewrite <- H15. reflexivity.
       rewrite <- SH.WellTyped_sheap_WellTyped_sexpr.
@@ -530,22 +531,22 @@ Section canceller.
 
 
     (** witness the conclusion **)
-    eapply UNF.ST_EXT.himp_existsEach_c. 
-    exists (skipn (length (rev v0)) (skipn (length meta_env) x1)). split. 
+    eapply UNF.ST_EXT.himp_existsEach_c.
+    exists (skipn (length (rev v0)) (skipn (length meta_env) x1)). split.
     { t_list_length. rewrite firstn_length; rewrite skipn_length. rewrite <- app_ass. rewrite ListFacts.rw_skipn_app.
       rewrite <- H12. t_list_length. reflexivity.
       env_resolution. t_list_length. f_equal. rewrite min_l; auto.
       clear - H18 H15 H12.
-      assert (x1 = firstn (length meta_env) x1 ++ (firstn (length (rev v0)) (skipn (length meta_env) x1)) ++ 
+      assert (x1 = firstn (length meta_env) x1 ++ (firstn (length (rev v0)) (skipn (length meta_env) x1)) ++
         (skipn (length (rev v0)) (skipn (length meta_env) x1))).
-      repeat rewrite firstn_skipn. reflexivity. 
+      repeat rewrite firstn_skipn. reflexivity.
       generalize dependent (firstn (length meta_env) x1).
       generalize dependent (skipn (length (rev v0)) (skipn (length meta_env) x1)).
       generalize dependent (firstn (length (rev v0)) (skipn (length meta_env) x1)).
       intros. subst. rewrite <- rev_length. rewrite <- H18. t_list_length. omega. }
     rewrite app_ass. rewrite H15 at 1.
     t_list_length. repeat rewrite firstn_skipn.
-    clear H2. 
+    clear H2.
 
     assert (U.Subst_WellTyped (typeof_funcs funcs) (typeof_env x1)
       (typeof_env (rev G ++ G0)) (U.Subst_empty types)).
@@ -553,7 +554,7 @@ Section canceller.
     assert (SH.WellTyped_sheap (typeof_funcs funcs) (CANCEL.SE.typeof_preds preds)
       (typeof_env x1) (typeof_env (rev G ++ G0)) Heap0 = true).
     { rewrite <- H16. f_equal.
-      rewrite H15. rewrite <- H18. rewrite <- H12. t_list_length. 
+      rewrite H15. rewrite <- H18. rewrite <- H12. t_list_length.
       repeat rewrite <- typeof_env_app. repeat rewrite firstn_skipn. reflexivity.
       rewrite typeof_env_app. f_equal. rewrite typeof_env_rev. reflexivity. apply H11. }
     assert (SH.WellTyped_sheap (typeof_funcs funcs) (CANCEL.SE.typeof_preds preds)
@@ -573,18 +574,18 @@ Section canceller.
         match type of H3 with
           | himp ?CS (SEP.sexprD ?F ?P ?U ?G ?L) (SEP.sexprD ?F ?P ?U ?G ?R) =>
             change (SEP.himp F P U G CS L R) in H3
-        end. 
+        end.
         do 2 rewrite SH.sheapD_def. do 2 rewrite SH.sheapD_def in H3. simpl in *.
         do 2 rewrite CANCEL.SEP_FACTS.heq_star_emp_l in H3.
-        rewrite CANCEL.SEP_FACTS.heq_star_comm 
+        rewrite CANCEL.SEP_FACTS.heq_star_comm
           with (P := SH.starred (SEP.Inj (stateType:=BedrockCoreEnv.st)) (SH.pures s2) SEP.Emp).
-        rewrite CANCEL.SEP_FACTS.heq_star_comm 
+        rewrite CANCEL.SEP_FACTS.heq_star_comm
           with (P := SH.starred (SEP.Inj (stateType:=BedrockCoreEnv.st)) (SH.pures Rhs0) SEP.Emp).
         do 2 rewrite <- CANCEL.SEP_FACTS.heq_star_assoc.
         apply CANCEL.SEP_FACTS.himp_star_frame. assumption.
         eapply himp_remove_pures_p; intros.
-        eapply himp_remove_pures_c; auto. reflexivity. } 
-      { eapply CANCEL.sepCancel_PureFacts in H13. 4: eapply H6. 
+        eapply himp_remove_pures_c; auto. reflexivity. }
+      { eapply CANCEL.sepCancel_PureFacts in H13. 4: eapply H6.
         eapply U.Subst_equations_to_Subst_equations; intuition.
         intuition. intuition. } }
     { match goal with
@@ -598,7 +599,7 @@ Section canceller.
         change (SEP.himp funcs preds x1 (rev G ++ G0) cs (SH.starred (SEP.Inj (stateType:=BedrockCoreEnv.st)) pures SEP.Emp) SEP.Emp).
         clear. induction pures. reflexivity.
         rewrite CANCEL.HEAP_FACTS.starred_cons.
-         rewrite IHpures. 
+         rewrite IHpures.
          eapply himp_remove_pure_p. intro; reflexivity. }
       { repeat rewrite SH.sheapD_def; simpl; repeat apply ST.himp_star_frame; try reflexivity.
         change (SEP.himp funcs preds x1 (rev G ++ G0) cs SEP.Emp (SH.starred (SEP.Inj (stateType:=BedrockCoreEnv.st)) pures0 SEP.Emp)).
@@ -609,7 +610,7 @@ Section canceller.
         eapply himp_remove_pure_c; auto. reflexivity. } }
   Qed.
 
-  Lemma ApplyCancelSep_with_eq : 
+  Lemma ApplyCancelSep_with_eq :
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
 
@@ -628,12 +629,12 @@ Section canceller.
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-          (existsSubst funcs var_env subst 0 
+          (existsSubst funcs var_env subst 0
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
                 (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
+                  (himp cs
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
@@ -645,7 +646,7 @@ Section canceller.
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
   Proof. intros. eapply ApplyCancelSep_with_eq'; eauto. Qed.
 
-  Lemma ApplyCancelSep : 
+  Lemma ApplyCancelSep :
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
@@ -661,25 +662,25 @@ Section canceller.
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-          (existsSubst funcs var_env subst 0 
+          (existsSubst funcs var_env subst 0
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
                 (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
+                  (himp cs
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
                   (SH.pures rhs')) ))
             (SH.pures lhs'))
-      | None => 
+      | None =>
         himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
                 (@SEP.sexprD _ _ _ funcs preds meta_env nil r)
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
-  Proof. 
+  Proof.
     intros. consider (canceller (typeof_env meta_env) hyps l r); intros; auto.
     eapply ApplyCancelSep_with_eq; eauto.
   Qed.

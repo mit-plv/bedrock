@@ -51,7 +51,7 @@ Section TableSection.
 
   Fixpoint interp_adt (ty : ADTScheme) : ADTEntry :=
     match ty with
-      | Primitive name => 
+      | Primitive name =>
         match find name primitive_table with
           | Some adt => adt
           | None => Empty_adt
@@ -82,7 +82,7 @@ Module TabledADT (Import T : ADTTable) <: ADT.
 End TabledADT.
 
 Module Make (Import T : ADTTable).
-  
+
   Module Import A := TabledADT T.
 
   Require Import RepInv.
@@ -90,7 +90,7 @@ Module Make (Import T : ADTTable).
   Module TabledADTRepInv <: RepInv A.
 
     Definition rep_inv p a := RepInv (interp_adt primitive_table (Ty a)) p (Value a).
-    
+
     Definition rep_inv_ptr p a := RepInvGood (interp_adt primitive_table (Ty a)) p (Value a).
 
     Definition RepInv := W -> ADTValue -> HProp.

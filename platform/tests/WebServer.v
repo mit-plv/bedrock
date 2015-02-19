@@ -310,7 +310,7 @@ Definition m := bimport [[ "stringdb"!"new" @ [StringDb.newS], "stringdb"!"looku
         POST[R'] Ex b, Ex trailer, tree b R' * keyValues b * trailer =*> 0 * mallocHeap 0];;
 
       "len" <-* "p";;
-    
+
       [Al n, Al b,
         PRE[V] tree b (V "db") * keyValues b * V "p" =*> V "len" * strings' n (V "p") (V "len") * mallocHeap 0
         POST[R'] Ex b', Ex trailer, tree b' R' * keyValues b' * trailer =*> 0 * mallocHeap 0]

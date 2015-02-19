@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import List.
 Require Import Decidables.
 
@@ -30,7 +31,7 @@ Hint Rewrite app_nil_l : provers.
 
 Section UpdateAt.
   Variable A : Type.
-  
+
   Variable new default : A.
 
   Fixpoint updateAt (ls : list A) (n : nat) : list A :=
@@ -38,7 +39,7 @@ Section UpdateAt.
       | 0 => new :: tail ls
       | S n => match head ls with
                  | None => default
-                 | Some v => v 
+                 | Some v => v
                end :: updateAt (tail ls) n
     end.
 
@@ -48,7 +49,7 @@ Section UpdateAt.
       | inleft (right _) => Some new
       | inright _ => match nth_error ls n' with
                        | None => Some default
-                       | Some v => Some v 
+                       | Some v => Some v
                      end
     end.
 
@@ -57,7 +58,7 @@ Section UpdateAt.
     nth_error (updateAt l n) n = value new.
     induction n; destruct l; simpl; (reflexivity || apply IHn).
   Defined.
-  
+
   Lemma nth_error_updateAt_not : forall old n' ls n,
     n <> n' ->
     nth_error ls n = Some old ->
@@ -80,7 +81,7 @@ Section UpdateAt.
 
   Lemma nth_error_updateAt_lt : forall n' n ls,
     n' < n ->
-    nth_error (updateAt ls n) n' = 
+    nth_error (updateAt ls n) n' =
       match nth_error ls n' with
         | None => Some default
         | Some v => Some v
@@ -90,7 +91,7 @@ Section UpdateAt.
       destruct n; [ exfalso; omega | ]. destruct ls; auto.
       destruct n; [ exfalso; omega | ]. destruct ls; simpl; rewrite IHn' by omega. destruct n'; auto.
       auto.
-  Defined. 
+  Defined.
 
   Theorem nth_error_updateAt_eq : forall n ls n',
     nth_error (updateAt ls n) n' = defaulted ls n n'.
@@ -111,7 +112,7 @@ Section UpdateAt.
                | nil => fun x => x
                | _ => fun x => x
              end
-      | S idx => 
+      | S idx =>
         match ls return P (nth_error (updateAt ls (S idx)) (S idx)) -> _ with
           | nil => cast P nil idx
           | _ => cast P _ idx
@@ -129,7 +130,7 @@ Section UpdatePosition2.
   Variable A : Type.
 
   Hint Rewrite nth_error_updateAt : provers.
-  Lemma nth_error_updateAt_2 : forall A (ls : list A) d d' a b m n, 
+  Lemma nth_error_updateAt_2 : forall A (ls : list A) d d' a b m n,
     m <> n ->
     nth_error (updateAt a d (updateAt b d' ls n) m) n = value b.
     induction ls; induction m; induction n; provers.
@@ -141,7 +142,7 @@ Section MapRepr.
   Variable T : Type.
   Record Repr : Type :=
   { footprint : list (nat * T)
-  ; default : T 
+  ; default : T
   }.
 
   Definition nil_Repr (d : T) : Repr :=
@@ -150,7 +151,7 @@ Section MapRepr.
    |}.
 
   Definition listToRepr (ls : list T) (d : T) : Repr :=
-    {| footprint := 
+    {| footprint :=
       ((fix listToRepr ls cur : list (nat * T) :=
         match ls with
           | nil => nil
@@ -160,7 +161,7 @@ Section MapRepr.
      |}.
 
   Definition listOptToRepr (ls : list (option T)) (d : T) : Repr :=
-    {| footprint := 
+    {| footprint :=
       ((fix listToRepr ls cur : list (nat * T) :=
         match ls with
           | nil => nil
@@ -171,7 +172,7 @@ Section MapRepr.
      |}.
 
   Fixpoint repr' (d : T) (ls : list (nat * T)) : list T -> list T :=
-    match ls with 
+    match ls with
       | nil => fun x => x
       | (n, v) :: ls =>
         fun x => updateAt v d (repr' d ls x) n
@@ -179,17 +180,17 @@ Section MapRepr.
 
   Section get.
     Variable n : nat.
-    
+
     Fixpoint get (ls : list (nat * T)) : option T :=
       match ls with
         | nil => None
-        | (n',v) :: ls => 
+        | (n',v) :: ls =>
           if Peano_dec.eq_nat_dec n n' then Some v else get ls
       end.
   End get.
 
   Definition repr (l : Repr) : list T -> list T :=
-    match l with 
+    match l with
       | {| footprint := f ; default := d |} =>
         repr' d f
     end.
@@ -197,7 +198,7 @@ Section MapRepr.
   Fixpoint nat_eq_bool (a b : nat) : bool :=
     match a , b with
       | 0 , 0 => true
-      | S a , S b => nat_eq_bool a b 
+      | S a , S b => nat_eq_bool a b
       | _ , _ => false
     end.
 
@@ -210,10 +211,10 @@ Section MapRepr.
   Fixpoint repr_optimize (l : list (nat * T)) (ignore : list nat) : list (nat * T) :=
     match l with
       | nil => nil
-      | (n,t) :: b => 
-        if nat_in ignore n then 
+      | (n,t) :: b =>
+        if nat_in ignore n then
           repr_optimize b ignore
-        else 
+        else
           (n,t) :: repr_optimize b (n :: ignore)
     end.
 
@@ -233,7 +234,7 @@ Section MapRepr.
 End MapRepr.
 *)
 
-(** This is an alternative representation 
+(** This is an alternative representation
  ** 1) it avoids nats (including comparison)
  ** 2) it is canonical
  ** 3) it optimizes the common case of prefixes
@@ -243,7 +244,7 @@ Section Repr2.
     Variable T : Type.
     Record Repr : Type :=
     { footprint : list (option T)
-    ; default : T 
+    ; default : T
     }.
 
     Definition nil_Repr (d : T) : Repr :=
@@ -262,7 +263,7 @@ Section Repr2.
       |}.
 
     Fixpoint repr' (d : T) (ls : list (option T)) : list T -> list T :=
-      match ls with 
+      match ls with
         | nil => fun x => x
         | None :: ls => fun x =>
           match x with
@@ -274,8 +275,8 @@ Section Repr2.
       end.
 
     Definition repr (l : Repr) : list T -> list T :=
-      Eval cbv delta [ repr' ] in 
-        match l with 
+      Eval cbv delta [ repr' ] in
+        match l with
           | {| footprint := f ; default := d |} =>
             repr' d f
         end.
@@ -289,10 +290,10 @@ Section Repr2.
             | Some _ => l
             | None => r
           end :: join ls rs
-      end.       
+      end.
 
     Definition repr_combine (l r : Repr) : Repr :=
-      Eval cbv delta [ join ] in 
+      Eval cbv delta [ join ] in
         match l , r with
           | {| footprint := lf ; default := ld |} ,
             {| footprint := rf ; default := rd |} =>
@@ -313,7 +314,7 @@ Section Repr2.
 End Repr2.
 
 Ltac reduce_repr_list ls :=
-  eval cbv beta zeta delta [ 
+  eval cbv beta zeta delta [
     repr_combine repr listOptToRepr listToRepr nil_Repr
-    map 
+    map
   ] in ls.

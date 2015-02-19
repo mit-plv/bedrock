@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Thread Arrays8 MoreArrays.
 
 Local Hint Extern 1 (@eq W _ _) => words.

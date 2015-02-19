@@ -27,9 +27,9 @@ Section unfolder_learnhook.
   Variable types : list type.
   Variable hints : UNF.hintsPayload (repr bedrock_types_r types) (tvType 0) (tvType 1).
 
-  Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types) 
+  Definition unfolder_LearnHook : MEVAL.LearnHook (repr bedrock_types_r types)
     (SymState (repr bedrock_types_r types) (tvType 0) (tvType 1)) :=
-    fun prover meta_vars vars_vars st facts ext => 
+    fun prover meta_vars vars_vars st facts ext =>
       match SymMem st with
         | Some m =>
           match fst (UNF.forward hints prover 10 facts
@@ -64,8 +64,8 @@ Section unfolder_learnhook.
     eapply UNF.HEAP_FACTS.SEP_FACTS.interp_WellTyped_sexpr; eauto.
   Qed.
 
-  Theorem unfolderLearnHook_correct 
-    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) _ BedrockCoreEnv.pc BedrockCoreEnv.st (@unfolder_LearnHook) 
+  Theorem unfolderLearnHook_correct
+    : @MEVAL.LearnHook_correct (repr bedrock_types_r types) _ BedrockCoreEnv.pc BedrockCoreEnv.st (@unfolder_LearnHook)
     (@stateD _ funcs preds) funcs preds.
   Proof.
     Opaque repr UNF.forward.
@@ -88,7 +88,7 @@ Section unfolder_learnhook.
       apply quantD_qex_QEx. simpl.
       unfold stateD in *. destruct stn_st. destruct SymRegs. destruct p. intuition.
       repeat match goal with
-               | [ H : match ?X with _ => _ end |- _ ] => 
+               | [ H : match ?X with _ => _ end |- _ ] =>
                  consider X; intros; try contradiction
              end.
       intuition; subst.
@@ -156,15 +156,15 @@ Section stream_correctness.
     exists env', map (@projT1 _ _) env' = vars' /\
       interp cs (![SEP.sexprD funcs preds uvars (rev env' ++ vars) P] stn_st).
   Proof.
-    clear. 
+    clear.
     induction vars'; simpl; intros.
     exists nil; simpl; eauto.
-    
+
     apply interp_ex in H.
     destruct H. eapply IHvars' in H. destruct H. intuition. exists (existT (tvarD TYPES) a x :: x0).
     simpl in *. rewrite H0. intuition eauto. rewrite app_ass. simpl. auto.
   Qed.
-  
+
   Theorem stateD_proof_no_heap :
     forall (uvars : Expr.env TYPES) (st : state) (sp rv rp : Expr.expr TYPES),
       let vars := nil in
@@ -185,7 +185,7 @@ Section stream_correctness.
     repeat match goal with
              | [ H : _ = _ |- _ ] => rewrite H
            end.
-    intuition auto. 
+    intuition auto.
   Qed.
 
   Theorem stateD_proof : (* vars = nil *)
@@ -208,7 +208,7 @@ Section stream_correctness.
   Proof.
     unfold qstateD. intros. simpl.
     generalize (SH.hash_denote funcs preds uvars nil cs sh). rewrite H3. simpl in *.
-    intro XX. rewrite XX in H4. 
+    intro XX. rewrite XX in H4.
 
     apply interp_pull_existsEach in H4. destruct H4. intuition.
     rewrite <- H5. rewrite app_nil_r in *. apply existsEach_sem.
@@ -217,12 +217,12 @@ Section stream_correctness.
     change (rev x) with (nil ++ rev x).
     rewrite <- app_nil_r with (l := uvars).
     repeat (erewrite exprD_weaken by eassumption). intuition.
-    rewrite app_nil_r. intuition eauto. 
+    rewrite app_nil_r. intuition eauto.
 
     apply AllProvable_app; auto.
     { eapply AllProvable_weaken. eauto. }
     { rewrite sepFormula_eq in H6. unfold sepFormula_def in H6. simpl in H6.
-      eapply SH.sheapD_pures. 
+      eapply SH.sheapD_pures.
       unfold SEP.ST.satisfies. simpl in *. rewrite app_nil_r. eauto. }
   Qed.
 
@@ -258,7 +258,7 @@ Section apply_stream_correctness.
 
 
   Definition sym_eval uvars path qs_env ss :=
-    let new_pures := 
+    let new_pures :=
       match SymMem ss with
         | None => SymPures ss
         | Some m => SH.pures m ++ SymPures ss
@@ -268,19 +268,19 @@ Section apply_stream_correctness.
                     | Some p => p
                   end in
     let meval := match ILAlgoTypes.MemEval algos with
-                   | None => MEVAL.Default.MemEvaluator_default _ _ _ 
+                   | None => MEVAL.Default.MemEvaluator_default _ _ _
                    | Some me => me
                  end in
     let unfolder := match ILAlgoTypes.Hints algos with
                       | None => @MEVAL.LearnHookDefault.LearnHook_default _ _
-                      | Some h => unfolder_LearnHook h 
+                      | Some h => unfolder_LearnHook h
                     end in
     let facts := Summarize prover new_pures in
     let uvars := uvars ++ gatherAll qs_env in
     let vars := gatherEx qs_env in
     (** initial unfolding **)
     let (ss,qs) := unfolder prover uvars vars ss facts new_pures in
-    @sym_evalStream _ prover meval unfolder facts path (appendQ qs qs_env) (uvars ++ gatherAll qs) (vars ++ gatherEx qs) ss. 
+    @sym_evalStream _ prover meval unfolder facts path (appendQ qs qs_env) (uvars ++ gatherAll qs) (vars ++ gatherEx qs) ss.
 
   Lemma stateD_AllProvable_pures : forall meta_env vars stn_st ss cs,
     stateD funcs preds meta_env vars cs stn_st ss ->
@@ -295,7 +295,7 @@ Section apply_stream_correctness.
     intuition. destruct SymMem; auto. apply AllProvable_app' in H2; apply AllProvable_app; intuition.
   Qed.
 
-  Theorem Apply_sym_eval_with_eq : forall stn meta_env sound_or_safe st path,   
+  Theorem Apply_sym_eval_with_eq : forall stn meta_env sound_or_safe st path,
     istreamD funcs meta_env nil path stn st sound_or_safe ->
     forall cs qs ss res,
       qstateD funcs preds meta_env nil cs (stn,st) qs ss ->
@@ -345,18 +345,18 @@ Section apply_stream_correctness.
                           end).
     match goal with
       | [ |- context [ ?X ] ] =>
-        match X with 
+        match X with
           | match ILAlgoTypes.Hints _ with _ => _ end =>
             assert (LC : SymILProofs.MEVAL.LearnHook_correct (types_ := TYPES) (pcT := tvType 0) (stT := tvType 1) X
               (stateD funcs preds) (repr (bedrock_funcs_r types') funcs) preds); [ | generalize dependent X ]
         end
     end.
-    { generalize (ILAlgoTypes.Acorrect_Hints algos_correct).     
+    { generalize (ILAlgoTypes.Acorrect_Hints algos_correct).
       destruct (ILAlgoTypes.Hints algos); auto; intros.
-      { apply (@unfolderLearnHook_correct types' h funcs preds H1). } 
+      { apply (@unfolderLearnHook_correct types' h funcs preds H1). }
       { apply SymIL.MEVAL.LearnHookDefault.LearnHook_default_correct. } }
     intros l LC m MC p ? PC.
-    match goal with 
+    match goal with
       | [ H : context [ l ?A ?B ?C ?D ?E ?F ] |- _ ] =>
         consider (l A B C D E F); intros
     end.
@@ -365,10 +365,10 @@ Section apply_stream_correctness.
     { destruct (SymILProofs.SymIL_Correct.sym_evalStream_quant_append _ _ _ _ _ _ _ _ _ H2).
       subst. rewrite <- appendQ_assoc. rewrite quantD_app. eapply quantD_impl; eauto; intros. clear H0.
       simpl in *.
-      match goal with 
-        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] => 
+      match goal with
+        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] =>
           assert (AP : AllProvable funcs (meta_env ++ b) a B); [ eauto using stateD_AllProvable_pures |
-            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B)); 
+            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B));
               [ clear H; eauto using Summarize_correct | generalize dependent (Summarize A B); generalize dependent B ; intros ] ]
       end.
       eapply (@SymILProofs.MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC (meta_env ++ b) a cs (stn,st)) in H5; eauto.
@@ -386,10 +386,10 @@ Section apply_stream_correctness.
     { destruct (SymILProofs.SymIL_Correct.sym_evalStream_quant_append _ _ _ _ _ _ _ _ _ H2).
       subst. rewrite <- appendQ_assoc. rewrite quantD_app. eapply quantD_impl; eauto; intros. clear H0.
       simpl in *.
-      match goal with 
-        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] => 
+      match goal with
+        | [ H : context [ @Summarize _ ?A ?B ] |- _ ] =>
           assert (AP : AllProvable funcs (meta_env ++ b) a B); [ eauto using stateD_AllProvable_pures |
-            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B)); 
+            assert (VF : Valid PC (meta_env ++ b) a (Summarize A B));
               [ clear H; eauto using Summarize_correct | generalize dependent (Summarize A B); generalize dependent B ; intros ] ]
       end.
       eapply (@SymILProofs.MEVAL.hook_sound _ _ _ _ _ _ _ _ LC _ PC (meta_env ++ b) a cs (stn,st)) in H5; eauto.

@@ -3,17 +3,17 @@ Require Import IL.
 Ltac unfolder:= repeat match goal with
                         | H:= _ |- _ => unfold H in *; clear H
                       end.
-Ltac rewriter := 
+Ltac rewriter :=
   repeat match goal with
            H : _ = _ |- _ => rewrite H
          end.
 
 Ltac rewriter_r :=
-  repeat match goal with 
+  repeat match goal with
            H : _ = _ |- _ => rewrite <- H
          end.
 
-Ltac rewriter' := 
+Ltac rewriter' :=
   repeat match goal with
            H : _ = _ |- _ => rewrite H in *
          end.
@@ -21,22 +21,22 @@ Ltac rewriter' :=
 Ltac rewriter_clear :=
   repeat match goal with
            H : _ = _ |- _ => rewrite H in *; clear H
-         end.  
+         end.
 
-Ltac openHyp := 
+Ltac openHyp :=
   match goal with
     | [H: _ /\ _ |- _ ] => destruct H
     | [H: exists x, _ |- _ ] => destruct H
   end.
 
-Ltac openhyp := 
+Ltac openhyp :=
   repeat match goal with
            | H : _ /\ _ |- _  => destruct H
            | H : _ \/ _ |- _ => destruct H
            | H : exists x, _ |- _ => destruct H
          end.
 
-Ltac not_eq H1 H2 := 
+Ltac not_eq H1 H2 :=
   match H1 with
     | H2 => fail 1
     | _ => idtac

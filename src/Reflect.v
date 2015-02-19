@@ -1,7 +1,7 @@
 (** Reusable Ltac procedures:
  ** - reflecting function applications
  ** - list lookup
- ** - 
+ ** -
  **)
 (* Add Rec LoadPath "reification/".  *)
 (* Add ML Path "reification/".  *)
@@ -13,7 +13,7 @@ Set Implicit Arguments.
 
 Section PartialApply.
   Fixpoint funtype (ls : list Type) (r : Type) : Type :=
-    match ls with 
+    match ls with
       | nil => r
       | a :: b => a -> funtype b r
     end.
@@ -75,11 +75,11 @@ Ltac refl_app cc e :=
             end
           | ?T =>
             match As with
-              | tt => 
+              | tt =>
                 cc F Ts As
-              | _ => 
+              | _ =>
                 let T := eval cbv delta [ T ] in T in
-                papply cc F T Tb Ts As 
+                papply cc F T Tb Ts As
             end
         end
       in
@@ -179,14 +179,14 @@ Ltac refl_app cc e :=
       let rec refl cc e As :=
         match e with
           | ?A ?B =>
-            let Ta := 
+            let Ta :=
               let Ta := type of A in
               match Ta with
                 | _ -> _ => Ta
                 | forall x, _ => Ta
-                | _ => eval cbv delta [ Ta ] in Ta 
+                | _ => eval cbv delta [ Ta ] in Ta
               end
-            in            
+            in
             match Ta with
               | _ -> ?TT =>
                 let As := constr:((B, As)) in
@@ -209,7 +209,7 @@ Ltac refl_app cc e :=
             cc e Ts As
         end
         in
-        let fcc F Ts As := 
+        let fcc F Ts As :=
           let Ts := eval cbv beta iota zeta delta [ app ] in Ts in
           cc F Ts As
         in
@@ -243,10 +243,10 @@ Inductive Tlist : Type :=
 Ltac contains e s :=
   match s with
     | Tnil => false
-    | Tcons ?e' ?b => 
+    | Tcons ?e' ?b =>
       match unifies e e' with
         | true => true
-        | false => contains e b 
+        | false => contains e b
       end
   end.
 
@@ -275,10 +275,10 @@ Ltac append_uniq es s :=
 (*
 Ltac add_end_uniq e s :=
   match contains e s with
-    | false => 
+    | false =>
       let z := eval simpl app in (s ++ (e :: nil)) in
       z
-    | false => 
+    | false =>
       match type of s with
         | list ?T => constr:(s ++ ((e : T) :: @nil T))
       end
@@ -286,8 +286,8 @@ Ltac add_end_uniq e s :=
   end.
 
 Ltac prepend_uniq es s :=
-  match es with 
-    | nil => s 
+  match es with
+    | nil => s
     | ?a :: ?b =>
       let k := prepend_uniq b s in
       cons_uniq a k
@@ -307,7 +307,7 @@ Ltac indexOf keyF x ls :=
   end.
 
 (* remove ls from the front of ls' *)
-Ltac extension ls ls' := 
+Ltac extension ls ls' :=
   match ls with
     | nil => ls'
     | _ :: ?ls =>
@@ -333,8 +333,8 @@ Ltac map_tac T tac fs :=
         let fs := map_tac fs in
         let fs' := map_tac fs' in
         constr:(fs ++ fs')
-      | _ => 
-        let fs' := eval unfold fs in fs in 
+      | _ =>
+        let fs' := eval unfold fs in fs in
         match fs with
           | fs' => fs
           | _ => map_tac fs'
@@ -368,8 +368,8 @@ Abort.
 Ltac eval_spine_list ls :=
   let ls := eval hnf in ls in
   match ls with
-    | nil => ls 
-    | ?a :: ?b => 
+    | nil => ls
+    | ?a :: ?b =>
       let b := eval_spine_list b in
       constr:(a :: b)
   end.

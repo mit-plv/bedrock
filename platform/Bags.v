@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Malloc.
 
 Set Implicit Arguments.
@@ -310,7 +311,7 @@ Module Make(M : S).
       intros.
       eapply bagify_In' in H0; eauto.
       intuition bags.
-    Qed.    
+    Qed.
 
     Hint Resolve bagify_In bagify_nuke.
 
@@ -351,7 +352,7 @@ Module Make(M : S).
       specialize (H0 x).
       rewrite add_something.
       apply undel_something'; auto.
-    Qed.      
+    Qed.
 
     Theorem starB_del_bwd : forall b v, v %in b
       -> P v * starB P (b %- v) ===> starB P b.

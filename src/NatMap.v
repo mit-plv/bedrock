@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import OrderedType FMapAVL.
 Require Import List.
 Require Import Setoid RelationClasses.
@@ -9,7 +10,7 @@ Set Strict Implicit.
 
 Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition t := nat.
-  Definition eq := @eq nat. 
+  Definition eq := @eq nat.
   Definition lt := @lt.
 
   Theorem eq_refl : forall x, eq x x.
@@ -18,7 +19,7 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
 
   Theorem eq_sym : forall a b, eq a b -> eq b a.
     intros; symmetry; auto.
-  Qed.    
+  Qed.
 
   Theorem eq_trans : forall a b c, eq a b -> eq b c -> eq a c.
     intros; etransitivity; eauto.
@@ -28,7 +29,7 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
   Theorem lt_trans : forall a b c, lt a b -> lt b c -> lt a c.
     intros. unfold lt in *. omega.
   Qed.
-     
+
   Theorem lt_not_eq : forall a b, lt a b -> ~(eq a b).
     unfold eq, lt. intros; omega.
   Qed.
@@ -36,16 +37,16 @@ Module Ordered_nat <: OrderedType with Definition t := nat.
   Definition compare (x y : t) : OrderedType.Compare lt eq x y :=
     match Compare_dec.nat_compare x y as r return
       Compare_dec.nat_compare x y = r -> OrderedType.Compare lt eq x y
-      with 
+      with
       | Lt => fun pf => OrderedType.LT (lt:=lt) (nat_compare_Lt_lt _ _ pf)
       | Eq => fun pf => OrderedType.EQ (lt:=lt) (Compare_dec.nat_compare_eq _ _ pf)
       | Gt => fun pf => OrderedType.GT (lt:=lt) (nat_compare_Gt_gt _ _ pf)
     end (refl_equal _).
 
   Definition eq_dec (x y : nat) : {x = y} + {x <> y} :=
-    match beq_nat x y as r return 
+    match beq_nat x y as r return
       beq_nat x y = r -> {x = y} + {x <> y} with
-      | true => fun pf => left (beq_nat_true _ _ pf) 
+      | true => fun pf => left (beq_nat_true _ _ pf)
       | false => fun pf => right (beq_nat_false _ _ pf)
     end (refl_equal _).
 
@@ -117,9 +118,9 @@ Definition singleton {T} (k : nat) (v : T) : IntMap.t T :=
 
 (** Neither Properties nor Facts contains anything useful about 'map' **)
 Module MoreFMapFacts (FM : FMapInterface.WS)
-. 
+.
   Module PROPS := FMapFacts.WProperties_fun(FM.E) FM.
-  Module FACTS := FMapFacts.WFacts_fun FM.E FM.    
+  Module FACTS := FMapFacts.WFacts_fun FM.E FM.
 
   Definition union T :=
     FM.fold (fun k (v : T) a => FM.add k v a).
@@ -181,10 +182,10 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
       unfold FM.Equal, FM.Empty in *. intros.
       rewrite FACTS.empty_o. case_eq (FM.find y m0); intros; auto.
       exfalso. eapply H. eapply FM.find_2; eauto.
-      
+
     erewrite PROPS.fold_Add; eauto with typeclass_instances.
     rewrite H. unfold PROPS.Add, FM.Equal in *. eauto.
-    
+
     repeat (red; intros; subst).
     repeat (rewrite FACTS.add_o).
       destruct (FM.E.eq_dec k y); auto.
@@ -193,7 +194,7 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
 
   Lemma map_fold' : forall T U (F : T -> U) (m : FM.t T) (m' : FM.t U),
     FM.Equal (union _ (FM.map F m) m')
-             (FM.fold (fun k v a => FM.add k (F v) a) m m').              
+             (FM.fold (fun k v a => FM.add k (F v) a) m m').
   Proof.
     do 4 intro. unfold union.
     eapply PROPS.map_induction with (m := m); intros.
@@ -207,13 +208,13 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
       cut (PROPS.Add x (F e) (FM.map F m0) (FM.map F m')); intros.
       symmetry. rewrite PROPS.fold_Add. 6: eapply H2. 2: eauto with typeclass_instances.
       rewrite H. reflexivity.
-      
+
       repeat (red; intros; subst). rewrite H3. rewrite H4. reflexivity.
       repeat (red; intros; subst). repeat rewrite FACTS.add_o.
       destruct (FM.E.eq_dec k y); destruct (FM.E.eq_dec k' y); eauto.
       rewrite <- e1 in e2; exfalso; auto.
       intro. apply FACTS.map_in_iff in H3. auto.
-      
+
       unfold PROPS.Add in *; intros.
       specialize (H1 y). repeat (rewrite FACTS.add_o || rewrite FACTS.map_o || rewrite H1).
       unfold FACTS.option_map.
@@ -221,7 +222,7 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
 
       repeat (red; intros; subst). rewrite H3. rewrite H2. reflexivity.
       repeat (red; intros; subst). repeat rewrite FACTS.add_o.
-      repeat match goal with 
+      repeat match goal with
                | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => destruct (FM.E.eq_dec X Y); auto
              end.
       rewrite <- e1 in e2; exfalso; auto.
@@ -231,8 +232,8 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
     FM.Equal (FM.map F m)
              (FM.fold (fun k v a => FM.add k (F v) a) m (FM.empty _)).
   Proof.
-    intros. etransitivity. symmetry; apply union_empty. apply map_fold'. 
-  Qed.   
+    intros. etransitivity. symmetry; apply union_empty. apply map_fold'.
+  Qed.
 
   Lemma find_empty_iff : forall T (m : FM.t T),
     FM.Empty m <-> forall k, FM.find k m = None.
@@ -240,7 +241,7 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
     unfold FM.Empty. intros. split.
     { intros; case_eq (FM.find k m); auto; intros.
       exfalso. eapply FACTS.find_mapsto_iff in H0. eapply H; eauto. }
-    { intros. intro. apply FACTS.find_mapsto_iff in H0. 
+    { intros. intro. apply FACTS.find_mapsto_iff in H0.
       specialize (H a). congruence. }
   Qed.
 
@@ -261,19 +262,19 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
     Hypothesis G_respect: Morphisms.Proper
       (Morphisms.respectful FM.E.eq
         (Morphisms.respectful eq (Morphisms.respectful equ equ))) G.
-    
+
     Local Hint Resolve G_trans G_respect equ_Equiv.
-    Local Hint Extern 1 (Morphisms.Proper _ _) => 
+    Local Hint Extern 1 (Morphisms.Proper _ _) =>
       clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
-        repeat match goal with 
-                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+        repeat match goal with
+                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
                    destruct (FM.E.eq_dec X Y)
                  | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
                end; auto; exfalso; auto.
-    Local Hint Extern 1 (PROPS.transpose_neqkey _ _) => 
+    Local Hint Extern 1 (PROPS.transpose_neqkey _ _) =>
       clear; repeat (red; intros; subst); repeat rewrite FACTS.add_o;
-        repeat match goal with 
-                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] => 
+        repeat match goal with
+                 | [ |- context [ FM.E.eq_dec ?X ?Y ] ] =>
                    destruct (FM.E.eq_dec X Y)
                  | [ H : FM.E.eq ?X ?Y |- _ ] => rewrite H in *
                end; auto; exfalso; auto.
@@ -294,16 +295,16 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
 
         symmetry. rewrite PROPS.fold_Equal. 5: eapply map_fold. 2: eapply equ_Equiv. 3: eapply G_trans.
         2: eapply G_respect.
-        rewrite PROPS.fold_Equal. 5: rewrite PROPS.fold_Add; eauto. 
+        rewrite PROPS.fold_Equal. 5: rewrite PROPS.fold_Add; eauto.
         5: reflexivity. rewrite PROPS.fold_add; eauto.
-        eapply G_respect; eauto. erewrite <- H. 
+        eapply G_respect; eauto. erewrite <- H.
         symmetry. rewrite PROPS.fold_Equal. 5: apply map_fold. reflexivity. eauto. eauto. eauto.
-        
+
         { revert H0. clear. revert x. eapply PROPS.map_induction with (m := m0); intros.
           rewrite PROPS.fold_Empty; eauto. intro. eapply FACTS.empty_in_iff; eauto with typeclass_instances.
 
           rewrite PROPS.fold_Add. 6: eauto. 5: eauto. 2: eauto. 2: eauto. 2: eauto.
-          intro. apply FACTS.add_in_iff in H3. destruct H3. 
+          intro. apply FACTS.add_in_iff in H3. destruct H3.
             rewrite <- H3 in *. apply H2. specialize (H1 x). rewrite FACTS.add_o in *.
             destruct (FM.E.eq_dec x x); try solve [ exfalso; auto ]. apply FACTS.in_find_iff. congruence.
 
@@ -313,7 +314,7 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
                      | [ H : ~ FM.In _ _ |- _ ] => apply FACTS.not_find_in_iff in H
                      | [ H : FM.In _ _ |- _ ] => apply FACTS.in_find_iff in H
                    end.
-            destruct (FM.E.eq_dec x x0); congruence. 
+            destruct (FM.E.eq_dec x x0); congruence.
         }
 
         eauto.
@@ -380,7 +381,7 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
     Global Instance Refl_Equiv : Reflexive (FM.Equiv R).
     Proof.
       revert refl; clear.
-      red. unfold FM.Equiv. firstorder. 
+      red. unfold FM.Equiv. firstorder.
       apply FACTS.find_mapsto_iff in H.
       apply FACTS.find_mapsto_iff in H0.
       rewrite H in H0. inversion H0; apply refl.
@@ -396,27 +397,27 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
         FM.Equiv R m n /\
         R v v'.
     Proof.
-      intros. unfold PROPS.Add in *. 
+      intros. unfold PROPS.Add in *.
       destruct H. generalize (H1 k). intros.
       rewrite FACTS.add_o in *. destruct (FM.E.eq_dec k k); try solve [ exfalso; auto ].
       case_eq (FM.find k n'); intros. exists (FM.remove k n'). exists t.
       { intuition.
         rewrite FACTS.add_o. rewrite FACTS.remove_o. destruct (FM.E.eq_dec k y); auto.
         rewrite <- e0; eauto.
-        
+
         destruct H5. apply FACTS.find_mapsto_iff in H5. rewrite FACTS.remove_o in H5.
         destruct (FM.E.eq_dec k k); congruence.
 
         split. intros. destruct (FM.E.eq_dec k k0); try rewrite <- e0 in *.
-        split; intro; try solve [ exfalso ; auto ]. destruct H5. apply FACTS.find_mapsto_iff in H5. 
+        split; intro; try solve [ exfalso ; auto ]. destruct H5. apply FACTS.find_mapsto_iff in H5.
         rewrite FACTS.remove_o in H5; destruct (FM.E.eq_dec k k); congruence.
         split; intro. apply FACTS.remove_in_iff; split; auto.
-        
+
         { eapply H. destruct H5. apply FACTS.find_mapsto_iff in H5. exists x. apply FACTS.find_mapsto_iff.
           rewrite H1. rewrite FACTS.add_o. destruct (FM.E.eq_dec k k0); try congruence. }
         { apply FACTS.remove_in_iff in H5. intuition. apply H in H7.
           destruct H7. apply FACTS.find_mapsto_iff in H5. exists x. apply FACTS.find_mapsto_iff.
-          rewrite H1 in H5. rewrite FACTS.add_o in H5. destruct (FM.E.eq_dec k k0); try congruence. }          
+          rewrite H1 in H5. rewrite FACTS.add_o in H5. destruct (FM.E.eq_dec k k0); try congruence. }
         { intros. apply FACTS.remove_mapsto_iff in H6. intuition.
           specialize (H1 k0). rewrite FACTS.add_o in *.
           destruct (FM.E.eq_dec k k0). congruence.
@@ -445,6 +446,6 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
       destruct H5. etransitivity. eapply H2; eauto. eapply H3; eauto.
       eapply H1. eexists; eauto.
     Qed.
-      
+
   End Equiv.
 End MoreFMapFacts.

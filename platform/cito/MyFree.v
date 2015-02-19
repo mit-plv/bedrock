@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Malloc Arith.
 Require Import GeneralTactics.
 Require Import MyMalloc.

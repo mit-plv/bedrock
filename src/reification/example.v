@@ -7,7 +7,7 @@ Declare ML Module "reif".
 Section PartialApply.
 
   Fixpoint funtype (ls : list Type) (r : Type) : Type :=
-    match ls with 
+    match ls with
       | nil => r
       | cons a b => a -> funtype b r
     end.
@@ -20,7 +20,7 @@ Section PartialApply.
     end.
 End PartialApply.
 
-Require Import List. 
+Require Import List.
 
 Ltac refl_app cc e :=
   match e with
@@ -137,75 +137,75 @@ Ltac refl_app cc e :=
 
 
 Ltac cc1 x ts args :=
-  idtac "$$$ plugin" x ts args. 
+  idtac "$$$ plugin" x ts args.
 Ltac cc2 x ts args :=
-  idtac "$$$ ltac" x ts args. 
+  idtac "$$$ ltac" x ts args.
 
-Definition tutu (x : Type) ( y : x ) (s : Type) (z : nat) (z2 : nat) (u : x) := 1. 
-Goal tutu bool true nat 3 3  false = 2.  
-  match goal with 
+Definition tutu (x : Type) ( y : x ) (s : Type) (z : nat) (z2 : nat) (u : x) := 1.
+Goal tutu bool true nat 3 3  false = 2.
+  match goal with
       |- ?l = _ =>  refl_app_cps l cc1
-  end. 
-  match goal with 
+  end.
+  match goal with
       |- ?l = _ =>  refl_app cc2 l
-  end. 
-Abort. 
+  end.
+Abort.
 
-Definition bar : forall ( x: Type), nat -> forall (y : Type), x -> y -> x := fun _ _ _ e _ => e.  
+Definition bar : forall ( x: Type), nat -> forall (y : Type), x -> y -> x := fun _ _ _ e _ => e.
 
-Definition bar2 : forall ( x: Type), nat -> forall (y : Type), nat -> forall (z : Type),  x -> y -> z -> z. Admitted. 
+Definition bar2 : forall ( x: Type), nat -> forall (y : Type), nat -> forall (z : Type),  x -> y -> z -> z. Admitted.
 
-Goal forall a b c d e, bar a b c d e = d. 
-intros. 
-  match goal with 
+Goal forall a b c d e, bar a b c d e = d.
+intros.
+  match goal with
       |- ?l = _ => refl_app_cps l cc1
-  end. 
-  match goal with 
+  end.
+  match goal with
       |- ?l = _ =>  refl_app cc2 l
-  end. 
-Abort. 
+  end.
+Abort.
 
-Goal forall Hx Hy Hz a b c d e, bar2 Hx a Hy b Hz c d e = e. 
-intros. 
-match goal with 
+Goal forall Hx Hy Hz a b c d e, bar2 Hx a Hy b Hz c d e = e.
+intros.
+match goal with
     |- ?l = _ => refl_app_cps l cc1
-end. 
-match goal with 
+end.
+match goal with
     |- ?l = _ =>  refl_app cc2 l
-end. 
+end.
 
-Abort. 
+Abort.
 
 
-Goal (fun x => x + x) = (fun x => 2). 
-match goal with 
+Goal (fun x => x + x) = (fun x => 2).
+match goal with
     |- ?l = _ => refl_app_cps l cc1
-end. 
-match goal with 
+end.
+match goal with
     |- ?l = _ =>  refl_app cc2 l
-end. 
-Abort. 
+end.
+Abort.
 
-Variable A B : Type. 
-Definition test1 (stn : A) (sm : B) : B. Admitted. 
+Variable A B : Type.
+Definition test1 (stn : A) (sm : B) : B. Admitted.
 Goal  forall a b, test1 a b = b. intros.
-match goal with |- ?l = _  => refl_app_cps l cc1 end. 
-match goal with |- ?l = _  => refl_app cc2 l end. 
-Abort. 
+match goal with |- ?l = _  => refl_app_cps l cc1 end.
+match goal with |- ?l = _  => refl_app cc2 l end.
+Abort.
 
-Definition test2 : A * B -> B. Admitted. 
+Definition test2 : A * B -> B. Admitted.
 Goal  (fun x y => test2 (x, y)) = (fun _ b => b). intros.
-match goal with |- ?l = _  => refl_app cc2 l end. 
-match goal with |- ?l = _  => refl_app_cps l cc1 end. 
-Abort. 
-Require Import String. 
+match goal with |- ?l = _  => refl_app cc2 l end.
+match goal with |- ?l = _  => refl_app_cps l cc1 end.
+Abort.
+Require Import String.
 Require Bedrock. Require ReifyExpr.
-Definition test_dep_0 (n : nat) (arg : bool) := True. 
-Definition test_dep (n : nat) (arg : bool) := n = 0 -> arg = arg. 
-Goal True. 
-reify_expr (test_dep_0 1 true). 
-reify_expr (test_dep 1 true). 
-Abort. 
+Definition test_dep_0 (n : nat) (arg : bool) := True.
+Definition test_dep (n : nat) (arg : bool) := n = 0 -> arg = arg.
+Goal True.
+reify_expr (test_dep_0 1 true).
+reify_expr (test_dep 1 true).
+Abort.
 (* Require Bedrock. Require ReifyExpr.  *)
 (* Goal True.  *)
 (* reify_expr (forall (x : bool), x = x).  *)

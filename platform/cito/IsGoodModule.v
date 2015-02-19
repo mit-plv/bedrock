@@ -46,7 +46,7 @@ Defined.
 
 Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
   intros.
-  refine 
+  refine
     ({|
         GoodModule.Name := MName m;
         GoodModuleName := _;
@@ -60,7 +60,7 @@ Definition to_good_module (m : Module) : IsGoodModule m -> GoodModule.
       rewrite to_good_functions_name; eauto).
 Defined.
 
-Definition to_module (m : GoodModule) : Module := 
+Definition to_module (m : GoodModule) : Module :=
   {|
     SyntaxModule.Name := GoodModule.Name m;
     SyntaxModule.Functions := map GoodFunction.Fun (GoodModule.Functions m)

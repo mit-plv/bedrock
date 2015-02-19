@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Arith AutoSep Bags Malloc Queue Misc.
 Import W_W_Bag.
 
@@ -476,7 +477,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       Call "malloc"!"free"(0, "curPc", "ss")
       [Al w, Al q, Al qp, Al tsp,
-        PREexit'[V] (V "sc" ==*> qp, tsp) * queue q qp * (V "sc" ^+ $8) =?> 2 
+        PREexit'[V] (V "sc" ==*> qp, tsp) * queue q qp * (V "sc" ^+ $8) =?> 2
           * susps w q (V "sc") * ginv w (V "sc") * mallocHeap 0];;
 
       "curPc" <-* "sc";;
@@ -583,7 +584,7 @@ Lemma wordBound : forall w : W,
 Qed.
 
 Local Hint Immediate wordBound.
-  
+
 Hint Rewrite <- minus_n_O : sepFormula.
 
 Theorem ok : moduleOk m.
@@ -731,7 +732,7 @@ Theorem ok : moduleOk m.
   destruct H0 as [ | [ ? [ ] ] ].
   evaluate hints.
   generalize dependent H0; evaluate hints; intro.
-  
+
   change (locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil)
     (upd (upd (upd x4 "sc" (sel x0 "sc")) "ss" (sel x0 "ss")) "curPc" (Regs st Sp))
     14 x5)
@@ -818,7 +819,7 @@ Theorem ok : moduleOk m.
 
   t.
   t.
-  
+
   post; evaluate hints.
   match goal with
     | [ H : interp _ _ |- _ ] =>

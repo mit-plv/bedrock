@@ -545,8 +545,8 @@ Section machine.
       (forall P, normal G P -> valid G P)
       /\ (forall P, neutral G P -> valid G P).
     Proof.
-      apply normal_neutral_min; try solve [ 
-        intros; ((eapply Or_I1; assumption) || 
+      apply normal_neutral_min; try solve [
+        intros; ((eapply Or_I1; assumption) ||
                  (eapply Or_I2; assumption))
       | eauto ].
     Qed.
@@ -556,7 +556,7 @@ Section machine.
       /\ (forall P, neutralP G P -> valid G P).
     Proof.
       apply normalP_neutralP_min; try solve [
-        intros; ((eapply Or_I1; assumption) || 
+        intros; ((eapply Or_I1; assumption) ||
                  (eapply Or_I2; assumption))
       | eauto ].
     Qed.
@@ -770,7 +770,7 @@ Section machine.
           -> neutralP G P
           -> neutralP G Q)).
     Proof.
-      intro; apply normalP_neutralP_min; try solve [ eauto ]. 
+      intro; apply normalP_neutralP_min; try solve [ eauto ].
       intros; eapply NopOr_E. eapply H0. eassumption. eassumption. eauto. eauto.
     Qed.
 
@@ -868,17 +868,17 @@ Section machine.
                    eapply Exists_L; [ solve [ eauto ] | intro witness;
                      specialize (H witness P); simpl in H ]
                  | [ _ : incl _ (?P :: _), x : _, H : forall pf (P' : propX nil), _ |- _ ] =>
-                   specialize (H x P); simpl in H 
+                   specialize (H x P); simpl in H
                end;
         match goal with
-          | [ H : _, G0 : _, P1 : propX nil |- _ ] => 
+          | [ H : _, G0 : _, P1 : propX nil |- _ ] =>
             solve [ apply H with (P1 :: G0); auto ]
-          | [ H : _, G0 : _, P1 : _ -> propX nil, A : Type |- _ ] => 
+          | [ H : _, G0 : _, P1 : _ -> propX nil, A : Type |- _ ] =>
             match goal with
             | [ B : A |- _ ] => solve [ apply H with B (P1 B :: G0); eauto ]
             end
           | _ => solve [ eauto | doLeft ]
-          | [ H : _, G0 : _, P1 : propX nil |- _ ] => 
+          | [ H : _, G0 : _, P1 : propX nil |- _ ] =>
             solve [ apply H with (P1 :: G0); eauto ]
           | _ => solve [ eauto 8 ]
         end).

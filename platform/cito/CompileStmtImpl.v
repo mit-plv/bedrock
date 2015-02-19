@@ -44,7 +44,7 @@ Section Body.
   Definition SaveRv lv := Strline (IL.Assign lv (RvLval (LvReg Rv)) :: nil).
 
   Definition CheckExtraStack (n : nat) cmd :=
-    Seq2 
+    Seq2
       (Strline (IL.Assign Rv (stack_slot 1) :: nil))
       (Structured.If_ imports_global n Le Rv cmd
                       (Diverge_ imports modName)).
@@ -61,12 +61,12 @@ Section Body.
 
   Fixpoint cmp (s k : Stmt) : cmd imports modName :=
     match s with
-      | Syntax.Skip => 
+      | Syntax.Skip =>
         Skip__
-      | Syntax.Seq a b => 
-        Seq2 (cmp a (Syntax.Seq b k)) 
+      | Syntax.Seq a b =>
+        Seq2 (cmp a (Syntax.Seq b k))
              (cmp b k)
-      | Syntax.If cond t f => 
+      | Syntax.If cond t f =>
         Seq2 (compile_expr cond 0)
              (If__ Rv Ne (natToW 0) (cmp t k) (cmp f k))
       | Syntax.While cond body =>
@@ -76,14 +76,14 @@ Section Body.
                             (compile_expr cond 0)))
       | Syntax.Call var f args =>
         let callee_frame_len := 2 + length args in
-        CheckExtraStack 
+        CheckExtraStack
           callee_frame_len
           (Seq__
-             (compile_exprs 
+             (compile_exprs
                 args 0 (callee_stack_start + 8)
                 :: compile_expr f 0
                 :: Strline
-                (IL.Binop 
+                (IL.Binop
                    (callee_stack_slot 1) (stack_slot 1) Minus callee_frame_len
                    :: IL.Binop Sp Sp Plus frame_len_w :: nil)
                 :: Structured.ICall_ imports modName Rv (after_call var k)
@@ -116,7 +116,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable rv_postcond : W -> vals -> Prop.
 
-    Definition loop_inv cond body k : assert := 
+    Definition loop_inv cond body k : assert :=
       let s := Syntax.Seq (Syntax.While cond body) k in
       inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) rv_postcond s.
 
@@ -124,7 +124,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Semantics.
 
     Definition after_call ret k : assert :=
-      st ~> Ex fs, 
+      st ~> Ex fs,
       let stn := fst st in
       funcs_ok stn fs /\
       ExX, Ex vs, Ex heap1, Ex heap2, Ex temps, Ex rp, Ex e_stack, Ex ret_w, Ex ret_a,
@@ -137,7 +137,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
          let v := (vs, heap) in
          (separated heap12 ret_w ret_a -> Safe env k v) /\
          length temps = temp_size |] /\
-      (rp, stn) 
+      (rp, stn)
         @@@ (
           st' ~> Ex v', Ex temps',
           ![^[is_state st'#Sp rp e_stack e_stack vars v' temps' * mallocHeap 0] * #1] st' /\

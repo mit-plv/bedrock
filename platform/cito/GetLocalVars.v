@@ -5,7 +5,7 @@ Require Import StringSet.
 Import StringSet.
 Require Import StringSetFacts.
 
-Definition get_local_vars stmt arg_vars ret_var := 
+Definition get_local_vars stmt arg_vars ret_var :=
   elements (diff (add ret_var (free_vars stmt)) (of_list arg_vars)).
 
 Require Import SetoidListFacts.

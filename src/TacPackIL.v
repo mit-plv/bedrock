@@ -10,8 +10,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (*TIME
-Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
-Add ML Path "/usr/local/lib/coq/user-contrib/". 
+Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.
+Add ML Path "/usr/local/lib/coq/user-contrib/".
 Declare ML Module "Timing_plugin".
 *)
 
@@ -33,7 +33,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
     Variable F : T -> T -> T.
 
     Definition oplus (l r : option T) : option T :=
-      match l , r with 
+      match l , r with
         | None , _ => r
         | _ , None => l
         | Some l , Some r => Some (F l r)
@@ -43,7 +43,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
   Definition AllAlgos_composite types (l r : AllAlgos types) : AllAlgos types :=
     match l , r with
       | {| Prover  := pl ; Hints := hl ; MemEval := ml |} , {| Prover := pr ; Hints := hr ; MemEval := mr |} =>
-        {| Prover  := oplus (@composite_ProverT _) pl pr 
+        {| Prover  := oplus (@composite_ProverT _) pl pr
          ; Hints   := oplus (fun l r => {| UNF.Forward := UNF.Forward l ++ UNF.Forward r
          ; UNF.Backward := UNF.Backward l ++ UNF.Backward r |}) hl hr
          ; MemEval := oplus (@MEVAL.Composite.MemEvaluator_composite _ BedrockCoreEnv.pc BedrockCoreEnv.st) ml mr
@@ -60,7 +60,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       | None => True
       | Some P => ProverT_correct P funcs
     end
-  ; Acorrect_Hints : 
+  ; Acorrect_Hints :
     match Hints algos with
       | None => True
       | Some H => UNF.hintsSoundness funcs preds H
@@ -68,15 +68,15 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
   ; Acorrect_MemEval :
     match MemEval algos with
       | None => True
-      | Some M => 
+      | Some M =>
         @MEVAL.MemEvaluator_correct _ BedrockCoreEnv.pc BedrockCoreEnv.st M funcs preds
-          (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) (tvType 0) (tvType 0) 
+          (tvarD (repr BedrockCoreEnv.core types) BedrockCoreEnv.st) (tvType 0) (tvType 0)
           (@IL_mem_satisfies types) (@IL_ReadWord types) (@IL_WriteWord types)
           (@IL_ReadByte types) (@IL_WriteByte types)
     end
   }.
 
-  Theorem AllAlgos_correct_composite types (l r : AllAlgos types) funcs preds 
+  Theorem AllAlgos_correct_composite types (l r : AllAlgos types) funcs preds
     (CL : @AllAlgos_correct types funcs preds l)
     (CR : @AllAlgos_correct types funcs preds r) :
     @AllAlgos_correct types funcs preds (AllAlgos_composite l r).
@@ -103,21 +103,21 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       {| Env := {| PACK.Types := nil_Repr EmptySet_type
                  ; PACK.Funcs := fun ts => nil_Repr (Default_signature _)
                  ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
-                |} 
+                |}
        ; Algos := fun ts => {| Prover := None ; Hints := None ; MemEval := None |}
        ; Algos_correct := _
       |}).
     abstract (constructor; simpl; trivial).
     Defined.
-  
+
 (*
     Ltac simplifier s1 s2 s3 H :=
       match H with
-        | tt => 
+        | tt =>
           cbv delta [ s1 s2 s3
             empty_package UNF.default_hintsPayload
           ]
-        | _ => 
+        | _ =>
           cbv delta [ s1 s2 s3
             empty_package UNF.default_hintsPayload
           ] in H
@@ -128,14 +128,14 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       sym_evaluator s1 s2 s3 H.
 
      Goal forall (cs : codeSpec W (settings * state)) (stn : settings) st st' SF,
-       PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) -> 
+       PropX.interp cs (SepIL.SepFormula.sepFormula SF (stn, st)) ->
        Structured.evalCond (RvImm (natToW 0)) IL.Eq (RvImm (natToW 0)) stn st' = Some true ->
        evalInstrs stn st (Assign Rp (RvImm (natToW 0)) :: nil) = Some st' ->
        Regs st' Rp = natToW 0.
      Proof.
        intros.
        sym_eval ltac:(isConst) empty_package simplifier.
-       intuition congruence. 
+       intuition congruence.
      Abort.*)
 
   End EmptyPackage.
@@ -144,7 +144,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
     Definition bedrock_package : TypedPackage.
     refine (
       {| Env := {| PACK.Types := nil_Repr EmptySet_type
-        ; PACK.Funcs := bedrock_funcs_r 
+        ; PACK.Funcs := bedrock_funcs_r
         ; PACK.Preds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
       |}
       ; Algos := fun ts => {| Prover := None ; Hints := None ; MemEval := None |}
@@ -152,15 +152,15 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       |}).
     abstract (constructor; simpl; trivial).
     Defined.
-    
+
 (*
     Ltac simplifier H :=
       match H with
-        | tt => 
+        | tt =>
           cbv delta [
             bedrock_package UNF.default_hintsPayload
           ]
-        | _ => 
+        | _ =>
           cbv delta [
             bedrock_package UNF.default_hintsPayload
           ] in H
@@ -176,7 +176,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
 
     (** Build Packages for Provers **)
     Ltac build_prover_pack prover ret :=
-      let res := constr:( 
+      let res := constr:(
         let env :=
           {| PACK.Types := Prover.ProverTypes prover
            ; PACK.Funcs := fun ts => Prover.ProverFuncs prover (repr bedrock_types_r ts)
@@ -217,24 +217,24 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
           IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte =>
           (let res := constr:(
              let TR := Env.repr_combine tr (MEVAL.MemEvalTypes mem) in
-             let env := 
+             let env :=
                {| PACK.Types := TR
                 ; PACK.Funcs := fun ts => MEVAL.MemEvalFuncs mem (Env.repr ILEnv.bedrock_types_r (Env.repr TR ts))
                 ; PACK.Preds := fun ts => MEVAL.MemEvalPreds mem (Env.repr ILEnv.bedrock_types_r (Env.repr TR ts))
                |}
              in
              let algos ts :=
-               @Build_AllAlgos (PACK.applyTypes env ts) 
+               @Build_AllAlgos (PACK.applyTypes env ts)
                  None
-                 None 
+                 None
                  (Some (MEVAL.MemEval mem (PACK.applyTypes env ts)))
              in
-             @Build_TypedPackage env algos 
+             @Build_TypedPackage env algos
                (fun ts fs ps => @Build_AllAlgos_correct _ _ _ (algos ts) I I
                  (MEVAL.MemEval_correct mem (Env.repr ILEnv.bedrock_types_r ts) _ _))) in
            let res := eval simpl in res in
            ret res) || fail 10000 "couldn't construct mem_package"
-        | ?T => 
+        | ?T =>
           fail 10000 "got bad type" T "expected value of type Packages.MemEvaluatorPackage"
       end.
 
@@ -246,14 +246,14 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
     Module MemPackTest.
 
       Goal TypedPackage.
-        pose (mem := 
+        pose (mem :=
           {| MEVAL.MemEvalTypes := nil_Repr EmptySet_type
            ; MEVAL.MemEvalFuncs := fun ts => nil_Repr (Default_signature _)
            ; MEVAL.MemEvalPreds := fun ts => nil_Repr (SEP.Default_predicate _ _ _)
            ; MEVAL.MemEval := fun ts => @MEVAL.Default.MemEvaluator_default _ (tvType 0) (tvType 1)
            ; MEVAL.MemEval_correct := fun ts fs ps =>
              @MEVAL.Default.MemEvaluator_default_correct _ _ _ _ _ _ _ _ _ _ _ _ _
-          |} : @MEVAL.MemEvaluatorPackage min_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) 
+          |} : @MEVAL.MemEvaluatorPackage min_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0)
                    IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte).
         build_mem_pack mem ltac:(fun x => refine x).
       Defined.
@@ -271,12 +271,12 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
     }.
 
     Ltac prepareHints unfoldTac pcType stateType isConst env fwd bwd ret :=
-    let types := 
+    let types :=
       match type of env with
-        | PACK.TypeEnv => 
+        | PACK.TypeEnv =>
           let ts := eval cbv beta iota zeta delta [ env PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
           eval simpl in ts
-        | PACK.TypeEnv => 
+        | PACK.TypeEnv =>
           let ts := eval cbv beta iota zeta delta [ PACK.applyTypes PACK.Types ] in (PACK.applyTypes env nil) in
           eval simpl in ts
       end
@@ -294,7 +294,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
             let types_r := eval cbv beta iota zeta delta [ listToRepr ] in (listToRepr types EmptySet_type) in
             let types_rV := fresh "types" in
             (pose (types_rV := types_r) || fail 1000);
-            let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in 
+            let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in
             let funcs_r := eval cbv beta iota zeta delta [ listToRepr ] in (fun ts => listToRepr (funcs_r ts) (Default_signature (repr types_rV ts))) in
             let funcs_rV := fresh "funcs" in
             pose (funcs_rV := funcs_r) ;
@@ -305,7 +305,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
             let fwd' := HINTS_REIFY.lift_lemmas_over_repr fwd' types_rV pcT stateT in
             let bwd' := HINTS_REIFY.lift_lemmas_over_repr bwd' types_rV pcT stateT in
             let pf := fresh "fwd_pf" in
-            assert (pf : forall ts fs ps, UNF.hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| UNF.Forward := fwd' ts ; UNF.Backward := bwd' ts |})) by 
+            assert (pf : forall ts fs ps, UNF.hintsSoundness (repr (funcs_rV ts) fs) (repr (preds_rV ts) ps) ({| UNF.Forward := fwd' ts ; UNF.Backward := bwd' ts |})) by
               (abstract (constructor; [ HINTS_REIFY.prove fwd | HINTS_REIFY.prove bwd ])) ;
             let res := constr:(
               {| Types      := types_rV
@@ -328,14 +328,14 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
            ; PACK.Funcs := fun ts => Functions hints (repr bedrock_types_r ts)
            ; PACK.Preds := fun ts => Predicates hints (repr bedrock_types_r ts) |}
         in
-        let algos ts := 
+        let algos ts :=
           @Build_AllAlgos (PACK.applyTypes env ts)
-            None 
+            None
             (Some (Hints hints ts))
             None
         in
-        @Build_TypedPackage env algos 
-          (fun ts fs ps => 
+        @Build_TypedPackage env algos
+          (fun ts fs ps =>
             let types := repr bedrock_types_r (repr (Types hints) ts) in
             @Build_AllAlgos_correct _ _ _ (algos ts) I (HintsOk hints ts fs ps) I))
       in
@@ -349,10 +349,10 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       |}.
 
     Module HintsPackTest.
-      
+
 (*
       Goal TypedPackage.
-        PACKAGED.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) bedrock_env tt tt ltac:(fun v => 
+        PACKAGED.prepareHints ltac:(fun x => x) W (prod IL.settings IL.state) ltac:(isConst) bedrock_env tt tt ltac:(fun v =>
           build_hints_pack v ltac:(fun x => refine x)).
       Defined.
 *)
@@ -368,8 +368,8 @@ Ltac glue_pack left_pack right_pack ret :=
     let l := left_pack in
     let r := right_pack in
     let ntypesV := Env.repr_combine (PACK.Types (Env l)) (PACK.Types (Env r)) in
-    let nfuncsV ts := 
-      Env.repr_combine (PACK.Funcs (Env l) (Env.repr ntypesV ts)) 
+    let nfuncsV ts :=
+      Env.repr_combine (PACK.Funcs (Env l) (Env.repr ntypesV ts))
                        (PACK.Funcs (Env r) (Env.repr ntypesV ts))
     in
     let npredsV ts :=
@@ -382,19 +382,19 @@ Ltac glue_pack left_pack right_pack ret :=
        ; PACK.Preds := npredsV
        |}
     in
-    let algos ts := 
+    let algos ts :=
       @AllAlgos_composite
         (ILAlgoTypes.PACK.applyTypes env (Env.repr ntypesV ts))
         (Algos l (Env.repr ntypesV ts))
         (Algos r (Env.repr ntypesV ts))
     in
-    {| Env   := env 
-     ; Algos := algos 
+    {| Env   := env
+     ; Algos := algos
      ; Algos_correct := fun ts fs ps =>
        let types := @ILAlgoTypes.PACK.applyTypes env ts in
        let funcs := @ILAlgoTypes.PACK.applyFuncs env types fs in
        let preds := @ILAlgoTypes.PACK.applyPreds env types ps in
-       @ILAlgoTypes.AllAlgos_correct_composite 
+       @ILAlgoTypes.AllAlgos_correct_composite
        types
        (ILAlgoTypes.Algos l types)
        (ILAlgoTypes.Algos r types)
@@ -413,7 +413,7 @@ Ltac glue_pack left_pack right_pack ret :=
     |})
   in ret res.
 
-(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with 
+(** given a tuple or list of [TypedPackage]s, this tactic combines them all and calls [k] with
  ** the result.
  **)
 Ltac glue_packs packs k :=
@@ -426,8 +426,8 @@ Ltac glue_packs packs k :=
         | ?L :: ?R =>
           glue_packs R ltac:(fun R => glue_pack L)
         | (?L, ?R) =>
-          glue_packs L ltac:(fun L => 
-          glue_packs R ltac:(fun R => 
+          glue_packs L ltac:(fun L =>
+          glue_packs R ltac:(fun R =>
             glue_pack L R k))
       end
   end.
@@ -443,15 +443,15 @@ Ltac opaque_pack pack :=
 
 Goal TypedPackage.
   Require provers.ReflexivityProver.
-  build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x => 
-    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte) ltac:(fun y =>   
+  build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x =>
+    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte) ltac:(fun y =>
     glue_pack x y ltac:(opaque_pack))).
 Qed.
 
 (*
 Goal TypedPackage bedrock_types_r (tvType 0) (tvType 1) IL_mem_satisfies IL_ReadWord IL_WriteWord.
-  build_prover_pack Provers.ReflexivityProver ltac:(fun x => 
-    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>   
+  build_prover_pack Provers.ReflexivityProver ltac:(fun x =>
+    build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord) ltac:(fun y =>
       idtac "1" ;
     glue_packs (x, y, y) ltac:(fun v => exact v))).
 Qed.
@@ -462,7 +462,7 @@ Module Extension.
   Ltac combine_repr l r :=
     match l with
       | tt => r
-      | _ => match r with 
+      | _ => match r with
                | tt => l
                | _ => constr:(Env.repr_combine l r)
              end
@@ -498,7 +498,7 @@ Module Extension.
   Ltac gather_env_pack pack ts fs ps k :=
     match eval hnf in pack with
       | tt => k ts fs ps
-      | ?pack => 
+      | ?pack =>
         let ts := combine_repr ts (PACK.Types (Env pack)) in
         let fs := combine_repr_abs fs (PACK.Funcs (Env pack)) in
         let ps := combine_repr_abs ps (PACK.Preds (Env pack)) in
@@ -509,7 +509,7 @@ Module Extension.
     @UNF.hintSideD types funcs pc st preds A ->
     @UNF.hintSideD types funcs pc st preds B ->
     @UNF.hintSideD types funcs pc st preds (A ++ B).
-  Proof. 
+  Proof.
     induction 1; simpl; intros; auto. constructor; eauto. eapply IHForall. auto.
   Qed.
 
@@ -528,7 +528,7 @@ Module Extension.
       | Some H => @UNF.hintsSoundness types funcs pc st preds H
     end ->
     UNF.hintSideD funcs preds fwd ->
-    UNF.hintSideD funcs preds bwd ->    
+    UNF.hintSideD funcs preds bwd ->
     match extend_opt_hints o fwd bwd with
       | Some H => UNF.hintsSoundness funcs preds H
       | None => True
@@ -541,11 +541,11 @@ Module Extension.
 
   Ltac extend unfoldTac isConst pack prover mevals fwd bwd :=
     let reduce_repr t := eval cbv beta iota zeta delta
-      [ ILAlgoTypes.Env ILAlgoTypes.PACK.Funcs ILEnv.bedrock_funcs_r map hd tl Env.listToRepr Env.listOptToRepr Env.repr_combine Env.nil_Repr Env.repr ILEnv.BedrockCoreEnv.core 
+      [ ILAlgoTypes.Env ILAlgoTypes.PACK.Funcs ILEnv.bedrock_funcs_r map hd tl Env.listToRepr Env.listOptToRepr Env.repr_combine Env.nil_Repr Env.repr ILEnv.BedrockCoreEnv.core
         ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Preds ILAlgoTypes.PACK.Funcs ILEnv.bedrock_types_r ] in t
     in
-    let red_pack t := eval cbv beta iota zeta delta 
-      [ ILAlgoTypes.MemEval ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.Algos pack ] in t 
+    let red_pack t := eval cbv beta iota zeta delta
+      [ ILAlgoTypes.MemEval ILAlgoTypes.Hints ILAlgoTypes.Prover ILAlgoTypes.Algos pack ] in t
     in
     (*TIME start_timer "extend:gather" ; *)
     gather_env_pack pack (ILEnv.BedrockCoreEnv.core) tt tt ltac:(fun ts fs ps =>
@@ -580,7 +580,7 @@ Module Extension.
         set (preds_rV := preds_r) ;
     (*TIME stop_timer "extend:lifting" ; *)
     (*TIME start_timer "extend:combining" ; *)
-        set (env := {| ILAlgoTypes.PACK.Types := types_rV 
+        set (env := {| ILAlgoTypes.PACK.Types := types_rV
                      ; ILAlgoTypes.PACK.Funcs := funcs_rV
                      ; ILAlgoTypes.PACK.Preds := preds_rV |}) ;
         let fwd' := HINTS_REIFY.lift_lemmas_over_repr fwd' types_rV pcT stateT in
@@ -605,11 +605,11 @@ Module Extension.
                     end
             | _ => match pack with
                      | tt => constr:(fun ts => Some (MEVAL.MemEval mevals (Env.repr types_rV ts)))
-                     | _ => fail 1000 "not sure" 
+                     | _ => fail 1000 "not sure"
                    end
           end
         in
-        let nhints := 
+        let nhints :=
           let res := match pack with
             | tt => constr:(fun ts => @extend_opt_hints _ _ _ None (fwd' ts) (bwd' ts))
             | _ => red_pack (fun ts => @extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts))) (fwd' ts) (bwd' ts))
@@ -624,12 +624,12 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
         refine ({| ILAlgoTypes.Env := env
                  ; ILAlgoTypes.Algos := algos_V
                  ; ILAlgoTypes.Algos_correct := _
-                |}); 
+                |});
     (*TIME stop_timer "extend:combining" ; *)
         abstract (let ts := fresh "ts" in
          let fs := fresh "fs" in
          let ps := fresh "ps" in
-         intros ts fs ps ; 
+         intros ts fs ps ;
          let ntypes := fresh "types" in
          set (ntypes := @ILAlgoTypes.PACK.applyTypes env ts) ;
          let nfuncs := fresh "funcs" in
@@ -649,9 +649,9 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
            end
          | match goal with
              | [ |- match ?X with _ => _ end ] =>
-               match pack with 
+               match pack with
                  | tt => change (X) with (@extend_opt_hints _ _ _ None (fwd' ntypes) (bwd' ntypes))
-                 | _ => 
+                 | _ =>
                    (change (X) with (@extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts))) (fwd' ntypes) (bwd' ntypes)))
                end; apply extend_opt_hintsOk; [ simpl; auto | HINTS_REIFY.prove fwd | HINTS_REIFY.prove bwd ]
            end
@@ -661,7 +661,7 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
                        | _ => eapply (@ILAlgoTypes.Algos_correct pack ntypes nfuncs npreds)
                      end
              | _ => idtac
-           end             
+           end
          ]) || fail 1000 "Failed to prove. Make sure your function and predicate environments are compatible. If they are, Please report this.")
       || fail 1000 "Combine failed. Make sure your type environments are compatible!")
       || fail 1000 "Type collection failed! Please report this!"
@@ -669,10 +669,10 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
 
   End Extension.
 
-  
+
 
 (*    extend tt tt BedrockPackage.bedrock_package tt tt tt tt. *)
-    
+
 
   End Tactics.
 

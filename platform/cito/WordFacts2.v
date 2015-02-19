@@ -1,3 +1,4 @@
+Require Import Omega.
 Set Implicit Arguments.
 
 Require Import AutoSep Arith.
@@ -247,7 +248,7 @@ assert (goodSize (S y)).
   rewrite mult_comm; auto.
 }
 rewrite wordToNat_wmult.
-rewrite ! roundTrip by goodsize; simpl; omega.  
+rewrite ! roundTrip by goodsize; simpl; omega.
 rewrite ! roundTrip by goodsize; auto.
 Qed.
 
@@ -283,7 +284,7 @@ Lemma natToWord_mult : forall sz x y, natToWord sz (x * y)
   replace (x' * (x1 * pow2 sz))%nat with ((x' * x1) * pow2 sz)%nat by apply mult_assoc_reverse.
   rewrite natToWord_pow2_zero.
   rewrite <- natToWord_plus; auto.
-  
+
   rewrite 2 mult_assoc_reverse.
   f_equal.
   apply mult_comm.

@@ -115,7 +115,7 @@ Definition instrS (i : instr) : string :=
       let (lvS, lvI) := lvalueS lv ecx in
       let (rvI, rvS) := (if rvalueIsMem rv then rvalueSnomem else rvalueS) rv edx in
         rvI ++ tab ++ "movl " ++ rvS ++ "," ++ lvS ++ nl ++ lvI
-            
+
     | Binop lv rv1 o rv2 =>
       let (lvS, lvI) := lvalueS lv ecx in
       let rv1I := rvalueSinto rv1 edx in

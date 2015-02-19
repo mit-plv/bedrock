@@ -23,7 +23,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Himp_trans; [ | apply Himp_star_Emp' ].
       unfold is_heap, heap_elements.
       apply starL_permute.
-      
+
       apply NoDupA_NoDup.
       apply WordMap.elements_3w.
 
@@ -132,7 +132,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct 1; subst.
       auto.
       unfold heap_elements in H0.
-      
+
       apply InA_In.
       destruct x0.
       apply WordMap.elements_1.
@@ -157,8 +157,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold store_pair in H7; simpl in H7.
       apply add_mapsto_iff in H7; intuition subst.
       auto.
-      exfalso; eapply WordMap.empty_1; eauto.      
-      
+      exfalso; eapply WordMap.empty_1; eauto.
+
       simpl.
       eapply Himp_trans; [ | apply Himp_star_assoc' ].
       apply Himp_star_frame; try apply Himp_refl.

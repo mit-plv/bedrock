@@ -65,7 +65,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Open Scope nat.
 
-    Lemma verifCond_ok_label : 
+    Lemma verifCond_ok_label :
       forall x lbl k (pre : assert),
         let s := Syntax.Label x lbl in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
@@ -104,7 +104,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (List.In x vars) by (eapply syn_req_Label_in; eauto).
       assert (
           evalInstrs stn st
-                     (IL.Assign 
+                     (IL.Assign
                         (LvMem (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars x))))
                         (RvImm x2) :: nil) =
           None
@@ -122,7 +122,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(evaluate auto_ext).
     Qed.
 
-    Lemma verifCond_ok_assign : 
+    Lemma verifCond_ok_assign :
       forall x e k (pre : assert),
         let s := Syntax.Assign x e in
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
@@ -168,7 +168,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (List.In x vars) by (eapply syn_req_Assign_in; eauto).
       assert (
           evalInstrs stn st
-                     (IL.Assign 
+                     (IL.Assign
                         (LvMem (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars x))))
                         Rv :: nil) =
           None

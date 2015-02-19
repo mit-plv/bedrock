@@ -1,3 +1,4 @@
+Require Import Omega.
 Set Implicit Arguments.
 
 Require Import Notations3.
@@ -10,7 +11,7 @@ Require Import List.
 Notation "'cfunction' name () b 'end'" :=
   {|
     Name := name;
-    Core := 
+    Core :=
       {|
         ArgVars := nil;
         RetVar := "ret";
@@ -21,7 +22,7 @@ Notation "'cfunction' name () b 'end'" :=
 Notation "'cfunction' name ( x1 , .. , xN ) b 'end'" :=
   {|
     Name := name;
-    Core := 
+    Core :=
       {|
         ArgVars := cons x1 (.. (cons xN nil) ..);
         RetVar := "ret";
@@ -431,7 +432,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     match goal with
       | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
         let H := fresh in
-        assert (GoodToLink_bool Modules Imports = true); 
+        assert (GoodToLink_bool Modules Imports = true);
           [ unfold GoodToLink_bool; simpl |
             eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
           ; eauto

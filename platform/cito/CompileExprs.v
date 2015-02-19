@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep.
 Require Import SyntaxExpr.
 
@@ -6,7 +7,7 @@ Import StringSet.
 Require Import FSetProperties.
 Module Import SSP := Properties StringSet.
 
-Set Implicit Arguments. 
+Set Implicit Arguments.
 
 Section TopLevel.
 
@@ -23,7 +24,7 @@ Section TopLevel.
      array temps (sp ^+ $8 ^+ $(4 * length vars)) *
      array dst_buf (sp ^+ $ dst))%Sep.
 
-  Definition new_pre : assert := 
+  Definition new_pre : assert :=
     x ~> ExX, Ex vs, Ex temps, Ex dst_buf,
     ![^[is_state x#Sp vs temps dst dst_buf] * #0]x /\
     [| length temps = temp_size /\
@@ -40,7 +41,7 @@ Section TopLevel.
 
   Local Open Scope nat.
 
-  Definition runs_to x_pre x := 
+  Definition runs_to x_pre x :=
     forall specs other vs temps dst_buf,
       interp specs (![is_state x_pre#Sp vs temps dst dst_buf * other ] x_pre)
       -> length temps = temp_size
@@ -50,8 +51,8 @@ Section TopLevel.
         interp specs (![is_state (Regs x Sp) vs (upd_sublist temps base changed) dst (map (eval vs) exprs) * other ] (fst x_pre, x)) /\
         length changed <= depth.
 
-  Definition post (pre : assert) := 
-    st ~> Ex st_pre, 
+  Definition post (pre : assert) :=
+    st ~> Ex st_pre,
     pre (fst st, st_pre) /\
     [| runs_to (fst st, st_pre) (snd st) |].
 
@@ -60,7 +61,7 @@ Section TopLevel.
   Require Import FreeVarsExpr.
   Require Import Union.
 
-  Definition syn_req exprs base := 
+  Definition syn_req exprs base :=
     Subset (union_list (map free_vars exprs)) (of_list vars) /\
     base + depth <= temp_size /\
     List.Forall (fun e => DepthExpr.depth e <= depth) exprs.
@@ -94,9 +95,9 @@ Section TopLevel.
   Fixpoint do_compile exprs base dst :=
     match exprs with
       | nil => nil
-      | x :: xs => 
-        compile_expr x base 
-          :: SaveRv (stack_slot dst) 
+      | x :: xs =>
+        compile_expr x base
+          :: SaveRv (stack_slot dst)
           :: do_compile xs base (4 + dst)
     end.
 
@@ -149,7 +150,7 @@ Section TopLevel.
         (![locals vars x4 0 (Regs x2 Sp ^+ $ (8)) *
           array x5 (Regs x2 Sp ^+ $ (8) ^+ $ (4 * Datatypes.length vars)) *
           (array x6 (Regs x2 Sp ^+ $ (dst0)) *
-          ![fun m : ST.settings * smem => x3 m]) ] 
+          ![fun m : ST.settings * smem => x3 m]) ]
         (fst x0, x2))).
       clear H; clear_fancy.
       step auto_ext.
@@ -216,7 +217,7 @@ Section TopLevel.
       unfold is_state in H.
       assert (interp specs0
         (![CompileExpr.is_state vars (Regs x2 Sp) vs temps
-          * (array dst_buf (Regs x2 Sp ^+ $ (dst0)) * other ) ] 
+          * (array dst_buf (Regs x2 Sp ^+ $ (dst0)) * other ) ]
         (fst x, x2))).
       unfold CompileExpr.is_state.
       clear H0; clear_fancy.
@@ -410,7 +411,7 @@ Section TopLevel.
       unfold is_state in H1.
       assert (interp specs
         (![CompileExpr.is_state vars (Regs x1 Sp) x3 x4
-          * (array x5 (Regs x1 Sp ^+ $ (dst0)) * ![fun m : ST.settings * smem => x2 m]) ] 
+          * (array x5 (Regs x1 Sp ^+ $ (dst0)) * ![fun m : ST.settings * smem => x2 m]) ]
         (fst x, x1))).
       unfold CompileExpr.is_state.
       step auto_ext.

@@ -17,13 +17,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable func : FuncCore.
 
-    Definition spec_without_funcs_ok fs : assert := 
+    Definition spec_without_funcs_ok fs : assert :=
       st ~> ExX, internal_spec _ fs func st.
 
-    Definition spec : assert := 
-      st ~> Ex fs, 
+    Definition spec : assert :=
+      st ~> Ex fs,
       let stn := fst st in
-      funcs_ok stn fs /\ 
+      funcs_ok stn fs /\
       spec_without_funcs_ok fs st.
 
     Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).

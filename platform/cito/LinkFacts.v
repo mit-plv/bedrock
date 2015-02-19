@@ -12,7 +12,7 @@ Module Make (Import E : ADT).
     Require Import GoodModule.
     Require Import GLabelMap.
     Import GLabelMap.
-    
+
     Open Scope bool_scope.
     Notation "! b" := (negb b) (at level 35).
 
@@ -25,7 +25,7 @@ Module Make (Import E : ADT).
     Require Import ListFacts3.
     Require Import Cito.NameDecoration.
 
-    Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) := 
+    Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) :=
       let imported_module_names := List.map fst2 (elements imports) in
       let module_names := List.map Name modules in
       ! sumbool_to_bool (zerop (length modules)) &&
@@ -35,8 +35,8 @@ Module Make (Import E : ADT).
 
     Require Import GeneralTactics.
     Require Import ListFacts1.
-    
-    Lemma GoodToLink_bool_sound : 
+
+    Lemma GoodToLink_bool_sound :
       forall modules imports,
         GoodToLink_bool modules imports = true ->
         modules <> nil /\

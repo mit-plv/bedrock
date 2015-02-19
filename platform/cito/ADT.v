@@ -8,12 +8,12 @@ End ADT.
 
 
 (*
-  Record ADT := 
+  Record ADT :=
     {
       Model : Type
     }.
 
-  Record ADTValue := 
+  Record ADTValue :=
     {
       Type_ : ADT;
       Value : Model Type_

@@ -638,7 +638,6 @@ Section module.
 
     red; simpl; unfold allPreconditions; simpl; intros.
 
-
     generalize (MapsTo_blocks _ _ H); intros.
     repeat match goal with
              | [ H : ex _ |- _ ] => destruct H; intuition; subst
@@ -648,7 +647,6 @@ Section module.
     destruct (PreconditionOk (Generate (x1 fullImports fullImportsGlobal x0) (Nsucc x2) x2)).
     apply H2 in H6.
     autorewrite with N in H6.
-
 
     match type of H6 with
       | LabelMap.MapsTo ?k (?v, _) _ => destruct (H0 k v)
@@ -688,11 +686,9 @@ Section module.
     apply H8; intuition.
     apply H0.
 
-
     apply imps_cases in H9; intuition; subst.
 
     eapply skipImports; eauto.
-
 
     apply MapsTo_fullImports in H9; intuition.
     assert (~LabelMap.In l (blocks functions 1)).
@@ -815,7 +811,6 @@ Section module.
 
     simpl.
 
-
     intros; eapply importsMap_global; eauto.
 
 
@@ -826,14 +821,12 @@ Section module.
 
     simpl.
 
-
     intros; eapply exps_blocks; eauto.
 
 
     simpl.
     intros.
     apply StringSet.singleton_2.
-
 
     eapply blocks_modName; eauto.
   Qed.

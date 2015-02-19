@@ -462,7 +462,7 @@ Module Make (Import E : ADT).
       destruct H.
       eapply prove_NoUninitializedRunsTo in H0; eauto.
     Qed.
-    
+
   End TopSection.
 
 End Make.

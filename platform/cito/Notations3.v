@@ -36,7 +36,7 @@ Notation "'DCall' f ()" := (DirectCall None f nil)
 
 Notation "'DCall' f ( x1 , .. , xN )" := (DirectCall None f (cons x1 (.. (cons xN nil) ..))%expr)
   (no associativity, at level 95, f at level 0) : stmt_scope.
- 
+
 Notation "x <-- 'DCall' f ()" := (DirectCall (Some x) f nil)
   (no associativity, at level 95, f at level 0) : stmt_scope.
 

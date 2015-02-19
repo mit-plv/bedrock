@@ -6,7 +6,7 @@ Section machine.
 
   Definition PropX_imply cs (l r : PropX pc st) : Prop :=
     interp cs (Imply l r).
-  
+
   Definition PropX_eq cs (l r : PropX pc st) : Prop :=
     PropX_imply cs l r /\ PropX_imply cs r l.
 
@@ -29,7 +29,7 @@ Section machine.
   Proof.
     unfold Reflexive, PropX_eq. generalize (PropX_imply_refl cs). intuition eauto.
   Qed.
-  
+
   Theorem PropX_eq_sym cs : Symmetric (PropX_eq cs).
   Proof.
     unfold Symmetric, PropX_eq. intuition.
@@ -76,7 +76,7 @@ Section tactic.
 
   Variable cs : codeSpec pcType stateType.
 
-  Lemma valid_extend : forall Ps Q R, 
+  Lemma valid_extend : forall Ps Q R,
     valid cs Ps Q ->
     valid cs (Q :: Ps) R ->
     valid cs Ps R.
@@ -87,7 +87,7 @@ Section tactic.
     eauto.
   Qed.
 
-  Lemma valid_and_split : forall P Ps Q R, 
+  Lemma valid_and_split : forall P Ps Q R,
     valid cs ((P /\ Q) :: Ps)%PropX R <->
     valid cs (P :: Q :: Ps)%PropX R.
   Proof.
@@ -112,15 +112,15 @@ Section tactic.
   Qed.
 
   Lemma valid_inj :  forall (A : Prop) B C,
-    (A -> valid cs B C) -> 
+    (A -> valid cs B C) ->
     valid cs ([| A |] :: B)%PropX C.
   Proof.
     intros. eapply Inj_E. econstructor; firstorder. intro.
-    eapply H in H0. 
+    eapply H in H0.
     eapply valid_weaken; eauto. intuition.
   Qed.
 
-  Lemma valid_ex_clear : forall T (F : T -> PropX pcType stateType) Ps R , 
+  Lemma valid_ex_clear : forall T (F : T -> PropX pcType stateType) Ps R ,
     (forall x, valid cs (F x :: Ps)%PropX R) ->
     valid cs ((PropX.Exists F) :: Ps)%PropX R.
   Proof.
@@ -132,21 +132,21 @@ End tactic.
 
 Ltac propxIntuition :=
   repeat (instantiate; match goal with
-                         | [ |- valid _ ((Ex x : _ , _) :: _)%PropX _ ] => 
+                         | [ |- valid _ ((Ex x : _ , _) :: _)%PropX _ ] =>
                            eapply valid_ex_clear; intros
                          | [ |- valid _ ((_ /\ _) :: _)%PropX _ ] =>
                            eapply valid_and_split
-                         | [ |- valid _ _ (_ ---> _) ] => 
+                         | [ |- valid _ _ (_ ---> _) ] =>
                            eapply Imply_I
                          | [ |- valid _ ([| _ |] :: _)%PropX _ ] =>
                            eapply valid_inj; intros
                          | [ |- valid _ (_ :: ?X) _ ] =>
                            match X with
-                             | context [ (_ /\ _)%PropX ] => 
+                             | context [ (_ /\ _)%PropX ] =>
                                eapply valid_perm; simpl
-                             | context [ (Ex x : _ , _)%PropX ] => 
+                             | context [ (Ex x : _ , _)%PropX ] =>
                                eapply valid_perm; simpl
-                             | context [ ([| _ |])%PropX ] => 
+                             | context [ ([| _ |])%PropX ] =>
                                eapply valid_perm; simpl
                            end
                          | [ |- valid _ _ (_ /\ _)%PropX ] =>
@@ -159,7 +159,7 @@ Ltac propxIntuition :=
                              | _ =>
                                solve [ econstructor; firstorder ]
                            end
-                         | [ |- valid _ _ ([| _ |])%PropX ] => 
+                         | [ |- valid _ _ ([| _ |])%PropX ] =>
                            eapply Inj_I
                        end).
 
@@ -171,7 +171,6 @@ Section more.
   as And_mor.
     unfold PropX_eq, PropX_imply;
     intuition; unfold interp in *; propxIntuition;
-    (eapply Imply_E; [ eapply valid_weaken; eauto; firstorder | econstructor; firstorder ]). 
+    (eapply Imply_E; [ eapply valid_weaken; eauto; firstorder | econstructor; firstorder ]).
   Qed.
 End more.
-    

@@ -35,7 +35,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (CompileStmtImplMake.compile vars temp_size rv_postcond imports_global modName).
 
-    Lemma verifCond_ok : 
+    Lemma verifCond_ok :
       forall s k (pre : assert),
         vcs (verifCond vars temp_size s k rv_postcond pre) ->
         vcs

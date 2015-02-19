@@ -11,7 +11,7 @@ Lemma sel_upd_ne' : forall vs nm v nm', nm <> nm' -> (upd vs nm v) nm' = sel vs 
 Qed.
 
 Ltac sel_upd_simpl :=
-  repeat 
+  repeat
     match goal with
       | H : _ |- _ => rewrite sel_upd_eq in H by reflexivity
       | H : _ |- _ => rewrite sel_upd_ne in H by discriminate

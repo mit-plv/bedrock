@@ -48,7 +48,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
       Notation eqke := (@eq_key_elt elt).
       Notation eqk := (@eq_key elt).
-      
+
       Lemma In_MapsTo : forall k m, In k m -> exists v, MapsTo k v m.
         unfold In; eauto.
       Qed.
@@ -60,7 +60,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       Lemma of_list_empty : of_list [] == @empty elt.
         eauto.
       Qed.
-      
+
       (* update *)
 
       Lemma update_o_1 : forall k m1 m2, ~ In k m2 -> find k (m1 + m2) = find k m1.
@@ -208,7 +208,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         split; eauto.
         not_not.
         eapply diff_in_iff; eauto.
-        
+
         eapply find_2 in H.
         eapply diff_mapsto_iff in H.
         openhyp.

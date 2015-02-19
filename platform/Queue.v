@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Malloc Bags.
 Import W_W_Bag.
 
@@ -63,7 +64,7 @@ Module Type QUEUE.
   Axiom llist_nonempty_bwd : forall b n (fr ba : W),
     fr <> 0
     -> focusOnFront
-    -> (Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |] 
+    -> (Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |]
       * (fr ==*> v1, v2, p) * [| freeable fr 3 |] * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba) ===> llist b n fr ba.
 
   Axiom llist_end_bwd : forall (ba : W) n (fr : W) b,
@@ -302,7 +303,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "tmp" <- "tmp" + 8;;
       "tmp" *<- "r"
     };;
- 
+
     "tmp" <- "b" + 4;;
     "tmp" *<- "r";;
 

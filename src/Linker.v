@@ -1,3 +1,4 @@
+Require Import Omega.
 (* Laying out labels, and generally coming up with final "machine code" programs *)
 
 Require Import NArith.
@@ -60,7 +61,7 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
     -> (p + n < k)%N.
     intros; nomega.
   Qed.
-  
+
   eapply lt_rearrange; eauto.
 
   rewrite nat_of_Nplus.
@@ -108,7 +109,7 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   rewrite nat_of_Nplus.
   simpl.
   autorewrite with N; reflexivity.
-  
+
   repeat match goal with
            | [ _ : context[if ?E then _ else _] |- _ ] => destruct E
            | [ H : LabelKey.eq _ _ |- _ ] => hnf in H; subst
@@ -159,7 +160,7 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
 
   apply H2 in H4.
   generalize H3 H4; clear; intros.
-  change 4294967296%N with (Npow2 32) in *.  
+  change 4294967296%N with (Npow2 32) in *.
   unfold wplus, wordBin.
   rewrite NToWord_nat.
   match goal with
@@ -171,7 +172,7 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   rewrite nat_of_Nplus.
   change (nat_of_N 1) with 1.
   rewrite wordToN_nat.
-  autorewrite with N.  
+  autorewrite with N.
   destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
   rewrite H0; clear H0.
   destruct x.
@@ -181,7 +182,7 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   generalize H3; clear; intro.
   apply Nlt_out in H3.
   autorewrite with N in *.
-  change (nat_of_N (Npos (P_of_succ_nat (length l)))) with (nat_of_P (P_of_succ_nat (length l))) in H3.  
+  change (nat_of_N (Npos (P_of_succ_nat (length l)))) with (nat_of_P (P_of_succ_nat (length l))) in H3.
   rewrite Pnat.nat_of_P_o_P_of_succ_nat_eq_succ in H3.
   rewrite wordToN_nat in H3.
   autorewrite with N in *.
@@ -280,7 +281,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
     apply Nlt_not_eq in H0; tauto.
     auto.
 
-    generalize H0 H1; clear; intros. 
+    generalize H0 H1; clear; intros.
     change 4294967296%N with (Npow2 32) in *.
     destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
     rewrite <- Npow2_nat in *.
@@ -320,7 +321,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
     eapply slow; eassumption.
 
     generalize H1; clear; intros.
-    change 4294967296%N with (Npow2 32) in *.  
+    change 4294967296%N with (Npow2 32) in *.
     destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
     rewrite <- Npow2_nat in *.
     generalize dependent (Npow2 32); intros.
@@ -335,7 +336,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
     rewrite nat_of_Nplus.
     change (nat_of_N 1) with 1.
     rewrite wordToN_nat.
-    autorewrite with N.  
+    autorewrite with N.
     repeat rewrite wordToN_nat in *.
     autorewrite with N in *.
     rewrite H0; clear H0.
@@ -380,7 +381,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
   autorewrite with N in *.
   rewrite wordToN_nat in *.
   change (nat_of_N 1) with 1.
-  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.  
+  destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
   rewrite H0.
   rewrite <- Npow2_nat in *.
   generalize dependent (Npow2 32); intros.
@@ -441,7 +442,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
   rewrite nat_of_Nplus.
   change (nat_of_N 1) with 1.
   repeat rewrite wordToN_nat.
-  autorewrite with N.  
+  autorewrite with N.
   destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
   rewrite H0; clear H0.
   repeat rewrite <- Npow2_nat in *.
@@ -462,7 +463,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
   change (nat_of_N (N_of_nat 0 * n))%N with 0.
   omega.
   elimtype False.
-  eapply contra; [ | eassumption ].  
+  eapply contra; [ | eassumption ].
   omega.
 
   intros.
@@ -502,7 +503,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
 
   apply H3 in H.
   generalize H H2; clear; intros.
-  change 4294967296%N with (Npow2 32) in *.  
+  change 4294967296%N with (Npow2 32) in *.
   unfold wplus, wordBin.
   rewrite NToWord_nat.
   match goal with
@@ -514,7 +515,7 @@ Lemma labelsOf'_agree : forall M l pre bl w' labels prog, LabelMap.MapsTo l (pre
   rewrite nat_of_Nplus.
   change (nat_of_N 1) with 1.
   rewrite wordToN_nat.
-  autorewrite with N.  
+  autorewrite with N.
   destruct (wordToNat_natToWord 32 (1 + wordToNat w')); intuition.
   rewrite H1; clear H1.
   destruct x.
@@ -606,12 +607,12 @@ Section LittleEndianSettings.
   Proof.
     unfold implode_le, explode_le.
     intros. destruct b. destruct p. destruct p.
-    repeat (rewrite split1_combine || rewrite split2_combine).    
+    repeat (rewrite split1_combine || rewrite split2_combine).
     reflexivity.
   Qed.
 
   Definition leSettings := {|
-    implode := implode_le ; 
+    implode := implode_le ;
     explode := explode_le ;
     implode_explode := implode_explode_le ;
     explode_implode := explode_implode_le ;

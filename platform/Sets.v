@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep Bags.
 
 Set Implicit Arguments.
@@ -207,7 +208,7 @@ Module Make(M : S).
       -> ~In v ls.
       intuition.
       specialize (setify_include _ _ H1 H0); assumption.
-    Qed.      
+    Qed.
 
     Hint Immediate setify_omit.
 
@@ -236,7 +237,7 @@ Module Make(M : S).
       apply Himp_star_frame; [ apply Himp_refl | apply H ].
       generalize (starL P (nuke v ls)); generalize (P a); generalize (P v); sepLemma.
     Qed.
-    
+
     Lemma In_nuke : forall v x ls,
       In x (nuke v ls)
       -> In x ls.
@@ -291,7 +292,7 @@ Module Make(M : S).
           | [ |- context[if ?E then _ else _] ] => destruct E; subst; intuition
         end.
       assert (b %= fold_left add l b' %+ v) by (eapply equiv_trans; [ eassumption | apply add_something ]); auto.
-      
+
       Lemma add_to_del : forall b b' v,
         ~v %in b'
         -> b %= b' %+ v
@@ -362,7 +363,7 @@ Module Make(M : S).
         intros.
         destruct (eq_dec v x); subst; intuition.
       Qed.
-      
+
       apply del_to_add; auto.
 
       sepLemma.

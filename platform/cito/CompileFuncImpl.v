@@ -1,3 +1,4 @@
+Require Import Omega.
 Set Implicit Arguments.
 
 Require Import ADT.
@@ -86,7 +87,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition Strline := Straightline_ imports module_name.
 
     Definition CheckExtraStack (n : nat) cmd :=
-      Seq2 
+      Seq2
         (Strline (IL.Assign Rv (stack_slot 1) :: nil))
         (Structured.If_ imports_global n Le Rv cmd
                         (Diverge_ imports module_name)).
@@ -99,15 +100,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Open Scope tmp_scope.
     Definition body' :=
       let stack_needed := len_local_vars + temp_size in
-      CheckExtraStack 
+      CheckExtraStack
         stack_needed
         (Seq
-           (Strline 
+           (Strline
               (IL.Binop (stack_slot 1) (stack_slot 1) Minus stack_needed /\
                IL.Assign (stack_slot 0) Rp /\ nil) /\
             compile_stmt body_stmt /\
-            Strline 
-              (IL.Assign Rv (var_slot (RetVar func)) /\ 
+            Strline
+              (IL.Assign Rv (var_slot (RetVar func)) /\
                IL.Assign Rp (stack_slot 0) /\ nil) /\
             IGoto _ _ Rp /\ nil)).
     Close Scope tmp_scope.
@@ -252,7 +253,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply GoodOptimizer_Safe; eauto.
       eapply GoodFunc_Safe; eauto.
       eapply agree_in_merge.
-      
+
       eauto.
       eauto.
       eauto.
@@ -273,7 +274,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite Mult.mult_plus_distr_l in *.
       rewrite_natToW_plus.
       repeat rewrite wplus_assoc in *.
-      
+
       match goal with
         | H : _ = Regs x1 Sp |- _ => rewrite <- H in *
       end.
@@ -346,7 +347,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       auto.
       eapply agree_in_comm.
       eapply agree_in_merge.
-      
+
 
       (* vc 1 *)
       eapply H2 in H.
@@ -508,7 +509,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition body : cmd imports module_name.
       refine (
-          Wrap imports imports_global module_name 
+          Wrap imports imports_global module_name
                body'
                (fun pre => Postcondition (body' pre))
                (verifCond func)

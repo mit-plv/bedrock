@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Require Import AutoSep.
 
-Definition NameNotInImports name imports := 
+Definition NameNotInImports name imports :=
   fold_left
     (fun (b : bool) (p : string * string * assert) =>
        let '(m, _, _) := p in
@@ -48,10 +48,10 @@ Definition NoDupFuncNames' init mod_name funcs :=
 
 Definition NoDupFuncNames := NoDupFuncNames' (LabelMap.empty unit).
 
-Lemma NoDup_NoDupFuncNames' : 
-  forall mod_name funcs init, 
-    let names := map (fun f => fst (fst f)) funcs in 
-    NoDup names -> 
+Lemma NoDup_NoDupFuncNames' :
+  forall mod_name funcs init,
+    let names := map (fun f => fst (fst f)) funcs in
+    NoDup names ->
     (forall x, List.In x names -> LabelMap.mem (elt := unit) (x, Local 0) init = false) ->
     @NoDupFuncNames' init mod_name funcs.
 Proof.

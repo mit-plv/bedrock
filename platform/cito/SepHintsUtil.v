@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import AutoSep.
 Require Import List.
 
@@ -84,7 +85,7 @@ Section TopSection.
     rewrite firstn_length.
     rewrite Min.min_l; auto.
     apply firstn_skipn.
-  Qed.    
+  Qed.
 
   Lemma ptsto32m'_elim : forall p ls base,
     ptsto32m' nil p base ls ===> (p ^+ $ base) =?> length ls.

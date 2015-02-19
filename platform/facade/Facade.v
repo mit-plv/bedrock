@@ -159,30 +159,30 @@ Section ADTSection.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
     | RunsToSkip : forall st, RunsTo Skip st st
-    | RunsToSeq : 
+    | RunsToSeq :
         forall a b st st' st'',
-          RunsTo a st st' -> 
-          RunsTo b st' st'' -> 
+          RunsTo a st st' ->
+          RunsTo b st' st'' ->
           RunsTo (Seq a b) st st''
-    | RunsToIfTrue : 
-        forall cond t f st st', 
+    | RunsToIfTrue :
+        forall cond t f st st',
           is_true st cond ->
           RunsTo t st st' ->
           RunsTo (If cond t f) st st'
-    | RunsToIfFalse : 
-        forall cond t f st st', 
+    | RunsToIfFalse :
+        forall cond t f st st',
           is_false st cond ->
            RunsTo f st st' ->
           RunsTo (If cond t f) st st'
-    | RunsToWhileTrue : 
-        forall cond body st st' st'', 
+    | RunsToWhileTrue :
+        forall cond body st st' st'',
           let loop := While cond body in
           is_true st cond ->
           RunsTo body st st' ->
           RunsTo loop st' st'' ->
           RunsTo loop st st''
-    | RunsToWhileFalse : 
-        forall cond body st, 
+    | RunsToWhileFalse :
+        forall cond body st,
           let loop := While cond body in
           is_false st cond ->
           RunsTo loop st st
@@ -304,5 +304,5 @@ Section ADTSection.
           Safe (Call x f args) st.
 
   End EnvSection.
-          
+
 End ADTSection.

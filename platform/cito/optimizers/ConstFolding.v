@@ -99,7 +99,7 @@ Section TopSection.
   Fixpoint const_folding (s : Stmt) (map : Map) : Stmt * Map * SET :=
     match s with
       | skip => (skip, map, empty_set)
-      | a ;; b => 
+      | a ;; b =>
         let result_a := const_folding a map in
         let map' := snd (fst result_a) in
         let result_b := const_folding b map' in
@@ -110,7 +110,7 @@ Section TopSection.
         let written_b := snd result_b in
         (a' ;; b', map'', written_a + written_b)
       | Syntax.If c t f =>
-        let c' := const_folding_expr c map in 
+        let c' := const_folding_expr c map in
         match const_dec c' with
           | inleft (exist w _) =>
             if wneb w $0 then
@@ -140,7 +140,7 @@ Section TopSection.
           let map' := map - written_b in
           (Syntax.While c' b', map', written_b)
       | x <- e =>
-        let e' := const_folding_expr e map in 
+        let e' := const_folding_expr e map in
         match const_dec e' with
           | inleft (exist w _) =>
             let map' := add x w map  in
@@ -149,7 +149,7 @@ Section TopSection.
             let map' := map %%- x in
             (x <- e', map', !x)
         end
-      | Syntax.Label x l => 
+      | Syntax.Label x l =>
         let map := map %%- x in
         (s, map, !x)
       | Syntax.Call x f args =>
@@ -283,7 +283,7 @@ Section TopSection.
     Qed.
     Hint Resolve everything_agree_with_empty_map.
 
-    Definition agree_except (a b : vals) (s : SET) := 
+    Definition agree_except (a b : vals) (s : SET) :=
       forall x,
         Locals.sel a x <> Locals.sel b x -> SS.In x s.
 
@@ -358,9 +358,9 @@ Section TopSection.
   Remove Hints WordKey.W_as_OT.eq_trans.
   Remove Hints WordKey.W_as_OT_new.eq_trans.
 
-  Lemma const_folding_expr_correct : 
-    forall e m local, 
-      agree_with local m -> 
+  Lemma const_folding_expr_correct :
+    forall e m local,
+      agree_with local m ->
       eval local (const_folding_expr e m) = eval local e.
   Proof.
     induction e; simpl; intuition; openhyp'; simpl in *; eauto.
@@ -388,10 +388,10 @@ Section TopSection.
     f_equal'; f_equal; eauto.
   Qed.
 
-  Lemma const_folding_expr_correct' : 
-    forall e e' m local, 
-      e' = const_folding_expr e m -> 
-      agree_with local m -> 
+  Lemma const_folding_expr_correct' :
+    forall e e' m local,
+      e' = const_folding_expr e m ->
+      agree_with local m ->
       eval local e' = eval local e.
   Proof.
     intros; subst; eapply const_folding_expr_correct; eauto.
@@ -460,9 +460,9 @@ End TopSection.
 
 Ltac rewrite_expr := repeat erewrite const_folding_expr_correct in * by eauto.
 
-Lemma const_folding_expr_correct_list : 
-  forall es m local, 
-    agree_with local m -> 
+Lemma const_folding_expr_correct_list :
+  forall es m local,
+    agree_with local m ->
     List.map (fun e => eval local (const_folding_expr e m)) es = List.map (eval local) es.
 Proof.
   induction es; simpl; intuition; rewrite_expr; f_equal; eauto.
@@ -525,7 +525,7 @@ Module Make (Import E : ADT).
           (let s := b in
            (* the induction hypothesis from Lemma const_folding_is_backward_simulation' *)
 
-           forall (vs : vals) (heap : Heap) (vs' : vals) 
+           forall (vs : vals) (heap : Heap) (vs' : vals)
                   (heap' : Heap) (m : Map),
              let result := const_folding s m in
              let s' := fst (fst result) in
@@ -533,7 +533,7 @@ Module Make (Import E : ADT).
              let written := snd result in
              RunsTo fs s' (vs, heap) (vs', heap') ->
              agree_with vs m ->
-             RunsTo fs s (vs, heap) (vs', heap') /\ 
+             RunsTo fs s (vs, heap) (vs', heap') /\
              agree_with vs' m' /\
              agree_except vs vs' written
 
@@ -606,14 +606,14 @@ Module Make (Import E : ADT).
 
     Qed.
 
-    Lemma const_folding_is_backward_simulation : 
-      forall fs s vs heap vs' heap' m, 
+    Lemma const_folding_is_backward_simulation :
+      forall fs s vs heap vs' heap' m,
         let result := const_folding s m in
         let s' := fst (fst result) in
         let m' := snd (fst result) in
         let written := snd result in
-        RunsTo fs s' (vs, heap) (vs', heap') -> 
-        agree_with vs m -> 
+        RunsTo fs s' (vs, heap) (vs', heap') ->
+        agree_with vs m ->
         RunsTo fs s (vs, heap) (vs', heap') /\
         agree_with vs' m' /\
         agree_except vs vs' written.
@@ -694,7 +694,7 @@ Module Make (Import E : ADT).
       simpl in *.
       eapply H1; eauto.
       eauto.
-      
+
       split.
       rewrite_expr.
       rewrite_expr_list.
@@ -704,7 +704,7 @@ Module Make (Import E : ADT).
       simpl in *.
       eapply H1; eauto.
       eauto.
-      
+
       split.
       rewrite_expr.
       rewrite_expr_list.
@@ -714,7 +714,7 @@ Module Make (Import E : ADT).
       simpl in *.
       eapply H1; eauto.
       eauto.
-      
+
       (* label *)
       openhyp'; simpl in *; inversion H; unfold_all; subst; simpl in *.
       split.
@@ -730,8 +730,8 @@ Module Make (Import E : ADT).
       eapply const_folding_is_backward_simulation in H; openhyp; eauto.
     Qed.
 
-    Lemma const_folding_is_safety_preservation : 
-      forall fs s vs heap m, 
+    Lemma const_folding_is_safety_preservation :
+      forall fs s vs heap m,
         let result := const_folding s m in
         let s' := fst (fst result) in
         Safe fs s (vs, heap) ->
@@ -743,8 +743,8 @@ Module Make (Import E : ADT).
       Focus 4.
       intros.
       unfold_all.
-      eapply 
-        (Safe_coind 
+      eapply
+        (Safe_coind
            (fun s' v =>
               (exists c b m,
                  let s := While c b in

@@ -23,7 +23,7 @@ Section SynReq.
 
   Local Open Scope nat.
 
-  Definition in_scope := 
+  Definition in_scope :=
     Subset (free_vars s) (of_list vars) /\
     depth s <= temp_size.
 

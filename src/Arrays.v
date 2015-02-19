@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Nomega NArith Word PropX PropXTac Memory SepIL IL.
 
 Require Import sep.Array Allocated.
@@ -194,7 +195,7 @@ Hint Rewrite natToWord_wordToNat DepList.pf_list_simpl : Arr.
 Hint Rewrite <- plus_n_O : Arr.
 
 Lemma sel_middle' : forall ws w ws' n,
-  length ws = wordToNat n  
+  length ws = wordToNat n
   -> Array.sel (ws ++ w :: ws') n = w.
   intros; assert (natToWord 32 (length ws) = natToWord 32 (wordToNat n)) by congruence;
     autorewrite with Arr in *; subst.
@@ -331,7 +332,7 @@ Theorem Himp_star_comm : forall P Q, (star P Q) ===> (star Q P).
   intros; intro cs; apply himp_star_comm.
 Qed.
 
-Theorem Himp_ex_c : forall T (P : T -> _) Q, 
+Theorem Himp_ex_c : forall T (P : T -> _) Q,
   (exists v, Q ===> (P v)) -> Q ===> (ex P).
   intros; intro cs; apply himp_ex_c; firstorder.
 Qed.
@@ -347,7 +348,7 @@ Theorem Himp'_ex : forall T (P : T -> _) Q,
   intros; intro cs; apply himp'_ex; firstorder.
 Qed.
 
-Theorem Himp_star_frame : forall P Q R S, 
+Theorem Himp_star_frame : forall P Q R S,
   P ===> Q -> R ===> S -> (star P R) ===> (star Q S).
   intros; intro cs; apply himp_star_frame; auto.
 Qed.

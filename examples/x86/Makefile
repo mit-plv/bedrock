@@ -1,19 +1,28 @@
-all: factorial.exe
+all: Factorial.exe
 
 .PHONY: all
 
 COQC = $(COQBIN)coqc -R ../../src Bedrock -I ..
 
-factorial.s: FactorialX86.v
-	echo ".global bedrock_heap" >$@
-	echo ".comm bedrock_heap,4096,32" >>$@
-	echo ".global fact_fact" >>$@
-	echo >>$@
-	$(COQC) $< \
-		| sed 's/^.*= "//' \
-		| sed 's/^"//' \
-		| sed 's/^.*: string//' \
+%.gen.ml: %AMD64.v ../%.vo ignoreFail.ml printCode.ml Makefile
+	cat ignoreFail.ml >$@
+	$(COQC) $< 2>/dev/null \
+		| sed '/let coq_Unnamed_thm_/,/module/{/module/!d}' \
+		| sed 's/   allWords_def/   fun _ -> []/' \
+		| sed 's/   N.to_nat$$/   fun _ -> O/' \
 		>>$@
+	cat printCode.ml >>$@
 
-factorial.exe: factorial.o factorial_driver.o
-	gcc factorial.o factorial_driver.o -o $@
+%.gen.s: %.gen.ml
+	echo "	.data" >$@
+	echo "	.global bedrock_heap, factDriver_main" >>$@
+	echo "bedrock_heap:" >>$@
+	echo "	.fill 4*(1024*10+50),1,0" >>$@
+	echo >>$@
+	echo "	.text" >>$@
+	echo "	.global main_main" >>$@
+	echo >>$@
+	ocaml -w -x $< >>$@
+
+%.exe: %.gen.o driver.o
+	$(CC) $^ -o $@

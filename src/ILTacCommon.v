@@ -15,8 +15,8 @@ Set Implicit Arguments.
 Set Strict Implicit.
 
 (*TIME
-Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.  
-Add ML Path "/usr/local/lib/coq/user-contrib/". 
+Add Rec LoadPath "/usr/local/lib/coq/user-contrib/" as Timing.
+Add ML Path "/usr/local/lib/coq/user-contrib/".
 Declare ML Module "Timing_plugin".
 *)
 
@@ -99,7 +99,7 @@ Ltac shouldReflect P :=
     | Structured.evalCond _ _ _ _ _ = _ => false
     | @PropX.interp _ _ _ _ => false
     | @PropX.valid _ _ _ _ _ => false
-    | @eq ?X _ _ => 
+    | @eq ?X _ _ =>
       match X with
         | context [ PropX.PropX ] => false
         | context [ PropX.spec ] => false
@@ -113,7 +113,7 @@ Ltac shouldReflect P :=
 Ltac reduce_repr ext sym ls :=
   match sym with
     | tt =>
-      eval cbv beta iota zeta delta [ 
+      eval cbv beta iota zeta delta [
         ext
         Env.repr_combine Env.listToRepr Env.listOptToRepr Env.nil_Repr
         ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
@@ -124,10 +124,10 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
-        BedrockCoreEnv.core 
+        BedrockCoreEnv.core
       ] in ls
     | tt =>
-      eval cbv beta iota zeta delta [ 
+      eval cbv beta iota zeta delta [
         Env.repr_combine Env.listToRepr Env.listOptToRepr Env.nil_Repr
         ILAlgoTypes.PACK.Types ILAlgoTypes.PACK.Funcs ILAlgoTypes.PACK.Preds
         ILAlgoTypes.PACK.applyTypes
@@ -137,9 +137,9 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
-        BedrockCoreEnv.core 
+        BedrockCoreEnv.core
       ] in ls
-    | _ => 
+    | _ =>
       eval cbv beta iota zeta delta [
         sym ext
         Env.repr_combine Env.listToRepr Env.listOptToRepr Env.nil_Repr
@@ -151,9 +151,9 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
-        BedrockCoreEnv.core 
+        BedrockCoreEnv.core
       ] in ls
-    | _ => 
+    | _ =>
       eval cbv beta iota zeta delta [
         sym
         Env.repr_combine Env.listToRepr Env.listOptToRepr Env.nil_Repr
@@ -165,7 +165,7 @@ Ltac reduce_repr ext sym ls :=
         ILAlgoTypes.PACK.CE.core
         bedrock_types_r bedrock_funcs_r
         TacPackIL.ILAlgoTypes.Env
-        BedrockCoreEnv.core 
+        BedrockCoreEnv.core
       ] in ls
   end.
 
@@ -178,7 +178,7 @@ Section canceller.
   Variable preds : SEP.predicates types BedrockCoreEnv.pc BedrockCoreEnv.st.
   Variable algos : ILAlgoTypes.AllAlgos ts.
 
-  Lemma ApplyCancelSep_with_eq : 
+  Lemma ApplyCancelSep_with_eq :
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : Expr.env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
 
@@ -196,12 +196,12 @@ Section canceller.
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-          (existsSubst funcs var_env subst 0 
+          (existsSubst funcs var_env subst 0
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
                 (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
+                  (himp cs
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
@@ -213,7 +213,7 @@ Section canceller.
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
   Proof. intros. eapply ApplyCancelSep_with_eq'; eauto. Qed.
 
-  Lemma ApplyCancelSep : 
+  Lemma ApplyCancelSep :
     forall (algos_correct : ILAlgoTypes.AllAlgos_correct funcs preds algos),
     forall (meta_env : env (Env.repr BedrockCoreEnv.core types)) (hyps : Expr.exprs (_)),
     forall (l r : SEP.sexpr types BedrockCoreEnv.pc BedrockCoreEnv.st),
@@ -229,27 +229,27 @@ Section canceller.
         Expr.forallEach new_vars (fun nvs : Expr.env types =>
           let var_env := nvs in
           Expr.AllProvable_impl funcs meta_env var_env
-          (existsSubst funcs var_env subst 0 
+          (existsSubst funcs var_env subst 0
             (map (fun x => existT (fun t => option (tvarD types t)) (projT1 x) (Some (projT2 x))) meta_env ++
              map (fun x => existT (fun t => option (tvarD types t)) x None) new_uvars)
             (fun meta_env : Expr.env types =>
                 (Expr.AllProvable_and funcs meta_env var_env
-                  (himp cs 
+                  (himp cs
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures lhs') nil (SH.other lhs'))))
                     (SEP.sexprD funcs preds meta_env var_env
                       (SH.sheapD (SH.Build_SHeap _ _ (SH.impures rhs') nil (SH.other rhs')))))
                   (SH.pures rhs')) ))
             (SH.pures lhs'))
-      | None => 
+      | None =>
         himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
                 (@SEP.sexprD _ _ _ funcs preds meta_env nil r)
     end ->
     himp cs (@SEP.sexprD _ _ _ funcs preds meta_env nil l)
             (@SEP.sexprD _ _ _ funcs preds meta_env nil r).
-  Proof. 
+  Proof.
     intros. consider (canceller preds algos (typeof_env meta_env) hyps l r); intros; auto.
-    eapply ApplyCancelSep_with_eq; eauto. 
+    eapply ApplyCancelSep_with_eq; eauto.
   Qed.
 
 End canceller.
@@ -268,7 +268,7 @@ Lemma interp_interp_himp : forall cs P Q stn_st,
 Proof.
   unfold himp. intros. destruct stn_st.
   rewrite sepFormula_eq in *. unfold sepFormula_def in *. simpl in *.
-  eapply Imply_E; eauto. 
+  eapply Imply_E; eauto.
 Qed.
 
 Theorem change_Imply_himp : forall (specs : codeSpec W (settings * state)) p q s,
@@ -309,9 +309,9 @@ Ltac find_reg st r :=
   end.
 
 Ltac open_stateD H0 :=
-  cbv beta iota zeta delta 
+  cbv beta iota zeta delta
     [ SymIL.stateD Expr.exprD Expr.applyD
-      EquivDec.equiv_dec 
+      EquivDec.equiv_dec
       Expr.Range Expr.Domain Expr.Denotation
       Expr.EqDec_tvar Expr.tvar_rec Expr.tvar_rect
       sumbool_rec sumbool_rect
@@ -320,8 +320,8 @@ Ltac open_stateD H0 :=
       f_equal
 
       Expr.AllProvable Expr.Provable Expr.tvarD comparator
-    ] in H0; 
-    let a := fresh in 
+    ] in H0;
+    let a := fresh in
     let b := fresh in
     let zz := fresh in destruct H0 as [ a [ b zz ] ] ;
     destruct a as [ ? [ ? ? ] ];
@@ -378,7 +378,7 @@ Ltac collectAllTypes_instrs is Ts k :=
 
 Ltac build_path types instrs st uvars vars funcs k :=
   match instrs with
-    | tt => 
+    | tt =>
       let is := constr:(nil : @SymIL.istream types) in
       let pf := constr:(refl_equal (Some st)) in
       k uvars funcs is (Some st) pf
@@ -388,10 +388,10 @@ Ltac build_path types instrs st uvars vars funcs k :=
           reify_rvalue ltac:(isConst) l types funcs uvars vars ltac:(fun uvars funcs l =>
             reify_rvalue ltac:(isConst) r types funcs uvars vars ltac:(fun uvars funcs r =>
               match st' with
-                | None => 
+                | None =>
                   let i := constr:(inr (@SymIL.SymAssertCond types l t r st') :: (nil : @SymIL.istream types)) in
                   k uvars funcs i (@None state) H
-                | Some ?st'' => 
+                | Some ?st'' =>
                   build_path types is st uvars vars funcs ltac:(fun uvars funcs is sf pf =>
                     let i := constr:(inr (@SymIL.SymAssertCond types l t r st') :: is) in
                     let pf := constr:(@conj _ _ H pf) in
@@ -400,7 +400,7 @@ Ltac build_path types instrs st uvars vars funcs k :=
         | evalInstrs _ ?st _ = ?st' =>
           reify_instrs ltac:(isConst) i types funcs uvars vars ltac:(fun uvars funcs sis =>
             match st' with
-              | None => 
+              | None =>
                 let i := constr:(inl (sis, None) :: (nil : @SymIL.istream types)) in
                   k uvars funcs i (@None state) H
               | Some ?st'' =>

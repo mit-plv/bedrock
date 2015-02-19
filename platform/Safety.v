@@ -1,3 +1,4 @@
+Require Import Omega.
 Require Import Bedrock PreAutoSep Sys.
 Import XCAP.
 
@@ -138,7 +139,7 @@ Section OpSem.
     apply preserve in impSys; tauto.
 
     eauto.
-  Qed.    
+  Qed.
 
   Hypothesis agree : forall l pre bl, LabelMap.MapsTo l (pre, bl) (Blocks m)
     -> exists w, Labels stn l = Some w
@@ -317,7 +318,7 @@ Section OpSem.
     = evalInstrs stn st (Assign Rv (LvMem (Sp + $(n))%loc) :: nil).
     auto.
   Qed.
-  
+
   Opaque evalInstrs.
 
   Lemma specs_hit : forall w pre,
@@ -663,7 +664,7 @@ Section OpSem.
     tauto.
     instantiate (1 := a); congruence.
     congruence.
-    
+
     case_eq (smem_get x sm1); intros.
     erewrite join_Some.
     erewrite join_Some.
@@ -892,7 +893,7 @@ Section OpSem.
     specialize (H1 x); destruct (H.addr_dec x x); try tauto.
     destruct (hlist_hd m'); eauto.
     destruct (hlist_hd m); auto.
-    
+
     apply IHNoDup; intros.
     specialize (H1 p); destruct (H.addr_dec x p); subst.
     tauto.
@@ -1171,7 +1172,7 @@ Section OpSem.
                     match goal with
                       | [ H : _ |- _ ] => apply omitImp in H;
                         match goal with
-                          | [ H' : prog _ = None |- _ ] => 
+                          | [ H' : prog _ = None |- _ ] =>
                             unfold step in *; rewrite H' in *; discriminate
                         end
                     end ]
