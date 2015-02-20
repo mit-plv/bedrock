@@ -353,8 +353,8 @@ Proof.
   unfold ReadWord, WriteWord, mem_get_word, mem_set_word, footprint_w, ReadByte, WriteByte; intros.
   revert H0.
   case_eq (explode stn v); intros. destruct p. destruct p.
-  assert (k' = k' ^+ $(0)). W_eq.
-  assert (k = k ^+ $(0)). W_eq.
+  assert (k' = k' ^+ $0). W_eq.
+  assert (k = k ^+ $0). W_eq.
   repeat match goal with
            | [ H : match match ?X with
                            | Some _ => _
