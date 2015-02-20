@@ -24,20 +24,20 @@ MODULES := Conditional AutoSepExt PreAutoSep \
 
 VNAME := -name \*.v ! -name \*.\#\*
 
-CITO := $(shell find cito $(VNAME))
+CITO := $(shell find Cito $(VNAME))
 
-FACADE_ALLV := $(shell find facade $(VNAME))
+FACADE_ALLV := $(shell find Facade $(VNAME))
 
 FACADE := \
-	facade/Facade \
-	facade/DFacade \
-	facade/CompileUnit \
+	Facade/Facade \
+	Facade/DFacade \
+	Facade/CompileUnit \
 
 FACADE_ALL := \
-	facade/examples/FiatADTs \
-	facade/examples/FiatRepInv \
-	facade/examples/FiatImpl \
-	facade/DFacadeToBedrock \
+	Facade/examples/FiatADTs \
+	Facade/examples/FiatRepInv \
+	Facade/examples/FiatImpl \
+	Facade/DFacadeToBedrock \
 
 MODULES_V := $(addsuffix .v,$(MODULES))
 CITO_V := $(CITO)
@@ -69,7 +69,7 @@ FACADE_ALL_VIO := $(addsuffix .vio,$(FACADE_ALL))
 
 default: platform
 
-COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
+COQARGS := -R $(ROOT)/src Bedrock -R . Bedrock.Platform
 
 # we make Makefile.coq depend on all .v files, as a hack for getting it to depend on the *list* of .v files
 Makefile.coq: Makefile $(ALL_V)
@@ -206,7 +206,7 @@ master: tests/sys.c tests/driver32.s tests/RosMaster32.gen.s
 	cd /tmp ; tar zcf master.tgz master
 
 LIB := tests
-CITO_EXAMPLES_DIR := cito/examples
+CITO_EXAMPLES_DIR := Cito/examples
 
 $(CITO_EXAMPLES_DIR)/%.gen.ml: $(CITO_EXAMPLES_DIR)/%AMD64.v $(CITO_EXAMPLES_DIR)/%Driver.vo $(LIB)/ignoreFail.ml $(LIB)/printCode.ml Makefile
 	cat $(LIB)/ignoreFail.ml >$@
