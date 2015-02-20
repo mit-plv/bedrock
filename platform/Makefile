@@ -39,68 +39,86 @@ FACADE_ALL := \
 	facade/examples/FiatImpl \
 	facade/DFacadeToBedrock \
 
-.PHONY: default platform cito facade facade_all facade_allv build clean master install install-platform install-cito install-facade install-facade-all rtos32 rtos64
+MODULES_V := $(addsuffix .v,$(MODULES))
+CITO_V := $(CITO)
+#FACADE_ALLV := $(FACADE_ALLV)
+FACADE_V := $(addsuffix .v,$(FACADE))
+FACADE_ALL_V := $(addsuffix .v,$(FACADE_ALL))
+
+MODULES_VO := $(addsuffix .vo,$(MODULES))
+CITO_VO := $(patsubst %.v,%.vo,$(CITO))
+FACADE_ALLVO := $(patsubst %.v,%.vo,$(FACADE_ALLV))
+FACADE_VO := $(addsuffix .vo,$(FACADE))
+FACADE_ALL_VO := $(addsuffix .vo,$(FACADE_ALL))
+
+MODULES_VIO := $(addsuffix .vio,$(MODULES))
+CITO_VIO := $(patsubst %.v,%.vio,$(CITO))
+FACADE_ALLVIO := $(patsubst %.v,%.vio,$(FACADE_ALLV))
+FACADE_VIO := $(addsuffix .vio,$(FACADE))
+FACADE_ALL_VIO := $(addsuffix .vio,$(FACADE_ALL))
+
+
+.PHONY: default platform cito facade facade_all facade_allv \
+	quick platform-quick cito-quick facade-quick facade_all-quick facade_allv-quick \
+	vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade_all-vio2vo facade_allv-vio2vo \
+	selective-install selective-vio2vo \
+	build clean master install install-platform install-cito install-facade install-facade-all rtos32 rtos64
 .PRECIOUS: tests/%.gen.ml tests/%.gen.s
 
 default: platform
 
-platform: T=$(MODULES)
-platform: build
-
-cito: T=$(CITO)
-cito: build
-
-facade: T=$(FACADE)
-facade: build
-
-facade_all: T=$(FACADE_ALL)
-facade_all: build
-
-facade_allv: T=$(FACADE_ALLV)
-facade_allv: build
-
 COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
-COQC    := $(COQBIN)coqc $(COQARGS)
+# we make Makefile.coq depend on all .v files, as a hack for getting it to depend on the *list* of .v files
+Makefile.coq: Makefile $(MODULES_V) $(CITO_V) $(FACADE_ALLV) $(FACADE_V) $(FACADE_ALL_V)
+	$(COQBIN)coq_makefile $(COQARGS) $(MODULES_V) $(CITO_V) $(FACADE_ALLV) $(FACADE_V) $(FACADE_ALL_V) > Makefile.coq
 
-# N.B. (Jason Gross): This Makefile does not consistently support
-# building cito and facade simultaneously with multiple threads; the
-# Makefile.coqs will overwrite each other
-build:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(T))) -o Makefile.coq
-	@echo '-include $(addsuffix .d,$(shell find . -name \*.v ! -name \*.#\*))' >> Makefile.coq
-	$(MAKE) -f Makefile.coq
+-include Makefile.coq
 
-# we want to install everything, so we need to remake the makefile
-install:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV) $(CITO) $(MODULES))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+platform: $(MODULES_VO)
+platform-quick: $(MODULES_VIO)
+platform-vio2vo: T=$(MODULES)
+platform-vio2vo: selective-vio2vo
+install-platform: T=$(MODULES)
+install-platform: selective-install
 
-install-facade:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+cito: $(CITO_VO)
+cito-quick: $(CITO_VIO)
+cito-vio2vo: T=$(CITO)
+cito-vio2vo: selective-vio2vo
+install-cito: T=$(CITO)
+install-cito: selective-install
 
-install-facade-all:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALL))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+facade: $(FACADE_VO)
+facade-quick: $(FACADE_VIO)
+facade-vio2vo: T=$(FACADE)
+facade-vio2vo: selective-vio2vo
+install-facade: T=$(FACADE)
+install-facade: selective-install
 
-install-facade-allv:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(FACADE_ALLV))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+facade_all: $(FACADE_ALL_VO)
+facade_all-quick: $(FACADE_ALL_VIO)
+facade_all-vio2vo: T=$(FACADE_ALL)
+facade_all-vio2vo: selective-vio2vo
+install-facade_all: T=$(FACADE_ALL)
+install-facade_all: selective-install
 
-install-cito:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(CITO))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+facade_allv: $(FACADE_ALLVO)
+facade_allv-quick: $(FACADE_ALLVIO)
+facade_allv-vio2vo: T=$(FACADE_ALLV)
+facade_allv-vio2vo: selective-vio2vo
+install-facade_allv: T=$(FACADE_ALLV)
+install-facade_allv: selective-install
 
-install-platform:
-	$(COQBIN)coq_makefile $(COQARGS) $(addsuffix .v,$(basename $(MODULES))) -o Makefile.coq
-	$(MAKE) -f Makefile.coq install
+selective-vio2vo:
+	$(COQC) $(COQDEBUG) $(COQFLAGS) -schedule-vio2vo $(J) $(addsuffix .vio,$(basename $(T)))
 
-clean:
-	rm -f Makefile.coq .depend
-	./rmr .v.d
-	./rmr .vo
-	./rmr .glob
+selective-install:
+	cd "." && for i in $(addsuffix .vo,$(basename $(T))) $(addsuffix .v,$(basename $(T))) $(addsuffix .glob,$(basename $(T))); do \
+	 install -d "`dirname "$(DSTROOT)"$(COQLIBINSTALL)/Bedrock/$$i`"; \
+	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/Bedrock/$$i; \
+	done
+
 
 tests/%.gen.ml: tests/%AMD64.v tests/%Driver.vo tests/ignoreFail.ml tests/printCode.ml Makefile
 	cat tests/ignoreFail.ml >$@
