@@ -45,6 +45,8 @@ CITO_V := $(CITO)
 FACADE_V := $(addsuffix .v,$(FACADE))
 FACADE_ALL_V := $(addsuffix .v,$(FACADE_ALL))
 
+ALL_V := $(sort $(MODULES_V) $(CITO_V) $(FACADE_ALLV) $(FACADE_V) $(FACADE_ALL_V))
+
 MODULES_VO := $(addsuffix .vo,$(MODULES))
 CITO_VO := $(patsubst %.v,%.vo,$(CITO))
 FACADE_ALLVO := $(patsubst %.v,%.vo,$(FACADE_ALLV))
@@ -70,8 +72,8 @@ default: platform
 COQARGS := -R $(ROOT)/src Bedrock -I . -I tests -R cito Cito -R facade Facade
 
 # we make Makefile.coq depend on all .v files, as a hack for getting it to depend on the *list* of .v files
-Makefile.coq: Makefile $(MODULES_V) $(CITO_V) $(FACADE_ALLV) $(FACADE_V) $(FACADE_ALL_V)
-	$(COQBIN)coq_makefile $(COQARGS) $(MODULES_V) $(CITO_V) $(FACADE_ALLV) $(FACADE_V) $(FACADE_ALL_V) > Makefile.coq
+Makefile.coq: Makefile $(ALL_V)
+	$(COQBIN)coq_makefile $(COQARGS) $(ALL_V) > Makefile.coq
 
 -include Makefile.coq
 
