@@ -290,7 +290,6 @@ Module MoreFMapFacts (FM : FMapInterface.WS)
 
         symmetry. rewrite PROPS.fold_Add; eauto with typeclass_instances.
         2: repeat (red; intros; subst); eapply G_respect; auto.
-        2: repeat (red; intros; subst); eapply G_trans; auto.
 
         symmetry. rewrite PROPS.fold_Equal. 5: eapply map_fold. 2: eapply equ_Equiv. 3: eapply G_trans.
         2: eapply G_respect.
