@@ -39,7 +39,7 @@ Section Condition.
           PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
             * [| inputOk V (exps cond) |] * invPre a V
             * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
-            * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+            * array (lenl rcols) (V data ^+ $8 ^+ $ (length sch * 4)) * array8 rbs (V "ibuf")
             * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
             * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
             * [| freeable (V data) (2 + length sch + length sch) |]
@@ -54,7 +54,7 @@ Section Condition.
           PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
             * [| inputOk V (exps cond) |] * invPre a V
             * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
-            * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+            * array (lenl rcols) (V data ^+ $8 ^+ $ (length sch * 4)) * array8 rbs (V "ibuf")
             * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
             * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
             * [| freeable (V data) (2 + length sch + length sch) |]
@@ -71,7 +71,7 @@ Section Condition.
           PRE[V] array8 bs (V "buf") * [| length bs = wordToNat (V "len") |]
             * [| inputOk V (exps cond) |] * invPre a V
             * (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
-            * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4)) * array8 rbs (V "ibuf")
+            * array (lenl rcols) (V data ^+ $8 ^+ $ (length sch * 4)) * array8 rbs (V "ibuf")
             * [| length rbs = wordToNat (V "ilen") |] * [| length rcols = length sch |]
             * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
             * [| freeable (V data) (2 + length sch + length sch) |]
@@ -92,7 +92,7 @@ Section Condition.
                 * [| inputOk V (exps cond) |] * invPre (fst a_bs) V
                 * Ex rcols,
                   (V data ==*> V "ibuf", V "ilen") * array (posl rcols) (V data ^+ $8)
-                  * array (lenl rcols) (V data ^+ $8 ^+ $(length sch * 4))
+                  * array (lenl rcols) (V data ^+ $8 ^+ $ (length sch * 4))
                   * [| length rcols = length sch |]
                   * [| inBounds (V "ilen") rcols |] * [| V data <> 0 |]
                   * [| freeable (V data) (2 + length sch + length sch) |]

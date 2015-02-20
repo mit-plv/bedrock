@@ -140,7 +140,7 @@ Section Delete.
             * rows sch head remaining * rows sch head done * invPre a V * mallocHeap 0
             * Ex cols, Ex rbs,
             (V data ==*> V "tmp", R' ^* $4)
-            * array (posl cols) (V data ^+ $8) * array (lenl cols) (V data ^+ $8 ^+ $(length sch * 4))
+            * array (posl cols) (V data ^+ $8) * array (lenl cols) (V data ^+ $8 ^+ $ (length sch * 4))
             * array8 rbs (V "tmp")
             * [| length rbs = wordToNat R' * 4 |]%nat
             * [| length cols = length sch |] * [| inBounds (wordToNat R' * 4) cols |]%nat
@@ -155,7 +155,7 @@ Section Delete.
             * rows sch head remaining * rows sch head done * invPre a V * mallocHeap 0
             * Ex cols,
             (V data ==*> V "tmp", V "matched" ^* $4)
-            * array (posl cols) (V data ^+ $8) * array (lenl cols) (V data ^+ $8 ^+ $(length sch * 4))
+            * array (posl cols) (V data ^+ $8) * array (lenl cols) (V data ^+ $8 ^+ $ (length sch * 4))
             * [| length cols = length sch |] * [| inBounds (wordToNat (V "matched") * 4) cols |]%nat
             * [| V data <> 0 |] * [| freeable (V data) (2 + length sch + length sch) |]
           POST[R] array8 bs (V "buf") * invPost a V R];;

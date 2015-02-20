@@ -191,9 +191,9 @@ Section Parse.
     -> In size ns
     -> ~In "rp" ns
     -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
-    -> sel V size = $(length ws)
+    -> sel V size = $ (length ws)
     -> forall p' offset,
-      Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      Regs st Rv = $ (offset + wordToNat (sel V pos) + length p')
       -> goodSize (offset + wordToNat (sel V pos) + Datatypes.length p')
       -> bexpSafe (guard p' offset) stn st.
     clear H; induction p' as [ | [ ] ]; simpl; intuition.
@@ -205,10 +205,10 @@ Section Parse.
     eauto.
 
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
-      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))) IL.Eq w stn st)
         in *.
     assert (goodSize (length ws)) by eauto.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)).
     specialize (bexpTrue_bound _ H H0 H1 _ _ H6).
     rewrite H3, H4.
     intros.
@@ -239,9 +239,9 @@ Section Parse.
     -> ~In "rp" ns
     -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
     -> forall p' offset, bexpTrue (guard p' offset) stn st
-      -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      -> Regs st Rv = $ (offset + wordToNat (sel V pos) + length p')
       -> (offset + wordToNat (sel V pos) <= length ws)%nat
-      -> sel V size = $(length ws)
+      -> sel V size = $ (length ws)
       -> goodSize (offset + wordToNat (sel V pos) + length p')
       -> matches p' (suffix (offset + wordToNat (sel V pos)) ws).
     clear H; induction p' as [ | [ ] ]; simpl; intuition.
@@ -249,7 +249,7 @@ Section Parse.
     specialize (bexpTrue_bound _ H H0 H1 _ _ H8).
     rewrite H4; intros.
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
-      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))) IL.Eq w stn st)
         in *.
     rewrite H6 in H3.
     eapply wle_goodSize in H3.
@@ -309,9 +309,9 @@ Section Parse.
     -> In size ns
     -> ~In "rp" ns
     -> Regs st Rp = sel V stream ^+ $4 ^* sel V pos
-    -> sel V size = $(length ws)
+    -> sel V size = $ (length ws)
     -> forall p' offset, bexpFalse (guard p' offset) stn st
-      -> Regs st Rv = $(offset + wordToNat (sel V pos) + length p')
+      -> Regs st Rv = $ (offset + wordToNat (sel V pos) + length p')
       -> (offset + wordToNat (sel V pos) <= length ws)%nat
       -> goodSize (offset + wordToNat (sel V pos) + length p')
       -> ~matches p' (suffix (offset + wordToNat (sel V pos)) ws).
@@ -340,7 +340,7 @@ Section Parse.
     rewrite suffix_none in *; auto.
     rewrite suffix_remains in * by auto.
     replace (evalCond (LvMem (Rp + 4 * offset)%loc) IL.Eq w stn st)
-      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) IL.Eq w stn st)
+      with (evalCond (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))) IL.Eq w stn st)
         in *.
     assert (natToW (offset + wordToNat (sel V pos)) < natToW (length ws))
       by (apply lt_goodSize; eauto).
@@ -402,9 +402,9 @@ Section Parse.
 
     replace (evalInstr stn st (Assign (variableSlot s ns) (LvMem (Rp + 4 * offset)%loc)))
       with (evalInstr stn st (Assign (variableSlot s ns)
-        (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))))) in *.
+        (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))))) in *.
     generalize dependent H6; prep_locals.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)).
     apply lt_goodSize; eauto.
     prep_locals.
     rewrite evalInstr_evalInstrs in H0.
@@ -441,9 +441,9 @@ Section Parse.
 
     replace (evalInstr stn st (Assign (variableSlot s ns) (LvMem (Rp + 4 * offset)%loc)))
       with (evalInstr stn st (Assign (variableSlot s ns)
-        (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))))) in *.
+        (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))))) in *.
     generalize dependent H6; prep_locals.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)).
     apply lt_goodSize; eauto.
     prep_locals.
     rewrite evalInstr_evalInstrs in H0.
@@ -497,9 +497,9 @@ Section Parse.
 
     replace (evalInstr stn st (Assign (variableSlot s ns) (LvMem (Rp + 4 * offset)%loc)))
       with (evalInstr stn st (Assign (variableSlot s ns)
-        (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))))) in *.
+        (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))))) in *.
     generalize dependent H6; prep_locals.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)).
     apply lt_goodSize; eauto.
     prep_locals.
     rewrite evalInstr_evalInstrs in H0.
@@ -537,9 +537,9 @@ Section Parse.
 
     replace (evalInstr stn st (Assign (variableSlot s ns) (LvMem (Rp + 4 * offset)%loc)))
       with (evalInstr stn st (Assign (variableSlot s ns)
-        (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))))) in *.
+        (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))))) in *.
     generalize dependent H6; prep_locals.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)).
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)).
     apply lt_goodSize; eauto.
     prep_locals.
     rewrite evalInstr_evalInstrs in H0.
@@ -711,8 +711,8 @@ Section Parse.
         (LvMem (Rp + 4 * offset)%loc) :: nil))
       with (evalInstrs stn st
          (Assign (variableSlot s ns)
-            (LvMem (Imm (sel V stream ^+ $4 ^* $(offset + wordToNat (sel V pos))))) :: nil)) in H10.
-    assert (natToW (offset + wordToNat (sel V pos)) < $(length ws)) by (apply lt_goodSize; eauto).
+            (LvMem (Imm (sel V stream ^+ $4 ^* $ (offset + wordToNat (sel V pos))))) :: nil)) in H10.
+    assert (natToW (offset + wordToNat (sel V pos)) < $ (length ws)) by (apply lt_goodSize; eauto).
     prep_locals.
     generalize dependent H0; evaluate auto_ext; intro.
     case_eq (evalInstrs stn s0 (Assign Rv (variableSlot s ns) :: nil)); intros; prep_locals; evaluate auto_ext.
@@ -830,7 +830,7 @@ Section Parse.
   Opaque evalInstrs.
 
   Lemma Rv_preserve : forall rv posV len,
-    rv = posV ^+ $(len)
+    rv = posV ^+ $ (len)
     -> rv = natToW (0 + wordToNat posV + len).
     simpl; intros; subst.
     rewrite natToW_plus.
@@ -840,11 +840,11 @@ Section Parse.
 
   Lemma guard_says_safe : forall stn st specs V ws r fr,
     bexpTrue (guard p 0) stn st
-    -> Regs st Rv = sel V pos ^+ $(length p)
+    -> Regs st Rv = sel V pos ^+ $ (length p)
     -> interp specs (![array ws (sel V stream) * locals ("rp" :: ns) V r (Regs st Sp) * fr] (stn, st))
     -> In size ns
     -> ~In "rp" ns
-    -> sel V size = $(length ws)
+    -> sel V size = $ (length ws)
     -> goodSize (wordToNat (sel V pos) + Datatypes.length p)
     -> (0 + wordToNat (sel V pos) + length p <= length ws)%nat.
     simpl; intros.

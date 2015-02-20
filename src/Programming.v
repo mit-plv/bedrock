@@ -210,7 +210,7 @@ Coercion variableSlot : string >-> lvalue'.
 (** ** Commands *)
 
 Local Notation INV := (fun inv => inv true (fun w => w)).
-Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $ (4 + 4 * List.length ns)) ns).
 
 Notation "'Assert' [ p ]" := (Assert_ (INV p)) (no associativity, at level 95) : SP_scope.
 

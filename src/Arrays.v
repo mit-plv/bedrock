@@ -306,7 +306,7 @@ Local Opaque mult.
 
 Lemma ptsto32m'_implies : forall specs stn p ws offset m,
   interp specs (ptsto32m' _ p offset ws stn m --->
-    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $(n)) m) ws offset |])%PropX.
+    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $ (n)) m) ws offset |])%PropX.
   induction ws; unfold ptsto32m', arrayImplies; fold ptsto32m'; fold arrayImplies; intuition.
   apply Imply_I; apply Inj_I; constructor.
   unfold starB, star; apply Imply_I.
@@ -393,7 +393,7 @@ Theorem ptsto32m'_in : forall a vs offset,
   replace (match offset with
              | 0 => a
              | S _ => a ^+ $ (offset)
-           end) with (a ^+ $(offset)) by (destruct offset; W_eq).
+           end) with (a ^+ $ (offset)) by (destruct offset; W_eq).
   destruct vs.
   simpl ptsto32m'.
   eapply Himp_trans; [ | apply Himp_star_comm ].
@@ -405,13 +405,13 @@ Qed.
 
 Lemma ptsto32m_implies : forall specs stn m p ws offset,
   interp specs (ptsto32m _ p offset ws stn m --->
-    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $(n)) m) ws offset |])%PropX.
+    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $ (n)) m) ws offset |])%PropX.
   intros; eapply Imply_trans; apply ptsto32m'_implies || apply ptsto32m'_in.
 Qed.
 
 Lemma array_implies : forall specs stn m ws p,
   interp specs (array ws p stn m --->
-    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $(n)) m) ws 0 |])%PropX.
+    [| arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $ (n)) m) ws 0 |])%PropX.
   intros; apply ptsto32m_implies.
 Qed.
 
@@ -419,8 +419,8 @@ Lemma arrayImplies_equal : forall stn p m m1 m2 m1' m2',
   HT.split m m1 m2
   -> HT.split m m1' m2'
   -> forall ws ws' offset,
-    arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $(n)) m1) ws offset
-    -> arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $(n)) m1') ws' offset
+    arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $ (n)) m1) ws offset
+    -> arrayImplies (fun n => smem_get_word (implode stn) (p ^+ $ (n)) m1') ws' offset
     -> length ws' = length ws
     -> ws' = ws.
   induction ws; destruct ws'; unfold length, arrayImplies; fold length; fold arrayImplies; intuition.
@@ -464,7 +464,7 @@ Qed.
 Lemma smem_read_correctx'' : forall cs base stn ws offset i m,
   (i < length ws)%nat
   -> interp cs (ptsto32m' _ base (offset * 4) ws stn m
-    ---> [| smem_get_word (implode stn) (base ^+ $((offset + i) * 4)) m = Some (selN ws i) |])%PropX.
+    ---> [| smem_get_word (implode stn) (base ^+ $ ((offset + i) * 4)) m = Some (selN ws i) |])%PropX.
   induction ws.
 
   simpl length.
@@ -511,7 +511,7 @@ Qed.
 
 Lemma array_boundx' : forall cs base stn ws m i,
   (0 < i < length ws)%nat
-  -> base ^+ $(i * 4) = base
+  -> base ^+ $ (i * 4) = base
   -> interp cs (ptsto32m' _ base 0 ws stn m ---> [| False |])%PropX.
   destruct ws; simpl length; intros.
 

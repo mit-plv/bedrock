@@ -20,7 +20,7 @@ Section TopSection.
 
   Opaque mult.
 
-  Lemma array_split : forall ls p pos, splittable ls pos -> array_to_split ls p pos ===> array (firstn pos ls) p * array (skipn pos ls) (p ^+ $(4 * pos)).
+  Lemma array_split : forall ls p pos, splittable ls pos -> array_to_split ls p pos ===> array (firstn pos ls) p * array (skipn pos ls) (p ^+ $ (4 * pos)).
     intros.
     eapply Himp_trans; [ apply ptsto32m'_in | ].
     eapply Himp_trans; [ | apply Himp_star_frame; apply ptsto32m'_out ].
@@ -41,7 +41,7 @@ Section TopSection.
 
   Definition buf_splittable (len pos : nat) := pos <= len.
 
-  Lemma buf_split_bwd : forall p len pos, buf_splittable len pos -> p =?> pos * (p ^+ $(4 * pos)) =?> (len - pos) ===> buf_to_split p len pos.
+  Lemma buf_split_bwd : forall p len pos, buf_splittable len pos -> p =?> pos * (p ^+ $ (4 * pos)) =?> (len - pos) ===> buf_to_split p len pos.
     intros.
     eapply Himp_trans; [ | apply allocated_join ].
     apply Himp_star_frame.

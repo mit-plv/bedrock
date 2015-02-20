@@ -22,7 +22,7 @@ Section ExprComp.
 
   Definition is_state sp vs temps : HProp :=
     (locals vars vs 0 (sp ^+ $8) *
-     array temps (sp ^+ $8 ^+ $(4 * length vars)))%Sep.
+     array temps (sp ^+ $8 ^+ $ (4 * length vars)))%Sep.
 
   Definition new_pre : assert :=
     x ~> ExX, Ex vs, Ex temps,
@@ -191,12 +191,12 @@ Section ExprComp.
 
       Lemma evalInstrs_write_temp : forall sm x base',
         evalInstrs sm x (Assign (temp_slot base') Rv :: nil)
-        = evalInstrs sm x (Assign (LvMem (Imm (Regs x Sp ^+ $8 ^+ $(4 * length vars) ^+ $4 ^* natToW base'))) Rv :: nil).
+        = evalInstrs sm x (Assign (LvMem (Imm (Regs x Sp ^+ $8 ^+ $ (4 * length vars) ^+ $4 ^* natToW base'))) Rv :: nil).
         Transparent evalInstrs.
         simpl.
         intros.
         replace (Regs x Sp ^+ natToW (temp_start + 4 * base'))
-          with (Regs x Sp ^+ $ (8) ^+ $(4 * length vars) ^+ $4 ^* natToW base'); auto.
+          with (Regs x Sp ^+ $ (8) ^+ $ (4 * length vars) ^+ $4 ^* natToW base'); auto.
         rewrite natToW_plus.
         unfold temp_start, vars_start.
         change (4 * 2) with 8.
@@ -212,12 +212,12 @@ Section ExprComp.
 
       Lemma evalInstrs_binop_temp : forall sm x base' b,
         evalInstrs sm x (IL.Binop Rv (temp_slot base') b Rv :: nil)
-        = evalInstrs sm x (IL.Binop Rv (LvMem (Imm (Regs x Sp ^+ $8 ^+ $(4 * length vars) ^+ $4 ^* natToW base'))) b Rv :: nil).
+        = evalInstrs sm x (IL.Binop Rv (LvMem (Imm (Regs x Sp ^+ $8 ^+ $ (4 * length vars) ^+ $4 ^* natToW base'))) b Rv :: nil).
         Transparent evalInstrs.
         simpl.
         intros.
         replace (Regs x Sp ^+ natToW (temp_start + 4 * base'))
-          with (Regs x Sp ^+ $ (8) ^+ $(4 * length vars) ^+ $4 ^* natToW base'); auto.
+          with (Regs x Sp ^+ $ (8) ^+ $ (4 * length vars) ^+ $4 ^* natToW base'); auto.
         rewrite natToW_plus.
         unfold temp_start, vars_start.
         change (4 * 2) with 8.
@@ -680,10 +680,10 @@ Section ExprComp.
 
       Lemma evalCond_temp : forall sm x base' t0,
         evalCond (temp_slot base') t0 Rv sm x
-        = evalCond (LvMem (Imm (Regs x Sp ^+ $8 ^+ $(4 * length vars) ^+ $4 ^* natToW base'))) t0 Rv sm x.
+        = evalCond (LvMem (Imm (Regs x Sp ^+ $8 ^+ $ (4 * length vars) ^+ $4 ^* natToW base'))) t0 Rv sm x.
         unfold evalCond; simpl; intros.
         replace (Regs x Sp ^+ natToW (temp_start + 4 * base'))
-          with (Regs x Sp ^+ $ (8) ^+ $(4 * length vars) ^+ $4 ^* natToW base'); auto.
+          with (Regs x Sp ^+ $ (8) ^+ $ (4 * length vars) ^+ $4 ^* natToW base'); auto.
         rewrite natToW_plus.
         unfold temp_start, vars_start.
         change (4 * 2) with 8.

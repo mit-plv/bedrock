@@ -62,7 +62,7 @@ Module Type FREE_LIST.
     -> freeable b (y + 2).
 
   Axiom it's_not_zero : forall x y a b,
-    x = y ^+ $4 ^* ($(a) ^- natToW b)
+    x = y ^+ $4 ^* ($ (a) ^- natToW b)
     -> freeable y (a + 2)
     -> natToW (b + 2) < natToW a
     -> goodSize (b + 2)
@@ -79,13 +79,13 @@ Module Type FREE_LIST.
 
   Axiom nil_bwd : forall n p, p = 0 -> [| n = 0 |] ===> freeList n p.
   Axiom cons_bwd : forall n (p : W), p <> 0
-    -> (Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $(sz), p')
+    -> (Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $ (sz), p')
       * (p ^+ $8) =?> sz * freeList n' p')
     ===> freeList n p.
 
   Axiom cons_fwd : forall n (p : W), p <> 0
     -> freeList n p
-    ===> Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $(sz), p')
+    ===> Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $ (sz), p')
     * (p ^+ $8) =?> sz * freeList n' p'.
 End FREE_LIST.
 
@@ -93,7 +93,7 @@ Module FreeList : FREE_LIST.
   Transparent goodSize.
 
   Definition noWrapAround (p : W) (sz : nat) :=
-    forall n, (n < sz * 4)%nat -> p ^+ $(n) <> $0.
+    forall n, (n < sz * 4)%nat -> p ^+ $ (n) <> $0.
 
   Definition freeable (p : W) (sz : nat) := goodSize sz /\ noWrapAround p sz.
 
@@ -123,7 +123,7 @@ Module FreeList : FREE_LIST.
   Qed.
 
   Lemma it's_not_zero : forall x y a b,
-    x = y ^+ $4 ^* ($(a) ^- natToW b)
+    x = y ^+ $4 ^* ($ (a) ^- natToW b)
     -> freeable y (a + 2)
     -> natToW (b + 2) < natToW a
     -> goodSize (b + 2)
@@ -171,7 +171,7 @@ Module FreeList : FREE_LIST.
   Fixpoint freeList (n : nat) (p : W) : HProp :=
     match n with
       | O => [| p = 0 |]
-      | S n' => [| p <> 0 |] * Ex sz, Ex p', [| freeable p (sz+2) |] * (p ==*> $(sz), p')
+      | S n' => [| p <> 0 |] * Ex sz, Ex p', [| freeable p (sz+2) |] * (p ==*> $ (sz), p')
         * (p ^+ $8) =?> sz * freeList n' p'
     end.
 
@@ -198,7 +198,7 @@ Module FreeList : FREE_LIST.
   Qed.
 
   Theorem cons_bwd : forall n (p : W), p <> 0
-    -> (Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $(sz), p')
+    -> (Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $ (sz), p')
       * (p ^+ $8) =?> sz * freeList n' p')
     ===> freeList n p.
     destruct n; sepLemma; match goal with
@@ -208,7 +208,7 @@ Module FreeList : FREE_LIST.
 
   Theorem cons_fwd : forall n (p : W), p <> 0
     -> freeList n p
-    ===> Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $(sz), p')
+    ===> Ex n', Ex sz, Ex p', [| n = S n' /\ freeable p (sz+2) |] * (p ==*> $ (sz), p')
     * (p ^+ $8) =?> sz * freeList n' p'.
     destruct n; sepLemma.
   Qed.
@@ -242,17 +242,17 @@ Definition hints : TacPackage.
 
 Definition initS : spec := SPEC("size") reserving 0
   Al n,
-  PRE[V] [| V("size") = $(n) |] * [| freeable 4 (n+2) |] * 0 =?> (3 + n)
+  PRE[V] [| V("size") = $ (n) |] * [| freeable 4 (n+2) |] * 0 =?> (3 + n)
   POST[_] mallocHeap.
 
 Definition freeS : spec := SPEC("p", "n") reserving 1
   Al n,
-  PRE[V] [| V "n" = $(n) |] * [| V "p" <> 0 |] * [| freeable (V "p") (n+2) |] * V "p" =?> (2 + n) * mallocHeap
+  PRE[V] [| V "n" = $ (n) |] * [| V "p" <> 0 |] * [| freeable (V "p") (n+2) |] * V "p" =?> (2 + n) * mallocHeap
   POST[_] mallocHeap.
 
 Definition mallocS : spec := SPEC("n") reserving 4
   Al sz,
-  PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * mallocHeap
+  PRE[V] [| V "n" = $ (sz) |] * [| goodSize (sz+2) |] * mallocHeap
   POST[R] [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2) * mallocHeap.
 
 Definition mallocM := bmodule "malloc" {{
@@ -273,7 +273,7 @@ Definition mallocM := bmodule "malloc" {{
     "prev" <- 0;;
 
     [Al sz, Al len,
-      PRE[V] [| V "n" = $(sz) |] * [| goodSize (sz+2) |] * V "prev" =*> V "cur" * freeList len (V "cur")
+      PRE[V] [| V "n" = $ (sz) |] * [| goodSize (sz+2) |] * V "prev" =*> V "cur" * freeList len (V "cur")
       POST[R] Ex p, Ex len', [| R <> 0 |] * [| freeable R (sz+2) |] * R =?> (sz + 2)
         * V "prev" =*> p * freeList len' p]
     While ("cur" <> 0) {
@@ -320,7 +320,7 @@ Qed.
 
 Lemma cancel8 : forall x y z,
   (z + 2 <= y)%nat
-  -> x ^+ $8 ^+ ($(y) ^- $(z + 2)) ^* $4 = x ^+ $4 ^* ($(y) ^- natToW z).
+  -> x ^+ $8 ^+ ($ (y) ^- $ (z + 2)) ^* $4 = x ^+ $4 ^* ($ (y) ^- natToW z).
   intros.
   autorewrite with sepFormula.
   rewrite natToW_plus.

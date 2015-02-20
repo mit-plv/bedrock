@@ -37,7 +37,7 @@ Section Insert.
       | Const s => StringWrite "ibuf" "ilen" "ipos" "overflowed" s
         (fun (p : list B * A) V => array8 (fst p) (V "buf") * mallocHeap 0 * table sch tptr
           * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-          * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
+          * array (lenl cols) (V "row" ^+ $8 ^+ $ (length sch * 4))
           * [| length (fst p) = wordToNat (V "len") |] * [| length cols = length sch |]
           * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
           * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
@@ -55,7 +55,7 @@ Section Insert.
               * array8 bsI (V "ibuf") * [| length bsI = wordToNat (V "ilen") |] * [| V "ibuf" <> 0 |]
               * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
               * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-              * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
+              * array (lenl cols) (V "row" ^+ $8 ^+ $ (length sch * 4))
               * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
               * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
               * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]
@@ -73,7 +73,7 @@ Section Insert.
         * array8 bsI (V "ibuf") * [| length bsI = wordToNat (V "ilen") |]
         * [| V "ipos" <= V "ilen" |]
         * Ex cols, (V "row" ==*> V "ibuf", V "ilen") * array (posl cols) (V "row" ^+ $8)
-        * array (lenl cols) (V "row" ^+ $8 ^+ $(length sch * 4))
+        * array (lenl cols) (V "row" ^+ $8 ^+ $ (length sch * 4))
         * [| length bs = wordToNat (V "len") |] * [| length cols = length sch |]
         * [| V "row" <> 0 |] * [| freeable (V "row") (2 + length sch + length sch) |]
         * [| V "ibuf" <> 0 |] * [| freeable8 (V "ibuf") (wordToNat (V "ilen")) |]

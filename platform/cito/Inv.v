@@ -5,8 +5,8 @@ Require Import AutoSep.
 Definition empty_vs : vals := fun _ => $0.
 
 Definition has_extra_stack sp offset e_stack e_stack_real :=
-  ((sp ^+ $4) =*> $(e_stack) *
-   (sp ^+ $8 ^+ $(4 * offset)) =?> e_stack_real)%Sep.
+  ((sp ^+ $4) =*> $ (e_stack) *
+   (sp ^+ $8 ^+ $ (4 * offset)) =?> e_stack_real)%Sep.
 
 Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
   (ExX,
@@ -36,7 +36,7 @@ Module Make (Import E : ADT).
       Definition is_state sp rp e_stack e_stack_real vars (v : State) temps : HProp :=
         (
           locals vars (fst v) 0 (sp ^+ $8) *
-          array temps (sp ^+ $8 ^+ $(4 * length vars)) *
+          array temps (sp ^+ $8 ^+ $ (4 * length vars)) *
           is_heap (snd v) *
           sp =*> rp *
           has_extra_stack sp (length vars + length temps) e_stack e_stack_real

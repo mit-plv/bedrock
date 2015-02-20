@@ -5,7 +5,7 @@ Set Implicit Arguments.
 
 Section TopSection.
 
-  Lemma split_buf : forall p len pos, buf_splittable len pos -> buf_to_split p len pos ===> p =?> pos * (p ^+ $(4 * pos)) =?> (len - pos).
+  Lemma split_buf : forall p len pos, buf_splittable len pos -> buf_to_split p len pos ===> p =?> pos * (p ^+ $ (4 * pos)) =?> (len - pos).
     unfold buf_splittable, buf_to_split; intros.
     eapply Himp_trans; [ apply allocated_split | ].
     eassumption.
@@ -74,7 +74,7 @@ Section TopSection.
 
   Lemma combine_locals : forall vars1 vars2 vs1 vs2 p,
     locals_combinable vars1 vars2
-    -> locals vars1 vs1 0 p * locals vars2 vs2 0 (p ^+ $(4 * length vars1)) ===> combined_locals vars1 vars2 vs1 vs2 p.
+    -> locals vars1 vs1 0 p * locals vars2 vs2 0 (p ^+ $ (4 * length vars1)) ===> combined_locals vars1 vars2 vs1 vs2 p.
     unfold locals, locals_combinable; sepLemma.
     unfold combined_locals, locals.
     sepLemma.
@@ -106,7 +106,7 @@ Section TopSection.
     eauto.
   Qed.
 
-  Lemma split_locals : forall vars1 vars2 vs p, locals_to_split vars1 vars2 vs p ===> locals vars1 vs 0 p * locals vars2 vs 0 (p ^+ $(4 * length vars1)).
+  Lemma split_locals : forall vars1 vars2 vs p, locals_to_split vars1 vars2 vs p ===> locals vars1 vs 0 p * locals vars2 vs 0 (p ^+ $ (4 * length vars1)).
     unfold locals_to_split, locals; intros.
     sepLemma.
     eauto using NoDup_unapp1.

@@ -928,7 +928,7 @@ Section Out.
                 * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
                 * Ex buf, Ex len, Ex cols, Ex bs,
                   (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
-                  * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                  * array (lenl cols) (V (Data av) ^+ $8 ^+ $ (length (Schema (Table av)) * 4)) * array8 bs buf
                   * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
                   * [| RelDb.inBounds len cols |]
                   * [| V (Data av) <> 0 |]
@@ -953,7 +953,7 @@ Section Out.
                   * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
                   * Ex buf, Ex len, Ex cols, Ex bs,
                     (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
-                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $ (length (Schema (Table av)) * 4)) * array8 bs buf
                     * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
                     * [| RelDb.inBounds len cols |]
                     * [| V (Data av) <> 0 |]
@@ -977,7 +977,7 @@ Section Out.
                   * RelDbSelect.inv (Address (Table av)) (Schema (Table av)) (V (Row av)) (V (Data av))
                   * Ex buf, Ex len, Ex cols, Ex bs,
                     (V (Data av) ==*> buf, len) * array (posl cols) (V (Data av) ^+ $8)
-                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $(length (Schema (Table av)) * 4)) * array8 bs buf
+                    * array (lenl cols) (V (Data av) ^+ $8 ^+ $ (length (Schema (Table av)) * 4)) * array8 bs buf
                     * [| length bs = wordToNat len |] * [| length cols = length (Schema (Table av)) |]
                     * [| RelDb.inBounds len cols |]
                     * [| V (Data av) <> 0 |]
@@ -1060,7 +1060,7 @@ Section Out.
                     (V (Data av1) ==*> buf1, len1)
                     * array (posl cols1) (V (Data av1) ^+ $8)
                     * array (lenl cols1) (V (Data av1) ^+ $8
-                      ^+ $(length (Schema (Table av1)) * 4)) * array8 bs1 buf1
+                      ^+ $ (length (Schema (Table av1)) * 4)) * array8 bs1 buf1
                     * [| length bs1 = wordToNat len1 |]
                     * [| length cols1 = length (Schema (Table av1)) |]
                     * [| RelDb.inBounds len1 cols1 |]
@@ -1075,7 +1075,7 @@ Section Out.
                     (V (Data av2) ==*> buf2, len2)
                     * array (posl cols2) (V (Data av2) ^+ $8)
                     * array (lenl cols2) (V (Data av2) ^+ $8
-                      ^+ $(length (Schema (Table av2)) * 4)) * array8 bs2 buf2
+                      ^+ $ (length (Schema (Table av2)) * 4)) * array8 bs2 buf2
                     * [| length bs2 = wordToNat len2 |]
                     * [| length cols2 = length (Schema (Table av2)) |]
                     * [| RelDb.inBounds len2 cols2 |]
@@ -1108,7 +1108,7 @@ Section Out.
                     (V (Data av1) ==*> buf1, len1)
                     * array (posl cols1) (V (Data av1) ^+ $8)
                     * array (lenl cols1) (V (Data av1) ^+ $8
-                      ^+ $(length (Schema (Table av1)) * 4)) * array8 bs1 buf1
+                      ^+ $ (length (Schema (Table av1)) * 4)) * array8 bs1 buf1
                     * [| length bs1 = wordToNat len1 |]
                     * [| length cols1 = length (Schema (Table av1)) |]
                     * [| RelDb.inBounds len1 cols1 |]
@@ -1123,7 +1123,7 @@ Section Out.
                     (V (Data av2) ==*> buf2, len2)
                     * array (posl cols2) (V (Data av2) ^+ $8)
                     * array (lenl cols2) (V (Data av2) ^+ $8
-                      ^+ $(length (Schema (Table av2)) * 4)) * array8 bs2 buf2
+                      ^+ $ (length (Schema (Table av2)) * 4)) * array8 bs2 buf2
                     * [| length bs2 = wordToNat len2 |]
                     * [| length cols2 = length (Schema (Table av2)) |]
                     * [| RelDb.inBounds len2 cols2 |]
@@ -1159,7 +1159,7 @@ Section Out.
                       (V (Data av1) ==*> buf1, len1)
                       * array (posl cols1) (V (Data av1) ^+ $8)
                       * array (lenl cols1) (V (Data av1) ^+ $8
-                        ^+ $(length (Schema (Table av1)) * 4)) * array8 bs1 buf1
+                        ^+ $ (length (Schema (Table av1)) * 4)) * array8 bs1 buf1
                       * [| length bs1 = wordToNat len1 |]
                       * [| length cols1 = length (Schema (Table av1)) |]
                       * [| RelDb.inBounds len1 cols1 |]
@@ -1176,7 +1176,7 @@ Section Out.
                       (V (Data av2) ==*> buf2, len2)
                       * array (posl cols2) (V (Data av2) ^+ $8)
                       * array (lenl cols2) (V (Data av2) ^+ $8
-                        ^+ $(length (Schema (Table av2)) * 4)) * array8 bs2 buf2
+                        ^+ $ (length (Schema (Table av2)) * 4)) * array8 bs2 buf2
                       * [| length bs2 = wordToNat len2 |]
                       * [| length cols2 = length (Schema (Table av2)) |]
                       * [| RelDb.inBounds len2 cols2 |]
@@ -1212,7 +1212,7 @@ Section Out.
                       (V (Data av1) ==*> buf1, len1)
                       * array (posl cols1) (V (Data av1) ^+ $8)
                       * array (lenl cols1) (V (Data av1) ^+ $8
-                        ^+ $(length (Schema (Table av1)) * 4)) * array8 bs1 buf1
+                        ^+ $ (length (Schema (Table av1)) * 4)) * array8 bs1 buf1
                       * [| length bs1 = wordToNat len1 |]
                       * [| length cols1 = length (Schema (Table av1)) |]
                       * [| RelDb.inBounds len1 cols1 |]
@@ -1229,7 +1229,7 @@ Section Out.
                       (V (Data av2) ==*> buf2, len2)
                       * array (posl cols2) (V (Data av2) ^+ $8)
                       * array (lenl cols2) (V (Data av2) ^+ $8
-                        ^+ $(length (Schema (Table av2)) * 4)) * array8 bs2 buf2
+                        ^+ $ (length (Schema (Table av2)) * 4)) * array8 bs2 buf2
                       * [| length bs2 = wordToNat len2 |]
                       * [| length cols2 = length (Schema (Table av2)) |]
                       * [| RelDb.inBounds len2 cols2 |]
@@ -1265,7 +1265,7 @@ Section Out.
                       (V (Data av1) ==*> buf1, len1)
                       * array (posl cols1) (V (Data av1) ^+ $8)
                       * array (lenl cols1) (V (Data av1) ^+ $8
-                        ^+ $(length (Schema (Table av1)) * 4)) * array8 bs1 buf1
+                        ^+ $ (length (Schema (Table av1)) * 4)) * array8 bs1 buf1
                       * [| length bs1 = wordToNat len1 |]
                       * [| length cols1 = length (Schema (Table av1)) |]
                       * [| RelDb.inBounds len1 cols1 |]
@@ -1282,7 +1282,7 @@ Section Out.
                       (V (Data av2) ==*> buf2, len2)
                       * array (posl cols2) (V (Data av2) ^+ $8)
                       * array (lenl cols2) (V (Data av2) ^+ $8
-                        ^+ $(length (Schema (Table av2)) * 4)) * array8 bs2 buf2
+                        ^+ $ (length (Schema (Table av2)) * 4)) * array8 bs2 buf2
                       * [| length bs2 = wordToNat len2 |]
                       * [| length cols2 = length (Schema (Table av2)) |]
                       * [| RelDb.inBounds len2 cols2 |]

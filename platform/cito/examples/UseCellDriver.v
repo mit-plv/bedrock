@@ -79,7 +79,7 @@ Section boot.
   Variable st : state.
 
   Hypothesis mem_low : forall n, (n < size * 4)%nat -> st.(Mem) n <> None.
-  Hypothesis mem_high : forall w, ($(size * 4) <= w)%word -> st.(Mem) w = None.
+  Hypothesis mem_high : forall w, ($ (size * 4) <= w)%word -> st.(Mem) w = None.
 
   Theorem safe : sys_safe stn prog (w, st).
     safety ok1.

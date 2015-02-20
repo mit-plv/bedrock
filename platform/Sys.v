@@ -55,10 +55,10 @@ Definition closeS := SPEC("stream") reserving 0
 (** * More primitive operational semantics *)
 
 Definition mapped (base : W) (len : nat) (m : mem) :=
-  forall n, (n < len)%nat -> m (base ^+ $(n)) <> None.
+  forall n, (n < len)%nat -> m (base ^+ $ (n)) <> None.
 
 Record onlyChange (base : W) (len : nat) (m m' : mem) : Prop :=
-  { Elsewhere : forall p, (forall n, (n < len)%nat -> p <> base ^+ $(n))
+  { Elsewhere : forall p, (forall n, (n < len)%nat -> p <> base ^+ $ (n))
     -> m' p = m p;
     SameMapped : forall p, m p = None <-> m' p = None }.
 

@@ -105,7 +105,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (
           evalInstrs stn st
                      (IL.Assign
-                        (LvMem (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars x))))
+                        (LvMem (Imm (Regs st Sp ^+ $8 ^+ $ (variablePosition vars x))))
                         (RvImm x2) :: nil) =
           None
         ) ; [ | clear H0 ].
@@ -169,7 +169,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       assert (
           evalInstrs stn st
                      (IL.Assign
-                        (LvMem (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars x))))
+                        (LvMem (Imm (Regs st Sp ^+ $8 ^+ $ (variablePosition vars x))))
                         Rv :: nil) =
           None
         ) ; [ | clear H0 ].

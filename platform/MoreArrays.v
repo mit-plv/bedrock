@@ -3,7 +3,7 @@ Require Import AutoSep.
 
 
 Lemma allocate_array' : forall p n offset,
-  allocated p offset n ===> Ex ls, [| length ls = n |] * array ls (p ^+ $(offset)).
+  allocated p offset n ===> Ex ls, [| length ls = n |] * array ls (p ^+ $ (offset)).
   induction n; simpl.
 
   sepLemma.
@@ -47,7 +47,7 @@ Lemma allocate_array : forall p n,
 Qed.
 
 Lemma free_array' : forall p n offset,
-  Ex ls, [| length ls = n |] * array ls (p ^+ $(offset)) ===> allocated p offset n.
+  Ex ls, [| length ls = n |] * array ls (p ^+ $ (offset)) ===> allocated p offset n.
   sepLemma.
   etransitivity; [ apply ptsto32m_allocated | ].
   etransitivity; [ apply allocated_shift_base | ].

@@ -25,7 +25,7 @@ Hint Rewrite length_upd : sepFormula.
 
 Lemma next' : forall (i : W),
   (exists len' : W, (wordToNat i < wordToNat len')%nat)
-  -> wordToNat (i ^+ $(1)) = wordToNat i + 1.
+  -> wordToNat (i ^+ $ (1)) = wordToNat i + 1.
   destruct 1; erewrite next; eauto.
   instantiate (1 := x); nomega.
 Qed.
@@ -34,7 +34,7 @@ Hint Rewrite next' using (eexists; eassumption) : N.
 
 Lemma next : forall (i : W),
   (exists len' : W, i < len')
-  -> wordToNat (i ^+ $(1)) = wordToNat i + 1.
+  -> wordToNat (i ^+ $ (1)) = wordToNat i + 1.
   destruct 1; eapply next'; eauto.
   pre_nomega; eauto.
 Qed.
@@ -160,7 +160,7 @@ Lemma materialize_array8'' : forall p v,
 Qed.
 
 Lemma materialize_array8' : forall p sz offset,
-  allocated p offset sz ===> Ex bs, array8 bs (p ^+ $(offset)) * [| (length bs = sz * 4)%nat |].
+  allocated p offset sz ===> Ex bs, array8 bs (p ^+ $ (offset)) * [| (length bs = sz * 4)%nat |].
   induction sz; simpl; intuition.
 
   sepLemma.
@@ -230,7 +230,7 @@ Qed.
 Lemma decomission_array8' : forall p sz bs offset sz',
   length bs = sz' * 4
   -> (sz' < sz)%nat
-  -> array8 bs (p ^+ $(offset)) ===> allocated p offset sz'.
+  -> array8 bs (p ^+ $ (offset)) ===> allocated p offset sz'.
   induction sz; simpl; intuition.
 
   destruct bs; simpl in *.
@@ -239,8 +239,8 @@ Lemma decomission_array8' : forall p sz bs offset sz',
 
   destruct sz'; simpl in *; try discriminate.
   do 3 (destruct bs; simpl in *; try discriminate).
-  replace (p ^+ $(offset) ^+ $1 ^+ $1 ^+ $1) with (p ^+ $(offset) ^+ $3) by words.
-  replace (p ^+ $(offset) ^+ $1 ^+ $1) with (p ^+ $(offset) ^+ $2) by words.
+  replace (p ^+ $ (offset) ^+ $1 ^+ $1 ^+ $1) with (p ^+ $ (offset) ^+ $3) by words.
+  replace (p ^+ $ (offset) ^+ $1 ^+ $1) with (p ^+ $ (offset) ^+ $2) by words.
 
   Lemma pull_out : forall P Q R S T,
     P * (Q * (R * (S * T))) ===> (P * Q * R * S) * T.
@@ -286,7 +286,7 @@ Qed.
 
 Theorem array8_split : forall bs p n,
   (n <= length bs)%nat
-  -> array8 bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)).
+  -> array8 bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $ (n)).
   induction bs; simpl; intuition.
 
   rewrite firstn_nil; rewrite skipn_nil; simpl.
@@ -298,14 +298,14 @@ Theorem array8_split : forall bs p n,
 
   sepLemma; fold (@skipn B); fold (@firstn B).
   etransitivity; [ apply (IHbs _ n) | ]; auto.
-  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $(n))
+  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $ (n))
     by (rewrite (natToW_S n); unfold natToW; words).
   sepLemma.
 Qed.
 
 Theorem array8_join : forall bs p n,
   (n <= length bs)%nat
-  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)) ===> array8 bs p.
+  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $ (n)) ===> array8 bs p.
   induction bs; simpl; intuition.
 
   rewrite firstn_nil; rewrite skipn_nil; simpl.
@@ -317,7 +317,7 @@ Theorem array8_join : forall bs p n,
 
   sepLemma; fold (@skipn B); fold (@firstn B).
   etransitivity; [ | apply (IHbs _ n) ]; auto.
-  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $(n))
+  replace (p ^+ natToW (S n)) with (p ^+ natToW 1 ^+ $ (n))
     by (rewrite (natToW_S n); unfold natToW; words).
   sepLemma.
 Qed.
@@ -336,7 +336,7 @@ Qed.
 
 Theorem buffer_split : forall len p n,
   (n <= len)%nat
-  -> buffer p len ===> buffer p n * buffer (p ^+ $(n)) (len - n).
+  -> buffer p len ===> buffer p n * buffer (p ^+ $ (n)) (len - n).
   unfold buffer; sepLemmaLhsOnly; fold (@length B) in *.
   etransitivity; [ apply array8_split | ]; eauto.
   sepLemma; fold (@length B); fold (@firstn B); fold (@skipn B);
@@ -355,7 +355,7 @@ Qed.
 
 Theorem buffer_join : forall len p n,
   (n <= len)%nat
-  -> buffer p n * buffer (p ^+ $(n)) (len - n) ===> buffer p len.
+  -> buffer p n * buffer (p ^+ $ (n)) (len - n) ===> buffer p len.
   unfold buffer; sepLemmaLhsOnly; fold (@length B) in *.
   apply himp_ex_c; exists (x0 ++ x).
   rewrite app_length.
@@ -403,7 +403,7 @@ Definition array8_splitAt (n : nat) := array8.
 
 Theorem array8_split_tagged : forall bs p n,
   (n <= length bs)%nat
-  -> array8_splitAt n bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)).
+  -> array8_splitAt n bs p ===> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $ (n)).
   intros; apply array8_split; auto.
 Qed.
 
@@ -411,7 +411,7 @@ Definition array8_joinAt (n : nat) := array8.
 
 Theorem array8_join_tagged : forall bs p n,
   (n <= length bs)%nat
-  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $(n)) ===> array8_joinAt n bs p.
+  -> array8 (firstn n bs) p * array8 (skipn n bs) (p ^+ $ (n)) ===> array8_joinAt n bs p.
   intros; apply array8_join; auto.
 Qed.
 
@@ -419,7 +419,7 @@ Definition buffer_splitAt (n : nat) := buffer.
 
 Theorem buffer_split_tagged : forall len p n,
   (n <= len)%nat
-  -> buffer_splitAt n p len ===> buffer p n * buffer (p ^+ $(n)) (len - n).
+  -> buffer_splitAt n p len ===> buffer p n * buffer (p ^+ $ (n)) (len - n).
   intros; apply buffer_split; auto.
 Qed.
 
@@ -427,6 +427,6 @@ Definition buffer_joinAt (n : nat) := buffer.
 
 Theorem buffer_join_tagged : forall len p n,
   (n <= len)%nat
-  -> buffer p n * buffer (p ^+ $(n)) (len - n) ===> buffer_joinAt n p len.
+  -> buffer p n * buffer (p ^+ $ (n)) (len - n) ===> buffer_joinAt n p len.
   intros; apply buffer_join; auto.
 Qed.

@@ -52,14 +52,14 @@ Section preds.
 
   Definition row (p : W) :=
     Ex buf, Ex len, Ex cols, Ex bs,
-    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $(length s * 4)) * array8 bs buf
+    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $ (length s * 4)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
     * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable8 buf (length bs) |].
 
   Theorem row_fwd : forall p,
     row p ===> Ex buf, Ex len, Ex cols, Ex bs,
-    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $(length s * 4)) * array8 bs buf
+    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $ (length s * 4)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
     * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable8 buf (length bs) |].
@@ -68,7 +68,7 @@ Section preds.
 
   Theorem row_bwd : forall p,
     (Ex buf, Ex len, Ex cols, Ex bs,
-    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $(length s * 4)) * array8 bs buf
+    (p ==*> buf, len) * array (posl cols) (p ^+ $8) * array (lenl cols) (p ^+ $8 ^+ $ (length s * 4)) * array8 bs buf
     * [| length bs = wordToNat len |] * [| length cols = length s |] * [| inBounds len cols |]
     * [| p <> 0 |] * [| freeable p (2 + length s + length s) |]
     * [| buf <> 0 |] * [| freeable8 buf (length bs) |]) ===> row p.

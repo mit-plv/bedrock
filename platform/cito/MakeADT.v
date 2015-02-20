@@ -234,7 +234,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     natToW k <= res
     -> goodSize k
     -> locals vars vs (wordToNat res) sp
-    ===> locals vars vs k sp * (sp ^+ $((length vars + k) * 4)) =?> (wordToNat res - k).
+    ===> locals vars vs k sp * (sp ^+ $ ((length vars + k) * 4)) =?> (wordToNat res - k).
     unfold locals; simpl.
     sepLemma.
     etransitivity; [ eapply allocated_split | sepLemma ].

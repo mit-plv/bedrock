@@ -7,7 +7,7 @@ Fixpoint allocated (base : W) (offset len : nat) : HProp :=
     | O => Emp
     | S len' => (Ex v, (match offset with
                           | O => base
-                          | _ => base ^+ $(offset)
+                          | _ => base ^+ $ (offset)
                         end) =*> v) * allocated base (4+offset) len'
   end%Sep.
 
@@ -28,7 +28,7 @@ Lemma Himp_refl : forall p, p ===> p.
 Qed.
 
 Lemma allocated_shift_base' : forall base base' len offset offset',
-  base ^+ $(offset) = base' ^+ $(offset')
+  base ^+ $ (offset) = base' ^+ $ (offset')
   -> allocated base offset len ===> allocated base' offset' len.
 Proof.
   induction len; intros.
@@ -65,7 +65,7 @@ Proof.
 Qed.
 
 Theorem allocated_shift_base : forall base base' len len' offset offset',
-  base ^+ $(offset) = base' ^+ $(offset')
+  base ^+ $ (offset) = base' ^+ $ (offset')
   -> len = len'
   -> allocated base offset len ===> allocated base' offset' len'.
   intros; subst; apply allocated_shift_base'; auto.

@@ -261,11 +261,11 @@ Fixpoint ptsto32m sos (a : W) (offset : nat) (vs : list W) : hpropB sos :=
     | nil => Emp
     | v :: nil => (match offset with
                      | O => a
-                     | _ => a ^+ $(offset)
+                     | _ => a ^+ $ (offset)
                    end) =*> v
     | v :: vs' => (match offset with
                      | O => a
-                     | _ => a ^+ $(offset)
+                     | _ => a ^+ $ (offset)
                    end) =*> v * ptsto32m sos a (4 + offset) vs'
   end%Sep.
 

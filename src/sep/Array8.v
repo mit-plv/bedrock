@@ -226,7 +226,7 @@ Section correctness.
   Lemma sym_read_correct'' : forall specs stn bs sm p i,
     (i < length bs)%nat
     -> interp specs (array8 bs p stn sm)
-    -> smem_get (p ^+ $(i)) sm = Some (selN bs i).
+    -> smem_get (p ^+ $ (i)) sm = Some (selN bs i).
     induction bs.
 
     simpl length; inversion 1.
@@ -242,7 +242,7 @@ Section correctness.
     simpl in H0.
 
     destruct i; simpl selN.
-    replace (p ^+ $(0)) with p by W_eq.
+    replace (p ^+ $ (0)) with p by W_eq.
     simpl in H1; intuition.
     eapply split_smem_get; eauto.
 
@@ -256,7 +256,7 @@ Section correctness.
 
   Lemma array8_bound' : forall cs base stn bs m i,
     (0 < i < length bs)%nat
-    -> base ^+ $(i) = base
+    -> base ^+ $ (i) = base
     -> interp cs (array8 bs base stn m)
     -> False.
     destruct bs; simpl length; intros.
@@ -292,7 +292,7 @@ Section correctness.
 
     Lemma natToWord_pow2_alt : forall sz tht,
       tht = sz
-      -> natToWord sz (pow2 tht) = $(0).
+      -> natToWord sz (pow2 tht) = $ (0).
       intros; subst; apply natToWord_pow2.
     Qed.
 
@@ -395,7 +395,7 @@ Section correctness.
   Lemma sym_write_correct'' : forall specs stn v bs p i st,
     (i < length bs)%nat
     -> interp specs (array8 bs p stn st)
-    -> exists st', smem_set (p ^+ $(i)) v st = Some st'
+    -> exists st', smem_set (p ^+ $ (i)) v st = Some st'
       /\ ST.satisfies specs (array8 (updN bs i v) p) stn st'.
     induction bs.
 
@@ -411,7 +411,7 @@ Section correctness.
     generalize Ho; instantiate (1 := v); intro Ho'; clear Ho'.
     case_eq (smem_set p v st); intros; try congruence.
     do 2 esplit.
-    replace (p ^+ $(0)) with p by W_eq.
+    replace (p ^+ $ (0)) with p by W_eq.
     eauto.
     simpl.
     propxFo.

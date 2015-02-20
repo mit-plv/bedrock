@@ -4,12 +4,12 @@ Require Import Arith AutoSep Malloc Arrays8.
 
 Definition readS := SPEC("arr", "pos") reserving 0
   Al arr,
-  PRE[V] array8 arr (V "arr") * [| V "pos" < $(length arr) |]
+  PRE[V] array8 arr (V "arr") * [| V "pos" < $ (length arr) |]
   POST[R] array8 arr (V "arr") * [| R = BtoW (Array8.sel arr (V "pos")) |].
 
 Definition writeS := SPEC("arr", "pos", "val") reserving 0
   Al arr,
-  PRE[V] array8 arr (V "arr") * [| V "pos" < $(length arr) |]
+  PRE[V] array8 arr (V "arr") * [| V "pos" < $ (length arr) |]
   POST[_] array8 (Array8.upd arr (V "pos") (WtoB (V "val"))) (V "arr").
 
 Definition inc1 (b : B) : B := WtoB (BtoW b ^+ $1).
@@ -44,7 +44,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
     [Al arr,
       PRE[V] array8 arr (V "arr") * [| V "len" = length arr |] * [| goodSize (length arr) |]
-        * [| (V "i" <= $(length arr))%word |]
+        * [| (V "i" <= $ (length arr))%word |]
       POST[_] Ex arr', array8 arr' (V "arr") * [| length arr' = length arr |]
         * [| forall j, (j < wordToNat (V "i"))%nat -> Array8.selN arr' j = Array8.selN arr j |]
         * [| forall j, (j >= wordToNat (V "i"))%nat -> Array8.selN arr' j = inc1 (Array8.selN arr j) |] ]

@@ -57,8 +57,8 @@ Qed.
 
 Theorem materialize_allocated' : forall specs stn size base sm,
   (forall w, w < base -> smem_get w sm = None)
-  -> (forall n, (n < 4 * size)%nat -> smem_get (base ^+ $(n)) sm <> None)
-  -> (forall w, base ^+ $(4 * size) <= w -> smem_get w sm = None)
+  -> (forall n, (n < 4 * size)%nat -> smem_get (base ^+ $ (n)) sm <> None)
+  -> (forall w, base ^+ $ (4 * size) <= w -> smem_get w sm = None)
   -> goodSize (wordToNat base + 4 * size)%nat
   -> interp specs ((base =?> size)%Sep stn sm).
   induction size.
@@ -178,7 +178,7 @@ Theorem materialize_allocated' : forall specs stn size base sm,
     -> (init <= pow2 width)%nat
     -> In w (allWordsUpto width init).
     induction init; simpl; intuition.
-    destruct (weq w $(init)); subst; auto; right.
+    destruct (weq w $ (init)); subst; auto; right.
     assert (wordToNat w <> init).
     intro; apply n.
     subst.
@@ -581,7 +581,7 @@ Lemma get_memoryIn' : forall m w init,
   -> goodSize' init
   -> smem_get' (allWordsUpto 32 init) w (memoryIn' m _) = m w.
   induction init; simpl; intuition.
-  destruct (H.addr_dec $(init) w).
+  destruct (H.addr_dec $ (init) w).
   unfold H.mem_get, ReadByte.
   congruence.
   apply IHinit.
@@ -629,7 +629,7 @@ Qed.
 
 Theorem materialize_allocated : forall stn st size specs,
   (forall n, (n < size * 4)%nat -> st.(Mem) n <> None)
-  -> (forall w, $(size * 4) <= w -> st.(Mem) w = None)
+  -> (forall w, $ (size * 4) <= w -> st.(Mem) w = None)
   -> goodSize (size * 4)%nat
   -> interp specs (![ 0 =?> size ] (stn, st)).
   rewrite sepFormula_eq; intros.

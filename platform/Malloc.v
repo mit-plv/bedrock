@@ -10,7 +10,7 @@ Local Hint Extern 1 (himp _ (allocated _ _ _) (allocated _ _ _)) => apply alloca
 (** * A free-list heap managed by the malloc library *)
 
 Definition noWrapAround (p : W) (sz : nat) :=
-  forall n, (n < 4 * sz)%nat -> p ^+ $(n) <> $0.
+  forall n, (n < 4 * sz)%nat -> p ^+ $ (n) <> $0.
 
 Definition freeable (p : W) (sz : nat) := (sz >= 2)%nat
   /\ noWrapAround p sz.
@@ -370,7 +370,7 @@ Qed.
 Lemma noWrapAround_weaken : forall p sz p' sz',
   noWrapAround p sz
   -> (sz' <= sz)%nat
-  -> p' = p ^+ $(4 * (sz - sz'))
+  -> p' = p ^+ $ (4 * (sz - sz'))
   -> noWrapAround p' sz'.
   unfold noWrapAround; intros; subst.
   intro.
@@ -385,14 +385,14 @@ Local Hint Extern 1 (noWrapAround _ _) =>
 
 Lemma weq_cong : forall (w : W) n m,
   n = m
-  -> w ^+ $(n) = w ^+ $(m).
+  -> w ^+ $ (n) = w ^+ $ (m).
   intros; subst; W_eq.
 Qed.
 
 Lemma weq_0 : forall (w w' : W) n,
   w = w'
   -> n = 0
-  -> w = w' ^+ $(n).
+  -> w = w' ^+ $ (n).
   intros; subst; W_eq.
 Qed.
 
@@ -440,7 +440,7 @@ Lemma two_le : forall w : W,
 Qed.
 
 Lemma four_times_wordToNat : forall w : W,
-  $(4 * wordToNat w) = $4 ^* w.
+  $ (4 * wordToNat w) = $4 ^* w.
   intros; rewrite wmult_alt; auto.
 Qed.
 
@@ -452,7 +452,7 @@ Lemma noWrapAround_weaken' : forall p sz sz',
 Qed.
 
 Lemma the_ole_switcheroo : forall a b : W,
-  a ^+ natToW 8 ^+ $(4 * wordToNat b) = a ^+ natToW 4 ^* (b ^+ natToW 2) ^+ $0.
+  a ^+ natToW 8 ^+ $ (4 * wordToNat b) = a ^+ natToW 4 ^* (b ^+ natToW 2) ^+ $0.
   intros; replace (natToW 4 ^* (b ^+ natToW 2)) with ($4 ^* b ^+ $8) by words;
     rewrite four_times_wordToNat; words.
 Qed.

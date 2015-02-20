@@ -19,7 +19,7 @@ Lemma get_memoryIn' : forall m w init,
   -> goodSize' init
   -> smem_get' (allWordsUpto 32 init) w (memoryIn' m _) = m w.
   induction init; simpl; intuition.
-  destruct (H.addr_dec $(init) w).
+  destruct (H.addr_dec $ (init) w).
   unfold H.mem_get, ReadByte.
   congruence.
   apply IHinit.
@@ -244,7 +244,7 @@ Section OpSem.
     hnf in H3.
     eapply H3.
     eauto.
-    replace (sp ^+ $4 ^+ $(n - 4)) with (sp ^+ $(n)); auto.
+    replace (sp ^+ $4 ^+ $ (n - 4)) with (sp ^+ $ (n)); auto.
     rewrite natToW_minus by auto.
     unfold natToW.
     W_eq.
@@ -265,7 +265,7 @@ Section OpSem.
   Lemma array8_mapped : forall specs stn bs p m,
     interp specs (array8 bs p stn m)
     -> forall n, (n < length bs)%nat
-      -> smem_get (p ^+ $(n)) m <> None.
+      -> smem_get (p ^+ $ (n)) m <> None.
     induction bs; simpl; post.
     intuition.
     destruct n.
@@ -274,9 +274,9 @@ Section OpSem.
     rewrite H1 in H2; discriminate.
     eapply IHbs in H4; try tauto.
     instantiate (1 := n); auto.
-    replace (p ^+ $1 ^+ $(n)) with (p ^+ $(S n))
+    replace (p ^+ $1 ^+ $ (n)) with (p ^+ $ (S n))
       by (rewrite natToW_S; unfold natToW; W_eq).
-    case_eq (smem_get (p ^+ $(S n)) x0); intros; auto.
+    case_eq (smem_get (p ^+ $ (S n)) x0); intros; auto.
     eapply split_smem_get in H2; eauto.
     congruence.
   Qed.
@@ -288,7 +288,7 @@ Section OpSem.
     hnf; intros.
     eapply split_comm in H1; eapply split_semp in H1; eauto; subst.
     eapply array8_mapped in H; eauto.
-    case_eq (smem_get (p ^+ $(n)) x2); intros; try congruence.
+    case_eq (smem_get (p ^+ $ (n)) x2); intros; try congruence.
     eapply split_smem_get in H0; eauto.
     rewrite get_memoryIn in H0.
     congruence.
@@ -314,8 +314,8 @@ Section OpSem.
   Qed.
 
   Lemma evalInstrs_slot : forall stn st n,
-    evalInstrs stn st (Assign Rv (LvMem (Imm (Regs st Sp ^+ $(n)))) :: nil)
-    = evalInstrs stn st (Assign Rv (LvMem (Sp + $(n))%loc) :: nil).
+    evalInstrs stn st (Assign Rv (LvMem (Imm (Regs st Sp ^+ $ (n)))) :: nil)
+    = evalInstrs stn st (Assign Rv (LvMem (Sp + $ (n))%loc) :: nil).
     auto.
   Qed.
 
@@ -363,10 +363,10 @@ Section OpSem.
 
   Lemma characterize_array8_fwd : forall specs stn bs base m m',
     interp specs (array8 bs base stn m)
-    -> (forall p, (forall n, (n < length bs)%nat -> p <> base ^+ $(n))
+    -> (forall p, (forall n, (n < length bs)%nat -> p <> base ^+ $ (n))
       -> smem_get p m' = smem_get p m)
     -> (forall p, smem_get p m <> None ->
-      exists n, (n < length bs)%nat /\ p = base ^+ $(n)).
+      exists n, (n < length bs)%nat /\ p = base ^+ $ (n)).
     clear; induction bs; simpl; propxFo.
 
     hnf in H3; subst.
@@ -383,7 +383,7 @@ Section OpSem.
     instantiate (1 := p); congruence.
     intuition subst.
     exists (S x1); intuition.
-    change ($(S x1)) with (natToW (S x1)).
+    change ($ (S x1)) with (natToW (S x1)).
     rewrite (natToW_S x1).
     unfold natToW.
     unfold H.addr in *.
@@ -417,7 +417,7 @@ Section OpSem.
   Lemma characterize_array8_bwd : forall specs stn bs base m,
     interp specs (array8 bs base stn m)
     -> (forall n, (n < length bs)%nat
-      -> smem_get (base ^+ $(n)) m <> None).
+      -> smem_get (base ^+ $ (n)) m <> None).
     induction bs; simpl; propxFo.
 
     intuition.
@@ -432,7 +432,7 @@ Section OpSem.
     eapply IHbs.
     eauto.
     instantiate (1 := n); omega.
-    replace (base ^+ $1 ^+ $(n)) with (base ^+ $(S n))
+    replace (base ^+ $1 ^+ $ (n)) with (base ^+ $ (S n))
       by (rewrite natToW_S; unfold natToW; words).
     eauto using split_None.
   Qed.
@@ -501,7 +501,7 @@ Section OpSem.
     -> (init <= pow2 width)%nat
     -> In w (allWordsUpto width init).
     induction init; simpl; intuition.
-    destruct (weq w $(init)); subst; auto; right.
+    destruct (weq w $ (init)); subst; auto; right.
     assert (wordToNat w <> init).
     intro; apply n.
     subst.
@@ -681,11 +681,11 @@ Section OpSem.
 
   Lemma recharacterize_array8 : forall specs stn sz base m,
     (forall n, (0 < n < sz)%nat
-      -> base ^+ $(n) <> base)
+      -> base ^+ $ (n) <> base)
     -> (forall n, (n < sz)%nat
-      -> smem_get (base ^+ $(n)) m <> None)
+      -> smem_get (base ^+ $ (n)) m <> None)
     -> (forall p, smem_get p m <> None ->
-      exists n, (n < sz)%nat /\ p = base ^+ $(n))
+      exists n, (n < sz)%nat /\ p = base ^+ $ (n))
     -> exists bs, length bs = sz /\ interp specs (array8 bs base stn m).
     clear; induction sz; simpl; intuition.
 
@@ -712,7 +712,7 @@ Section OpSem.
     apply (f_equal (fun x => x ^- $1)) in H4.
     rewrite natToW_S in H4.
     unfold natToW in H4.
-    replace (base ^+ ($1 ^+ $(n)) ^- $1) with (base ^+ $(n)) in H4 by W_eq.
+    replace (base ^+ ($1 ^+ $ (n)) ^- $1) with (base ^+ $ (n)) in H4 by W_eq.
     replace (base ^+ $1 ^- $1) with base in H4 by W_eq.
     auto.
 
@@ -786,7 +786,7 @@ Section OpSem.
 
   Lemma get_graft : forall p0 v sz m m' p,
     smem_get p0 (smem_graft m m' p sz) = Some v
-    -> smem_get p0 m = Some v \/ (exists n, p0 = p ^+ $(n)
+    -> smem_get p0 m = Some v \/ (exists n, p0 = p ^+ $ (n)
       /\ (n < sz)%nat
       /\ smem_get p0 m' = Some v).
     clear; induction sz; simpl; intuition auto 1.
@@ -970,7 +970,7 @@ Section OpSem.
     instantiate (1 := length x1).
     intros.
     apply word_neq.
-    replace (p ^+ $(n) ^- p) with (natToW n).
+    replace (p ^+ $ (n) ^- p) with (natToW n).
     apply not_zero.
     eapply array8_bound in H3.
     generalize dependent 32.
@@ -1011,11 +1011,11 @@ Section OpSem.
     Qed.
 
     rewrite get_minus_out.
-    case_eq (smem_get (p ^+ $(n)) x2); intros; try congruence.
+    case_eq (smem_get (p ^+ $ (n)) x2); intros; try congruence.
     eapply unsplit_smem_get in H4; eauto.
     repeat rewrite get_memoryIn in *.
     destruct H0.
-    specialize (SameMapped (p ^+ $(n))).
+    specialize (SameMapped (p ^+ $ (n))).
     intuition.
 
     case_eq (smem_get (p ^+ $ (n)) x2); intros; try congruence.
@@ -1044,9 +1044,9 @@ Section OpSem.
     destruct H0.
     rewrite Elsewhere; auto.
     intros.
-    destruct (weq p0 (p ^+ $(n))); subst; auto.
+    destruct (weq p0 (p ^+ $ (n))); subst; auto.
     eapply characterize_array8_bwd in H3; eauto.
-    case_eq (smem_get (p ^+ $(n)) x2); intros; try congruence.
+    case_eq (smem_get (p ^+ $ (n)) x2); intros; try congruence.
     destruct H; intro; eauto using no_overlap.
 
     apply split_comm; apply split_a_semp_a.

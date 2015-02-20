@@ -60,7 +60,7 @@ Definition Init_ (afterCall : list string -> nat -> assert) : chunk :=
   (Call "scheduler"!"init"()
     [fun (_ : bool) (_ : W -> W) => afterCall])%SP.
 
-Local Notation RET := (fun inv ns => inv true (fun w => w ^- $(4 + 4 * List.length ns)) ns).
+Local Notation RET := (fun inv ns => inv true (fun w => w ^- $ (4 + 4 * List.length ns)) ns).
 
 Notation "'Init' [ afterCall ]" := (Init_ (RET afterCall)) : SP_scope.
 

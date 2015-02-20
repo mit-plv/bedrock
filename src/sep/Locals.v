@@ -12,7 +12,7 @@ Definition vals := string -> W.
 Definition toArray (ns : list string) (vs : vals) : list W := map vs ns.
 
 Definition locals (ns : list string) (vs : vals) (avail : nat) (p : W) : HProp :=
-  ([| NoDup ns |] * array (toArray ns vs) p * ((p ^+ $(length ns * 4)) =?> avail))%Sep.
+  ([| NoDup ns |] * array (toArray ns vs) p * ((p ^+ $ (length ns * 4)) =?> avail))%Sep.
 
 Definition ascii_eq (a1 a2 : ascii) : bool :=
   let (b1, c1, d1, e1, f1, g1, h1, i1) := a1 in
@@ -395,13 +395,13 @@ Section correctness.
          | Constant base offset =>
            exists wb,
              exprD funcs uvars vars base wordT = Some wb
-             /\ w = wb ^+ $(offset * 4)
+             /\ w = wb ^+ $ (offset * 4)
          | Symbolic base nms nm =>
            exists wb nmsV nmV,
              exprD funcs uvars vars base wordT = Some wb
              /\ exprD funcs uvars vars nms listStringT = Some nmsV
              /\ exprD funcs uvars vars nm stringT = Some nmV
-             /\ w = wb ^+ $(variablePosition nmsV nmV)
+             /\ w = wb ^+ $ (variablePosition nmsV nmV)
        end.
   Proof.
     destruct e; simpl deref; intuition; try discriminate.
@@ -1155,7 +1155,7 @@ Lemma behold_the_array' : forall p ns,
   replace (match offset with
              | 0 => p
              | S _ => p ^+ $ (offset)
-           end) with (p ^+ $(offset)) by (destruct offset; W_eq).
+           end) with (p ^+ $ (offset)) by (destruct offset; W_eq).
 
   apply Himp_ex_c; exists (upd x1 x x0).
   eapply Himp_trans; [ apply Himp_star_comm | ].
@@ -1184,7 +1184,7 @@ Theorem ptsto32m'_out : forall a vs offset,
   replace (match offset with
              | 0 => a
              | S _ => a ^+ $ (offset)
-           end) with (a ^+ $(offset)) by (destruct offset; W_eq).
+           end) with (a ^+ $ (offset)) by (destruct offset; W_eq).
   destruct vs.
   simpl ptsto32m'.
   eapply Himp_trans; [ apply Himp_star_comm | ].
@@ -1317,7 +1317,7 @@ Lemma ptsto32m'_allocated : forall (p : W) (ls : list W) (offset : nat),
   replace (match offset with
              | 0 => p
              | S _ => p ^+ $ (offset)
-           end) with (p ^+ $(offset)) by (destruct offset; W_eq).
+           end) with (p ^+ $ (offset)) by (destruct offset; W_eq).
   apply Himp_star_frame.
   apply Himp_ex_c; eexists; apply Himp_refl.
   auto.
@@ -1528,7 +1528,7 @@ Qed.
 
 Lemma ptsto32m'_shift_base : forall p n ls offset,
   (n <= offset)%nat
-  -> ptsto32m' nil (p ^+ $(n)) (offset - n) ls
+  -> ptsto32m' nil (p ^+ $ (n)) (offset - n) ls
   ===> ptsto32m' nil p offset ls.
   induction ls.
 
@@ -1549,7 +1549,7 @@ Qed.
 
 Lemma ptsto32m_shift_base : forall p n ls offset,
   (n <= offset)%nat
-  -> ptsto32m nil (p ^+ $(n)) (offset - n) ls
+  -> ptsto32m nil (p ^+ $ (n)) (offset - n) ls
   ===> ptsto32m nil p offset ls.
   intros; eapply Himp_trans.
   apply ptsto32m'_in.
@@ -1653,7 +1653,7 @@ Qed.
 Lemma ptsto32m'_shift_base' : forall p n ls offset,
   (n <= offset)%nat
   -> ptsto32m' nil p offset ls
-  ===> ptsto32m' nil (p ^+ $(n)) (offset - n) ls.
+  ===> ptsto32m' nil (p ^+ $ (n)) (offset - n) ls.
   induction ls.
 
   intros; apply Himp_refl.
@@ -1674,7 +1674,7 @@ Qed.
 Lemma ptsto32m_shift_base' : forall p n ls offset,
   (n <= offset)%nat
   -> ptsto32m nil p offset ls
-  ===> ptsto32m nil (p ^+ $(n)) (offset - n) ls.
+  ===> ptsto32m nil (p ^+ $ (n)) (offset - n) ls.
   intros; eapply Himp_trans.
   apply ptsto32m'_in.
   eapply Himp_trans.

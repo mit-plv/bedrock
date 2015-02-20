@@ -17,7 +17,7 @@ Definition bump := map (fun w : W => w ^+ $1).
 
 Definition bumpS : spec := SPEC("arr", "len") reserving 3
   Al ls,
-  PRE[V] [| V "len" = $(length ls) |] * array ls (V "arr")
+  PRE[V] [| V "len" = $ (length ls) |] * array ls (V "arr")
   POST[_] array (bump ls) (V "arr").
 
 Open Scope list_scope.
@@ -34,7 +34,7 @@ Definition arrays := bmodule "read" {{
   end with bfunction "bump"("arr", "len", "i", "tmp", "tmp2") [bumpS]
     "i" <- 0;;
     [Al ls, Al done, Al pending,
-      PRE[V] [| V "len" = $(length ls) |] * [| V "i" = $(length done) |] * [| ls = done ++ pending |]
+      PRE[V] [| V "len" = $ (length ls) |] * [| V "i" = $ (length done) |] * [| ls = done ++ pending |]
         * array ls (V "arr")
       POST[_] Ex ls', [| ls' = done ++ bump pending |] * array ls' (V "arr") ]
     While ("i" < "len") {

@@ -47,7 +47,7 @@ Qed.
 
 Lemma natToWord_pow2_zero: forall sz n, $ (n * pow2 sz) = natToWord sz 0.
   intros.
-  rewrite <- (wplus_unit $(n * pow2 sz)).
+  rewrite <- (wplus_unit $ (n * pow2 sz)).
   rewrite wplus_comm.
   apply natToWord_pow2'.
 Qed.

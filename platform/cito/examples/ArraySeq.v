@@ -8,11 +8,11 @@ Module Type ADT.
 
   Axiom arr_fwd : forall ws self, arr ws self ===> [| self <> 0 |] * [| freeable self (2 + length ws) |]
     * [| goodSize (2 + length ws) |]
-    * (Ex junk, self ==*> $(length ws), junk)
+    * (Ex junk, self ==*> $ (length ws), junk)
     * array ws (self ^+ $8).
   Axiom arr_bwd : forall ws (self : W), [| self <> 0 |] * [| freeable self (2 + length ws) |]
     * [| goodSize (2 + length ws) |]
-    * (Ex junk, self ==*> $(length ws), junk)
+    * (Ex junk, self ==*> $ (length ws), junk)
     * array ws (self ^+ $8) ===> arr ws self.
 End ADT.
 
@@ -21,19 +21,19 @@ Module Adt : ADT.
 
   Definition arr (ws : list W) (self : W) : HProp :=
     [| self <> 0 |] * [| freeable self (2 + length ws) |] * [| goodSize (2 + length ws) |]
-    * (Ex junk, self ==*> $(length ws), junk)
+    * (Ex junk, self ==*> $ (length ws), junk)
     * array ws (self ^+ $8).
 
   Theorem arr_fwd : forall ws self, arr ws self ===> [| self <> 0 |] * [| freeable self (2 + length ws) |]
     * [| goodSize (2 + length ws) |]
-    * (Ex junk, self ==*> $(length ws), junk)
+    * (Ex junk, self ==*> $ (length ws), junk)
     * array ws (self ^+ $8).
     unfold arr; sepLemma.
   Qed.
 
   Theorem arr_bwd : forall ws (self : W), [| self <> 0 |] * [| freeable self (2 + length ws) |]
     * [| goodSize (2 + length ws) |]
-    * (Ex junk, self ==*> $(length ws), junk)
+    * (Ex junk, self ==*> $ (length ws), junk)
     * array ws (self ^+ $8) ===> arr ws self.
     unfold arr; sepLemma.
   Qed.
@@ -65,7 +65,7 @@ Local Hint Constructors view_shift.
 
 Lemma allocated_out : forall p offset len,
   view_shift offset
-  -> allocated p offset len ===> Ex ws, array ws (p ^+ $(offset)) * [| length ws = len |].
+  -> allocated p offset len ===> Ex ws, array ws (p ^+ $ (offset)) * [| length ws = len |].
   intros; eapply Himp_trans; [ apply allocated_out' | ].
   apply Himp_ex; intro.
   apply Himp_star_frame; try apply Himp_refl.

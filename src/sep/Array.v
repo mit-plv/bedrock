@@ -305,7 +305,7 @@ Section correctness.
   Fixpoint ptsto32m' sos (a : W) (offset : nat) (vs : list W) : hpropB sos :=
     match vs with
       | nil => Emp
-      | v :: vs' => (a ^+ $(offset)) =*> v * ptsto32m' sos a (4 + offset) vs'
+      | v :: vs' => (a ^+ $ (offset)) =*> v * ptsto32m' sos a (4 + offset) vs'
     end%Sep.
 
   Theorem ptsto32m'_in : forall a cs stn vs offset m,
@@ -374,7 +374,7 @@ Section correctness.
   Lemma smem_read_correct'' : forall cs base stn ws offset i m,
     interp cs (ptsto32m' _ base (offset * 4) ws stn m)
     -> (i < length ws)%nat
-    -> smem_get_word (implode stn) (base ^+ $((offset + i) * 4)) m = Some (selN ws i).
+    -> smem_get_word (implode stn) (base ^+ $ ((offset + i) * 4)) m = Some (selN ws i).
     induction ws.
 
     simpl length.
@@ -442,7 +442,7 @@ Section correctness.
 
   Lemma array_bound' : forall cs base stn ws m i,
     (0 < i < length ws)%nat
-    -> base ^+ $(i * 4) = base
+    -> base ^+ $ (i * 4) = base
     -> interp cs (ptsto32m' _ base 0 ws stn m)
     -> False.
     destruct ws; simpl length; intros.
@@ -510,7 +510,7 @@ Section correctness.
 
   Lemma smem_read_correct' : forall cs base stn ws i m,
     interp cs (array ws base stn m)
-    -> i < $(length ws)
+    -> i < $ (length ws)
     -> smem_get_word (implode stn) (base ^+ $4 ^* i) m = Some (sel ws i).
     unfold sel; intros; rewrite <- (@smem_read_correct'' cs base stn ws 0 (wordToNat i) m).
     f_equal.
@@ -651,7 +651,7 @@ Section correctness.
   Lemma smem_write_correct'' : forall cs base stn v ws i m offset,
     (i < length ws)%nat
     -> interp cs (ptsto32m' _ base (offset * 4) ws stn m)
-    -> exists m', smem_set_word (explode stn) (base ^+ $4 ^* $(offset + i)) v m = Some m'
+    -> exists m', smem_set_word (explode stn) (base ^+ $4 ^* $ (offset + i)) v m = Some m'
       /\ ST.satisfies cs (ptsto32m' _ base (offset * 4) (updN ws i v)) stn m'.
     induction ws; simpl length; intros.
 

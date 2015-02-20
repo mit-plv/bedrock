@@ -146,7 +146,7 @@ Section ArrayBoundProver.
                     | Some (i, a) =>
                       exists iv, exprD funcs uvars vars i wordT = Some iv
                         /\ exists av, exprD funcs uvars vars a listWT = Some av
-                          /\ (P = (iv < $(length av)))
+                          /\ (P = (iv < $ (length av)))
                   end
     end.
     destruct e; simpl factIn; simpl exprD; intuition; try duh.
@@ -202,7 +202,7 @@ Section ArrayBoundProver.
     Definition pairValid (p : expr types * expr types) :=
       exists i, exprD funcs uvars vars (fst p) wordT = Some i
         /\ exists a, exprD funcs uvars vars (snd p) listWT = Some a
-          /\ i < $(length a).
+          /\ i < $ (length a).
 
     Definition boundValid (summ : boundSummary) :=
       List.Forall pairValid summ.

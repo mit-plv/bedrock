@@ -73,7 +73,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros; repeat rewrite wplus_assoc in *; eauto.
     Qed.
 
-    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $(a) ^- $(S (S b)) = natToW (a - 2 - b).
+    Lemma replace_it3 : forall a b, 2 <= a -> b <= a - 2 -> $ (a) ^- $ (S (S b)) = natToW (a - 2 - b).
       intros; replace (a - 2 - b) with (a - (2 + b)) by omega; rewrite natToW_minus; eauto.
     Qed.
 
@@ -577,7 +577,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       set (len1 := 4 * length vars) in *.
       set (len2 := 4 * length x6) in *.
       set (w := Regs x Sp ^+ $8) in *.
-      replace (_ ^+ natToW (len1 + len2)) with (w ^+ $(len1) ^+ $(len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
+      replace (_ ^+ natToW (len1 + len2)) with (w ^+ $ (len1) ^+ $ (len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
       unfold_all.
       repeat rewrite wplus_assoc in *.
 
@@ -835,7 +835,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       set (len1 := 4 * length vars) in *.
       set (len2 := 4 * length x6) in *.
       set (w := Regs x Sp ^+ $8) in *.
-      replace (_ ^+ natToW (len1 + len2)) with (w ^+ $(len1) ^+ $(len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
+      replace (_ ^+ natToW (len1 + len2)) with (w ^+ $ (len1) ^+ $ (len2)) by (rewrite natToW_plus; rewrite wplus_assoc; eauto).
       unfold_all.
       repeat rewrite wplus_assoc in *.
 

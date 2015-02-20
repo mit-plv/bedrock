@@ -432,7 +432,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                      (IL.Assign (LvReg Rv)
                                 (RvLval
                                    (LvMem
-                                      (Imm (Regs st Sp ^+ $8 ^+ $(variablePosition vars ret)))))
+                                      (Imm (Regs st Sp ^+ $8 ^+ $ (variablePosition vars ret)))))
                                 :: IL.Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
           None
         ) ; [ | clear H0 ].
@@ -477,7 +477,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                      (IL.Assign (LvReg Rv)
                                 (RvLval
                                    (LvMem
-                                      (Imm (Regs x Sp ^+ $8 ^+ $(variablePosition vars ret)))))
+                                      (Imm (Regs x Sp ^+ $8 ^+ $ (variablePosition vars ret)))))
                                 :: IL.Assign (LvReg Rp) (RvLval (LvMem (Sp + natToW 0)%loc)) :: nil) =
           Some st
         ) ; [ | clear H1 ].
