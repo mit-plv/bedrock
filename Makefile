@@ -34,7 +34,7 @@ Makefile.coq::
 
 Makefile.variables: Makefile.coq
 	$(VECHO) "CAT $< | GREP > $@"
-	$(Q)cat $< | grep -v '^%' | grep -v "^	" | grep -v '\..*:.*' | grep -v '^-include' | grep -v '^[a-z-]*:\([^=]\|$$\)' | grep -v '^COQC' > $@
+	$(Q)cat $< | grep -v '^%' | grep -v "^	" | grep -v '\..*:.*' | grep -v '^-include' | grep -v '^[a-z-]*:\([^=]\|$$\)' > $@
 
 -include Makefile.variables
 
