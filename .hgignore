@@ -5,12 +5,13 @@ syntax: glob
 
 *.depend
 Makefile.coq
+Makefile.variables
 *.vo
 *.glob
 *.v.d
 deps.dot
 deps.pdf
-src/ILTac.v
+Bedrock/ILTac.v
 
 *.aux
 *.bbl
@@ -35,14 +36,13 @@ timing/
 *.toc
 *.orig
 *.\#*
-/.dir-locals.el
 
 *.exe
-examples/comparison/*data.*
-examples/comparison/bedrock_server.s
-examples/comparison/bedrock_server.ml
+Bedrock/Examples/comparison/*data.*
+Bedrock/Examples/comparison/bedrock_server.s
+Bedrock/Examples/comparison/bedrock_server.ml
 
 *.gen.s
 *.gen.ml
-platform/tests/echotest
+Bedrock/Platform/tests/echotest
 ttt.txt

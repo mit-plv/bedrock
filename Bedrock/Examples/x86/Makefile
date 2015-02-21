@@ -2,7 +2,7 @@ all: Factorial.exe
 
 .PHONY: all
 
-COQC = $(COQBIN)coqc -R ../../src Bedrock -I ..
+COQC = $(COQBIN)coqc -R ../.. Bedrock -I ../../reification
 
 %.gen.ml: %AMD64.v ../%.vo ignoreFail.ml printCode.ml Makefile
 	cat ignoreFail.ml >$@
