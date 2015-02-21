@@ -1,48 +1,48 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import AutoSep.
-  Require Import StructuredModule.
-  Require Import StructuredModuleFacts.
-  Require Import GoodModule.
-  Require Import GoodFunction.
-  Require Import ConvertLabel.
-  Require Import Cito.NameDecoration.
-  Require Import Wrap.
-  Require Import GeneralTactics.
+  Require Import Bedrock.Platform.AutoSep.
+  Require Import Bedrock.StructuredModule.
+  Require Import Bedrock.Platform.Cito.StructuredModuleFacts.
+  Require Import Bedrock.Platform.Cito.GoodModule.
+  Require Import Bedrock.Platform.Cito.GoodFunction.
+  Require Import Bedrock.Platform.Cito.ConvertLabel.
+  Require Import Bedrock.Platform.Cito.NameDecoration.
+  Require Import Bedrock.Platform.Wrap.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
-  Require Import CompileFuncSpec.
+  Require Import Bedrock.Platform.Cito.CompileFuncSpec.
   Module Import CompileFuncSpecMake := Make E M.
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Import InvMake.
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import LinkSpec.
+  Require Import Bedrock.Platform.Cito.LinkSpec.
   Module Import LinkSpecMake := Make E.
   Module Import LinkSpecMake2 := Make M.
 
-  Require Import ListFacts1.
-  Require Import ListFacts2.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts2.
 
-  Require Import StringSet.
+  Require Import Bedrock.StringSet.
   Module Import SS := StringSet.
-  Require Import StringSetFacts.
+  Require Import Bedrock.Platform.Cito.StringSetFacts.
 
-  Require Import Labels.
-  Require Import LabelMap.
-  Require LabelMapFacts.
-  Require Import GLabel.
-  Require Import GLabelMap.
+  Require Import Bedrock.Labels.
+  Require Import Bedrock.LabelMap.
+  Require Bedrock.Platform.Cito.LabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-  Require Import ConvertLabelMap.
+  Require Import Bedrock.Platform.Cito.ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
 
@@ -137,11 +137,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
 
-      Require Import GeneralTactics2.
+      Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
       Hint Extern 1 => reflexivity.
 
-      Require Import SetoidList.
+      Require Import Coq.Lists.SetoidList.
 
       Lemma In_exports : forall l, In l exports -> exists m f, List.In m modules /\ List.In f (Functions m) /\ l = (MName m, FName f).
         intros.
@@ -389,8 +389,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation is_export := (is_export modules).
       Notation is_import := (is_import imports).
 
-      Require Import Option.
-      Require Import Label2WordFacts.
+      Require Import Bedrock.Platform.Cito.Option.
+      Require Import Bedrock.Platform.Cito.Label2WordFacts.
 
       Lemma fs_internal :
         forall stn p spec,
@@ -541,7 +541,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply NoDup_union.
       Qed.
 
-      Require Import SetoidListFacts.
+      Require Import Bedrock.Platform.Cito.SetoidListFacts.
 
       Corollary bimports_fullImports : forall (x : glabel), List.In x (List.map fst bimports) -> LabelMap.LabelMap.find (x : label) full_imports <> None.
       Proof.
@@ -773,9 +773,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Require Import StringFacts2.
+      Require Import Bedrock.Platform.Cito.StringFacts2.
 
-      Require Import NameVC.
+      Require Import Bedrock.Platform.Cito.NameVC.
 
       Lemma module_name_not_in_bimports_diff_bexports : ~ List.In (MName m) (List.map fst2 bimports_diff_bexports).
         intuition.
@@ -912,8 +912,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply Compat_many_exports_foreign_imports; intuition.
       Qed.
 
-      Require Import Morphisms.
-      Require Import Setoid.
+      Require Import Coq.Classes.Morphisms.
+      Require Import Coq.Setoids.Setoid.
 
       Lemma Equal_get_module_Exports : forall m, mapi func_spec_IFS (of_list (get_module_exports m)) == get_module_Exports m.
         intros.
@@ -1051,7 +1051,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           | p' => existT (fun T => T -> propX pc state _) _ (fun _ : unit => Inj True)
         end.
 
-      Require Import Eqdep.
+      Require Import Coq.Logic.Eqdep.
 
       Definition uninjX pc state G (p : propX pc state G) : Prop :=
         match p with

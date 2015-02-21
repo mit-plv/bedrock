@@ -1,4 +1,4 @@
-Require Import Syntax.
+Require Import Bedrock.Platform.Cito.Syntax.
 
 Notation skip := Syntax.Skip.
 

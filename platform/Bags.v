@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
 
 Set Implicit Arguments.
 

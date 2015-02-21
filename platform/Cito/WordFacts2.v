@@ -1,7 +1,7 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import AutoSep Arith.
+Require Import Bedrock.Platform.AutoSep Coq.Arith.Arith.
 
 (* usuful and safe hints *)
 Local Hint Resolve bound_N_nat : N.

@@ -1,12 +1,12 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import Notations3.
+Require Import Bedrock.Platform.Cito.Notations3.
 
 Notation "$ n" := (natToW n) : stmt_scope.
 
-Require Import SyntaxFunc.
-Require Import List.
+Require Import Bedrock.Platform.Cito.SyntaxFunc.
+Require Import Coq.Lists.List.
 
 Notation "'cfunction' name () b 'end'" :=
   {|
@@ -34,7 +34,7 @@ Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsi
 
 Delimit Scope Citofuncs_scope with Citofuncs.
 
-Require Import SyntaxModule.
+Require Import Bedrock.Platform.Cito.SyntaxModule.
 
 Notation "'cmodule' name fs" :=
   {|
@@ -52,21 +52,21 @@ Definition m := cmodule "return_zero" {{
   f
 }}.
 
-Require Import GoodModule.
+Require Import Bedrock.Platform.Cito.GoodModule.
 
 Notation MName := SyntaxModule.Name.
 Notation FName := SyntaxFunc.Name.
 Notation Funcs := SyntaxModule.Functions.
 
-Require Import GoodFunc.
+Require Import Bedrock.Platform.Cito.GoodFunc.
 
-Require Import Program.Basics.
+Require Import Coq.Program.Basics.
 
 Infix "*" := compose.
 
-Require Import GeneralTactics.
-Require Import GoodFunction.
-Require Import IsGoodModule.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.GoodFunction.
+Require Import Bedrock.Platform.Cito.IsGoodModule.
 
 (* Should have a decider here for automatic syntactic checking *)
 
@@ -87,10 +87,10 @@ Qed.
 
 Definition gm := to_good_module good.
 
-Require Import ADT RepInv.
+Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
-  Require Import LinkSpec.
+  Require Import Bedrock.Platform.Cito.LinkSpec.
   Module Import LinkSpecMake := Make E.
   Module Import LinkSpecMake2 := Make M.
 
@@ -102,15 +102,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
        end) d)
     (no associativity, at level 95, lab at level 0).
 
-  Require Import Malloc.
+  Require Import Bedrock.Platform.Malloc.
 
-  Require Import Arith.
-  Require Import WordFacts.
-  Require Import CompileStmtTactics.
+  Require Import Coq.Arith.Arith.
+  Require Import Bedrock.Platform.Cito.WordFacts.
+  Require Import Bedrock.Platform.Cito.CompileStmtTactics.
 
   Import InvMake.SemanticsMake.
 
-  Require Import MakeADT.
+  Require Import Bedrock.Platform.Cito.MakeADT.
   Module Import Made := Make(E)(M).
 
   Ltac hiding tac :=
@@ -167,7 +167,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
 
-  Require Import SemanticsUtil.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
 
   Opaque mult.
 
@@ -257,9 +257,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     inversion_clear H2.
     eauto.
     fold (@length W).
-    Require Import Mult.
+    Require Import Coq.Arith.Mult.
     rewrite mult_0_r.
-    Require Import WordFacts.
+    Require Import Bedrock.Platform.Cito.WordFacts.
     rewrite wplus_0.
     rewrite plus_0_r.
     rewrite length_toArray.
@@ -351,7 +351,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     sepLemma.
   Qed.
 
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
 
   Theorem is_state_out''''' : forall vs h sp rp F e_stack e_stack' args,
                                NoDup args
@@ -394,7 +394,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   (* linking *)
 
-  Require Import GoodOptimizer ConstFolding ElimDead.
+  Require Import Bedrock.Platform.Cito.GoodOptimizer Bedrock.Platform.Cito.optimizers.ConstFolding Bedrock.Platform.Cito.optimizers.ElimDead.
 
   Definition opt := compose ConstFolding.opt ElimDead.opt.
 
@@ -408,24 +408,24 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     eapply ElimDeadMake.good_optimizer.
   Qed.
 
-  Require Import Link.
+  Require Import Bedrock.Platform.Cito.Link.
   Module Import LinkMake := Link.Make E M.
 
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
   Import LabelMapFacts.
   Import LinkModuleImplsMake.
 
   Import StringSetFacts.
-  Require Import StructuredModuleFacts.
-  Require Import ConvertLabelMap.
+  Require Import Bedrock.Platform.Cito.StructuredModuleFacts.
+  Require Import Bedrock.Platform.Cito.ConvertLabelMap.
   Import GLabelMapFacts.
 
   Import GLabelMap.
 
   Definition compile_to_bedrock modules imports := result modules imports opt_good.
 
-  Require Import LinkFacts.
+  Require Import Bedrock.Platform.Cito.LinkFacts.
   Module Import LinkFactsMake := Make E.
 
   Ltac impl_ok :=
@@ -462,7 +462,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     apply linkOk; [ apply m1 | apply m2 | exact (refl_equal true)
       | ok_simpl; tauto | ok_simpl; tauto | ok_simpl; tauto ].
 
-  Require Import Safety Bootstrap.
+  Require Import Bedrock.Platform.Safety Bedrock.Platform.Bootstrap.
 
   Ltac safety ok := eapply Safety.safety; try eassumption; [
     ok_simpl; unfold Safety.labelSys, Safety.labelSys'; simpl; tauto

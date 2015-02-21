@@ -1,8 +1,8 @@
 (* Structured programming (basic command constructs) *)
 
-Require Import NArith String List.
+Require Import Coq.NArith.NArith Coq.Strings.String Coq.Lists.List.
 
-Require Import Nomega PropX PropXTac Word LabelMap IL XCAP.
+Require Import Bedrock.Nomega Bedrock.PropX Bedrock.PropXTac Bedrock.Word Bedrock.LabelMap Bedrock.IL Bedrock.XCAP.
 
 Set Implicit Arguments.
 

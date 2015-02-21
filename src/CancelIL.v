@@ -1,14 +1,14 @@
-Require Import Omega.
-Require Import IL SepIL.
-Require Import Word Memory.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.IL Bedrock.SepIL.
+Require Import Bedrock.Word Bedrock.Memory.
 Import List.
-Require Import DepList EqdepClass.
-Require Import PropX.
-Require Import Expr SepExpr SepCancel.
-Require Import Prover ILEnv.
-Require Import Tactics Reflection.
-Require Import TacPackIL.
-Require ExprUnify.
+Require Import Bedrock.DepList Bedrock.EqdepClass.
+Require Import Bedrock.PropX.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SepCancel.
+Require Import Bedrock.Prover Bedrock.ILEnv.
+Require Import Bedrock.Tactics Bedrock.Reflection.
+Require Import Bedrock.TacPackIL.
+Require Bedrock.ExprUnify.
 
 Set Implicit Arguments.
 Set Strict Implicit.

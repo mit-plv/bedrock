@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
 
 
 Section adt.

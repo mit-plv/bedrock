@@ -1,19 +1,19 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 (** This file implements symbolic evaluation for the
  ** language defined in IL.v
  **)
-Require Import IL SepIL.
-Require Import Word Memory.
-Require Import DepList EqdepClass.
-Require Import PropX.
-Require Import SepExpr SymEval.
-Require Import Expr.
-Require Import Prover.
-Require Import Env TypedPackage.
+Require Import Bedrock.IL Bedrock.SepIL.
+Require Import Bedrock.Word Bedrock.Memory.
+Require Import Bedrock.DepList Bedrock.EqdepClass.
+Require Import Bedrock.PropX.
+Require Import Bedrock.SepExpr Bedrock.SymEval.
+Require Import Bedrock.Expr.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Env Bedrock.TypedPackage.
 Import List.
 
-Require Structured SymEval.
-Require Import ILEnv SymIL.
+Require Bedrock.Structured Bedrock.SymEval.
+Require Import Bedrock.ILEnv Bedrock.SymIL.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -471,8 +471,8 @@ Module SymIL_Correct.
       eapply AllProvable_weaken; eauto.
     Qed.
     Hint Resolve stateD_weaken_vars stateD_weaken_uvars : stateD_solver.
-    Require ListFacts.
-    Require Import Tactics Reflection.
+    Require Bedrock.ListFacts.
+    Require Import Bedrock.Tactics Bedrock.Reflection.
     Hint Resolve ListFacts.not_sure ListFacts.map_skipn_all_map_is_nil ListFacts.map_skipn_all_map : env_resolution.
 
     Lemma sym_locD_weaken : forall ts X A C Y Z,

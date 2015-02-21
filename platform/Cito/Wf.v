@@ -3,9 +3,9 @@
 
 Set Implicit Arguments.
 
-Require Import Bool.
-Require Import AutoSep.
-Require Import SyntaxExpr SemanticsExpr Syntax Semantics.
+Require Import Coq.Bool.Bool.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Platform.Cito.SemanticsExpr Bedrock.Platform.Cito.Syntax Bedrock.Platform.Cito.Semantics.
 
 Fixpoint expReads (unwritten : string -> Prop) (e : Expr) (x : string) : Prop :=
   match e with
@@ -418,9 +418,9 @@ End ADTValue.
 
 Section TopSection.
 
-  Require Import Syntax.
-  Require Import Locals.
-  Require Import String.
+  Require Import Bedrock.Platform.Cito.Syntax.
+  Require Import Bedrock.sep.Locals.
+  Require Import Coq.Strings.String.
 
   Definition NoUninitialized (arg_vars : list string) (rvar : string) (s : Stmt) :=
     (forall x, ~reads (fun s => ~In s arg_vars) s x) /\ writes s rvar.
@@ -440,11 +440,11 @@ Section TopSection.
 
 End TopSection.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
   Section TopSection.

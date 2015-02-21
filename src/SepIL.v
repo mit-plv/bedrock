@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import Arith NArith Eqdep_dec List.
-Require Import Nomega Word Memory PropX PropXTac IL DepList Heaps SepTheoryXIL.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Coq.NArith.NArith Coq.Logic.Eqdep_dec Coq.Lists.List.
+Require Import Bedrock.Nomega Bedrock.Word Bedrock.Memory Bedrock.PropX Bedrock.PropXTac Bedrock.IL Bedrock.DepList Bedrock.Heaps Bedrock.SepTheoryXIL.
 
 Set Implicit Arguments.
 
@@ -329,7 +329,7 @@ End SepFormula.
 
 Import SepFormula.
 
-Require Import RelationClasses Setoid.
+Require Import Coq.Classes.RelationClasses Coq.Setoids.Setoid.
 
 Global Add Parametric Morphism cs : (@sepFormula nil) with
   signature (@himp W (settings * state) cs ==> @eq (settings * state) ==> @PropXRel.PropX_imply _ _ cs)
@@ -481,7 +481,7 @@ Definition natToByte (n : nat) : B := natToWord _ n.
 Coercion natToByte : nat >-> B.
 
 (* *)
-Require SepExpr SepHeap.
+Require Bedrock.SepExpr Bedrock.SepHeap.
 Module SEP := SepExpr.Make ST.
 Module SH := SepHeap.Make SEP.
 

@@ -1,20 +1,20 @@
 Set Implicit Arguments.
 
-Require Import Syntax.
+Require Import Bedrock.Platform.Cito.Syntax.
 
-Require Import FreeVarsExpr.
+Require Import Bedrock.Platform.Cito.FreeVarsExpr.
 
-Require Import Option.
-Require Import String.
+Require Import Bedrock.Platform.Cito.Option.
+Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
-Require Import List.
+Require Import Coq.Lists.List.
 Import ListNotations.
 Local Open Scope list_scope.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import StringSetFacts.
+Require Import Bedrock.Platform.Cito.StringSetFacts.
 Import FSetNotations.
 Import FSetNotationsTrial.
 Local Open Scope fset_scope.
@@ -44,7 +44,7 @@ Fixpoint uninited_reads inited stmt :=
     | Syntax.Call _ f args => List.fold_left (fun acc e => free_vars e - inited + acc) args (free_vars f - inited)
   end.
 
-Require Import FuncCore.
+Require Import Bedrock.Platform.Cito.FuncCore.
 
 Local Open Scope bool_scope.
 

@@ -1,19 +1,19 @@
 Set Implicit Arguments.
 
-Require Import FacadeFacts.
+Require Import Bedrock.Platform.Facade.FacadeFacts.
 Export FacadeFacts.
-Require Import Facade.
-Require Import DFacade.
+Require Import Bedrock.Platform.Facade.Facade.
+Require Import Bedrock.Platform.Facade.DFacade.
 
-Require Import GeneralTactics.
-Require Import GeneralTactics2.
-Require Import GeneralTactics4.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import StringSetFacts.
+Require Import Bedrock.Platform.Cito.StringSetFacts.
 
 Lemma is_syntax_ok_seq_elim a b : is_syntax_ok (Seq a b) = true -> is_syntax_ok a = true /\ is_syntax_ok b = true.
 Proof.
@@ -30,7 +30,7 @@ Proof.
   intuition.
 Qed.
 
-Require Import Facade.NameDecoration.
+Require Import Bedrock.Platform.Facade.NameDecoration.
 
 Definition is_syntax_ok_e e := StringSet.for_all is_good_varname (FreeVarsExpr.free_vars e).
 
@@ -76,7 +76,7 @@ Proof.
   intuition.
 Qed.
 
-Require Import ListFacts3.
+Require Import Bedrock.Platform.Cito.ListFacts3.
 
 Lemma is_syntax_ok_call_elim x f args : is_syntax_ok (Call x f args) = true -> is_good_varname x = true /\ List.forallb is_good_varname args = true /\ is_no_dup args = true.
 Proof.
@@ -93,7 +93,7 @@ Proof.
   intuition.
 Qed.
 
-Require Import SyntaxExpr.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
 Lemma is_syntax_ok_e_var_elim x : is_syntax_ok_e (Var x) = true -> is_good_varname x = true.
 Proof.
@@ -128,7 +128,7 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.Option.
 
   Notation State := (@State ADTValue).
   Notation Env := (@Env ADTValue).
@@ -159,29 +159,29 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import SyntaxExpr.
+  Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
   (* test boolean deciders *)
   Open Scope string_scope.
-  Require Import List.
+  Require Import Coq.Lists.List.
   Import ListNotations.
 
-  Require Import StringSet.
+  Require Import Bedrock.StringSet.
   Import StringSet.
-  Require Import StringSetFacts.
+  Require Import Bedrock.Platform.Cito.StringSetFacts.
 
   Import Logic.
 
   Goal equal (assigned (Seq (Assign "x" (Var "a")) (Assign "y" (Var "b")))) (of_list ["x"; "y"]) = true. Proof. exact eq_refl. Qed.
 
-  Require Import String.
-  Require Import List.
-  Require Import StringMap.
+  Require Import Coq.Strings.String.
+  Require Import Coq.Lists.List.
+  Require Import Bedrock.Platform.Cito.StringMap.
   Import StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
 
-  Require Import ListFacts3.
-  Require Import ListFacts4.
+  Require Import Bedrock.Platform.Cito.ListFacts3.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
 
   Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
     intros; destruct spec; simpl; eapply is_no_dup_sound; eauto.
@@ -215,7 +215,7 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
 
   Lemma safe_while_is_bool (env : Env) e s st : Safe env (While e s) st -> is_bool st e.
   Proof.

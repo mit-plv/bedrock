@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import GoodFunction.
-Require Import Cito.NameDecoration.
+Require Import Bedrock.Platform.Cito.GoodFunction.
+Require Import Bedrock.Platform.Cito.NameDecoration.
 
 Record GoodModule :=
   {

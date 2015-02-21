@@ -1,19 +1,19 @@
 Set Implicit Arguments.
 
-Require Import NoUninitDec.
+Require Import Bedrock.Platform.Cito.NoUninitDec.
 
-Require Wf.
-Require Import Bool.
+Require Bedrock.Platform.Cito.Wf.
+Require Import Coq.Bool.Bool.
 
-Require Import GeneralTactics2.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
-Require Import List.
+Require Import Coq.Lists.List.
 Import ListNotations.
 Local Open Scope list_scope.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import StringSetFacts.
+Require Import Bedrock.Platform.Cito.StringSetFacts.
 Import FSetNotations.
 Import FSetNotationsTrial.
 Local Open Scope fset_scope.
@@ -40,9 +40,9 @@ Proof.
     eauto.
 Qed.
 
-Require Import GeneralTactics GeneralTactics4.
+Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics4.
 
-Require Import FreeVarsExpr.
+Require Import Bedrock.Platform.Cito.FreeVarsExpr.
 
 Lemma expReads_free_vars e : forall uninited x, Wf.expReads uninited e x -> In x (free_vars e) /\ uninited x.
 Proof.
@@ -81,7 +81,7 @@ Proof.
   openhyp; split; eauto.
 Qed.
 
-Require Import String.
+Require Import Coq.Strings.String.
 
 Definition sub_set (a : string -> Prop) b := forall x, a x -> In x b.
 
@@ -164,7 +164,7 @@ Proof.
   intuition.
 Qed.
 
-Require Import FuncCore.
+Require Import Bedrock.Platform.Cito.FuncCore.
 
 Lemma is_no_uninited_reads_sound f : is_no_uninited_reads f = true -> forall x, ~ Wf.reads (fun x => ~ List.In x (ArgVars f)) (Body f) x.
 Proof.

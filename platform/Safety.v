@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Bedrock PreAutoSep Sys.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Bedrock Bedrock.Platform.PreAutoSep Bedrock.Platform.Sys.
 Import XCAP.
 
 
@@ -65,7 +65,7 @@ Lemma get_memoryIn : forall m w,
   reflexivity.
 Qed.
 
-Require Import DepList.
+Require Import Bedrock.DepList.
 
 Fixpoint smem_put ls (sm : smem' ls) (w : W) (v : B) : smem' ls :=
   match sm with

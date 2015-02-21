@@ -4,17 +4,17 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import ChangeSpec.
-  Require Import SemanticsFacts4.
-  Require Import ProgramLogic2.
-  Require Import Transit.
-  Require Import Semantics.
-  Require Import LinkSpecFacts.
-  Require Import LinkSpec.
+  Require Import Bedrock.Platform.Cito.ChangeSpec.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts4.
+  Require Import Bedrock.Platform.Cito.ProgramLogic2.
+  Require Import Bedrock.Platform.Cito.Transit.
+  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Bedrock.Platform.Cito.LinkSpecFacts.
+  Require Import Bedrock.Platform.Cito.LinkSpec.
 
-  Require Import GLabelMap.
-  Require Import StringMap.
-  Require Import CModule.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
+  Require Import Bedrock.Platform.Cito.StringMap.
+  Require Import Bedrock.Platform.Cito.CModule.
 
   Variable m : CModule.
 
@@ -24,7 +24,7 @@ Section ADTValue.
 
   Variable exports : StringMap.t AxiomaticSpec.
 
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
   Hypothesis exports_in_domain : is_sub_domain exports (Funs m) = true.
 
   (* the name of the module that contains operational export specs *)
@@ -32,13 +32,13 @@ Section ADTValue.
 
   Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
 
-  Require Import ListFacts3.
+  Require Import Bedrock.Platform.Cito.ListFacts3.
 
   Hypothesis import_module_names_ok : 
     let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
     List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
 
-  Require Import CModuleFacts.
+  Require Import Bedrock.Platform.Cito.CModuleFacts.
   Definition cmod := cmodule_to_gmodule op_mod_name op_mod_name_ok m.
 
   Definition modules := cmod :: nil.
@@ -49,7 +49,7 @@ Section ADTValue.
 
   Definition map_aug_mod_name elt m_name (m : StringMap.t elt) := GLabelMapFacts.of_list (List.map (fun p => (aug_mod_name m_name (fst p), (snd p))) (StringMap.elements m)).
 
-  Require Import GLabelMap GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMap Bedrock.Platform.Cito.GLabelMapFacts.
   Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
   Open Scope fmap_scope.
 
@@ -67,7 +67,7 @@ Section ADTValue.
   Hypothesis Hewi : exports_weakens_impl.
 
   Import StringMap.StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
 
   Lemma exports_sub_domain : sub_domain exports (Funs m).
   Proof.
@@ -75,12 +75,12 @@ Section ADTValue.
   Qed.
 
   Import GLabelMap.GLabelMap.
-  Require Import GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-  Require Import GeneralTactics.
-  Require Import GeneralTactics4.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
-  Require Import ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
 
   Lemma aug_mod_name_Injection mod_name : IsInjection (aug_mod_name mod_name).
   Proof.
@@ -122,7 +122,7 @@ Section ADTValue.
     eapply StringMapFacts.find_in_elements; eauto.
   Qed.
 
-  Require Import GeneralTactics5.
+  Require Import Bedrock.Platform.Cito.GeneralTactics5.
 
   Lemma map_aug_mod_name_elim elt k mod_name d (v : elt) : find k (map_aug_mod_name mod_name d) = Some v -> exists k', k = (mod_name, k') /\ StringMap.find k' d = Some v.
   Proof.
@@ -153,13 +153,13 @@ Section ADTValue.
     destruct H as [fname [? H] ].
     subst.
     Import StringMap.StringMap.
-    Require Import StringMapFacts.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
     eapply find_Some_in in H.
     eapply Hsd in H.
     eapply in_find_Some in H.
     destruct H as [v' H].
     Import GLabelMap.GLabelMap.
-    Require Import GLabelMapFacts.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
     eapply find_Some_in.
     eapply map_aug_mod_name_intro; eauto.
   Qed.
@@ -189,9 +189,9 @@ Section ADTValue.
   Qed.
 
   Import StringMap.StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
 
-  Require Import ListFacts4.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
 
   Lemma find_Funs_label_mapsto fname op_spec : 
     find fname (Funs m) = Some (op_spec) ->
@@ -245,10 +245,10 @@ Section ADTValue.
   Qed.
 
   Import GLabelMap.GLabelMap.
-  Require Import GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-  Require Import Option.
-  Require Import Bool.
+  Require Import Bedrock.Platform.Cito.Option.
+  Require Import Coq.Bool.Bool.
   
   Lemma find_op_mod_name_imports_none fname : find (op_mod_name, fname) imports = None.
   Proof.
@@ -367,13 +367,13 @@ Section ADTValue.
   Qed.
 
   Import StringMap.StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
 
   Definition content := inter (Funs m) exports.
 
   Notation gl2w := from_bedrock_label_map.
 
-  Require Import GLabelMap GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMap Bedrock.Platform.Cito.GLabelMapFacts.
   Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
 
   Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
@@ -410,22 +410,22 @@ Section ADTValue.
 
 End ADTValue.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import LinkSpec.
+  Require Import Bedrock.Platform.Cito.LinkSpec.
   Module Import LinkSpecMake := Make E.
   Module Import LinkSpecMake2 := Make M.
-  Require LayoutHints4.
+  Require Bedrock.Platform.Cito.LayoutHints4.
   Module LayoutHints4Make := LayoutHints4.Make E M.
-  Require Import InvFacts.
+  Require Import Bedrock.Platform.Cito.InvFacts.
   Module Import InvFactsMake := Make E.
   Module Import InvFactsMake2 := InvFactsMake.Make M.
-  Require Import LayoutHints3.
+  Require Import Bedrock.Platform.Cito.LayoutHints3.
   Module Import LayoutHints3Make := Make E M.
-  Require LayoutHints2.
+  Require Bedrock.Platform.Cito.LayoutHints2.
   Module LayoutHints2Make := LayoutHints2.Make E M.
 
   Section M.
@@ -438,7 +438,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable exports : StringMap.t AxiomaticSpec.
 
-    Require Import StringMapFacts.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
     Hypothesis exports_in_domain : is_sub_domain exports (Funs m) = true.
 
     (* the name of the module that contains axiomatic export specs *)
@@ -448,7 +448,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
 
-    Require Import ListFacts3.
+    Require Import Bedrock.Platform.Cito.ListFacts3.
 
     Hypothesis import_module_names_ok : 
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
@@ -460,12 +460,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypothesis Hewi : exports_weakens_impl.
 
-    Require Import CModuleFacts.
+    Require Import Bedrock.Platform.Cito.CModuleFacts.
     Definition cmod := cmodule_to_gmodule op_mod_name op_mod_name_ok m.
 
     Definition modules := cmod :: nil.
 
-    Require Import StringMapFacts.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
 
     Definition accessible_labels := 
       List.map (fun fname => (op_mod_name, fname)) (StringMapFacts.keys exports).
@@ -480,7 +480,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Section body.
         
-        Require Import XCAP.
+        Require Import Bedrock.XCAP.
 
         Variable im : LabelMap.t assert.
 
@@ -525,12 +525,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition make_module := StructuredModule.bmodule_ bimports stubs.
 
-    Require Import NameVC.
+    Require Import Bedrock.Platform.Cito.NameVC.
 
-    Require Import StructuredModuleFacts.
-    Require Import GLabelMapFacts.
+    Require Import Bedrock.Platform.Cito.StructuredModuleFacts.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-    Require Import ListFacts1.
+    Require Import Bedrock.Platform.Cito.ListFacts1.
 
     Lemma NoDupKey_bimports : NoDupKey bimports.
     Proof.
@@ -556,14 +556,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Lemma ax_neq_op_mod_name : ax_mod_name <> op_mod_name.
     Proof.
-      Require Import Bool.
+      Require Import Coq.Bool.Bool.
       eapply negb_true_iff in name_neq.
       unfold string_bool in *. 
       unfold sumbool_to_bool in *.
       destruct (string_dec ax_mod_name op_mod_name); intuition.
     Qed.
 
-    Require Import GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
 
     Lemma DisjointKey_bimports_stubs : DisjointKey bimports (List.map (@func_to_import ax_mod_name) stubs).
     Proof.
@@ -636,18 +636,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Require Import Wrap.
-    Require Import Inv.
+    Require Import Bedrock.Platform.Wrap.
+    Require Import Bedrock.Platform.Cito.Inv.
 
     Import SemanticsMake.
-    Require Import SemanticsUtil.
-    Require Import SemanticsFacts9.
+    Require Import Bedrock.Platform.Cito.SemanticsUtil.
+    Require Import Bedrock.Platform.Cito.SemanticsFacts9.
 
     Arguments store_pair {_} _ _.
     
-    Require Import Setoid.
+    Require Import Coq.Setoids.Setoid.
 
-    Require Import WordMap WordMapFacts.
+    Require Import Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.WordMapFacts.
     Import WordMap.WordMap WordMapFacts.FMapNotations.
 
     Ltac remove_sel :=
@@ -656,23 +656,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | |- context [sel ?VS] => change (sel VS) with VS
       end.
 
-    Require Import ListFacts4.
+    Require Import Bedrock.Platform.Cito.ListFacts4.
 
     Arguments SCA {ADTValue} _.
     Arguments ADT {ADTValue} _.
 
-    Require Import WordMap.
+    Require Import Bedrock.Platform.Cito.WordMap.
     Import WordMap.
 
-    Require Import GeneralTactics3.
-    Require Import GeneralTactics4.
+    Require Import Bedrock.Platform.Cito.GeneralTactics3.
+    Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
-    Require Import WordMap WordMapFacts.
+    Require Import Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.WordMapFacts.
     Import WordMap.WordMap WordMapFacts.FMapNotations.
     Local Open Scope fmap_scope.
 
-    Require Import ListFacts5.
-    Require Import GeneralTactics5.
+    Require Import Bedrock.Platform.Cito.ListFacts5.
+    Require Import Bedrock.Platform.Cito.GeneralTactics5.
 
     Lemma TransitSafe_intro fun_name op_spec ax_spec pairs : 
       let words := List.map fst pairs in
@@ -782,23 +782,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl; intros Hrt; intros.
       eapply runsto_TransitTo in Hrt; eauto.
       unfold TransitTo in *; openhyp.
-      Require Import SemanticsFacts7.
+      Require Import Bedrock.Platform.Cito.SemanticsFacts7.
       rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
       eauto.
     Qed.
 
-    Require Import WordMapFacts.
+    Require Import Bedrock.Platform.Cito.WordMapFacts.
     Arguments empty {elt}.
 
     Opaque mult.
 
-    Require Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
 
     Lemma good_vcs ls : List.incl ls (elements content) -> vcs (makeVcs bimports stubs (List.map make_stub' ls)).
     Proof.
       induction ls; simpl; eauto.
-      Require Import ListFacts4.
+      Require Import Bedrock.Platform.Cito.ListFacts4.
       intros Hincl.
       eapply cons_incl_elim in Hincl.
       destruct Hincl as [Hin Hincl].
@@ -848,7 +848,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         set (arr := map fst pairs) in *.
         set (avars := ArgVars op_spec) in *.
-        Require Import SepHints3.
+        Require Import Bedrock.Platform.Cito.SepHints3.
         rewrite (@replace_array_to_locals arr _ avars) in Hst.
         assert (Halok : array_to_locals_ok arr avars).
         {
@@ -874,7 +874,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         clear Haugment.
         clear import_module_names_ok.
         Import InvMake.SemanticsMake.
-        Require Import CompileStmtTactics.
+        Require Import Bedrock.Platform.Cito.CompileStmtTactics.
         Ltac hiding tac :=
           clear_imports;
           ((let P := fresh "P" in
@@ -903,8 +903,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           unfold is_state.
           unfold has_extra_stack.
           simpl.
-          Require Import Arith.
-          Require Import WordFacts.
+          Require Import Coq.Arith.Arith.
+          Require Import Bedrock.Platform.Cito.WordFacts.
           rewrite mult_0_r in *.
           rewrite wplus_0 in *.
           rewrite plus_0_r in *.
@@ -1027,7 +1027,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             destruct x1 as [vs_callee'' h']; simpl in *.
             split.
             {
-              Require Import GeneralTactics3.
+              Require Import Bedrock.Platform.Cito.GeneralTactics3.
               unfold_all.
               repeat rewrite map_length; eauto.
             }
@@ -1041,9 +1041,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             split.
             {
               unfold_all.
-              Require Import SemanticsFacts6.
+              Require Import Bedrock.Platform.Cito.SemanticsFacts6.
               rewrite make_triples_length; repeat rewrite map_length; trivial.
-              Require Import ListFacts5.
+              Require Import Bedrock.Platform.Cito.ListFacts5.
               unfold toArray in *; simpl in *.
               eapply map_eq_length_eq; eauto.
             }

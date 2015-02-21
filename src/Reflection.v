@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Setoid.
+Require Import Coq.omega.Omega.
+Require Coq.Setoids.Setoid.
 
 (** This file defines some inductives, type-classes and tactics to
 perform reflection on a small scale *)
@@ -81,7 +81,7 @@ Section boolean_logic.
 
 End boolean_logic.
 
-Require Arith.
+Require Coq.Arith.Arith.
 Section reflect_peano.
 
   Global Instance Reflect_eqb_nat x y : Reflect (EqNat.beq_nat x y) (x = y) (x <> y).
@@ -150,9 +150,9 @@ Ltac consider f :=
 
 (**  Some tests *)
 Section test.
-  Require Import NPeano Bool.
+  Require Import Coq.Numbers.Natural.Peano.NPeano Coq.Bool.Bool.
 
-  Require Import Omega.
+  Require Import Coq.omega.Omega.
   Goal forall x y z,  (ltb x y && ltb y z) = true ->
                  ltb x z = true.
   intros x y z.

@@ -1,15 +1,15 @@
 (** This file implements symbolic evaluation for the
  ** language defined in IL.v
  **)
-Require Import Word.
-Require Import PropX.
-Require Import Expr SepExpr.
-Require Import Prover.
-Require Import Env.
-Require Structured SymEval.
+Require Import Bedrock.Word.
+Require Import Bedrock.PropX.
+Require Import Bedrock.Expr Bedrock.SepExpr.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Env.
+Require Bedrock.Structured Bedrock.SymEval.
 Import List.
 
-Require Import IL SepIL ILEnv.
+Require Import Bedrock.IL Bedrock.SepIL Bedrock.ILEnv.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -585,7 +585,7 @@ Section spec_functions.
       intuition. eapply ST.HT.satisfies_memoryIn.
     Qed.
 
-    Require Import Reflection.
+    Require Import Bedrock.Reflection.
 
     Ltac think :=
       repeat match goal with

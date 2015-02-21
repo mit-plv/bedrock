@@ -1,9 +1,9 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 (* Laying out labels, and generally coming up with final "machine code" programs *)
 
-Require Import NArith.
+Require Import Coq.NArith.NArith.
 
-Require Import Nomega Word IL LabelMap PropX XCAP Memory.
+Require Import Bedrock.Nomega Bedrock.Word Bedrock.IL Bedrock.LabelMap Bedrock.PropX Bedrock.XCAP Bedrock.Memory.
 
 Set Implicit Arguments.
 

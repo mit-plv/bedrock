@@ -1,8 +1,8 @@
-Require Import Heaps Memory.
-Require Import PropX PropXTac.
-Require Import RelationClasses.
-Require Setoid Classes.Morphisms.
-Require List.
+Require Import Bedrock.Heaps Bedrock.Memory.
+Require Import Bedrock.PropX Bedrock.PropXTac.
+Require Import Coq.Classes.RelationClasses.
+Require Coq.Setoids.Setoid Coq.Classes.Morphisms.
+Require Coq.Lists.List.
 
 Set Implicit Arguments.
 Set Strict Implicit.

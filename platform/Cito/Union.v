@@ -1,4 +1,4 @@
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
 
 Set Implicit Arguments.

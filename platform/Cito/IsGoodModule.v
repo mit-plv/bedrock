@@ -1,14 +1,14 @@
 Set Implicit Arguments.
 
-Require Import Program.Basics.
+Require Import Coq.Program.Basics.
 
 Local Infix "*" := compose.
 
-Require Import SyntaxModule.
-Require Import GoodModule.
-Require Import GoodFunc.
-Require Import GoodFunction.
-Require Import Cito.NameDecoration.
+Require Import Bedrock.Platform.Cito.SyntaxModule.
+Require Import Bedrock.Platform.Cito.GoodModule.
+Require Import Bedrock.Platform.Cito.GoodFunc.
+Require Import Bedrock.Platform.Cito.GoodFunction.
+Require Import Bedrock.Platform.Cito.NameDecoration.
 
 Notation MName := SyntaxModule.Name.
 Notation FName := SyntaxFunc.Name.
@@ -34,7 +34,7 @@ Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls),
   f_equal; eauto.
 Qed.
 
-Require Import GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
 
 Definition to_good_functions' (m : Module) : IsGoodModule m -> list GoodFunction.
   intros.

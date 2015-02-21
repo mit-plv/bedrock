@@ -1,7 +1,7 @@
-Require Import List.
-Require Import Expr Env.
-Require Import Prover.
-Require Import Reflection.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.

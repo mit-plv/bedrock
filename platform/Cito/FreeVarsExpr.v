@@ -1,5 +1,5 @@
-Require Import SyntaxExpr.
-Require Import StringSet.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Bedrock.StringSet.
 Import StringSet.
 
 Set Implicit Arguments.

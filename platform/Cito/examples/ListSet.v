@@ -1,6 +1,6 @@
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
-Require Import Malloc FiniteSet.
+Require Import Bedrock.Platform.Malloc Bedrock.Platform.Cito.examples.FiniteSet.
 
 
 Infix "===" := WordSet.Equal.
@@ -318,7 +318,7 @@ Local Hint Immediate add_remove.
 
 Local Hint Extern 1 (himp _ (lset' _ _ _) (lset' _ _ _)) => apply lset'_monotone.
 
-Require MSetProperties.
+Require Coq.MSets.MSetProperties.
 Module Props := MSetProperties.WProperties(WordSet).
 
 Lemma length_step : forall w s n acc,

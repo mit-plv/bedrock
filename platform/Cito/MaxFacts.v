@@ -2,8 +2,8 @@ Set Implicit Arguments.
 
 Local Open Scope nat.
 
-Require Import Le.
-Require Import Arith.Max.
+Require Import Coq.Arith.Le.
+Require Import Coq.Arith.Max.
 
 Ltac max_solver :=
   repeat

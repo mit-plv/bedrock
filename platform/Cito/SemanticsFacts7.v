@@ -4,13 +4,13 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Semantics.
-  Require Import SemanticsUtil.
-  Require Import List.
+  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Coq.Lists.List.
 
   Notation make_triples := (@make_triples ADTValue).
 
-  Require Import GeneralTactics4.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
   Lemma split_triples : forall triples words_cinput coutput, words_cinput = List.map (fun x => (Word x, ADTIn x)) triples -> coutput = List.map (@ADTOut _) triples -> triples = make_triples words_cinput coutput.
   Proof.
@@ -55,8 +55,8 @@ Section ADTValue.
     f_equal; auto.
   Qed.
 
-  Require Import SemanticsFacts6.
-  Require Import ListFacts4.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
 
   Lemma make_triples_ADTIn_ADTOut : forall pairs outs, length outs = length pairs -> List.map (fun x => (ADTIn x, ADTOut x)) (@make_triples pairs outs) = List.combine (List.map snd pairs) outs.
   Proof.

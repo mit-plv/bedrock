@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Word SepIL IL Memory.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Word Bedrock.SepIL Bedrock.IL Bedrock.Memory.
 
 
 Fixpoint allocated (base : W) (offset len : nat) : HProp :=

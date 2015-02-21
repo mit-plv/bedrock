@@ -1,7 +1,7 @@
-Require Import Omega.
-Require Import AutoSep Malloc Arith.
-Require Import GeneralTactics.
-Require Import MyMalloc.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Coq.Arith.Arith.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.MyMalloc.
 
 Definition my_freeS : spec := SPEC("ptr") reserving 8
   PRE[V] Ex ls, array_with_size ls (V "ptr") * mallocHeap 0

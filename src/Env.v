@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import List.
-Require Import Decidables.
+Require Import Coq.omega.Omega.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Decidables.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -53,7 +53,7 @@ Section UpdateAt.
                      end
     end.
 
-  Require Import Omega.
+  Require Import Coq.omega.Omega.
   Lemma nth_error_updateAt : forall n l,
     nth_error (updateAt l n) n = value new.
     induction n; destruct l; simpl; (reflexivity || apply IHn).

@@ -1,10 +1,10 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 (** Definition of a simple intermediate language *)
 
-Require Import Arith Div2 List NArith.
-Require Export Labels.
+Require Import Coq.Arith.Arith Coq.Arith.Div2 Coq.Lists.List Coq.NArith.NArith.
+Require Export Bedrock.Labels.
 
-Require Import Nomega Word Memory.
+Require Import Bedrock.Nomega Bedrock.Word Bedrock.Memory.
 
 (** * Setting up hidden word constants *)
 

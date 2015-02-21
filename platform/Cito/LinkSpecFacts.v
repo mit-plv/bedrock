@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import LinkSpec.
+Require Import Bedrock.Platform.Cito.LinkSpec.
 
 Section TopSection.
 
@@ -9,7 +9,7 @@ Section TopSection.
   Notation FName := SyntaxFunc.Name.
   Notation MName := GoodModule.Name.
 
-  Require Import GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
   Lemma label_mapsto_in : forall modules imports lbl spec, @label_mapsto ADTValue modules imports lbl spec -> label_in modules imports lbl.
     unfold label_mapsto, label_in.
@@ -45,7 +45,7 @@ Section TopSection.
     eapply H; eauto.
   Qed.
 
-  Require Import ProgramLogic2.
+  Require Import Bedrock.Platform.Cito.ProgramLogic2.
 
   Lemma specs_equal_agree : forall specs modules imports, specs_equal specs modules imports -> forall stn fs, env_good_to_use modules imports stn fs -> specs_env_agree specs (from_bedrock_label_map (Labels stn), fs stn).
     intros.

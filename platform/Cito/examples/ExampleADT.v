@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import FiniteSet.
+Require Import Bedrock.Platform.Cito.examples.FiniteSet.
 
 Import Memory.
 
@@ -9,7 +9,7 @@ Inductive ADTValue :=
 | Arr : list W -> ADTValue
 | FSet : WordSet.t -> ADTValue.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module ExampleADT <: ADT.
 

@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import Reflection.
-Require Import Bool.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Reflection.
+Require Import Coq.Bool.Bool.
 
 Ltac think' ext solver :=
   repeat (match goal with
@@ -26,7 +26,7 @@ Ltac think := think' idtac ltac:(eauto).
 
 
 (** Lemmas About Lists **)
-Require Import List.
+Require Import Coq.Lists.List.
 Lemma nth_error_None_length : forall (T : Type) (ls : list T) (n : nat),
   nth_error ls n = None -> length ls <= n.
 Proof.

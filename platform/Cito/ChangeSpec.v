@@ -4,15 +4,15 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import SemanticsFacts4.
-  Require Import ProgramLogic2.
-  Require Import Transit.
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts4.
+  Require Import Bedrock.Platform.Cito.ProgramLogic2.
+  Require Import Bedrock.Platform.Cito.Transit.
+  Require Import Bedrock.Platform.Cito.Semantics.
 
-  Require Import GLabel.
-  Require Import GLabelMap.
+  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
   Notation Internal := (@Internal ADTValue).
 
@@ -24,8 +24,8 @@ Section ADTValue.
         find lbl specs_ax = Some (Foreign spec_ax) /\
         strengthen_op_ax spec_op spec_ax env_ax.
 
-  Require Import GeneralTactics GeneralTactics2.
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.Option.
 
   Lemma strengthen_specs_strengthen : forall specs_op specs_ax env_op env_ax, strengthen_specs specs_op specs_ax env_ax -> specs_env_agree specs_op env_op -> specs_env_agree specs_ax env_ax -> (forall lbl, fst env_op lbl = fst env_ax lbl) -> strengthen env_op env_ax.
   Proof.

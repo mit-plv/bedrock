@@ -1,8 +1,8 @@
-Require Import CompileStmtSpec.
-Require Import StringSet.
+Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import FreeVars.
-Require Import SynReqFactsUtil.
+Require Import Bedrock.Platform.Cito.FreeVars.
+Require Import Bedrock.Platform.Cito.SynReqFactsUtil.
 
 Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 
@@ -11,7 +11,7 @@ Local Hint Resolve In_to_set.
 Local Hint Resolve to_set_In.
 Local Hint Resolve Subset_union_right Max.max_lub.
 
-Require CompileExpr CompileExprs SaveRet.
+Require Bedrock.Platform.Cito.CompileExpr Bedrock.Platform.Cito.CompileExprs Bedrock.Platform.Cito.SaveRet.
 
 Ltac t := unfold syn_req, CompileExpr.syn_req, CompileExprs.syn_req, SaveRet.syn_req,
   in_scope, WellFormed.wellformed;
@@ -74,7 +74,7 @@ Qed.
 
 Local Hint Resolve max_more.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
 Lemma args_bound' : forall x args,
   In x args
@@ -99,7 +99,7 @@ Lemma syn_req_Call_ret : forall vars temp_size x f args k, syn_req vars temp_siz
   t.
 Qed.
 
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Lemma syn_req_goodSize : forall vars temp_size x f args k, syn_req vars temp_size (Syntax.Call x f args ;; k) -> goodSize (2 + List.length args).
   t.

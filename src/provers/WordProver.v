@@ -1,8 +1,8 @@
-Require Import List Arith Bool.
-Require Import Expr Env.
-Require Import EquivDec EqdepClass.
-Require Import DepList.
-Require Import Word Prover.
+Require Import Coq.Lists.List Coq.Arith.Arith Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Coq.Classes.EquivDec Bedrock.EqdepClass.
+Require Import Bedrock.DepList.
+Require Import Bedrock.Word Bedrock.Prover.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -11,7 +11,7 @@ Local Notation "[ x , .. , y ]" := (cons x .. (cons y nil) ..).
 
 (** * The Word Prover **)
 
-Require Import Arith ILEnv Memory.
+Require Import Coq.Arith.Arith Bedrock.ILEnv Bedrock.Memory.
 
 Section WordProver.
   Variable types' : list type.
@@ -31,7 +31,7 @@ Section WordProver.
     NotEquals : list (expr types * expr types)
   }.
 
-  Require Import Div2.
+  Require Import Coq.Arith.Div2.
 
   Fixpoint natToWord' (sz n : nat) : word sz :=
     match sz with
@@ -46,7 +46,7 @@ Section WordProver.
   Definition zero := Eval compute in wzero 32.
   Definition pow32 := Eval compute in Npow2 32.
 
-  Require Import NArith.
+  Require Import Coq.NArith.NArith.
 
   Definition wplus' := @wordBin Nplus 32.
   Definition wneg' (w : W) := NToWord 32 (pow32 - wordToN w).

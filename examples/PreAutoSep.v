@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSepExt.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Examples.AutoSepExt.
 Export AutoSepExt.
 
 Ltac refold' A :=
@@ -38,8 +38,8 @@ Ltac refold :=
                change (match X with nil => nil | _ :: x => x end) with (List.tl X)
            end.
 
-Require Import Bool.
-Require Import Conditional Lambda.
+Require Import Coq.Bool.Bool.
+Require Import Bedrock.Examples.Conditional Bedrock.Examples.Lambda.
 Export Conditional Lambda.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
@@ -124,7 +124,7 @@ Ltac sep_firstorder := sep_easy;
                                               end; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula; rereg; try subst.
 
-Require Import NArith.
+Require Import Coq.NArith.NArith.
 Import TacPackIL.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>

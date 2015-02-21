@@ -1,8 +1,8 @@
 (* An adaptation of Ni & Shao's XCAP program logic *)
 
-Require Import Bool String.
+Require Import Coq.Bool.Bool Coq.Strings.String.
 
-Require Import Word IL LabelMap StringSet PropX Memory.
+Require Import Bedrock.Word Bedrock.IL Bedrock.LabelMap Bedrock.StringSet Bedrock.PropX Bedrock.Memory.
 
 Set Implicit Arguments.
 

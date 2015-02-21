@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Bedrock Bool.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Bedrock Coq.Bool.Bool.
 
 Open Scope list_scope.
 

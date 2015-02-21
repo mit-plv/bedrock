@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Section TopSection.
 
-  Require Import List.
+  Require Import Coq.Lists.List.
   Open Scope bool_scope.
   Notation "! b" := (negb b) (at level 35).
 
@@ -12,16 +12,16 @@ Section TopSection.
       | x :: xs => forallb (fun e => ! (eqb e x)) xs && NoDup_bool eqb xs
     end.
 
-  Require Import Bool.
+  Require Import Coq.Bool.Bool.
 
   Lemma NoDup_bool_sound : forall A eqb, (forall a b : A, eqb a b = true <-> a = b) -> forall ls, NoDup_bool eqb ls = true -> NoDup ls.
     induction ls; simpl; intros.
     econstructor.
     eapply andb_true_iff in H0.
-    Require Import GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
     openhyp.
     econstructor.
-    Require Import GeneralTactics2.
+    Require Import Bedrock.Platform.Cito.GeneralTactics2.
     nintro.
     eapply forallb_forall in H0; eauto.
     eapply negb_true_iff in H0.
@@ -33,7 +33,7 @@ Section TopSection.
 
   Definition sumbool_to_bool A B (b : {A} + {B}) := if b then true else false.
 
-  Require Import String.
+  Require Import Coq.Strings.String.
 
   Definition string_bool a b := sumbool_to_bool (string_dec a b).
 
@@ -49,7 +49,7 @@ Section TopSection.
   Definition is_no_dup := NoDup_bool string_bool.
 
   (* test boolean deciders *)
-  Require Import List.
+  Require Import Coq.Lists.List.
   Import ListNotations.
   Local Open Scope string_scope.
   Goal is_no_dup ["aa"; "ab"; "cc"] = true. Proof. exact eq_refl. Qed.

@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Examples.AutoSep.
 
 (** A very basic abstract predicate: pairs of words *)
 

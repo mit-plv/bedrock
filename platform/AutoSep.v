@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import PreAutoSep Util Sys.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.PreAutoSep Bedrock.Platform.Util Bedrock.Platform.Sys.
 Export PreAutoSep Util Sys.
 
 Set Implicit Arguments.
@@ -331,7 +331,7 @@ Lemma create_stack : forall ns ss sp,
   Opaque mult.
   sepLemma.
   apply allocated_shift_base.
-  Require Import Arith.
+  Require Import Coq.Arith.Arith.
   unfold natToW; rewrite mult_comm; words.
   omega.
 Qed.

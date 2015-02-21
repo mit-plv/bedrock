@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import List.
-Require Import ListFacts1 ListFacts2 ListFacts3 ListFacts5.
-Require Import ListFacts.
-Require Import GeneralTactics.
-Require Import GeneralTactics4.
-Require Import Option.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5.
+Require Import Bedrock.ListFacts.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
+Require Import Bedrock.Platform.Cito.Option.
 
 Lemma combine_length_eq A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
 Proof.
@@ -186,7 +186,7 @@ Proof.
   induction ls; simpl in *; intros; try f_equal; eauto.
 Qed.
 
-Require Import Locals.
+Require Import Bedrock.sep.Locals.
 
 Lemma NoDup_nth_error A ls : NoDup ls -> forall i i' (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> i = i'.
 Proof.
@@ -209,8 +209,8 @@ Lemma map_snd_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = l
   f_equal; eauto.
 Qed.
 
-Require Import Setoid.
-Require Import Morphisms.
+Require Import Coq.Setoids.Setoid.
+Require Import Coq.Classes.Morphisms.
 
 Global Add Parametric Morphism A B : (@List.map A B)
     with signature pointwise_relation A eq ==> eq ==> eq as list_map_m.
@@ -223,7 +223,7 @@ Proof.
   intros; subst; simpl in *; intuition.
 Qed.
 
-Require Import GeneralTactics2.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
 Lemma singleton_iff_not : forall elt (e e' : elt), ~ List.In e' (e :: nil) <-> e <> e'.
   unfold List.In; split; intros; not_not; intuition.

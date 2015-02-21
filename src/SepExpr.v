@@ -1,10 +1,10 @@
-Require Import List.
-Require Import SepTheoryX PropX.
-Require Import PropXTac.
-Require Import RelationClasses EqdepClass.
-Require Import Expr.
-Require Import Setoid.
-Require Import Folds Bool Tactics.
+Require Import Coq.Lists.List.
+Require Import Bedrock.SepTheoryX Bedrock.PropX.
+Require Import Bedrock.PropXTac.
+Require Import Coq.Classes.RelationClasses Bedrock.EqdepClass.
+Require Import Bedrock.Expr.
+Require Import Coq.Setoids.Setoid.
+Require Import Bedrock.Folds Coq.Bool.Bool Bedrock.Tactics.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -138,7 +138,7 @@ Module Type SepExpr.
 
 End SepExpr.
 
-Require Import Reflection.
+Require Import Bedrock.Reflection.
 
 Module SepExprFacts (SE : SepExpr).
   Module SEP_FACTS := SepTheoryX_Rewrites SE.ST.

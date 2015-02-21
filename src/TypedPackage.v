@@ -1,8 +1,8 @@
 (** This file contains record definitions for
  ** type, function and predicate environments.
  **)
-Require Import Expr SepExpr.
-Require Import Env.
+Require Import Bedrock.Expr Bedrock.SepExpr.
+Require Import Bedrock.Env.
 
 Set Implicit Arguments.
 Set Strict Implicit.

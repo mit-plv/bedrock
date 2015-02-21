@@ -23,7 +23,7 @@ End Notations.
 
 Module Instances.
 
-  Require Import List.
+  Require Import Coq.Lists.List.
 
   Instance list_Listy e : Listy e (list e) := 
     {

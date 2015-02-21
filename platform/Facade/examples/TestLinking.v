@@ -1,15 +1,15 @@
 Set Implicit Arguments.
 
-Require Import DFacadeToBedrock.
-Require Import FiatADTs.
-Require Import FiatRepInv.
+Require Import Bedrock.Platform.Facade.DFacadeToBedrock.
+Require Import Bedrock.Platform.Facade.examples.FiatADTs.
+Require Import Bedrock.Platform.Facade.examples.FiatRepInv.
 
 Module Import M := DFacadeToBedrock.Make FiatADTs.Adt FiatRepInv.Ri.
 
 Definition pre_cond (arg1 : Value ADTValue) (arg2 : Value ADTValue) := False.
 Definition post_cond (arg1 : Value ADTValue) (arg2 : Value ADTValue) (ret : Value ADTValue) := True.
 
-Require Import CompileUnit.
+Require Import Bedrock.Platform.Facade.CompileUnit.
 
 Definition imports := GLabelMapFacts.of_list ((("ADT", "sEmpty"), FEnsemble_sEmpty) :: nil).
 
@@ -36,7 +36,7 @@ Lemma all1_ok : moduleOk all1.
     link m1_ok m2_ok.
 Qed.
 
-Require Import FiatImpl.
+Require Import Bedrock.Platform.Facade.examples.FiatImpl.
 
 (* link all1 with the ADT implementation *)
 Definition all := link all1 FiatImpl.m.

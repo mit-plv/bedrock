@@ -1,6 +1,6 @@
-Require Import Ensembles AutoSep.
+Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep.
 
-Require Import Malloc SeqF.
+Require Import Bedrock.Platform.Malloc Bedrock.Platform.Facade.examples.SeqF.
 
 
 Module Type ADT.

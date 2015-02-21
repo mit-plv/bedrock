@@ -1,9 +1,9 @@
-Require Import Prover Env.
-Require Import ILEnv.
-Require provers.AssumptionProver.
-Require provers.ReflexivityProver.
-Require provers.WordProver.
-Require provers.ArrayBoundProver.
+Require Import Bedrock.Prover Bedrock.Env.
+Require Import Bedrock.ILEnv.
+Require Bedrock.provers.AssumptionProver.
+Require Bedrock.provers.ReflexivityProver.
+Require Bedrock.provers.WordProver.
+Require Bedrock.provers.ArrayBoundProver.
 
 Set Implicit Arguments.
 Set Strict Implicit.

@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import GoodModuleDec.
+Require Import Bedrock.Platform.Cito.GoodModuleDec.
 
 Section TopSection.
 
@@ -8,20 +8,20 @@ Section TopSection.
   Notation FName := SyntaxFunc.Name.
   Notation Funcs := SyntaxModule.Functions.
 
-  Require Import IsGoodModule.
-  Require Import GoodModule.
+  Require Import Bedrock.Platform.Cito.IsGoodModule.
+  Require Import Bedrock.Platform.Cito.GoodModule.
 
-  Require Import ListFacts4.
-  Require Import List.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Coq.Lists.List.
 
-  Require Import Bool.
-  Require Import GeneralTactics.
-  Require Import GeneralTactics2.
+  Require Import Coq.Bool.Bool.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
-  Require Import Program.Basics.
-  Require Import GoodFunc.
+  Require Import Coq.Program.Basics.
+  Require Import Bedrock.Platform.Cito.GoodFunc.
 
-  Require Import WellFormed.
+  Require Import Bedrock.Platform.Cito.WellFormed.
 
   Lemma is_good_size_sound : forall n, is_good_size n = true -> goodSize n.
     intros.
@@ -49,10 +49,10 @@ Section TopSection.
     intros.
     repeat (eapply andb_true_iff in H; openhyp).
     econstructor.
-    Require Import ListFacts3.
+    Require Import Bedrock.Platform.Cito.ListFacts3.
     eapply is_no_dup_sound; eauto.
     split.
-    Require Import NoUninitDecFacts.
+    Require Import Bedrock.Platform.Cito.NoUninitDecFacts.
     eapply is_no_uninited_sound; eauto.
     split.
     eapply is_arg_len_ok_sound; eauto.
@@ -79,7 +79,7 @@ Section TopSection.
     eapply andb_true_iff in H.
     openhyp.
     econstructor; simpl.
-    Require Import Cito.NameDecoration.
+    Require Import Bedrock.Platform.Cito.NameDecoration.
     eapply is_good_module_name_sound; eauto.
     split.
     eapply is_good_funcs_sound; eauto.

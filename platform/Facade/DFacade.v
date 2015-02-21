@@ -2,25 +2,25 @@
 
 Set Implicit Arguments.
 
-Require Import Facade.
+Require Import Bedrock.Platform.Facade.Facade.
 Export Facade.
 
-Require Import String.
-Require Import StringMap.
+Require Import Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.StringMap.
 
-Require Import List.
-Require Import ListFacts3 ListFacts4.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts4.
 Import ListNotations.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import StringSetFacts.
+Require Import Bedrock.Platform.Cito.StringSetFacts.
 Import FSetNotations.
 Local Open Scope fset_scope.
 
-Require Import GLabel.
-Require Import Memory.
-Require Import SyntaxExpr.
+Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Bedrock.Memory.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
 (* Syntax *)
 
@@ -57,7 +57,7 @@ Fixpoint is_actual_args_no_dup s :=
     | Assign _ _ => true
   end.
 
-Require Import FreeVarsExpr.
+Require Import Bedrock.Platform.Cito.FreeVarsExpr.
 
 Local Notation e_free_vars := FreeVarsExpr.free_vars.
 
@@ -71,7 +71,7 @@ Fixpoint free_vars (s : Stmt) :=
     | Call x _ args => singleton x + StringSetFacts.of_list args
   end.
 
-Require Import Facade.NameDecoration.
+Require Import Bedrock.Platform.Facade.NameDecoration.
 
 Definition is_good_varnames s := for_all is_good_varname (free_vars s).
 
@@ -94,11 +94,11 @@ Record OperationalSpec :=
   }.
 
 Import StringMap.
-Require Import StringMapFacts.
+Require Import Bedrock.Platform.Cito.StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
 
-Require Import GLabelMap.
+Require Import Bedrock.Platform.Cito.GLabelMap.
 
 Section ADTSection.
 
@@ -292,7 +292,7 @@ Section ADTSection.
       
       Hint Constructors Safe.
 
-      Require Import GeneralTactics.
+      Require Import Bedrock.Platform.Cito.GeneralTactics.
 
       Theorem Safe_coind : forall c st, R c st -> Safe c st.
         cofix; intros; destruct c.

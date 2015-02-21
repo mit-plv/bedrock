@@ -1,15 +1,15 @@
-Require Import IL SepIL.
-Require Import Word Memory.
+Require Import Bedrock.IL Bedrock.SepIL.
+Require Import Bedrock.Word Bedrock.Memory.
 Import List.
-Require Import DepList EqdepClass.
-Require Import PropX.
-Require Import Expr SepExpr SepCancel.
-Require Import Prover ILEnv.
-Require Import Tactics Reflection.
-Require Import TacPackIL.
-Require ExprUnify.
+Require Import Bedrock.DepList Bedrock.EqdepClass.
+Require Import Bedrock.PropX.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SepCancel.
+Require Import Bedrock.Prover Bedrock.ILEnv.
+Require Import Bedrock.Tactics Bedrock.Reflection.
+Require Import Bedrock.TacPackIL.
+Require Bedrock.ExprUnify.
 
-Require Import SymILTac CancelIL.
+Require Import Bedrock.SymILTac Bedrock.CancelIL.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -295,7 +295,7 @@ Definition smem_write stn := SepIL.ST.HT.smem_set_word (IL.explode stn).
 
 (** Symbolic Execution **)
 (************************)
-Require Import ReifyIL.
+Require Import Bedrock.ReifyIL.
 Lemma Some_cong : forall A (x y : A),
   x = y
   -> Some x = Some y.

@@ -1,7 +1,7 @@
-Require Import AutoSep.
-Require Import List.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Coq.Lists.List.
 
-Require Import SepHintsUtil.
+Require Import Bedrock.Platform.Cito.SepHintsUtil.
 
 Set Implicit Arguments.
 

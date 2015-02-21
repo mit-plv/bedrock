@@ -4,15 +4,15 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Semantics.
-  Require Import SemanticsUtil.
-  Require Import List.
+  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Coq.Lists.List.
 
   Notation make_triples := (@make_triples ADTValue).
 
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
   Import WordMap.
-  Require Import WordMapFacts.
+  Require Import Bedrock.Platform.Cito.WordMapFacts.
 
   Lemma separated_Equal : forall h1 h2 a b,
     WordMap.Equal h1 h2
@@ -23,7 +23,7 @@ Section ADTValue.
     eapply In_m; eauto.
   Qed.
 
-  Require Import Locals.
+  Require Import Bedrock.sep.Locals.
 
   Lemma good_inputs_Equal : forall A h1 h2 pairs,
     WordMap.Equal (elt := A) h1 h2
@@ -72,7 +72,7 @@ Section ADTValue.
                  destruct H'; intuition
            end; eauto.
 
-  Require Import Programming.
+  Require Import Bedrock.Programming.
 
   Lemma RunsTo_Equal : forall env s st st',
     Semantics.RunsTo (ADTValue := ADTValue) env s st st'
@@ -247,7 +247,7 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import PreAutoSep.
+  Require Import Bedrock.Platform.PreAutoSep.
 
   Lemma fold_fwd' : forall k v ls h,
     WordMap.MapsTo k v (fold_left store_out ls h)
@@ -273,9 +273,9 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
   Import WordMap.
-  Require Import WordMapFacts.
+  Require Import Bedrock.Platform.Cito.WordMapFacts.
 
   Lemma heap_merge_store_out : 
     forall h pairs outs, 

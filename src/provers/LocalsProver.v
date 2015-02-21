@@ -1,16 +1,16 @@
-Require Import List Arith Bool.
-Require Import Expr Env.
-Require Import EquivDec EqdepClass.
-Require Import DepList.
-Require Import Word Prover.
-Require Import provers.ReflexivityProver sep.Locals.
+Require Import Coq.Lists.List Coq.Arith.Arith Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Coq.Classes.EquivDec Bedrock.EqdepClass.
+Require Import Bedrock.DepList.
+Require Import Bedrock.Word Bedrock.Prover.
+Require Import Bedrock.provers.ReflexivityProver Bedrock.sep.Locals.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
 (** * The Word Prover **)
 
-Require Import Arith ILEnv Memory.
+Require Import Coq.Arith.Arith Bedrock.ILEnv Bedrock.Memory.
 
 Section LocalsProver.
   Variable types' : list type.

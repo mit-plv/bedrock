@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep.
-Require Import Arith List.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Examples.AutoSep.
+Require Import Coq.Arith.Arith Coq.Lists.List.
 
 Set Implicit Arguments.
 

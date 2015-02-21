@@ -1,5 +1,5 @@
-Require Import SyntaxFunc.
-Require Import String.
+Require Import Bedrock.Platform.Cito.SyntaxFunc.
+Require Import Coq.Strings.String.
 Export SyntaxFunc.
 
 Set Implicit Arguments.

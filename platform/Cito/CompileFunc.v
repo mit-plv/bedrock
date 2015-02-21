@@ -1,20 +1,20 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import CompileFuncImpl.
+  Require Import Bedrock.Platform.Cito.CompileFuncImpl.
   Module Import CompileFuncImplMake := Make E M.
   Import CompileFuncSpecMake.
-  Require Import GoodOptimizer.
+  Require Import Bedrock.Platform.Cito.GoodOptimizer.
   Import GoodOptimizerMake.
 
-  Require Import GoodFunc.
+  Require Import Bedrock.Platform.Cito.GoodFunc.
 
-  Require Import SyntaxFunc.
-  Require Import String.
+  Require Import Bedrock.Platform.Cito.SyntaxFunc.
+  Require Import Coq.Strings.String.
 
   Section TopSection.
 
@@ -30,8 +30,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition body := body func module_name good_func good_optimizer.
 
-    Require Import CompileFuncSpec.
-    Require Import StructuredModule.
+    Require Import Bedrock.Platform.Cito.CompileFuncSpec.
+    Require Import Bedrock.StructuredModule.
     Definition compile : function module_name :=
       (Name func, CompileFuncSpecMake.spec func, body).
 

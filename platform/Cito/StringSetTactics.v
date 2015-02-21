@@ -1,8 +1,8 @@
 Set Implicit Arguments.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import FSetProperties.
+Require Import Coq.FSets.FSetProperties.
 Module Import Properties := Properties StringSet.
 Import FM.
 

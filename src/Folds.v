@@ -1,5 +1,5 @@
-Require Import List Bool.
-Require Import Reflection.
+Require Import Coq.Lists.List Coq.Bool.Bool.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.

@@ -1,7 +1,7 @@
-Require Import Expr ReifyExpr.
-Require Import Reflect.
-Require Import SepExpr.
-Require Import List.
+Require Import Bedrock.Expr Bedrock.ReifyExpr.
+Require Import Bedrock.Reflect.
+Require Import Bedrock.SepExpr.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 Set Strict Implicit.

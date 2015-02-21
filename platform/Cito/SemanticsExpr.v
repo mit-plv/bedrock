@@ -1,5 +1,5 @@
-Require Import IL Memory String.
-Require Import SyntaxExpr.
+Require Import Bedrock.IL Bedrock.Memory Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
 Set Implicit Arguments.
 

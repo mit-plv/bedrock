@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Examples.AutoSep.
 
 (** Read from pointers in variables *)
 

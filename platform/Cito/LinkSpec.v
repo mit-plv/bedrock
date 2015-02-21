@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration Label2Word.
+Require Import Bedrock.Platform.Cito.GLabel Bedrock.Platform.Cito.GLabelMap Bedrock.Platform.Cito.GLabelMapFacts Bedrock.Platform.Cito.ConvertLabel Bedrock.Platform.Cito.GoodModule Bedrock.Platform.Cito.GoodFunction Bedrock.Platform.Cito.NameDecoration Bedrock.Platform.Cito.Label2Word.
 Export GLabel GLabelMap GLabelMapFacts ConvertLabel GoodModule GoodFunction Cito.NameDecoration Label2Word.
 Import GLabelMap.
 
@@ -10,8 +10,8 @@ Section TopSection.
 
   Variable modules : list GoodModule.
   
-  Require Import Semantics.
-  Require Import AxSpec.
+  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Bedrock.Platform.Cito.AxSpec.
 
   Variable imports : GLabelMap.t (AxiomaticSpec ADTValue).
 
@@ -64,7 +64,7 @@ Section TopSection.
   Definition module_exports_IFS m := 
     List.map (func_export_IFS m) (Functions m).
 
-  Require Import ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
 
   Definition exports_IFS :=
     to_map
@@ -95,19 +95,19 @@ End TopSection.
 
 Definition name_marker (id : glabel) : PropX W (settings * state) := (Ex s, [| s = id |])%PropX.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Module Import SemanticsMake := Make E.
   Export Semantics SemanticsMake.
 
-  Require Import RepInv.
+  Require Import Bedrock.Platform.Cito.RepInv.
 
   Module Make (Import M : RepInv E).
 
-    Require Import CompileFuncSpec.
+    Require Import Bedrock.Platform.Cito.CompileFuncSpec.
     Module Import CompileFuncSpecMake := Make E M.
     Import InvMake2.
     Export CompileFuncSpec CompileFuncSpecMake InvMake2.

@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import WordKey.
+Require Import Bedrock.Platform.Cito.WordKey.
 
-Require Import FMapAVL.
+Require Import Coq.FSets.FMapAVL.
 Module Import WordMap := Make W_as_OT.

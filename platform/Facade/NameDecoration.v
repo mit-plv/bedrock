@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import String.
+Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
 Definition tmp_prefix := "!".

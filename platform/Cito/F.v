@@ -1,4 +1,4 @@
-Require Import S.
+Require Import Bedrock.Platform.Cito.S.
 
 Module Make (E : S).
 

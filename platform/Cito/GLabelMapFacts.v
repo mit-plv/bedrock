@@ -1,14 +1,14 @@
 Set Implicit Arguments.
 
-Require Import GLabelKey.
+Require Import Bedrock.Platform.Cito.GLabelKey.
 Module K := GLabel_as_UDT.
-Require Import GLabelMap.
+Require Import Bedrock.Platform.Cito.GLabelMap.
 Module M := GLabelMap.
-Require Import FMapFacts.
+Require Import Coq.FSets.FMapFacts.
 Include (Properties M).
 Include (Facts M).
-Require Import FMapFacts1.
+Require Import Bedrock.Platform.Cito.FMapFacts1.
 Include (WFacts_fun K M).
 Include (UWFacts_fun K M).
-Require Import FMapFacts2.
+Require Import Bedrock.Platform.Cito.FMapFacts2.
 Include (UWFacts_fun K M).

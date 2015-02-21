@@ -1,7 +1,7 @@
-Require Import List.
-Require Import IL.
-Require Import ReifyExpr.
-Require Import SymIL.
+Require Import Coq.Lists.List.
+Require Import Bedrock.IL.
+Require Import Bedrock.ReifyExpr.
+Require Import Bedrock.SymIL.
 
 (* Reify the instructions *)
 Ltac collectTypes_loc isConst l Ts k :=

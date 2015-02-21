@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Type RepInv (Import E : ADT).
 
-  Require Import AutoSep.
+  Require Import Bedrock.Platform.AutoSep.
 
   Definition RepInv := W -> ADTValue -> HProp.
 

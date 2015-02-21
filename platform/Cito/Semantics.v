@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import IL Memory String Locals List.
+Require Import Bedrock.IL Bedrock.Memory Coq.Strings.String Bedrock.sep.Locals Coq.Lists.List.
 
 Definition upd_option vs x value :=
   match x with
@@ -8,7 +8,7 @@ Definition upd_option vs x value :=
     | Some s => Locals.upd vs s value
   end.
 
-Require Import FuncCore.
+Require Import Bedrock.Platform.Cito.FuncCore.
 Export FuncCore.
 Record InternalFuncSpec :=
   {
@@ -18,10 +18,10 @@ Record InternalFuncSpec :=
 
 Coercion Fun : InternalFuncSpec >-> FuncCore.
 
-Require Import Syntax SemanticsExpr.
-Require Import GLabel.
-Require Import WordMap.
-Require Import AxSpec.
+Require Import Bedrock.Platform.Cito.Syntax Bedrock.Platform.Cito.SemanticsExpr.
+Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Bedrock.Platform.Cito.WordMap.
+Require Import Bedrock.Platform.Cito.AxSpec.
 Export AxSpec.
 
 Section ADTValue.
@@ -288,7 +288,7 @@ Section ADTValue.
 
 End ADTValue.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
@@ -333,7 +333,7 @@ Module Make (Import E : ADT).
   Definition Internal := @Internal ADTValue.
 
   (* some shorthands for heap operations *)
-  Require Import FMapFacts.
+  Require Import Coq.FSets.FMapFacts.
   Module Import P := Properties WordMap.
   Import F WordMap.
 

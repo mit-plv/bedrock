@@ -1,6 +1,6 @@
-Require Import List.
+Require Import Coq.Lists.List.
 
-Require Import PropX.
+Require Import Bedrock.PropX.
 
 Set Implicit Arguments.
 

@@ -1,10 +1,10 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 (* Structured programming (module construction) *)
 
-Require Import Bool NArith String List.
+Require Import Coq.Bool.Bool Coq.NArith.NArith Coq.Strings.String Coq.Lists.List.
 
-Require Import Nomega PropX PropXTac Word LabelMap IL XCAP Structured.
-Require Import StringSet.
+Require Import Bedrock.Nomega Bedrock.PropX Bedrock.PropXTac Bedrock.Word Bedrock.LabelMap Bedrock.IL Bedrock.XCAP Bedrock.Structured.
+Require Import Bedrock.StringSet.
 
 Set Implicit Arguments.
 

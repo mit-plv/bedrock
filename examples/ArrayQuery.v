@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import PreAutoSep Wrap Conditional.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Examples.PreAutoSep Bedrock.Examples.Wrap Bedrock.Examples.Conditional.
 
 Import DefineStructured.
 
@@ -523,7 +523,7 @@ Section Query.
     induction ws; simpl; intuition eauto.
     eapply IHws; intros.
     eauto.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     rewrite <- plus_assoc.
     auto.
   Qed.

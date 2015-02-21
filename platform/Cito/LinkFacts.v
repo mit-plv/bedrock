@@ -1,29 +1,29 @@
 Set Implicit Arguments.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Module Import SemanticsMake := Make E.
 
   Section TopSection.
 
-    Require Import GoodModule.
-    Require Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GoodModule.
+    Require Import Bedrock.Platform.Cito.GLabelMap.
     Import GLabelMap.
 
     Open Scope bool_scope.
     Notation "! b" := (negb b) (at level 35).
 
-    Require Import Compare_dec.
+    Require Import Coq.Arith.Compare_dec.
 
     Definition to_bool A B (b : {A} + {B}) := if b then true else false.
 
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
-    Require Import ListFacts3.
-    Require Import Cito.NameDecoration.
+    Require Import Bedrock.Platform.Cito.ListFacts3.
+    Require Import Bedrock.Platform.Cito.NameDecoration.
 
     Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) :=
       let imported_module_names := List.map fst2 (elements imports) in
@@ -33,8 +33,8 @@ Module Make (Import E : ADT).
         forallb (fun s => ! sumbool_to_bool (in_dec string_dec s module_names)) imported_module_names &&
         forallb is_good_module_name imported_module_names.
 
-    Require Import GeneralTactics.
-    Require Import ListFacts1.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Bedrock.Platform.Cito.ListFacts1.
 
     Lemma GoodToLink_bool_sound :
       forall modules imports,
@@ -46,8 +46,8 @@ Module Make (Import E : ADT).
     Proof.
       intros.
       unfold GoodToLink_bool in *; simpl in *.
-      Require Import GeneralTactics.
-      Require Import Bool.
+      Require Import Bedrock.Platform.Cito.GeneralTactics.
+      Require Import Coq.Bool.Bool.
       repeat (eapply andb_true_iff in H; openhyp).
       split.
       eapply negb_true_iff in H.
@@ -66,7 +66,7 @@ Module Make (Import E : ADT).
       eapply forallb_forall in H0; eauto.
       rewrite <- map_map.
       eapply in_map.
-      Require Import GLabelMapFacts.
+      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
       eapply In_fst_elements_In; eauto.
     Qed.
 

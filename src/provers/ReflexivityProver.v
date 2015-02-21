@@ -1,6 +1,6 @@
-Require Import List.
-Require Import Expr Env.
-Require Import Word Prover.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Bedrock.Word Bedrock.Prover.
 
 Set Implicit Arguments.
 Set Strict Implicit.

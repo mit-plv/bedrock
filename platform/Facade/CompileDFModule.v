@@ -1,8 +1,8 @@
 Set Implicit Arguments.
 
-Require Import DFModule.
-Require Import CompileDFacade.
-Require Import DFacade.
+Require Import Bedrock.Platform.Facade.DFModule.
+Require Import Bedrock.Platform.Facade.CompileDFacade.
+Require Import Bedrock.Platform.Facade.DFacade.
 
 Section ADTValue.
 
@@ -12,21 +12,21 @@ Section ADTValue.
 
   Definition compile_func (f : DFFun) : FModule.FFunction := FModule.Build_FFunction (compile_op f) (compiled_syntax_ok f).
 
-  Require Import StringMap.
+  Require Import Bedrock.Platform.Cito.StringMap.
   Import StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
 
   Definition compile_to_fmodule : FModule.FModule ADTValue := FModule.Build_FModule (Imports module) (StringMap.map compile_func (Funs module)).
 
-  Require Import String.
+  Require Import Coq.Strings.String.
 
   Variable name : string.
 
-  Require Import Cito.NameDecoration.
+  Require Import Bedrock.Platform.Cito.NameDecoration.
 
   Hypothesis good_name : is_good_module_name name = true.
 
-  Require CompileModule.
+  Require Bedrock.Platform.Facade.CompileModule.
 
   Definition compile_to_gmodule : GoodModule.GoodModule := CompileModule.compile_to_gmodule compile_to_fmodule name good_name.
 

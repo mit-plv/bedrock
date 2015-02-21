@@ -1,13 +1,13 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import PostOk.
+  Require Import Bedrock.Platform.Cito.PostOk.
   Module Import PostOkMake := Make E M.
-  Require Import VerifCondOk.
+  Require Import Bedrock.Platform.Cito.VerifCondOk.
   Module Import VerifCondOkMake := Make E M.
   Import CompileStmtSpecMake.
   Import InvMake.
@@ -17,7 +17,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Section TopSection.
 
-    Require Import AutoSep.
+    Require Import Bedrock.Platform.AutoSep.
 
     Variable vars : list string.
 
@@ -29,7 +29,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable modName : string.
 
-    Require Import Syntax.
+    Require Import Bedrock.Platform.Cito.Syntax.
 
     Variable rv_postcond : W -> vals -> Prop.
 
@@ -37,7 +37,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable s k : Stmt.
 
-    Require Import Wrap.
+    Require Import Bedrock.Platform.Wrap.
     Definition compile : cmd imports modName.
       refine (
           Wrap imports imports_global modName

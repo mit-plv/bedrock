@@ -1,4 +1,4 @@
-Require Import Word.
+Require Import Bedrock.Word.
 
 Definition B := word 8.
 Definition W := word 32.

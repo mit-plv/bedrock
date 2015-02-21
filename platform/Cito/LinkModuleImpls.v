@@ -1,56 +1,56 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import AutoSep.
-  Require Import StructuredModule.
-  Require Import StructuredModuleFacts.
-  Require Import GoodModule.
-  Require Import GoodFunction.
-  Require Import ConvertLabel.
-  Require Import NameDecoration.
-  Require Import Wrap.
-  Require Import GeneralTactics.
-  Require Import GeneralTactics2.
-  Require Import StringFacts2.
+  Require Import Bedrock.Platform.AutoSep.
+  Require Import Bedrock.StructuredModule.
+  Require Import Bedrock.Platform.Cito.StructuredModuleFacts.
+  Require Import Bedrock.Platform.Cito.GoodModule.
+  Require Import Bedrock.Platform.Cito.GoodFunction.
+  Require Import Bedrock.Platform.Cito.ConvertLabel.
+  Require Import Bedrock.Platform.Facade.NameDecoration.
+  Require Import Bedrock.Platform.Wrap.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.StringFacts2.
 
-  Require Import Cito.CompileModule.
+  Require Import Bedrock.Platform.Cito.CompileModule.
   Module Import CompileModuleMake := Make E M.
-  Require Import CompileFuncSpec.
+  Require Import Bedrock.Platform.Cito.CompileFuncSpec.
   Import CompileFuncMake.
   Import CompileFuncImplMake.
   Import CompileFuncSpecMake.
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Import InvMake.
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Import SemanticsMake.
   Import InvMake2.
-  Require Import GoodOptimizer.
+  Require Import Bedrock.Platform.Cito.GoodOptimizer.
   Import GoodOptimizerMake.
 
-  Require Import LinkSpec.
+  Require Import Bedrock.Platform.Cito.LinkSpec.
   Module Import LinkSpecMake := Make E.
   Module Import LinkSpecMake2 := Make M.
 
-  Require Import ListFacts1.
-  Require Import ListFacts2.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts2.
 
-  Require Import StringSet.
+  Require Import Bedrock.StringSet.
   Module Import SS := StringSet.
-  Require Import StringSetFacts.
+  Require Import Bedrock.Platform.Cito.StringSetFacts.
 
-  Require Import Labels.
-  Require Import LabelMap.
-  Require LabelMapFacts.
-  Require Import GLabel.
-  Require Import GLabelMap.
+  Require Import Bedrock.Labels.
+  Require Import Bedrock.LabelMap.
+  Require Bedrock.Platform.Cito.LabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-  Require Import ConvertLabelMap.
+  Require Import Bedrock.Platform.Cito.ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
 
@@ -87,7 +87,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition impl_MName m := impl_module_name (MName m).
 
-    Require Import SetoidList.
+    Require Import Coq.Lists.SetoidList.
     Hint Constructors NoDupA.
     Hint Unfold NoDupKey.
 
@@ -126,7 +126,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Ltac incl_tran_cons := eapply incl_tran; [ | eassumption ]; intuition.
 
-    Require Import StringSetTactics.
+    Require Import Bedrock.Platform.Cito.StringSetTactics.
 
     Lemma In_exports_module_name : forall k m, In k (get_module_Exports m) -> fst k = impl_MName m.
       unfold get_module_Exports.

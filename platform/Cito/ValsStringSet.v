@@ -1,5 +1,5 @@
-Require Import Locals.
-Require Import StringSet.
+Require Import Bedrock.sep.Locals.
+Require Import Bedrock.StringSet.
 Import StringSet.
 
 Set Implicit Arguments.

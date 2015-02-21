@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Malloc Arith.
-Require Import GeneralTactics.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Coq.Arith.Arith.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
 
 Set Printing Coercions.
 

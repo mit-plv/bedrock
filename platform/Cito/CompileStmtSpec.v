@@ -1,16 +1,16 @@
-Require Import Syntax.
+Require Import Bedrock.Platform.Cito.Syntax.
 
 Set Implicit Arguments.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import FSetProperties.
+Require Import Coq.FSets.FSetProperties.
 Module Import SSP := Properties StringSet.
 
 (* syntactic_requirement *)
 Section SynReq.
 
-  Require Import String.
+  Require Import Coq.Strings.String.
 
   Variable vars : list string.
 
@@ -18,8 +18,8 @@ Section SynReq.
 
   Variable s : Stmt.
 
-  Require Import FreeVars.
-  Require Import Depth.
+  Require Import Bedrock.Platform.Cito.FreeVars.
+  Require Import Bedrock.Platform.Cito.Depth.
 
   Local Open Scope nat.
 
@@ -27,18 +27,18 @@ Section SynReq.
     Subset (free_vars s) (of_list vars) /\
     depth s <= temp_size.
 
-  Require Import WellFormed.
+  Require Import Bedrock.Platform.Cito.WellFormed.
 
   Definition syn_req := in_scope /\ wellformed s.
 
 End SynReq.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Import SemanticsMake.
   Module Import InvMake2 := Make M.

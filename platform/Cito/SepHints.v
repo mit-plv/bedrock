@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep.
 
 Fixpoint gen_str n : string :=
   match n with

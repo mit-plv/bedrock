@@ -1,17 +1,17 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
 
-  Require Import SyntaxFunc.
-  Require Import String.
-  Require Import Malloc.
+  Require Import Bedrock.Platform.Cito.SyntaxFunc.
+  Require Import Coq.Strings.String.
+  Require Import Bedrock.Platform.Malloc.
 
   Section TopSection.
 

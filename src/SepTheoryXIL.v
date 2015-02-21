@@ -1,10 +1,10 @@
-Require Import Heaps Memory.
-Require Import PropX PropXTac.
-Require Import SepTheoryX.
-Require IL.
-Require PropXRel.
+Require Import Bedrock.Heaps Bedrock.Memory.
+Require Import Bedrock.PropX Bedrock.PropXTac.
+Require Import Bedrock.SepTheoryX.
+Require Bedrock.IL.
+Require Bedrock.PropXRel.
 
-Require Import RelationClasses.
+Require Import Coq.Classes.RelationClasses.
 
 Set Implicit Arguments.
 Set Strict Implicit.

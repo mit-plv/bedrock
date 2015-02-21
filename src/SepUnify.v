@@ -1,7 +1,7 @@
-Require Import ExprUnify.
-Require Import SepHeap.
-Require Import Expr.
-Require Import List.
+Require Import Bedrock.ExprUnify.
+Require Import Bedrock.SepHeap.
+Require Import Bedrock.Expr.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 Set Strict Implicit.

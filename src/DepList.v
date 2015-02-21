@@ -1,6 +1,6 @@
-Require Import List EqdepClass.
-Require Export EquivDec.
-Require Import Decidables.
+Require Import Coq.Lists.List Bedrock.EqdepClass.
+Require Export Coq.Classes.EquivDec.
+Require Import Bedrock.Decidables.
 
 Set Implicit Arguments.
 Set Strict Implicit.

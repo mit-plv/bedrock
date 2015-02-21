@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import DepList AutoSep Malloc.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.DepList Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
 
 Set Implicit Arguments.
 
@@ -646,7 +646,7 @@ Theorem materialize_allocated : forall stn st size specs,
   rewrite wplus_unit in H2.
   rewrite get_memoryIn.
   apply H0.
-  Require Import Arith.
+  Require Import Coq.Arith.Arith.
   rewrite mult_comm; assumption.
   rewrite mult_comm; assumption.
 Qed.
@@ -714,7 +714,7 @@ Section boot.
     instantiate (1 := 50); auto.
     apply Himp_star_frame.
     apply allocated_shift_base.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     rewrite mult_comm.
     simpl.
     unfold natToW.
@@ -775,7 +775,7 @@ Defined.
 
 Ltac genesis := post; evaluate genesisHints; simpl in *; sep genesisHints; eauto.
 
-Require Import Safety.
+Require Import Bedrock.Platform.Safety.
 
 Ltac safety ok :=
   eapply safety; try eassumption; [

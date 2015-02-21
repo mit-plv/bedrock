@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Examples.AutoSep.
 
 
 Fixpoint countNonzero (ws : list W) : nat :=

@@ -1,5 +1,5 @@
-Require Import List.
-Require Import Array.
+Require Import Coq.Lists.List.
+Require Import Bedrock.sep.Array.
 
 Set Implicit Arguments.
 

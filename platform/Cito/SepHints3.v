@@ -1,5 +1,5 @@
-Require Import AutoSep.
-Require Import List.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

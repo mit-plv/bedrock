@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import SepHintsUtil SepHints2.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.Cito.SepHintsUtil Bedrock.Platform.Cito.SepHints2.
 
 Set Implicit Arguments.
 

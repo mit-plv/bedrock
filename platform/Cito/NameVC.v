@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Definition NameNotInImports name imports :=
   fold_left

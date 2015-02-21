@@ -1,11 +1,11 @@
-Require Import Omega.
-Require Import Expr.
-Require Import NatMap.
-Require Import EquivDec.
-Require Import List Bool.
-Require Import GenRec.
-Require Folds.
-Require Import Reflection.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Expr.
+Require Import Bedrock.NatMap.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Lists.List Coq.Bool.Bool.
+Require Import Bedrock.GenRec.
+Require Bedrock.Folds.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.

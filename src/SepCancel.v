@@ -1,15 +1,15 @@
-Require Import List.
-Require Import SepTheoryX PropX.
-Require Import PropXTac.
-Require Import RelationClasses EqdepClass.
-Require Import Expr ExprUnify.
-Require Import SepExpr SepHeap.
-Require Import Setoid.
-Require Import Prover.
-Require Import SepExpr.
-Require Import Folds.
-Require Import Reflection.
-Require SepUnify.
+Require Import Coq.Lists.List.
+Require Import Bedrock.SepTheoryX Bedrock.PropX.
+Require Import Bedrock.PropXTac.
+Require Import Coq.Classes.RelationClasses Bedrock.EqdepClass.
+Require Import Bedrock.Expr Bedrock.ExprUnify.
+Require Import Bedrock.SepExpr Bedrock.SepHeap.
+Require Import Coq.Setoids.Setoid.
+Require Import Bedrock.Prover.
+Require Import Bedrock.SepExpr.
+Require Import Bedrock.Folds.
+Require Import Bedrock.Reflection.
+Require Bedrock.SepUnify.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -266,7 +266,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
           rewrite heq_star_assoc. reflexivity. }
       Qed.
 
-      Require Import Reflection Tactics.
+      Require Import Bedrock.Reflection Bedrock.Tactics.
 
       Lemma unify_remove_PureFacts : forall bound summ f p l S,
         U.Subst_WellTyped tfuncs tU tG S ->
@@ -291,7 +291,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
 
     End with_typing.
 
-    Require Ordering.
+    Require Bedrock.Ordering.
 
     Definition cancel_list : Type :=
       list (exprs types * nat).
@@ -510,7 +510,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
       clear. unfold typeof_preds. intros. rewrite Tactics.map_nth_error_full. reflexivity.
     Qed.
 
-    Require Import Tactics.
+    Require Import Bedrock.Tactics.
 
     Lemma WellTyped_impures_add : forall tf tp tU tG f l m,
       SH.WellTyped_impures (types := types) tf tp tU tG m = true ->

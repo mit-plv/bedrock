@@ -1,4 +1,4 @@
-Require Import List.
+Require Import Coq.Lists.List.
 
 Section ListLexOrder.
   Variable T : Type.
@@ -56,7 +56,7 @@ Proof.
   rewrite H0. exists (a :: x0). exists x1. simpl; eauto.
 Qed.
 
-Require Import Permutation.
+Require Import Coq.Sorting.Permutation.
 
 Lemma sort_permutation : forall T (C : T -> T -> _) x,
   Permutation (sort _ C x) x.

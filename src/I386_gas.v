@@ -1,6 +1,6 @@
-Require Import List String Ascii.
+Require Import Coq.Lists.List Coq.Strings.String Coq.Strings.Ascii.
 
-Require Import LabelMap Word IL XCAP.
+Require Import Bedrock.LabelMap Bedrock.Word Bedrock.IL Bedrock.XCAP.
 
 Set Implicit Arguments.
 
