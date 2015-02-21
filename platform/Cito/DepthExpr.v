@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Platform.Cito.SyntaxExpr.
 
 (* The depth of stack actually used by compileExpr *)
 Fixpoint depth expr :=

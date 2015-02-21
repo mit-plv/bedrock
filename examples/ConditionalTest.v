@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep.
+Require Import Examples.AutoSep.
 
 
 Definition alwaysZeroS : spec := SPEC("x", "y") reserving 0

@@ -1,4 +1,4 @@
-Require Import Bedrock.Bedrock Bedrock.Examples.PreAutoSep.
+Require Import Bedrock.Bedrock Examples.PreAutoSep.
 
 
 Import DefineStructured.

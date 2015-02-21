@@ -1,15 +1,15 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.VerifCondOkNonCall.
+  Require Import Platform.Cito.VerifCondOkNonCall.
   Module Import VerifCondOkNonCallMake := Make E M.
-  Require Import Bedrock.Platform.Cito.VerifCondOkNonCall2.
+  Require Import Platform.Cito.VerifCondOkNonCall2.
   Module Import VerifCondOkNonCall2Make := Make E M.
-  Require Import Bedrock.Platform.Cito.VerifCondOkCall.
+  Require Import Platform.Cito.VerifCondOkCall.
   Module Import VerifCondOkCallMake := Make E M.
   Import CompileStmtSpecMake.
   Import InvMake.
@@ -19,7 +19,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.AutoSep.
+    Require Import Platform.AutoSep.
 
     Variable vars : list string.
 

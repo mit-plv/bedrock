@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Platform.Cito.SyntaxExpr.
 Require Import Bedrock.StringSet.
 Import StringSet.
 

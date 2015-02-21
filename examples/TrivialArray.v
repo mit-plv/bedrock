@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.AutoSep.
+Require Import Examples.AutoSep.
 
 (** * A trivial example to make sure the array proof automation isn't completely borked *)
 

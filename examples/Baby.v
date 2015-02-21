@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep.
+Require Import Examples.AutoSep.
 
 (** * The simplest function *)
 

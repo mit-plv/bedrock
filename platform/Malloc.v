@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Util.
+Require Import Platform.AutoSep Platform.Util.
 Require Import Coq.Arith.Arith Coq.Lists.List.
 
 Set Implicit Arguments.

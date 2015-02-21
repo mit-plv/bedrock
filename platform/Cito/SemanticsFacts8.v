@@ -4,13 +4,13 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.Semantics.
+  Require Import Platform.Cito.SemanticsUtil.
   Require Import Coq.Lists.List.
 
   Notation make_triples := (@make_triples ADTValue).
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics4.
+  Require Import Platform.Cito.GeneralTactics4.
 
   Arguments store_out {_} _ _.
   Arguments ADTOut {_} _.
@@ -21,12 +21,12 @@ Section ADTValue.
 
   Definition not_reachable_p p (words_cinput : list (W * Value ADTValue)) := forall i v, nth_error words_cinput i = Some (p, v) -> exists w, v = SCA _ w.
 
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
-  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.ListFacts4.
 
   Lemma fold_bwd p a triples : 
     forall h,
@@ -201,7 +201,7 @@ Section ADTValue.
     eapply fold_store_out_elim in Hf; simpl; eauto.
     destruct Hf as [[Hnr Hf] | [i [ai Ht]]].
     left.
-    Require Import Bedrock.Platform.Cito.SemanticsFacts7.
+    Require Import Platform.Cito.SemanticsFacts7.
     rewrite make_triples_Word_ADTIn in *; eauto.
     right.
     exists i, ai.

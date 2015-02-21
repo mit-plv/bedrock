@@ -1,17 +1,17 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Make E.
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.Cito.Syntax.
-    Require Import Bedrock.Platform.AutoSep.
-    Require Import Bedrock.Platform.Cito.GLabel.
+    Require Import Platform.Cito.Syntax.
+    Require Import Platform.AutoSep.
+    Require Import Platform.Cito.GLabel.
 
     Definition Env := ((glabel -> option W) * (W -> option Callee))%type.
 
@@ -37,7 +37,7 @@ Module Make (Import E : ADT).
     Infix "\/" := or_lift : assert_scope.
     Infix "-->" := imply_close (at level 90) : assert_scope.
 
-    Require Import Bedrock.Platform.Cito.SemanticsExpr.
+    Require Import Platform.Cito.SemanticsExpr.
 
     Close Scope equiv_scope.
 
@@ -88,7 +88,7 @@ Module Make (Import E : ADT).
 
     Definition and_all : list entailment -> entailment := fold_right (fun a b env => a env /\ b env)%type (fun _ => True).
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.GeneralTactics.
 
     Lemma and_all_app : forall ls1 ls2 env, and_all (ls1 ++ ls2) env -> and_all ls1 env /\ and_all ls2 env.
       induction ls1; simpl; intuition.

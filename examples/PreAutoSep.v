@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.AutoSepExt.
+Require Import Examples.AutoSepExt.
 Export AutoSepExt.
 
 Ltac refold' A :=
@@ -39,7 +39,7 @@ Ltac refold :=
            end.
 
 Require Import Coq.Bool.Bool.
-Require Import Bedrock.Examples.Conditional Bedrock.Examples.Lambda.
+Require Import Examples.Conditional Examples.Lambda.
 Export Conditional Lambda.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps

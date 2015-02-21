@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Platform.Cito.Syntax.
 
 Set Implicit Arguments.
 
@@ -18,8 +18,8 @@ Section SynReq.
 
   Variable s : Stmt.
 
-  Require Import Bedrock.Platform.Cito.FreeVars.
-  Require Import Bedrock.Platform.Cito.Depth.
+  Require Import Platform.Cito.FreeVars.
+  Require Import Platform.Cito.Depth.
 
   Local Open Scope nat.
 
@@ -27,18 +27,18 @@ Section SynReq.
     Subset (free_vars s) (of_list vars) /\
     depth s <= temp_size.
 
-  Require Import Bedrock.Platform.Cito.WellFormed.
+  Require Import Platform.Cito.WellFormed.
 
   Definition syn_req := in_scope /\ wellformed s.
 
 End SynReq.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Import SemanticsMake.
   Module Import InvMake2 := Make M.

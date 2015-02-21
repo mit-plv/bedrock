@@ -1,14 +1,14 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.CompileSafe.
-Require Import Bedrock.Platform.Facade.CompileRunsTo.
-Require Import Bedrock.Platform.Facade.CompileDFacadeCorrect.
+Require Import Platform.Facade.CompileSafe.
+Require Import Platform.Facade.CompileRunsTo.
+Require Import Platform.Facade.CompileDFacadeCorrect.
 
 Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Facade.DFacade.
+  Require Import Platform.Facade.DFacade.
 
   Notation State := (@State ADTValue).
   Notation Env := (@Env ADTValue).
@@ -18,7 +18,7 @@ Section ADTValue.
   Notation Safe := (@Safe ADTValue).
 
   Require Import Bedrock.Memory.
-  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Platform.Cito.GLabel.
 
   Notation CState := (@Semantics.State ADTValue).
   Notation CCallee := (@Semantics.Callee ADTValue).
@@ -28,17 +28,17 @@ Section ADTValue.
 
   Notation FEnv := (@Facade.Env ADTValue).
 
-  Require Import Bedrock.Platform.Cito.GLabelMap.
+  Require Import Platform.Cito.GLabelMap.
 
   Notation compile s := (Compile.compile (compile s)).
 
   Notation compile_spec s := (CompileRunsTo.compile_spec (@CompileDFacadeCorrect.compile_spec ADTValue s)).
 
-  Require Import Bedrock.Platform.Cito.Label2Word Bedrock.Platform.Cito.Label2WordFacts.
+  Require Import Platform.Cito.Label2Word Platform.Cito.Label2WordFacts.
 
-  Require Import Bedrock.Platform.Cito.GLabelMap.
+  Require Import Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+  Require Import Platform.Cito.GLabelMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
@@ -52,12 +52,12 @@ Section ADTValue.
 
   Require Import Bedrock.StringSet.
 
-  Require Import Bedrock.Platform.Cito.Option.
+  Require Import Platform.Cito.Option.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
-  Require Import Bedrock.Platform.Cito.GeneralTactics3.
-  Require Import Bedrock.Platform.Cito.GeneralTactics4.
-  Require Import Bedrock.Platform.Cito.GeneralTactics5.
+  Require Import Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.GeneralTactics3.
+  Require Import Platform.Cito.GeneralTactics4.
+  Require Import Platform.Cito.GeneralTactics5.
 
   Lemma cenv_impls_env_fenv cenv env : cenv_impls_env cenv env -> exists fenv, CompileRunsTo.cenv_impls_env cenv fenv /\ fenv_impls_env fenv env.
   Proof.
@@ -103,9 +103,9 @@ Section ADTValue.
     }
   Qed.
 
-  Require Import Bedrock.Platform.Cito.StringMap.
+  Require Import Platform.Cito.StringMap.
   Import StringMap.
-  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Require Import Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
@@ -114,8 +114,8 @@ Section ADTValue.
 
   Require Import Coq.Strings.String.
 
-  Require Import Bedrock.Platform.Facade.NameDecoration.
-  Require Import Bedrock.Platform.Facade.FacadeFacts Bedrock.Platform.Facade.DFacadeFacts.
+  Require Import Platform.Facade.NameDecoration.
+  Require Import Platform.Facade.FacadeFacts Platform.Facade.DFacadeFacts.
 
   Existing Instance equiv_rel_Symmetric.
   Existing Instance equiv_rel_Transitive.
@@ -162,11 +162,11 @@ Section ADTValue.
     erewrite find_equiv_fpv in Hx'a; eauto.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.StringSetFacts.
+  Require Import Platform.Cito.StringSetFacts.
   Import StringSet.
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 

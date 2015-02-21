@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.LayoutHintsUtil Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.LayoutHintsUtil Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Inv.Make E.
   Module Import InvMake2 := InvMake.Make M.
   Import SemanticsMake.
@@ -15,7 +15,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition is_heap_upd_option h addr a := is_heap (heap_upd_option h addr a).
 
-    Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+    Require Import Platform.Cito.SemanticsFacts5.
 
     Lemma is_heap_upd_option_bwd : forall h addr a, is_heap h * layout_option addr a ===> is_heap_upd_option h addr a.
       unfold is_heap_upd_option, heap_upd_option, Semantics.heap_upd_option, layout_option; intros.
@@ -171,7 +171,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eexists.
       injection H2; intros; subst; eauto.
       apply InA_In; apply WordMap.elements_1.
-      Require Import Bedrock.Platform.Cito.WordMapFacts.
+      Require Import Platform.Cito.WordMapFacts.
       apply add_mapsto_iff.
       right; intuition subst.
       apply H0; eexists; eauto.

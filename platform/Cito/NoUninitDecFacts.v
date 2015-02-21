@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.NoUninitDec.
+Require Import Platform.Cito.NoUninitDec.
 
-Require Bedrock.Platform.Cito.Wf.
+Require Platform.Cito.Wf.
 Require Import Coq.Bool.Bool.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics2.
+Require Import Platform.Cito.GeneralTactics2.
 
 Require Import Coq.Lists.List.
 Import ListNotations.
@@ -13,7 +13,7 @@ Local Open Scope list_scope.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import Bedrock.Platform.Cito.StringSetFacts.
+Require Import Platform.Cito.StringSetFacts.
 Import FSetNotations.
 Import FSetNotationsTrial.
 Local Open Scope fset_scope.
@@ -40,9 +40,9 @@ Proof.
     eauto.
 Qed.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics4.
+Require Import Platform.Cito.GeneralTactics Platform.Cito.GeneralTactics4.
 
-Require Import Bedrock.Platform.Cito.FreeVarsExpr.
+Require Import Platform.Cito.FreeVarsExpr.
 
 Lemma expReads_free_vars e : forall uninited x, Wf.expReads uninited e x -> In x (free_vars e) /\ uninited x.
 Proof.
@@ -164,7 +164,7 @@ Proof.
   intuition.
 Qed.
 
-Require Import Bedrock.Platform.Cito.FuncCore.
+Require Import Platform.Cito.FuncCore.
 
 Lemma is_no_uninited_reads_sound f : is_no_uninited_reads f = true -> forall x, ~ Wf.reads (fun x => ~ List.In x (ArgVars f)) (Body f) x.
 Proof.

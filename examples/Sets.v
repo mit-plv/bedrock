@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc.
+Require Import Examples.AutoSep Examples.Malloc.
 
 
 (** Theory of sets, with tactics and hints *)

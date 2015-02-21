@@ -1,34 +1,34 @@
 Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+  Require Import Platform.Cito.CompileStmtSpec.
   Module Import CompileStmtSpecMake := Make E M.
-  Require Import Bedrock.Platform.Cito.CompileStmtImpl.
+  Require Import Platform.Cito.CompileStmtImpl.
   Module Import CompileStmtImplMake := Make E M.
-  Require Import Bedrock.Platform.Cito.LayoutHints.
+  Require Import Platform.Cito.LayoutHints.
   Module Import LayoutHintsMake := LayoutHints.Make E M.
-  Require Import Bedrock.Platform.Cito.LayoutHints2.
+  Require Import Platform.Cito.LayoutHints2.
   Module Import LayoutHints2Make := LayoutHints2.Make E M.
-  Require Import Bedrock.Platform.Cito.CompileStmtTactics.
+  Require Import Platform.Cito.CompileStmtTactics.
   Module Import CompileStmtTacticsMake := Make E M.
   Import InvMake.
   Import Semantics.
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
-  Require Import Bedrock.Platform.Cito.InvFacts.
+  Require Import Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.InvFacts.
   Module Import InvFactsMake := Make E.
   Module Inner := InvFactsMake.Make(M).
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.Cito.Inv.
+    Require Import Platform.Cito.Inv.
 
     Variable vars : list string.
 
@@ -40,19 +40,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable modName : string.
 
-    Require Import Bedrock.Platform.Cito.Syntax.
-    Require Import Bedrock.Platform.Wrap.
+    Require Import Platform.Cito.Syntax.
+    Require Import Platform.Wrap.
 
     Variable rv_postcond : W -> vals -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Bedrock.Platform.Cito.SemanticsFacts.
-    Require Import Bedrock.Platform.Cito.SynReqFacts.
-    Require Import Bedrock.Platform.Cito.ListFacts5.
+    Require Import Platform.Cito.SemanticsFacts.
+    Require Import Platform.Cito.SynReqFacts.
+    Require Import Platform.Cito.ListFacts5.
     Require Import Bedrock.StringSet.
     Import StringSet.
-    Require Import Bedrock.Platform.Cito.StringSetTactics.
+    Require Import Platform.Cito.StringSetTactics.
 
     Hint Resolve Subset_syn_req_In.
     Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
@@ -60,12 +60,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Set Printing Coercions.
 
-    Require Import Bedrock.Platform.Cito.SemanticsExpr.
-    Require Import Bedrock.Platform.Cito.SepHints.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.WordFacts.
+    Require Import Platform.Cito.SemanticsExpr.
+    Require Import Platform.Cito.SepHints.
+    Require Import Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.WordFacts.
     Require Import Coq.Arith.Arith.
-    Require Import Bedrock.Platform.Cito.VerifCondOkTactics.
+    Require Import Platform.Cito.VerifCondOkTactics.
 
     Open Scope nat.
 
@@ -175,7 +175,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       gen_le.
       hiding ltac:(evaluate hints_buf_2_fwd).
       hiding ltac:(evaluate hints_array).
-      Require Import Bedrock.Platform.Cito.SepHints2 Bedrock.Platform.Cito.SepHintsUtil.
+      Require Import Platform.Cito.SepHints2 Platform.Cito.SepHintsUtil.
       rewrite (@replace_array_to_split x8 _ (length l)) in H17.
       assert (splittable x8 (length l)) by (unfold splittable; omega).
       hiding ltac:(evaluate hints_array_split).
@@ -459,7 +459,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hide_upd_sublist.
       set (arr := map _ _) in *.
       set (avars := ArgVars _) in *.
-      Require Import Bedrock.Platform.Cito.SepHints3.
+      Require Import Platform.Cito.SepHints3.
       rewrite (@replace_array_to_locals arr _ avars) in H7.
       assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply (NoDupArgVars _) ]).
       hiding ltac:(evaluate hints_array_to_locals).
@@ -627,7 +627,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       rewrite fold_first in *.
       set (avars := ArgVars _) in *.
-      Require Import Bedrock.Platform.Cito.SepHints4.
+      Require Import Platform.Cito.SepHints4.
       assert (locals_to_elim avars) by (unfold locals_to_elim; eauto).
       hiding ltac:(step hints_elim_locals).
       unfold_all.
@@ -764,7 +764,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_split_heap).
       unfold Semantics.good_inputs in *; openhyp; eauto.
       unfold Semantics.good_inputs in *; openhyp.
-      Require Import Bedrock.Platform.Cito.SemanticsUtil.
+      Require Import Platform.Cito.SemanticsUtil.
       Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
         intros.
         eapply Forall_weaken.
@@ -843,7 +843,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : map _ _ = map _ _ |- _ => generalize H; eapply map_eq_length_eq in H; intro
       end.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+      Require Import Platform.Cito.SemanticsFacts6.
       rewrite make_triples_length in * by eauto.
       assert (length x15 = length l) by (rewriter; eauto).
       repeat match goal with
@@ -886,7 +886,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H
       end.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+      Require Import Platform.Cito.SemanticsFacts5.
       eapply Safe_Equal; eauto.
       auto_apply.
       econstructor; simpl in *.

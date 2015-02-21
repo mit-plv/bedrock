@@ -2,12 +2,12 @@ Set Implicit Arguments.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import Bedrock.Platform.Cito.StringSetFacts.
+Require Import Platform.Cito.StringSetFacts.
 
 Section TopSection.
 
-  Require Import Bedrock.Platform.Cito.GetLocalVars.
-  Require Import Bedrock.Platform.Cito.FreeVars.
+  Require Import Platform.Cito.GetLocalVars.
+  Require Import Platform.Cito.FreeVars.
 
   Lemma get_local_vars_cardinal : forall s1 s2 argvars retvar, Subset (free_vars s1) (free_vars s2) -> length (get_local_vars s1 argvars retvar) <= length (get_local_vars s2 argvars retvar).
     intros.
@@ -22,8 +22,8 @@ Section TopSection.
 
   Require Import Coq.Strings.String.
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
-  Require Import Bedrock.Platform.Cito.SetoidListFacts.
+  Require Import Platform.Cito.GeneralTactics2.
+  Require Import Platform.Cito.SetoidListFacts.
 
   Lemma get_local_vars_subset : forall stmt argvars retvar, Subset (free_vars stmt) (of_list (argvars ++ get_local_vars stmt argvars retvar)).
     unfold get_local_vars.

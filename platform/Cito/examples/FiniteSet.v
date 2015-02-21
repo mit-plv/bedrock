@@ -1,6 +1,6 @@
-Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Platform.AutoSep Platform.Malloc.
 
-Require Import Bedrock.Platform.Cito.WordKey.
+Require Import Platform.Cito.WordKey.
 
 Require Import Coq.MSets.MSetRBT.
 Module WordSet := Make W_as_OT_new.

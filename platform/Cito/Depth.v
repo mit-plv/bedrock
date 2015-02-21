@@ -1,6 +1,6 @@
-Require Import Bedrock.Platform.Cito.Syntax.
-Require Bedrock.Platform.Cito.DepthExpr.
-Require Import Bedrock.Platform.Cito.Max.
+Require Import Platform.Cito.Syntax.
+Require Platform.Cito.DepthExpr.
+Require Import Platform.Cito.Max.
 
 Set Implicit Arguments.
 

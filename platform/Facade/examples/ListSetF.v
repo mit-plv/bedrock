@@ -1,6 +1,6 @@
-Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep.
+Require Import Coq.Sets.Ensembles Platform.AutoSep.
 
-Require Import Bedrock.Platform.Malloc Bedrock.Platform.Facade.examples.FiatADTs Bedrock.Platform.Facade.examples.FiniteSetF.
+Require Import Platform.Malloc Platform.Facade.examples.FiatADTs Platform.Facade.examples.FiniteSetF.
 
 
 Module Type ADT.

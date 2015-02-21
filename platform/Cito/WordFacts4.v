@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.WordFacts2 Platform.Cito.WordFacts3.
 Require Import Coq.Arith.Arith.
 
 (* ============================================================================

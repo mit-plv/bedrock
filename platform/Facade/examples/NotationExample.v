@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.DFacade.
-Require Import Bedrock.Platform.Facade.Notations.
+Require Import Platform.Facade.DFacade.
+Require Import Platform.Facade.Notations.
 Import Notations.OpenScopes.
 
 Section ADTValue.
@@ -46,13 +46,13 @@ Section ADTValue.
       }
     }.
 
-  Require Import Bedrock.Platform.Facade.CompileDFModule.
+  Require Import Platform.Facade.CompileDFModule.
 
   Definition gmodule := compile_to_gmodule count_unique "count_unique" eq_refl.
 
   (* test executability *)
-  Require Import Bedrock.Platform.Cito.GoodModuleDec.
-  Require Import Bedrock.Platform.Cito.IsGoodModule.
+  Require Import Platform.Cito.GoodModuleDec.
+  Require Import Platform.Cito.IsGoodModule.
 
   Goal is_good_module gmodule = true. Proof. exact eq_refl. Qed.
 

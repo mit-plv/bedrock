@@ -6,17 +6,17 @@ Section ADTValue.
 
   Require Import Coq.Lists.List.
 
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics4.
+  Require Import Platform.Cito.GeneralTactics4.
 
   Arguments empty {_}.
 
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.SemanticsUtil.
 
   Definition make_heap' := fold_right (fun x m => @store_pair ADTValue m x) empty.
 
@@ -100,7 +100,7 @@ Section ADTValue.
       | ADT _ => ~ List.In (fst p) (List.map fst (List.filter (fun p => is_adt (snd p)) pairs))
     end.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
 
   Lemma disjoint_ptrs_cons_elim' pairs : forall p, disjoint_ptrs (p :: pairs) -> disjoint_ptrs_ls p pairs /\ disjoint_ptrs pairs.
   Proof.
@@ -164,7 +164,7 @@ Section ADTValue.
   Lemma disjoint_ptrs_cons_elim pairs : forall p, disjoint_ptrs (p :: pairs) -> no_clash_ls p pairs /\ disjoint_ptrs pairs.
     intros p H.
     eapply disjoint_ptrs_cons_elim' in H.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.GeneralTactics.
     openhyp.
     split; eauto.
     eapply disjoint_ptrs_ls_no_clash_ls; eauto.

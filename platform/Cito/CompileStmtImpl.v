@@ -2,7 +2,7 @@ Set Implicit Arguments.
 
 Section Body.
 
-  Require Import Bedrock.Platform.AutoSep.
+  Require Import Platform.AutoSep.
   Variable vars : list string.
 
   Variable temp_size : nat.
@@ -13,7 +13,7 @@ Section Body.
 
   Variable modName : string.
 
-  Require Import Bedrock.Platform.Cito.SemanticsExpr.
+  Require Import Platform.Cito.SemanticsExpr.
 
   Definition stack_slot n := LvMem (Sp + (4 * n)%nat)%loc.
   Definition vars_start := 4 * 2.
@@ -49,10 +49,10 @@ Section Body.
       (Structured.If_ imports_global n Le Rv cmd
                       (Diverge_ imports modName)).
 
-  Require Bedrock.Platform.Cito.SaveRet.
+  Require Platform.Cito.SaveRet.
   Local Open Scope nat.
 
-  Require Import Bedrock.Platform.Cito.ConvertLabel.
+  Require Import Platform.Cito.ConvertLabel.
   Import Syntax.
   Variable loop_inv : Expr -> Stmt -> Stmt -> assert.
   Variable after_call : option string -> Stmt -> assert.
@@ -98,12 +98,12 @@ Section Body.
 
 End Body.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Import SemanticsMake.
   Module Import InvMake2 := Make M.
@@ -120,8 +120,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       let s := Syntax.Seq (Syntax.While cond body) k in
       inv_template vars temp_size (fun rv v => rv = eval (fst v) cond) rv_postcond s.
 
-    Require Import Bedrock.Platform.Malloc.
-    Require Import Bedrock.Platform.Cito.Semantics.
+    Require Import Platform.Malloc.
+    Require Import Platform.Cito.Semantics.
 
     Definition after_call ret k : assert :=
       st ~> Ex fs,
@@ -157,11 +157,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable modName : string.
 
-    Require Bedrock.Platform.Cito.CompileExpr.
+    Require Platform.Cito.CompileExpr.
 
     Definition compile_expr e n := CompileExpr.compile vars temp_size imports_global modName e n.
 
-    Require Bedrock.Platform.Cito.CompileExprs.
+    Require Platform.Cito.CompileExprs.
 
     Definition compile_exprs es n dst := CompileExprs.compile vars temp_size es n dst imports_global modName.
 

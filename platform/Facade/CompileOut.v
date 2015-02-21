@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.CompileUnit.
-Require Import Bedrock.Platform.Cito.StringMap Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.GLabelMap Coq.Strings.String Coq.Lists.List.
+Require Import Platform.Facade.CompileUnit.
+Require Import Platform.Cito.StringMap Platform.Cito.WordMap Platform.Cito.GLabelMap Coq.Strings.String Coq.Lists.List.
 Local Open Scope string_scope.
 
 (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
@@ -10,13 +10,13 @@ Notation export_module_name := "export".
 (* Notation extra_stack := 200. *)
 Notation extra_stack := 10.
 
-Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT Platform.Cito.RepInv.
 Module Make (Import E : ADT) (Import M : RepInv E).
-  Require Import Bedrock.Platform.Cito.Inv Bedrock.Platform.Malloc.
+  Require Import Platform.Cito.Inv Platform.Malloc.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
-  Require Import Bedrock.Platform.Cito.Semantics.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.Semantics.
+  Require Import Platform.Cito.SemanticsUtil.
 
   Section TopSection.
 

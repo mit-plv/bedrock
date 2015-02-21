@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.AutoSep.
+Require Import Examples.AutoSep.
 
 Set Implicit Arguments.
 

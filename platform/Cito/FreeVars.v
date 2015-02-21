@@ -1,8 +1,8 @@
-Require Import Bedrock.Platform.Cito.FreeVarsExpr.
-Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Platform.Cito.FreeVarsExpr.
+Require Import Platform.Cito.Syntax.
 Require Import Bedrock.StringSet.
-Require Import Bedrock.Platform.Cito.Option.
-Require Import Bedrock.Platform.Cito.Union.
+Require Import Platform.Cito.Option.
+Require Import Platform.Cito.Union.
 Import StringSet.
 
 Set Implicit Arguments.

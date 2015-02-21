@@ -4,7 +4,7 @@ Require Import Coq.Lists.List.
 
 Section TopSection.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Platform.Cito.GeneralTactics2.
 
   Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
     intros.

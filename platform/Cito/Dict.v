@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Sets.
+Require Import Platform.Sets.
 
 Set Implicit Arguments.
 

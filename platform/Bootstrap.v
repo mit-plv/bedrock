@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.DepList Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Bedrock.DepList Platform.AutoSep Platform.Malloc.
 
 Set Implicit Arguments.
 
@@ -775,7 +775,7 @@ Defined.
 
 Ltac genesis := post; evaluate genesisHints; simpl in *; sep genesisHints; eauto.
 
-Require Import Bedrock.Platform.Safety.
+Require Import Platform.Safety.
 
 Ltac safety ok :=
   eapply safety; try eassumption; [

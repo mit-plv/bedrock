@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Platform.PreAutoSep Bedrock.Platform.Util Bedrock.Platform.Sys.
+Require Import Platform.PreAutoSep Platform.Util Platform.Sys.
 Export PreAutoSep Util Sys.
 
 Set Implicit Arguments.

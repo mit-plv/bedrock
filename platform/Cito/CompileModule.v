@@ -1,26 +1,26 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.CompileFunc.
+  Require Import Platform.Cito.CompileFunc.
   Module Import CompileFuncMake := Make E M.
   Import CompileFuncImplMake.
-  Require Import Bedrock.Platform.Cito.GoodOptimizer.
+  Require Import Platform.Cito.GoodOptimizer.
   Import GoodOptimizerMake.
 
-  Require Import Bedrock.Platform.Cito.GoodFunc.
+  Require Import Platform.Cito.GoodFunc.
 
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.GoodModule.
+  Require Import Platform.Cito.GoodModule.
   Require Import Bedrock.StructuredModule.
-  Require Import Bedrock.Platform.Cito.NameDecoration.
-  Require Import Bedrock.Platform.Cito.GoodFunction.
+  Require Import Platform.Cito.NameDecoration.
+  Require Import Platform.Cito.GoodFunction.
   Require Import Bedrock.Structured.
-  Require Import Bedrock.Platform.Wrap.
-  Require Import Bedrock.Platform.Cito.NameVC.
+  Require Import Platform.Wrap.
+  Require Import Platform.Cito.NameVC.
 
   Section TopSection.
 

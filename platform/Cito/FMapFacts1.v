@@ -28,13 +28,13 @@ Module WFacts_fun (E:DecidableType)(Import M:WSfun E).
 
     Definition find_list k := findA (B := elt) (eqb k).
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.GeneralTactics2.
 
     Definition NoDupKey := NoDupA eqk.
     Definition InPair := InA eqke.
 
-    Require Import Bedrock.Platform.Cito.Option.
+    Require Import Platform.Cito.Option.
 
     Lemma NoDup_cons : forall ls k1 v1 k2 v2, NoDupKey ((k1, v1) :: ls) -> InPair (k2, v2) ls -> ~ E.eq k1 k2.
       unfold InPair.
@@ -261,7 +261,7 @@ End WFacts_fun.
 
 Definition sumbool_to_bool A B (x : {A} + {B}) := if x then true else false.
 
-Require Import Bedrock.Platform.Cito.SetoidListFacts.
+Require Import Platform.Cito.SetoidListFacts.
 
 Require Import Coq.Structures.DecidableTypeEx.
 
@@ -283,8 +283,8 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     Notation eqke := (@eq_key_elt elt).
     Notation eqk := (@eq_key elt).
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.GeneralTactics2.
 
     Lemma eqke_eq : equiv_2 eqke eq.
       split; intros.

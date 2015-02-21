@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc.
+Require Import Examples.AutoSep Examples.Malloc.
 
 
 Definition bag := W * W -> nat.

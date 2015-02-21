@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.AutoSep Coq.omega.Omega.
+Require Import Platform.AutoSep Coq.omega.Omega.
 
 Lemma S_le_lt : forall a b c, (a + S b <= c -> a < c)%nat.
   intros; omega.
@@ -82,7 +82,7 @@ Lemma evalInstrs_cons_fwd : forall i is stn st st_new,
   Opaque evalInstrs.
 Qed.
 
-Require Import Bedrock.Platform.Wrap.
+Require Import Platform.Wrap.
 Import DefineStructured.
 
 Lemma evalInstrs_cons_fwd_None : forall (stn : settings) i (is1 : list instr) (st : state),

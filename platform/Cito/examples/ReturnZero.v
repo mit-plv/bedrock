@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.MakeWrapper Bedrock.Platform.Cito.examples.ExampleADT Bedrock.Platform.Cito.examples.ExampleRepInv.
+Require Import Platform.Cito.MakeWrapper Platform.Cito.examples.ExampleADT Platform.Cito.examples.ExampleRepInv.
 
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.

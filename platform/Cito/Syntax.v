@@ -1,6 +1,6 @@
 Require Import Coq.Strings.String.
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
-Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Platform.Cito.SyntaxExpr.
+Require Import Platform.Cito.GLabel.
 Export SyntaxExpr.
 
 Inductive Stmt : Set :=

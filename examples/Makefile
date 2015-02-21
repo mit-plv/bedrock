@@ -21,7 +21,7 @@ coq: Makefile.coq
 	COQC='time $(COQBIN)coqc' $(MAKE) -f Makefile.coq
 
 Makefile.coq: Makefile $(VS)
-	$(COQBIN)coq_makefile -R $(ROOT)/src Bedrock -R . Bedrock.Examples \
+	$(COQBIN)coq_makefile -R $(ROOT)/src Bedrock -R . Examples \
 		     $(VS) -o Makefile.coq
 
 clean:: Makefile.coq

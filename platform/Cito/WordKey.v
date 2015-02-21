@@ -40,7 +40,7 @@ Module W_as_MOT <: MiniOrderedType.
     omega.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.WordFacts.
+  Require Import Platform.Cito.WordFacts.
 
   Definition compare : forall x y : t, Compare lt eq x y.
     unfold lt; unfold eq.

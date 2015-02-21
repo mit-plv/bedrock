@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.LayoutHintsUtil Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.WordMap.
+Require Import Platform.Cito.LayoutHintsUtil Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv Platform.Cito.WordMap.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Inv.Make E.
   Module Import InvMake2 := InvMake.Make M.
   Import SemanticsMake.
-  Require Import Bedrock.Platform.Cito.SemanticsFacts5.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.SemanticsFacts5.
+  Require Import Platform.Cito.SemanticsUtil.
 
   Section TopSection.
 
@@ -35,7 +35,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply InA_In.
       apply WordMap.elements_1.
       apply WordMap.elements_2 in H0.
-      Require Import Bedrock.Platform.Cito.WordMapFacts.
+      Require Import Platform.Cito.WordMapFacts.
       apply diff_mapsto_iff.
       intuition.
       destruct H1.

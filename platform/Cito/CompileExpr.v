@@ -1,6 +1,6 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.SyntaxExpr.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
@@ -29,9 +29,9 @@ Section ExprComp.
     ![^[is_state x#Sp vs temps] * #0]x /\
     [| length temps = temp_size |].
 
-  Require Import Bedrock.Platform.Cito.SemanticsExpr.
-  Require Import Bedrock.Platform.Cito.DepthExpr.
-  Require Import Bedrock.Platform.Cito.ListFacts5.
+  Require Import Platform.Cito.SemanticsExpr.
+  Require Import Platform.Cito.DepthExpr.
+  Require Import Platform.Cito.ListFacts5.
 
   Local Open Scope nat.
 
@@ -52,7 +52,7 @@ Section ExprComp.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-  Require Import Bedrock.Platform.Cito.FreeVarsExpr.
+  Require Import Platform.Cito.FreeVarsExpr.
 
   Definition syn_req expr base :=
     Subset (free_vars expr) (of_list vars) /\
@@ -98,7 +98,7 @@ Section ExprComp.
 
   Definition body := do_compile.
 
-  Require Import Bedrock.Platform.Wrap.
+  Require Import Platform.Wrap.
 
   Hint Extern 1 (_ <= _) => omega.
 
@@ -138,7 +138,7 @@ Section ExprComp.
       apply StringFacts.singleton_iff; auto.
       apply H in H5.
 
-      Require Import Bedrock.Platform.Cito.SetoidListFacts.
+      Require Import Platform.Cito.SetoidListFacts.
 
       Lemma In_to_set :
         forall x ls,

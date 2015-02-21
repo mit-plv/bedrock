@@ -4,20 +4,20 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
 
   Notation Value := (@Value ADTValue).
 
   Arguments SCA {_} _.
 
-  Require Import Bedrock.Platform.Cito.SemanticsExpr.
+  Require Import Platform.Cito.SemanticsExpr.
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.SemanticsUtil.
 
   Definition combine_ret w o : Value := 
     match o with
@@ -45,8 +45,8 @@ Section ADTValue.
     good_inputs heap words_inputs /\
     PreCond spec inputs.
 
-  Require Import Bedrock.Platform.Cito.BedrockTactics.
-  Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics2 Bedrock.Platform.Cito.GeneralTactics3.
+  Require Import Platform.Cito.BedrockTactics.
+  Require Import Platform.Cito.GeneralTactics Platform.Cito.GeneralTactics2 Platform.Cito.GeneralTactics3.
 
   Definition match_ret vs (lhs : option string) (ret_w : W) :=
     match lhs with 
@@ -54,8 +54,8 @@ Section ADTValue.
       | None => True
     end.
 
-  Require Import Bedrock.Platform.Cito.ListFacts5.
-  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Platform.Cito.ListFacts5.
+  Require Import Platform.Cito.ListFacts4.
 
   Lemma RunsTo_TransitTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call lhs f args) v v' -> exists inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') /\ match_ret (fst v') lhs ret_w.
   Proof.
@@ -107,7 +107,7 @@ Section ADTValue.
         unfold_all.
         rewrite H5.
         rewrite combine_map.
-        Require Import Bedrock.Platform.Cito.SemanticsFacts7.
+        Require Import Platform.Cito.SemanticsFacts7.
         erewrite <- split_triples; eauto.
       }
       {
@@ -151,7 +151,7 @@ Section ADTValue.
     {
       instantiate (1 := triples).
       unfold_all.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+      Require Import Platform.Cito.SemanticsFacts6.
       rewrite make_triples_Word by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
       rewrite map_fst_combine by (repeat rewrite map_length; eauto).
       eauto.

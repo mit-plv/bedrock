@@ -6,7 +6,7 @@ Inductive ADTScheme :=
 | Primitive : string -> ADTScheme
 | Product : ADTScheme -> ADTScheme -> ADTScheme.
 
-Require Import Bedrock.Platform.AutoSep.
+Require Import Platform.AutoSep.
 
 Record ADTEntry :=
   {
@@ -15,7 +15,7 @@ Record ADTEntry :=
     RepInvGood : forall p a, RepInv p a ===> p =?> 1 * any
   }.
 
-Require Import Bedrock.Platform.Cito.StringMap.
+Require Import Platform.Cito.StringMap.
 Import StringMap.
 
 Definition PrimitiveTable := t ADTEntry.
@@ -73,7 +73,7 @@ Module Type ADTTable.
 
 End ADTTable.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module TabledADT (Import T : ADTTable) <: ADT.
 
@@ -85,7 +85,7 @@ Module Make (Import T : ADTTable).
 
   Module Import A := TabledADT T.
 
-  Require Import Bedrock.Platform.Cito.RepInv.
+  Require Import Platform.Cito.RepInv.
 
   Module TabledADTRepInv <: RepInv A.
 

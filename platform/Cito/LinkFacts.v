@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Make E.
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.Cito.GoodModule.
-    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Require Import Platform.Cito.GoodModule.
+    Require Import Platform.Cito.GLabelMap.
     Import GLabelMap.
 
     Open Scope bool_scope.
@@ -22,8 +22,8 @@ Module Make (Import E : ADT).
 
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
-    Require Import Bedrock.Platform.Cito.ListFacts3.
-    Require Import Bedrock.Platform.Cito.NameDecoration.
+    Require Import Platform.Cito.ListFacts3.
+    Require Import Platform.Cito.NameDecoration.
 
     Definition GoodToLink_bool (modules : list GoodModule) (imports : t ForeignFuncSpec) :=
       let imported_module_names := List.map fst2 (elements imports) in
@@ -33,8 +33,8 @@ Module Make (Import E : ADT).
         forallb (fun s => ! sumbool_to_bool (in_dec string_dec s module_names)) imported_module_names &&
         forallb is_good_module_name imported_module_names.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.ListFacts1.
+    Require Import Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.ListFacts1.
 
     Lemma GoodToLink_bool_sound :
       forall modules imports,
@@ -46,7 +46,7 @@ Module Make (Import E : ADT).
     Proof.
       intros.
       unfold GoodToLink_bool in *; simpl in *.
-      Require Import Bedrock.Platform.Cito.GeneralTactics.
+      Require Import Platform.Cito.GeneralTactics.
       Require Import Coq.Bool.Bool.
       repeat (eapply andb_true_iff in H; openhyp).
       split.
@@ -66,7 +66,7 @@ Module Make (Import E : ADT).
       eapply forallb_forall in H0; eauto.
       rewrite <- map_map.
       eapply in_map.
-      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+      Require Import Platform.Cito.GLabelMapFacts.
       eapply In_fst_elements_In; eauto.
     Qed.
 

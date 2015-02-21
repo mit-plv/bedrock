@@ -18,10 +18,10 @@ Section TopSection.
     induction ls; simpl; intros.
     econstructor.
     eapply andb_true_iff in H0.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.GeneralTactics.
     openhyp.
     econstructor.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Platform.Cito.GeneralTactics2.
     nintro.
     eapply forallb_forall in H0; eauto.
     eapply negb_true_iff in H0.

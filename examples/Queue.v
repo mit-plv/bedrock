@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc Bedrock.Examples.Bags.
+Require Import Examples.AutoSep Examples.Malloc Examples.Bags.
 
 
 (** * Queue ADT *)

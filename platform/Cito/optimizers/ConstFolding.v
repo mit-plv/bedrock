@@ -1,21 +1,21 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.Syntax.
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
-Require Import Bedrock.Platform.Cito.GeneralTactics.
-Require Import Bedrock.Platform.Cito.Notations3.
-Require Import Bedrock.Platform.Cito.SemanticsExpr.
-Require Import Bedrock.Platform.Cito.GoodOptimizer.
+Require Import Platform.Cito.Syntax.
+Require Import Platform.Cito.SyntaxExpr.
+Require Import Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.Notations3.
+Require Import Platform.Cito.SemanticsExpr.
+Require Import Platform.Cito.GoodOptimizer.
 
 Require Import Bedrock.StringSet.
 Module Import SS := StringSet.
-Require Import Bedrock.Platform.Cito.StringSetFacts.
+Require Import Platform.Cito.StringSetFacts.
 Module SSF := StringSetFacts.
-Require Import Bedrock.Platform.Cito.StringSetTactics.
+Require Import Platform.Cito.StringSetTactics.
 
-Require Import Bedrock.Platform.Cito.StringMap.
+Require Import Platform.Cito.StringMap.
 Import StringMap.
-Require Import Bedrock.Platform.Cito.StringMapFacts.
+Require Import Platform.Cito.StringMapFacts.
 
 Definition const_dec : forall e, {w | e = Const w} + {~ exists w, e = Const w}.
   intros; destruct e; solve [ right; intuition; openhyp; intuition | left; eauto ].
@@ -30,7 +30,7 @@ Ltac f_equal' :=
     | |- (if ?E1 then _ else _) = (if ?E2 then _ else _) => replace E2 with E1; try reflexivity
   end.
 
-Require Import Bedrock.Platform.Cito.Option.
+Require Import Platform.Cito.Option.
 
 Ltac openhyp' :=
   repeat match goal with
@@ -174,7 +174,7 @@ Section TopSection.
     intros; subset_solver.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Platform.Cito.GeneralTactics2.
   Require Import Coq.Bool.Bool.
   Require Import Coq.Classes.Morphisms.
 
@@ -470,12 +470,12 @@ Qed.
 
 Ltac rewrite_expr_list := repeat erewrite map_map in *; repeat erewrite const_folding_expr_correct_list in * by eauto.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
   Module Import GoodOptimizerMake := GoodOptimizer.Make E.
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Import SemanticsMake.
 
   Section TopSection.
@@ -895,7 +895,7 @@ Module Make (Import E : ADT).
       eapply const_folding_is_safety_preservation in H; openhyp; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.FreeVarsExpr.
+    Require Import Platform.Cito.FreeVarsExpr.
 
     Lemma const_folding_expr_footprint : forall e m, SS.Subset (free_vars (const_folding_expr e m)) (free_vars e).
     Proof.
@@ -912,7 +912,7 @@ Module Make (Import E : ADT).
 
     Hint Resolve const_folding_expr_footprint_list.
 
-    Require Import Bedrock.Platform.Cito.FreeVars.
+    Require Import Platform.Cito.FreeVars.
 
     Lemma const_folding_footprint : forall s m, SS.Subset (free_vars (fst (fst (const_folding s m)))) (free_vars s).
     Proof.
@@ -941,11 +941,11 @@ Module Make (Import E : ADT).
 
     Require Import Coq.Arith.Le.
     Require Import Coq.Arith.Max.
-    Require Import Bedrock.Platform.Cito.MaxFacts.
+    Require Import Platform.Cito.MaxFacts.
 
     Hint Resolve both_le Le.le_n_S.
 
-    Require Import Bedrock.Platform.Cito.DepthExpr.
+    Require Import Platform.Cito.DepthExpr.
 
     Lemma const_folding_expr_depth : forall e m, depth (const_folding_expr e m) <= depth e.
     Proof.
@@ -961,7 +961,7 @@ Module Make (Import E : ADT).
 
     Hint Resolve const_folding_expr_depth_list.
 
-    Require Import Bedrock.Platform.Cito.Depth.
+    Require Import Platform.Cito.Depth.
 
     Hint Extern 0 (le _ _) => progress (simpl; max_solver).
 
@@ -982,8 +982,8 @@ Module Make (Import E : ADT).
     Qed.
 
     Import NPeano.Nat.
-    Require Import Bedrock.Platform.Cito.GetLocalVars.
-    Require Import Bedrock.Platform.Cito.GetLocalVarsFacts.
+    Require Import Platform.Cito.GetLocalVars.
+    Require Import Platform.Cito.GetLocalVarsFacts.
 
     Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
       unfold PreserveGoodSize, opt; intros.
@@ -994,11 +994,11 @@ Module Make (Import E : ADT).
       eapply optimizer_footprint; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.CompileStmtSpec.
-    Require Import Bedrock.Platform.Cito.SetoidListFacts.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Platform.Cito.CompileStmtSpec.
+    Require Import Platform.Cito.SetoidListFacts.
+    Require Import Platform.Cito.GeneralTactics2.
 
-    Require Import Bedrock.Platform.Cito.WellFormed.
+    Require Import Platform.Cito.WellFormed.
 
     Hint Constructors args_not_too_long.
 

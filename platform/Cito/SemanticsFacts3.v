@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
   Section TopSection.

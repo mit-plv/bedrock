@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Facade.examples.FiatADTs.
+Require Import Platform.AutoSep.
+Require Import Platform.Facade.examples.FiatADTs.
 Import Adt.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.RepInv.
 
-Require Import Bedrock.Platform.Facade.examples.FiniteSetF Bedrock.Platform.Facade.examples.ListSetF Bedrock.Platform.Facade.examples.SeqF Bedrock.Platform.Facade.examples.ListSeqF.
+Require Import Platform.Facade.examples.FiniteSetF Platform.Facade.examples.ListSetF Platform.Facade.examples.SeqF Platform.Facade.examples.ListSeqF.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with

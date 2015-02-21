@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.MakeWrapper.
-Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.MakeWrapper.
+Require Import Platform.Cito.ADT Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
@@ -9,19 +9,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Export MakeWrapperMake.
 
   Import LinkSpecMake.
-  Require Import Bedrock.Platform.Cito.LinkSpecFacts.
+  Require Import Platform.Cito.LinkSpecFacts.
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
 
   Import LinkSpecMake2.
-  Require Import Bedrock.Platform.Cito.StringMap Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.GLabelMap.
+  Require Import Platform.Cito.StringMap Platform.Cito.WordMap Platform.Cito.GLabelMap.
 
-  Require Import Bedrock.Platform.Cito.LinkFacts.
+  Require Import Platform.Cito.LinkFacts.
   Module Import LinkFactsMake := Make E.
 
-  Require Import Bedrock.Platform.Facade.CompileUnit Bedrock.Platform.Facade.CompileOut.
+  Require Import Platform.Facade.CompileUnit Platform.Facade.CompileOut.
   Module Import CompileOutMake := CompileOut.Make E M.
   Export CompileOutMake.
 
@@ -45,26 +45,26 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation dfacade_safe := (CompileUnit.pre_safe compile_unit).
     Notation dfacade_runsto := (CompileUnit.pre_runsto_post compile_unit).
 
-    Require Import Bedrock.Platform.Facade.DFacade.
-    Require Import Bedrock.Platform.Facade.DFModule.
-    Require Import Bedrock.Platform.Facade.CompileDFModule.
-    Require Import Bedrock.Platform.Facade.NameDecoration.
+    Require Import Platform.Facade.DFacade.
+    Require Import Platform.Facade.DFModule.
+    Require Import Platform.Facade.CompileDFModule.
+    Require Import Platform.Facade.NameDecoration.
 
     Definition core := Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok.
     Definition function :=Build_DFFun core unit_compile_syntax_ok.
     Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
 
-    Require Import Bedrock.Platform.Cito.ListFacts3.
+    Require Import Platform.Cito.ListFacts3.
 
     Notation specs := (GLabelMap.map (@Axiomatic _) imports).
 
-    Require Import Bedrock.Platform.Cito.StringMap.
+    Require Import Platform.Cito.StringMap.
     Import StringMap.
-    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Require Import Platform.Cito.StringMapFacts.
     Import FMapNotations.
     Local Open Scope fmap_scope.
 
-    Require Import Bedrock.Platform.Facade.Listy.
+    Require Import Platform.Facade.Listy.
     Import Notations Instances.
     Local Open Scope listy_scope.
 
@@ -72,8 +72,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition modules := good_module :: nil.
 
-    Require Import Bedrock.Platform.Cito.GoodModuleDec.
-    Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
+    Require Import Platform.Cito.GoodModuleDec.
+    Require Import Platform.Cito.GoodModuleDecFacts.
 
     Definition dummy_gf : GoodFunction.
       refine (to_good_function f _).
@@ -85,9 +85,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation spec_op_b := (func_spec modules imports (module_name, fun_name) spec_op).
 
-    Require Import Bedrock.Platform.Cito.Semantics.
+    Require Import Platform.Cito.Semantics.
 
-    Require Import Bedrock.Platform.Facade.CompileDFacadeToCito.
+    Require Import Platform.Facade.CompileDFacadeToCito.
 
     Import WordMapFacts.FMapNotations.
     Local Open Scope fmap_scope.
@@ -101,9 +101,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       split.
       {
         intros lbl spec Hflbl.
-        Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+        Require Import Platform.Cito.GLabelMapFacts.
         rewrite map_o in Hflbl.
-        Require Import Bedrock.Platform.Cito.Option.
+        Require Import Platform.Cito.Option.
         eapply option_map_some_elim in Hflbl.
         destruct Hflbl as [aspec [Hflbl' ?] ].
         subst.
@@ -158,14 +158,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Require Import Bedrock.Platform.Facade.CompileRunsTo.
+    Require Import Platform.Facade.CompileRunsTo.
     Lemma empty_related vs : @CompileRunsTo.related ADTValue (StringMap.empty _) (vs, (WordMap.empty _)).
     Proof.
       unfold related.
       split.
       {
         intros x v Hf.
-        Require Import Bedrock.Platform.Cito.StringMapFacts.
+        Require Import Platform.Cito.StringMapFacts.
         rewrite empty_o in Hf.
         discriminate.
       }
@@ -220,13 +220,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import WordMapFacts.FMapNotations.
 
-    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Require Import Platform.Cito.StringMapFacts.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics4.
+    Require Import Platform.Cito.GeneralTactics4.
     Arguments empty {_}.
 
-    Require Import Bedrock.Platform.Cito.SemanticsUtil.
-    Require Import Bedrock.Platform.Cito.SemanticsFacts9.
+    Require Import Platform.Cito.SemanticsUtil.
+    Require Import Platform.Cito.SemanticsFacts9.
 
     Arguments store_pair {_} _ _.
 
@@ -482,7 +482,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import WordMapFacts.FMapNotations.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics5.
+    Require Import Platform.Cito.GeneralTactics5.
 
     Arguments empty {_}.
     (* a special version of make_map_related_make_heap *)
@@ -663,7 +663,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
         {
           simpl.
-          Require Import Bedrock.Platform.Cito.WordMapFacts.
+          Require Import Platform.Cito.WordMapFacts.
           rewrite diff_same.
           rewrite diff_empty.
           reflexivity.
@@ -696,9 +696,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         end
       }}.
 
-    Require Import Bedrock.Platform.AutoSep.
+    Require Import Platform.AutoSep.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics3.
+    Require Import Platform.Cito.GeneralTactics3.
     Opaque mult.
     Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
     Require Import Bedrock.sep.Locals.
@@ -773,7 +773,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     rewrite H2.
     Require Import Coq.Arith.Mult.
     rewrite mult_0_r.
-    Require Import Bedrock.Platform.Cito.WordFacts.
+    Require Import Platform.Cito.WordFacts.
     rewrite wplus_0.
     set (array (List.map _ _) _).
     set (is_heap _).

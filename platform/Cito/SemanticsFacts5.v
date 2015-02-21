@@ -4,15 +4,15 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.Semantics.
+  Require Import Platform.Cito.SemanticsUtil.
   Require Import Coq.Lists.List.
 
   Notation make_triples := (@make_triples ADTValue).
 
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
 
   Lemma separated_Equal : forall h1 h2 a b,
     WordMap.Equal h1 h2
@@ -247,7 +247,7 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import Bedrock.Platform.PreAutoSep.
+  Require Import Platform.PreAutoSep.
 
   Lemma fold_fwd' : forall k v ls h,
     WordMap.MapsTo k v (fold_left store_out ls h)
@@ -273,9 +273,9 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
 
   Lemma heap_merge_store_out : 
     forall h pairs outs, 

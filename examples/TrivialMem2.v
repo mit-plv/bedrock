@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep.
+Require Import Examples.AutoSep.
 
 (** * Like TrivialMem, but tests use of equality prover in symbolic evaluation *)
 

@@ -1,23 +1,23 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.CompileRunsTo.
+Require Import Platform.Facade.CompileRunsTo.
 
-Require Import Bedrock.Platform.Facade.Facade.
+Require Import Platform.Facade.Facade.
 Require Import Bedrock.Memory Bedrock.IL.
-Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Platform.Cito.GLabel.
 
 Require Import Coq.Strings.String.
 Local Open Scope string_scope.
-Require Import Bedrock.Platform.Cito.StringMap.
+Require Import Platform.Cito.StringMap.
 Import StringMap.
-Require Import Bedrock.Platform.Cito.StringMapFacts.
+Require Import Platform.Cito.StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
 Require Import Coq.Lists.List.
-Require Import Bedrock.ListFacts Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5 Bedrock.Platform.Cito.ListFacts4.
+Require Import Bedrock.ListFacts Platform.Cito.ListFacts2 Platform.Cito.ListFacts3 Platform.Cito.ListFacts5 Platform.Cito.ListFacts4.
 Local Open Scope list_scope.
-Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics2 Bedrock.Platform.Cito.GeneralTactics3 Bedrock.Platform.Cito.GeneralTactics4.
-Require Import Bedrock.Platform.Cito.Option.
+Require Import Platform.Cito.GeneralTactics Platform.Cito.GeneralTactics2 Platform.Cito.GeneralTactics3 Platform.Cito.GeneralTactics4.
+Require Import Platform.Cito.Option.
 
 Section ADTValue.
 
@@ -31,13 +31,13 @@ Section ADTValue.
   Notation Sca := (@SCA ADTValue).
   Notation Adt := (@ADT ADTValue).
 
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
-  Require Import Bedrock.Platform.Facade.FacadeFacts.
+  Require Import Platform.Facade.FacadeFacts.
 
   Notation CitoSafe := (@Semantics.Safe ADTValue).
 
@@ -128,9 +128,9 @@ Section ADTValue.
       + rewrite Hn in *; discriminate.
   Qed.
 
-  Require Import Bedrock.Platform.Facade.Compile.
+  Require Import Platform.Facade.Compile.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics5.
+  Require Import Platform.Cito.GeneralTactics5.
 
   Theorem compile_safe :
     forall s_env s s_st,
@@ -300,7 +300,7 @@ Section ADTValue.
           destruct Hr as [Hsm2 Hr].
           repeat eexists_split.
           - eauto.
-          - Require Import Bedrock.Platform.Cito.SemanticsFacts8.
+          - Require Import Platform.Cito.SemanticsFacts8.
             instantiate (1 := reachable_heap vs args input).
             eapply submap_trans; eauto.
           - eapply change_var_names; eauto.

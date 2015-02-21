@@ -1,17 +1,17 @@
 Set Implicit Arguments.
 
 (* there is a name conflict on tactic 'unfolder' between GeneralTactics and MakeADT *)
-Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics.
 
-Require Import Bedrock.Platform.Cito.examples.ExampleADT.
+Require Import Platform.Cito.examples.ExampleADT.
 Import ExampleADT.ExampleADT.
-Require Import Bedrock.Platform.Cito.WordMap.
-Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.MakeADT.
+Require Import Platform.Cito.WordMap.
+Require Import Platform.Cito.RepInv Platform.Cito.MakeADT.
 
-Require Import Bedrock.Platform.AutoSep.
+Require Import Platform.AutoSep.
 
-Require Import Bedrock.Platform.Cito.examples.SimpleCell Bedrock.Platform.Cito.examples.ArraySeq Bedrock.Platform.Cito.examples.FiniteSet Bedrock.Platform.Cito.examples.ListSet.
-Require Import Bedrock.Platform.Cito.examples.ExampleRepInv.
+Require Import Platform.Cito.examples.SimpleCell Platform.Cito.examples.ArraySeq Platform.Cito.examples.FiniteSet Platform.Cito.examples.ListSet.
+Require Import Platform.Cito.examples.ExampleRepInv.
 
 Module Import Made := MakeADT.Make(ExampleADT)(ExampleRepInv).
 
@@ -37,12 +37,12 @@ Lemma readd : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, Cell rv') (heap_elements (WordMap.add c (Cell rv') (heap_upd heap_empty c (Cell rv))))).
-  Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+  Require Import Platform.Cito.SemanticsFacts5.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
   auto.
-  Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
+  Require Import Platform.Cito.LayoutHintsUtil.
   eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
   destruct H; intuition idtac.
   eapply Himp_trans; [ | apply H0 ].
@@ -170,7 +170,7 @@ Defined.
 Arguments SCA {ADTValue} _.
 Arguments ADT {ADTValue} _.
 
-Require Bedrock.Platform.Cito.AxSpec.
+Require Platform.Cito.AxSpec.
 Import AxSpec.ConformTactic.
 
 Definition SimpleCell_newSpec : ForeignFuncSpec.

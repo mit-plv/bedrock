@@ -4,21 +4,21 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Transit.
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Transit.
+  Require Import Platform.Cito.Semantics.
 
-  Require Import Bedrock.Platform.Cito.Syntax.
-  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Platform.Cito.Syntax.
+  Require Import Platform.Cito.GLabel.
 
   Notation Callee := (@Callee ADTValue).
 
   Definition Env := ((glabel -> option W) * (W -> option Callee))%type.
 
-  Require Import Bedrock.Platform.Cito.SemanticsExpr.
+  Require Import Platform.Cito.SemanticsExpr.
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
-  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Require Import Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
   
@@ -62,7 +62,7 @@ Section ADTValue.
   Hint Constructors Semantics.RunsTo.
   Hint Constructors Semantics.Safe.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics3.
+  Require Import Platform.Cito.GeneralTactics Platform.Cito.GeneralTactics3.
 
   Lemma strengthen_runsto : forall env_op s v v', RunsTo env_op s v v' -> forall env_ax, strengthen env_op env_ax -> Safe env_ax s v -> RunsTo env_ax s v v'.
     induction 1; simpl; intros; unfold_all.
@@ -93,7 +93,7 @@ Section ADTValue.
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
       rewrite H in H5; injection H5; intros; subst.
-      Require Import Bedrock.Platform.Cito.GeneralTactics4.
+      Require Import Platform.Cito.GeneralTactics4.
       copy_as H3 Hsf.
       eapply Safe_TransitSafe in Hsf; eauto.
       destruct Hsf as [inputs Htsf].
@@ -183,8 +183,8 @@ Section ADTValue.
     }
   Qed.
 
-  Require Import Bedrock.Platform.Cito.ListFacts5.
-  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Platform.Cito.ListFacts5.
+  Require Import Platform.Cito.ListFacts4.
 
   Lemma strengthen_safe : forall env_ax s v, Safe env_ax s v -> forall env_op, strengthen env_op env_ax -> Safe env_op s v.
     intros.

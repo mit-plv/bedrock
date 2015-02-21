@@ -1,6 +1,6 @@
-Require Import Bedrock.Platform.AutoSep.
+Require Import Platform.AutoSep.
 
-Require Import Bedrock.Platform.Malloc Bedrock.Platform.Cito.examples.Cell.
+Require Import Platform.Malloc Platform.Cito.examples.Cell.
 
 
 Module Type ADT.

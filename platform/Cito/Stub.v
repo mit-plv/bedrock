@@ -1,48 +1,48 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.AutoSep.
+  Require Import Platform.AutoSep.
   Require Import Bedrock.StructuredModule.
-  Require Import Bedrock.Platform.Cito.StructuredModuleFacts.
-  Require Import Bedrock.Platform.Cito.GoodModule.
-  Require Import Bedrock.Platform.Cito.GoodFunction.
-  Require Import Bedrock.Platform.Cito.ConvertLabel.
-  Require Import Bedrock.Platform.Cito.NameDecoration.
-  Require Import Bedrock.Platform.Wrap.
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.StructuredModuleFacts.
+  Require Import Platform.Cito.GoodModule.
+  Require Import Platform.Cito.GoodFunction.
+  Require Import Platform.Cito.ConvertLabel.
+  Require Import Platform.Cito.NameDecoration.
+  Require Import Platform.Wrap.
+  Require Import Platform.Cito.GeneralTactics.
 
-  Require Import Bedrock.Platform.Cito.CompileFuncSpec.
+  Require Import Platform.Cito.CompileFuncSpec.
   Module Import CompileFuncSpecMake := Make E M.
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Import InvMake.
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import Bedrock.Platform.Cito.LinkSpec.
+  Require Import Platform.Cito.LinkSpec.
   Module Import LinkSpecMake := Make E.
   Module Import LinkSpecMake2 := Make M.
 
-  Require Import Bedrock.Platform.Cito.ListFacts1.
-  Require Import Bedrock.Platform.Cito.ListFacts2.
+  Require Import Platform.Cito.ListFacts1.
+  Require Import Platform.Cito.ListFacts2.
 
   Require Import Bedrock.StringSet.
   Module Import SS := StringSet.
-  Require Import Bedrock.Platform.Cito.StringSetFacts.
+  Require Import Platform.Cito.StringSetFacts.
 
   Require Import Bedrock.Labels.
   Require Import Bedrock.LabelMap.
-  Require Bedrock.Platform.Cito.LabelMapFacts.
-  Require Import Bedrock.Platform.Cito.GLabel.
-  Require Import Bedrock.Platform.Cito.GLabelMap.
+  Require Platform.Cito.LabelMapFacts.
+  Require Import Platform.Cito.GLabel.
+  Require Import Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+  Require Import Platform.Cito.GLabelMapFacts.
 
-  Require Import Bedrock.Platform.Cito.ConvertLabelMap.
+  Require Import Platform.Cito.ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
 
@@ -137,7 +137,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       Definition make_module := StructuredModule.bmodule_ bimports_diff_bexports stubs.
 
-      Require Import Bedrock.Platform.Cito.GeneralTactics2.
+      Require Import Platform.Cito.GeneralTactics2.
 
       Hint Extern 1 => reflexivity.
 
@@ -389,8 +389,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Notation is_export := (is_export modules).
       Notation is_import := (is_import imports).
 
-      Require Import Bedrock.Platform.Cito.Option.
-      Require Import Bedrock.Platform.Cito.Label2WordFacts.
+      Require Import Platform.Cito.Option.
+      Require Import Platform.Cito.Label2WordFacts.
 
       Lemma fs_internal :
         forall stn p spec,
@@ -541,7 +541,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply NoDup_union.
       Qed.
 
-      Require Import Bedrock.Platform.Cito.SetoidListFacts.
+      Require Import Platform.Cito.SetoidListFacts.
 
       Corollary bimports_fullImports : forall (x : glabel), List.In x (List.map fst bimports) -> LabelMap.LabelMap.find (x : label) full_imports <> None.
       Proof.
@@ -773,9 +773,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       Qed.
 
-      Require Import Bedrock.Platform.Cito.StringFacts2.
+      Require Import Platform.Cito.StringFacts2.
 
-      Require Import Bedrock.Platform.Cito.NameVC.
+      Require Import Platform.Cito.NameVC.
 
       Lemma module_name_not_in_bimports_diff_bexports : ~ List.In (MName m) (List.map fst2 bimports_diff_bexports).
         intuition.

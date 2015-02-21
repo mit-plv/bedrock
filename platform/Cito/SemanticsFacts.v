@@ -1,15 +1,15 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.Cito.SemanticsExpr.
+    Require Import Platform.Cito.SemanticsExpr.
 
     Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
     Local Notation skip := Syntax.Skip.
@@ -17,7 +17,7 @@ Module Make (Import E : ADT).
     Hint Constructors Semantics.RunsTo.
     Hint Unfold Safe RunsTo.
 
-    Require Import Bedrock.Platform.AutoSep.
+    Require Import Platform.AutoSep.
 
     Ltac invert :=
       match goal with

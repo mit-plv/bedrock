@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Examples.PreAutoSep Bedrock.Examples.Wrap Bedrock.Examples.Conditional.
+Require Import Examples.PreAutoSep Examples.Wrap Examples.Conditional.
 
 Import DefineStructured.
 

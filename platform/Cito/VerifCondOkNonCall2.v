@@ -1,22 +1,22 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+  Require Import Platform.Cito.CompileStmtSpec.
   Module Import CompileStmtSpecMake := Make E M.
-  Require Import Bedrock.Platform.Cito.CompileStmtImpl.
+  Require Import Platform.Cito.CompileStmtImpl.
   Module Import CompileStmtImplMake := Make E M.
-  Require Import Bedrock.Platform.Cito.CompileStmtTactics.
+  Require Import Platform.Cito.CompileStmtTactics.
   Module Import CompileStmtTacticsMake := Make E M.
   Import InvMake.
   Import Semantics.
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import Bedrock.Platform.Cito.SemanticsFacts.
+  Require Import Platform.Cito.SemanticsFacts.
   Module Import SemanticsFactsMake := Make E.
 
   Section TopSection.
@@ -31,18 +31,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Variable modName : string.
 
-    Require Import Bedrock.Platform.Cito.Syntax.
-    Require Import Bedrock.Platform.Wrap.
+    Require Import Platform.Cito.Syntax.
+    Require Import Platform.Wrap.
 
     Variable rv_postcond : W -> vals -> Prop.
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
-    Require Import Bedrock.Platform.Cito.SynReqFacts.
-    Require Import Bedrock.Platform.Cito.ListFacts5.
+    Require Import Platform.Cito.SynReqFacts.
+    Require Import Platform.Cito.ListFacts5.
     Require Import Bedrock.StringSet.
     Import StringSet.
-    Require Import Bedrock.Platform.Cito.StringSetTactics.
+    Require Import Platform.Cito.StringSetTactics.
 
     Opaque mult.
     Opaque star. (* necessary to use eapply_cancel *)
@@ -56,12 +56,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Set Printing Coercions.
 
-    Require Import Bedrock.Platform.Cito.SemanticsExpr.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.VerifCondOkTactics.
-    Require Import Bedrock.Platform.Cito.WordFacts.
-    Require Import Bedrock.Platform.Cito.SynReqFacts2.
-    Require Import Bedrock.Platform.Cito.SynReqFacts3.
+    Require Import Platform.Cito.SemanticsExpr.
+    Require Import Platform.Cito.GeneralTactics.
+    Require Import Platform.Cito.VerifCondOkTactics.
+    Require Import Platform.Cito.WordFacts.
+    Require Import Platform.Cito.SynReqFacts2.
+    Require Import Platform.Cito.SynReqFacts3.
 
     Open Scope nat.
 
@@ -113,7 +113,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Transparent evalInstrs.
       simpl.
       repeat rewrite wplus_assoc in *.
-      Require Import Bedrock.Platform.Cito.ConvertLabel.
+      Require Import Platform.Cito.ConvertLabel.
       unfold from_bedrock_label_map in *.
       rewrite H.
       eauto.

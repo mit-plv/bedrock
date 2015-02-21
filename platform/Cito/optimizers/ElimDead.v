@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Platform.Cito.Syntax.
 Import String Memory IL SyntaxExpr.
-Require Import Bedrock.Platform.Cito.Notations3.
-Require Import Bedrock.Platform.Cito.Semantics.
-Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.Notations3.
+Require Import Platform.Cito.Semantics.
+Require Import Platform.Cito.GeneralTactics.
 Import SemanticsExpr.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import Bedrock.Platform.Cito.StringSetFacts.
-Require Import Bedrock.Platform.Cito.StringSetTactics.
+Require Import Platform.Cito.StringSetFacts.
+Require Import Platform.Cito.StringSetTactics.
 
 Definition SET := t.
 
@@ -51,7 +51,7 @@ Section TopSection.
       | TestE _ a b => used_vars a + used_vars b
     end.
 
-  Require Import Bedrock.Platform.Cito.Union.
+  Require Import Platform.Cito.Union.
 
   Fixpoint used_vars_stmt s :=
     match s with
@@ -64,7 +64,7 @@ Section TopSection.
       | Syntax.Call _ f args => used_vars f + union_list (List.map used_vars args)
     end.
 
-  Require Import Bedrock.Platform.Cito.Option.
+  Require Import Platform.Cito.Option.
 
   Fixpoint elim_dead s used : Stmt * SET :=
     match s with
@@ -122,7 +122,7 @@ Section TopSection.
 
   Hint Resolve agree_in_subset.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Platform.Cito.GeneralTactics2.
 
   Lemma upd_same_agree_in : forall a b s x w, agree_in a b (s - !x) -> agree_in (upd a x w) (upd b x w) s.
     unfold agree_in; intros.
@@ -179,13 +179,13 @@ Section TopSection.
 
 End TopSection.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.GoodOptimizer.
+  Require Import Platform.Cito.GoodOptimizer.
   Module Import GoodOptimizerMake := GoodOptimizer.Make E.
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Import SemanticsMake.
 
   Section TopSection.
@@ -556,7 +556,7 @@ Module Make (Import E : ADT).
       econstructor; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.FreeVars.
+    Require Import Platform.Cito.FreeVars.
 
     Lemma elim_dead_footprint : forall s m, free_vars (fst (elim_dead s m)) <= free_vars s.
     Proof.
@@ -565,9 +565,9 @@ Module Make (Import E : ADT).
 
     Open Scope nat.
 
-    Require Import Bedrock.Platform.Cito.Depth.
+    Require Import Platform.Cito.Depth.
     Require Import Coq.Arith.Le.
-    Require Import Bedrock.Platform.Cito.MaxFacts.
+    Require Import Platform.Cito.MaxFacts.
 
     Hint Extern 0 (le _ _) => progress (simpl; max_solver).
     Hint Resolve both_le le_n_S.
@@ -577,7 +577,7 @@ Module Make (Import E : ADT).
       induction s; simpl; intros; openhyp'; simpl in *; max_solver; eauto using le_trans.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.GoodOptimizer.
+    Require Import Platform.Cito.GoodOptimizer.
 
     Lemma same_agree_in : forall a s, agree_in a a s.
       unfold agree_in; intros; eauto.
@@ -606,8 +606,8 @@ Module Make (Import E : ADT).
       eapply elim_dead_is_sp in H; openhyp; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.GetLocalVars.
-    Require Import Bedrock.Platform.Cito.GetLocalVarsFacts.
+    Require Import Platform.Cito.GetLocalVars.
+    Require Import Platform.Cito.GetLocalVarsFacts.
     Import NPeano.Nat.
 
     Lemma PreserveGoodSize_opt : PreserveGoodSize opt.
@@ -619,11 +619,11 @@ Module Make (Import E : ADT).
       eapply elim_dead_footprint; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.CompileStmtSpec.
-    Require Import Bedrock.Platform.Cito.SetoidListFacts.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Platform.Cito.CompileStmtSpec.
+    Require Import Platform.Cito.SetoidListFacts.
+    Require Import Platform.Cito.GeneralTactics2.
 
-    Require Import Bedrock.Platform.Cito.WellFormed.
+    Require Import Platform.Cito.WellFormed.
 
     Hint Constructors args_not_too_long.
 

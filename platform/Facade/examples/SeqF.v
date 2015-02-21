@@ -1,4 +1,4 @@
-Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Coq.Sets.Ensembles Platform.AutoSep Platform.Malloc.
 
 Section adt.
   Variable P : list W -> W -> HProp.

@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Facade.Facade.
+Require Import Platform.Facade.Facade.
 Require Import Bedrock.Memory.
 Require Import Coq.Sets.Ensembles.
 
@@ -9,7 +9,7 @@ Inductive ADTValue :=
   | Junk : False -> ADTValue
   | FEnsemble : Ensemble W -> ADTValue.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Adt <: ADT.
 

@@ -34,7 +34,7 @@ Section TopSection.
   Qed.
 
   Require Import Coq.Bool.Sumbool.
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.GeneralTactics.
 
   Lemma find_spec : forall (f : t -> bool) ls a, find f ls = Some a -> f a = true /\ In a ls.
     induction ls; simpl; intuition; try discriminate;

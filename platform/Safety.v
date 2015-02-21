@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Bedrock Bedrock.Platform.PreAutoSep Bedrock.Platform.Sys.
+Require Import Bedrock.Bedrock Platform.PreAutoSep Platform.Sys.
 Import XCAP.
 
 

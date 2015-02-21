@@ -1,18 +1,18 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.Label2Word.
+Require Import Platform.Cito.Label2Word.
 
 Require Import Bedrock.Memory Bedrock.Word.
-Require Import Bedrock.Platform.Cito.GLabel Bedrock.Platform.Cito.ConvertLabel.
+Require Import Platform.Cito.GLabel Platform.Cito.ConvertLabel.
 
-Require Import Bedrock.Platform.Cito.GLabelMap.
+Require Import Platform.Cito.GLabelMap.
 Import GLabelMap.
-Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+Require Import Platform.Cito.GLabelMapFacts.
 
-Require Import Bedrock.Platform.Cito.Option.
-Require Import Bedrock.Platform.Cito.ListFacts1.
+Require Import Platform.Cito.Option.
+Require Import Platform.Cito.ListFacts1.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics.
 
 Lemma find_by_word_elements_elim A l2w d p (v : A) : find_by_word l2w (elements d) p = Some v -> exists lbl : glabel, find lbl d = Some v /\ l2w lbl = Some p.
 Proof.

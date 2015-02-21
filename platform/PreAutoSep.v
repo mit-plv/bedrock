@@ -1,5 +1,5 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Platform.AutoSepExt.
+Require Import Platform.AutoSepExt.
 Export AutoSepExt.
 
 Ltac refold' A :=
@@ -219,7 +219,7 @@ Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 (* added Conditional *)
-Require Import Bedrock.Platform.Conditional.
+Require Import Platform.Conditional.
 Export Conditional.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps

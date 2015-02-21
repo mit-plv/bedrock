@@ -4,13 +4,13 @@ Require Import Coq.Lists.List.
 
 Require Import Bedrock.Labels.
 Require Import Bedrock.LabelMap.
-Require Bedrock.Platform.Cito.LabelMapFacts.
-Require Import Bedrock.Platform.Cito.GLabel.
-Require Import Bedrock.Platform.Cito.GLabelMap.
+Require Platform.Cito.LabelMapFacts.
+Require Import Platform.Cito.GLabel.
+Require Import Platform.Cito.GLabelMap.
 Import GLabelMap.
-Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+Require Import Platform.Cito.GLabelMapFacts.
 
-Require Import Bedrock.Platform.Cito.ConvertLabel.
+Require Import Platform.Cito.ConvertLabel.
 
 Definition to_bl_pair elt (p : glabel * elt) := (fst p : label, snd p).
 
@@ -30,8 +30,8 @@ Section TopSection.
 
   Require Import Coq.Setoids.Setoid.
   Require Import Coq.Lists.SetoidList.
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
-  Require Import Bedrock.Platform.Cito.ListFacts1.
+  Require Import Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.ListFacts1.
 
   Set Printing Coercions.
 
@@ -181,7 +181,7 @@ Section TopSection.
     intuition.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Platform.Cito.GeneralTactics2.
 
   Lemma to_blm_update : forall elt m1 m2, @LabelMap.Equal elt (to_blm (update m1 m2)) (LabelMapFacts.update (to_blm m1) (to_blm m2)).
     unfold Equal, LabelMap.Equal.

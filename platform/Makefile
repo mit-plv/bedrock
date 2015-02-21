@@ -69,7 +69,7 @@ FACADE_ALL_VIO := $(addsuffix .vio,$(FACADE_ALL))
 
 default: platform
 
-COQARGS := -R $(ROOT)/src Bedrock -R . Bedrock.Platform
+COQARGS := -R $(ROOT)/src Bedrock -R . Platform
 
 # we make Makefile.coq depend on all .v files, as a hack for getting it to depend on the *list* of .v files
 Makefile.coq: Makefile $(ALL_V)

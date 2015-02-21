@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc Bedrock.Examples.Sets.
+Require Import Examples.AutoSep Examples.Malloc Examples.Sets.
 
 Set Implicit Arguments.
 

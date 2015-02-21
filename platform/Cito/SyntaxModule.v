@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.SyntaxFunc.
+Require Import Platform.Cito.SyntaxFunc.
 Require Import Coq.Strings.String.
 Export SyntaxFunc.
 

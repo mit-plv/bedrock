@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
 Require Import Coq.Lists.List.
-Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5.
+Require Import Platform.Cito.ListFacts1 Platform.Cito.ListFacts2 Platform.Cito.ListFacts3 Platform.Cito.ListFacts5.
 Require Import Bedrock.ListFacts.
-Require Import Bedrock.Platform.Cito.GeneralTactics.
-Require Import Bedrock.Platform.Cito.GeneralTactics4.
-Require Import Bedrock.Platform.Cito.Option.
+Require Import Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics4.
+Require Import Platform.Cito.Option.
 
 Lemma combine_length_eq A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> length (combine ls1 ls2) = length ls1.
 Proof.
@@ -223,7 +223,7 @@ Proof.
   intros; subst; simpl in *; intuition.
 Qed.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics2.
+Require Import Platform.Cito.GeneralTactics2.
 
 Lemma singleton_iff_not : forall elt (e e' : elt), ~ List.In e' (e :: nil) <-> e <> e'.
   unfold List.In; split; intros; not_not; intuition.

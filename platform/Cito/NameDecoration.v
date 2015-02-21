@@ -17,7 +17,7 @@ Lemma is_good_module_name_sound : forall s, is_good_module_name s = true -> IsGo
   eauto.
 Qed.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics.
 
 Lemma IsGoodModuleName_not_impl_module_name : forall s, IsGoodModuleName s -> ~ exists s', impl_module_name s' = s.
   unfold IsGoodModuleName, impl_module_name.

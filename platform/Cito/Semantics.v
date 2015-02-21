@@ -8,7 +8,7 @@ Definition upd_option vs x value :=
     | Some s => Locals.upd vs s value
   end.
 
-Require Import Bedrock.Platform.Cito.FuncCore.
+Require Import Platform.Cito.FuncCore.
 Export FuncCore.
 Record InternalFuncSpec :=
   {
@@ -18,10 +18,10 @@ Record InternalFuncSpec :=
 
 Coercion Fun : InternalFuncSpec >-> FuncCore.
 
-Require Import Bedrock.Platform.Cito.Syntax Bedrock.Platform.Cito.SemanticsExpr.
-Require Import Bedrock.Platform.Cito.GLabel.
-Require Import Bedrock.Platform.Cito.WordMap.
-Require Import Bedrock.Platform.Cito.AxSpec.
+Require Import Platform.Cito.Syntax Platform.Cito.SemanticsExpr.
+Require Import Platform.Cito.GLabel.
+Require Import Platform.Cito.WordMap.
+Require Import Platform.Cito.AxSpec.
 Export AxSpec.
 
 Section ADTValue.
@@ -288,7 +288,7 @@ Section ADTValue.
 
 End ADTValue.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 

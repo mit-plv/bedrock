@@ -4,8 +4,8 @@
 Set Implicit Arguments.
 
 Require Import Coq.Bool.Bool.
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Platform.Cito.SemanticsExpr Bedrock.Platform.Cito.Syntax Bedrock.Platform.Cito.Semantics.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.SyntaxExpr Platform.Cito.SemanticsExpr Platform.Cito.Syntax Platform.Cito.Semantics.
 
 Fixpoint expReads (unwritten : string -> Prop) (e : Expr) (x : string) : Prop :=
   match e with
@@ -418,7 +418,7 @@ End ADTValue.
 
 Section TopSection.
 
-  Require Import Bedrock.Platform.Cito.Syntax.
+  Require Import Platform.Cito.Syntax.
   Require Import Bedrock.sep.Locals.
   Require Import Coq.Strings.String.
 
@@ -440,11 +440,11 @@ Section TopSection.
 
 End TopSection.
 
-Require Import Bedrock.Platform.Cito.ADT.
+Require Import Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
   Section TopSection.

@@ -1,29 +1,29 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.CompileDFacade.
+Require Import Platform.Facade.CompileDFacade.
 Export CompileDFacade.
 
-Require Import Bedrock.Platform.Facade.FacadeFacts.
-Require Import Bedrock.Platform.Facade.DFacadeFacts.
-Require Import Bedrock.Platform.Facade.Facade.
-Require Import Bedrock.Platform.Facade.DFacade.
+Require Import Platform.Facade.FacadeFacts.
+Require Import Platform.Facade.DFacadeFacts.
+Require Import Platform.Facade.Facade.
+Require Import Platform.Facade.DFacade.
 
-Require Import Bedrock.Platform.Facade.NameDecoration.
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Platform.Facade.NameDecoration.
+Require Import Platform.Cito.SyntaxExpr.
 Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
-Require Import Bedrock.Platform.Cito.Option.
+Require Import Platform.Cito.Option.
 Require Import Coq.Bool.Bool.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics.
-Require Import Bedrock.Platform.Cito.GeneralTactics3.
-Require Import Bedrock.Platform.Cito.GeneralTactics4.
-Require Import Bedrock.Platform.Cito.GeneralTactics5.
+Require Import Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics3.
+Require Import Platform.Cito.GeneralTactics4.
+Require Import Platform.Cito.GeneralTactics5.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import Bedrock.Platform.Cito.StringSetFacts.
+Require Import Platform.Cito.StringSetFacts.
 
 Local Notation PRE := tmp_prefix.
 Definition fun_ptr_varname := PRE ++ "fptr".
@@ -98,14 +98,14 @@ Section ADTValue.
   Notation Safe := (@Safe ADTValue).
 
   Require Import Bedrock.Memory.
-  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Platform.Cito.GLabel.
 
   Notation FEnv := (@Facade.Env ADTValue).
   Notation FFuncSpec := (@Facade.FuncSpec ADTValue).
   Notation FRunsTo := (@Facade.RunsTo ADTValue).
   Notation FSafe := (@Facade.Safe ADTValue).
 
-  Require Import Bedrock.Platform.Cito.GLabelMap.
+  Require Import Platform.Cito.GLabelMap.
   Import GLabelMap.
 
   Arguments Facade.Operational {ADTValue} _.
@@ -124,14 +124,14 @@ Section ADTValue.
         Word2Spec fenv w = Some (compile_spec spec).
     
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.ListFacts3.
-  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Platform.Cito.ListFacts3.
+  Require Import Platform.Cito.ListFacts4.
 
   Require Import Coq.Setoids.Setoid.
 
-  Require Import Bedrock.Platform.Cito.StringMap.
+  Require Import Platform.Cito.StringMap.
   Import StringMap.
-  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Require Import Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
@@ -879,7 +879,7 @@ Section ADTValue.
     intros; eapply compile_runsto'; eauto.
   Qed.
 
-  Require Import Bedrock.Platform.Facade.SafeCoind.
+  Require Import Platform.Facade.SafeCoind.
 
   Theorem compile_safe s_env s s_st :
     Safe s_env s s_st ->

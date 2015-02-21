@@ -19,7 +19,7 @@ Section ADTSection.
       | _, _ => false
     end.
 
-  Require Import Bedrock.Platform.Cito.ListFacts1.
+  Require Import Platform.Cito.ListFacts1.
 
   Definition is_same_types := forall2 is_same_type.
 
@@ -61,7 +61,7 @@ Section ADTSection.
       | _ => false
     end.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.GeneralTactics.
 
   Lemma is_adt_iff v : is_adt v = true <-> exists a : ADTValue, v = ADT a.
   Proof.

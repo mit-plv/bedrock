@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Memory Bedrock.IL Coq.Strings.String.
+Require Import Platform.Cito.SyntaxExpr Bedrock.Memory Bedrock.IL Coq.Strings.String.
 
 Set Implicit Arguments.
 

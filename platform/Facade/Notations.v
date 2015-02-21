@@ -1,14 +1,14 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.DFacade.
-Require Import Bedrock.Platform.Cito.NotationsExpr.
+Require Import Platform.Facade.DFacade.
+Require Import Platform.Cito.NotationsExpr.
 Export NotationsExpr.
 
 Require Import Bedrock.Memory Bedrock.IL.
 
 Coercion natToW : nat >-> W.
 
-Require Import Bedrock.Platform.Facade.Listy.
+Require Import Platform.Facade.Listy.
 Import Listy.Notations.
 Export Listy.Notations.
 Import BeginEndNotation.
@@ -76,9 +76,9 @@ Definition test_ls3 := { ("a", {"x" <- 1; "y" <- 2}); ("b", {"x" <- 1; "y" <- 2}
 Require Import Coq.Lists.List.
 Import ListNotations.
 Local Open Scope list_scope.
-Require Import Bedrock.Platform.Cito.ListNotationsFix.
+Require Import Platform.Cito.ListNotationsFix.
 Export ListNotationsFix.
-Require Import Bedrock.Platform.Facade.DFModule.
+Require Import Platform.Facade.DFModule.
 
 Local Open Scope dfacade_scope.
 
@@ -111,8 +111,8 @@ Definition test_name_f :=
     "ret" <- 0
   }.
 
-Require Import Bedrock.Platform.Cito.StringMapFacts.
-Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+Require Import Platform.Cito.StringMapFacts.
+Require Import Platform.Cito.GLabelMapFacts.
 
 Notation "'module' 'import' imps 'define' fs" := 
   (Build_DFModule (GLabelMapFacts.of_list imps) (StringMapFacts.of_list fs)) (no associativity, at level 95, only parsing) : dfacade_scope.

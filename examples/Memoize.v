@@ -1,4 +1,4 @@
-Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc.
+Require Import Examples.AutoSep Examples.Malloc.
 
 
 (* Two definitions based on hiding functions inside a new datatype, to avoid confusing our reification tactics *)

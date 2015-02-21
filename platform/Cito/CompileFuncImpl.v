@@ -1,50 +1,50 @@
 Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT.
-Require Import Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT.
+Require Import Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.Cito.CompileStmt.
+  Require Import Platform.Cito.CompileStmt.
   Module Import CompileStmtMake := Make E M.
   Import PostOkMake.
   Import CompileStmtImplMake.
   Import CompileStmtSpecMake.
-  Require Import Bedrock.Platform.Cito.CompileFuncSpec.
+  Require Import Platform.Cito.CompileFuncSpec.
   Module Import CompileFuncSpecMake := Make E M.
-  Require Import Bedrock.Platform.Cito.CompileStmtTactics.
+  Require Import Platform.Cito.CompileStmtTactics.
   Module Import CompileStmtTacticsMake := Make E M.
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.Cito.Inv.
   Import InvMake.
   Import Semantics.
   Import SemanticsMake.
   Import InvMake2.
 
-  Require Import Bedrock.Platform.Cito.SemanticsFacts2.
+  Require Import Platform.Cito.SemanticsFacts2.
   Module Import SemanticsFacts2Make := Make E.
-  Require Import Bedrock.Platform.Cito.GoodFunc.
+  Require Import Platform.Cito.GoodFunc.
   Module Import GoodFuncMake := Make E.
-  Require Import Bedrock.Platform.Cito.GoodOptimizer.
+  Require Import Platform.Cito.GoodOptimizer.
   Module Import GoodOptimizerMake := Make E.
 
-  Require Import Bedrock.Platform.Cito.SyntaxFunc.
+  Require Import Platform.Cito.SyntaxFunc.
   Require Import Coq.Strings.String.
   Require Import Coq.Lists.List.
-  Require Import Bedrock.Platform.Cito.GetLocalVars.
-  Require Import Bedrock.Platform.Cito.Depth.
-  Require Import Bedrock.Platform.Wrap.
-  Require Import Bedrock.Platform.Cito.WordFacts.
+  Require Import Platform.Cito.GetLocalVars.
+  Require Import Platform.Cito.Depth.
+  Require Import Platform.Wrap.
+  Require Import Platform.Cito.WordFacts.
   Require Import Coq.Arith.Arith.
-  Require Import Bedrock.Platform.Cito.StringSetFacts.
-  Require Import Bedrock.Platform.Cito.SepHints2.
-  Require Import Bedrock.Platform.Cito.SepHints5.
-  Require Import Bedrock.Platform.Cito.SepHints3.
+  Require Import Platform.Cito.StringSetFacts.
+  Require Import Platform.Cito.SepHints2.
+  Require Import Platform.Cito.SepHints5.
+  Require Import Platform.Cito.SepHints3.
   Require Import Bedrock.StringSet.
   Import StringSet.
-  Require Import Bedrock.Platform.Cito.SepHints4.
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
-  Require Import Bedrock.Platform.Cito.SynReqFacts.
+  Require Import Platform.Cito.SepHints4.
+  Require Import Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.SynReqFacts.
 
   Section TopSection.
 

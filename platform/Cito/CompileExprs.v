@@ -1,6 +1,6 @@
 Require Import Coq.omega.Omega.
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.SyntaxExpr.
 
 Require Import Bedrock.StringSet.
 Import StringSet.
@@ -30,14 +30,14 @@ Section TopLevel.
     [| length temps = temp_size /\
        length exprs = length dst_buf |].
 
-  Require Import Bedrock.Platform.Cito.SemanticsExpr.
-  Require Import Bedrock.Platform.Cito.DepthExpr.
-  Require Import Bedrock.Platform.Cito.Max.
+  Require Import Platform.Cito.SemanticsExpr.
+  Require Import Platform.Cito.DepthExpr.
+  Require Import Platform.Cito.Max.
 
   Definition depth := max_list 0 (map depth exprs).
 
-  Require Bedrock.Platform.Cito.CompileExpr.
-  Require Import Bedrock.Platform.Cito.ListFacts5.
+  Require Platform.Cito.CompileExpr.
+  Require Import Platform.Cito.ListFacts5.
 
   Local Open Scope nat.
 
@@ -58,8 +58,8 @@ Section TopLevel.
 
   Definition imply (pre new_pre: assert) := forall specs x, interp specs (pre x) -> interp specs (new_pre x).
 
-  Require Import Bedrock.Platform.Cito.FreeVarsExpr.
-  Require Import Bedrock.Platform.Cito.Union.
+  Require Import Platform.Cito.FreeVarsExpr.
+  Require Import Platform.Cito.Union.
 
   Definition syn_req exprs base :=
     Subset (union_list (map free_vars exprs)) (of_list vars) /\
@@ -103,7 +103,7 @@ Section TopLevel.
 
   Definition body := Seq (do_compile exprs base dst).
 
-  Require Import Bedrock.Platform.Wrap.
+  Require Import Platform.Wrap.
 
   Opaque mult.
 

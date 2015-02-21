@@ -1,8 +1,8 @@
-Require Import Bedrock.Examples.PreAutoSep.
+Require Import Examples.PreAutoSep.
 
 Export PreAutoSep.
 
-Require Import Coq.Bool.Bool Bedrock.Examples.StreamParse Bedrock.Examples.ArrayQuery.
+Require Import Coq.Bool.Bool Examples.StreamParse Examples.ArrayQuery.
 Export StreamParse ArrayQuery.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps

@@ -4,9 +4,9 @@ Set Implicit Arguments.
 
 Require Import Coq.Strings.String.
 
-Require Import Bedrock.Platform.Cito.StringMap.
+Require Import Platform.Cito.StringMap.
 Import StringMap.
-Require Import Bedrock.Platform.Cito.AxSpec.
+Require Import Platform.Cito.AxSpec.
 Export AxSpec.
 
 Section ADTSection.
@@ -14,8 +14,8 @@ Section ADTSection.
   (* Syntax *)
 
   Require Import Bedrock.Memory Bedrock.IL.
-  Require Import Bedrock.Platform.Cito.SyntaxExpr.
-  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Platform.Cito.SyntaxExpr.
+  Require Import Platform.Cito.GLabel.
 
   Inductive Stmt :=
   | Skip
@@ -66,7 +66,7 @@ Section ADTSection.
   Definition is_true st e := eval_bool st e = Some true.
   Definition is_false st e := eval_bool st e = Some false.
 
-  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Require Import Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
   
@@ -85,11 +85,11 @@ Section ADTSection.
       | _, _, _ => st
     end.
 
-  Require Import Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts4.
+  Require Import Platform.Cito.ListFacts3 Platform.Cito.ListFacts4.
 
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
 
-  Require Import Bedrock.StringSet Bedrock.Platform.Cito.StringSetFacts.
+  Require Import Bedrock.StringSet Platform.Cito.StringSetFacts.
   Import StringSet FSetNotations.
   Open Scope fset_scope.
 

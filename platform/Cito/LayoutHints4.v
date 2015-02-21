@@ -1,22 +1,22 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
+Require Import Platform.Cito.ADT Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Bedrock.Platform.AutoSep.
-  Require Import Bedrock.Platform.Cito.Inv.
+  Require Import Platform.AutoSep.
+  Require Import Platform.Cito.Inv.
   Module Import InvMake := Inv.Make E.
   Module Import InvMake2 := InvMake.Make M.
-  Require Import Bedrock.Platform.Cito.InvFacts.
+  Require Import Platform.Cito.InvFacts.
   Module Import InvFactsMake := Make E.
   Module Import InvFactsMake2 := InvFactsMake.Make M.
-  Require Import Bedrock.Platform.Cito.LayoutHints3.
+  Require Import Platform.Cito.LayoutHints3.
   Module Import LayoutHints3Make := Make E M.
-  Require Import Bedrock.Platform.Cito.LayoutHints2.
+  Require Import Platform.Cito.LayoutHints2.
   Module Import LayoutHints2Make := Make E M.
-  Require Import Bedrock.Platform.Cito.Semantics.
-  Require Import Bedrock.Platform.Cito.SemanticsFacts9.
+  Require Import Platform.Cito.Semantics.
+  Require Import Platform.Cito.SemanticsFacts9.
 
   Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
   Proof.
@@ -38,7 +38,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
       {
         simpl.
-        Require Import Bedrock.Platform.Cito.SemanticsUtil.
+        Require Import Platform.Cito.SemanticsUtil.
         Import InvMake.SemanticsMake.
         unfold make_heap.
         unfold store_pair.
@@ -55,7 +55,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
         {
           eapply is_heap_Equal.
-          Require Import Bedrock.Platform.Cito.WordMapFacts.
+          Require Import Platform.Cito.WordMapFacts.
           eapply add_diff_singleton; eauto.
         }
       }

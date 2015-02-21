@@ -4,7 +4,7 @@ Require Import Coq.Structures.OrderedType.
 
 Module GLabel_as_MOT <: MiniOrderedType.
 
-  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Platform.Cito.GLabel.
 
   Definition t := glabel.
 

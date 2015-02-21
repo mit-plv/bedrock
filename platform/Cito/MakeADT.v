@@ -1,21 +1,21 @@
 Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
-Require Import Bedrock.Platform.AutoSep.
+Require Import Platform.Cito.ADT Platform.Cito.RepInv.
+Require Import Platform.AutoSep.
 
 
 Module Make (Import E : ADT) (Import M : RepInv E).
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Module Import SemanticsMake := Make E.
   Require Import Coq.Lists.List.
 
-  Require Import Bedrock.Platform.Cito.Link.
+  Require Import Platform.Cito.Link.
   Module Import LinkMake := Make E M.
 
   Import StubsMake StubMake ConvertLabelMap GoodModule GoodOptimizer.
   Import LinkSpecMake LinkSpecMake2.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.SemanticsUtil.
 
   Definition wrapper_module mname impls (fs : list (string * ForeignFuncSpec * nat * label)) :=
     StructuredModule.bmodule_ impls
@@ -316,7 +316,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     intros.
     unfold is_heap at 1.
     assert (In (w, v) (heap_elements (heap_upd h w v))).
-    Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+    Require Import Platform.Cito.SemanticsFacts5.
     apply InA_In.
     apply WordMap.elements_1.
     apply Properties.F.add_mapsto_iff; auto.

@@ -4,8 +4,8 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
-  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Require Import Platform.Cito.Semantics.
+  Require Import Platform.Cito.SemanticsUtil.
   Require Import Coq.Lists.List.
 
   Notation make_triples := (@make_triples ADTValue).

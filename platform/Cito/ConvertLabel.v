@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import Bedrock.Labels.
-Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Platform.Cito.GLabel.
 
 Definition to_bedrock_label (l : glabel) : label := (fst l, Global (snd l)).
 

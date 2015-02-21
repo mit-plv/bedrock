@@ -1,5 +1,5 @@
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.ListFacts5.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.ListFacts5.
 
 Ltac hide_upd_sublist :=
   repeat match goal with

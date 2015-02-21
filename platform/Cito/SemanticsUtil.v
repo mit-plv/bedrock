@@ -4,7 +4,7 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Platform.Cito.Semantics.
   Require Import Coq.Lists.List.
 
   Fixpoint make_triples pairs (outs : list (option ADTValue)) : list (ArgTriple ADTValue) :=
@@ -14,7 +14,7 @@ Section ADTValue.
     end.
 
   Require Import Bedrock.Memory.
-  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Platform.Cito.WordMap.
   Import WordMap.
 
   Definition store_pair heap (p : W * Value ADTValue) :=

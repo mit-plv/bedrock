@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import Bedrock.Memory Bedrock.Word.
-Require Import Bedrock.Platform.Cito.GLabel Bedrock.Platform.Cito.ConvertLabel.
+Require Import Platform.Cito.GLabel Platform.Cito.ConvertLabel.
 
 Section stn.
 

@@ -1,4 +1,4 @@
-Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Platform.Cito.SemanticsExpr.
+Require Import Platform.Cito.SyntaxExpr Platform.Cito.SemanticsExpr.
 Require Import Coq.Lists.List.
 
 Fixpoint varsIn expr:=

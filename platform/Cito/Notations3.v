@@ -1,6 +1,6 @@
-Require Import Bedrock.Platform.AutoSep.
-Require Import Bedrock.Platform.Cito.Syntax.
-Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Memory Bedrock.IL Coq.Strings.String.
+Require Import Platform.AutoSep.
+Require Import Platform.Cito.Syntax.
+Require Import Platform.Cito.SyntaxExpr Bedrock.Memory Bedrock.IL Coq.Strings.String.
 
 Set Implicit Arguments.
 

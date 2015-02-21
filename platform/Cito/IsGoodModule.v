@@ -4,11 +4,11 @@ Require Import Coq.Program.Basics.
 
 Local Infix "*" := compose.
 
-Require Import Bedrock.Platform.Cito.SyntaxModule.
-Require Import Bedrock.Platform.Cito.GoodModule.
-Require Import Bedrock.Platform.Cito.GoodFunc.
-Require Import Bedrock.Platform.Cito.GoodFunction.
-Require Import Bedrock.Platform.Cito.NameDecoration.
+Require Import Platform.Cito.SyntaxModule.
+Require Import Platform.Cito.GoodModule.
+Require Import Platform.Cito.GoodFunc.
+Require Import Platform.Cito.GoodFunction.
+Require Import Platform.Cito.NameDecoration.
 
 Notation MName := SyntaxModule.Name.
 Notation FName := SyntaxFunc.Name.
@@ -34,7 +34,7 @@ Lemma to_good_functions_name : forall ls (h : List.Forall (GoodFunc * Core) ls),
   f_equal; eauto.
 Qed.
 
-Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Platform.Cito.GeneralTactics.
 
 Definition to_good_functions' (m : Module) : IsGoodModule m -> list GoodFunction.
   intros.

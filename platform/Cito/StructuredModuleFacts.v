@@ -1,18 +1,18 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.AutoSep.
+Require Import Platform.AutoSep.
 Require Import Bedrock.StructuredModule.
 
 Require Import Bedrock.Labels.
 Require Import Bedrock.LabelMap.
-Require Bedrock.Platform.Cito.LabelMapFacts.
-Require Import Bedrock.Platform.Cito.GLabel.
-Require Import Bedrock.Platform.Cito.GLabelMap.
+Require Platform.Cito.LabelMapFacts.
+Require Import Platform.Cito.GLabel.
+Require Import Platform.Cito.GLabelMap.
 Import GLabelMap.
-Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+Require Import Platform.Cito.GLabelMapFacts.
 
-Require Import Bedrock.Platform.Cito.ListFacts1.
-Require Import Bedrock.Platform.Cito.ListFacts2.
+Require Import Platform.Cito.ListFacts1.
+Require Import Platform.Cito.ListFacts2.
 
 Section TopSection.
 
@@ -22,7 +22,7 @@ Section TopSection.
          let '(modl, f, pre) := p in
          LabelMap.LabelMap.add (modl, Global f) pre m) imports base.
 
-  Require Import Bedrock.Platform.Cito.ConvertLabel.
+  Require Import Platform.Cito.ConvertLabel.
 
   Lemma importsMap_spec' :
     forall imps2 imps1 base,
@@ -152,11 +152,11 @@ Section TopSection.
     eauto.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.ConvertLabelMap.
+  Require Import Platform.Cito.ConvertLabelMap.
   Import Notations.
   Open Scope clm_scope.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Platform.Cito.GeneralTactics.
 
   Lemma importsMap_of_list : forall ls, NoDupKey ls -> importsMap ls === of_list ls.
     intros.
@@ -260,7 +260,7 @@ Section TopSection.
     eapply importsOk_f_transpose_neqkey.
   Qed.
 
-  Require Import Bedrock.Platform.Cito.Option.
+  Require Import Platform.Cito.Option.
 
   Lemma importsOk_Compat_right : forall m1 m2, LabelMapFacts.Compat m1 m2 -> importsOk m1 m2.
     induction m1 using LabelMapFacts.map_induction_bis.
