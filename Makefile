@@ -26,7 +26,7 @@ not-containing = $(foreach v,$2,$(if $(findstring $1,$v),,$v))
 
 .DEFAULT_GOAL := examples
 
-.PHONY: examples platform cito facade facade_all src clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples update-_CoqProject
+.PHONY: examples platform cito facade facade_all src src-test clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples update-_CoqProject
 
 Makefile.coq::
 	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
