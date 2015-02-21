@@ -24,9 +24,14 @@ TIMER=$(if $(TIMED), $(STDTIME), $(TIMECMD))
 containing = $(foreach v,$2,$(if $(findstring $1,$v),$v))
 not-containing = $(foreach v,$2,$(if $(findstring $1,$v),,$v))
 
+HASNATDYNLINK = true
+
 .DEFAULT_GOAL := examples
 
-.PHONY: examples platform cito facade facade_all src src-test clean native ltac version dist time install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples update-_CoqProject
+.PHONY: examples platform cito facade facade_all src src-test reification \
+	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
+	selective-install selective-build \
+	clean native ltac version dist time update-_CoqProject
 
 Makefile.coq::
 	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
@@ -34,7 +39,7 @@ Makefile.coq::
 
 Makefile.variables: Makefile.coq
 	$(VECHO) "CAT $< | GREP > $@"
-	$(Q)cat $< | grep -v '^%' | grep -v "^	" | grep -v '\..*:.*' | grep -v '^-include' | grep -v '^[a-z-]*:\([^=]\|$$\)' > $@
+	$(Q)cat $< | grep -v '^%' | grep -v "^	" | grep -v '^\..*:.*' | grep -v '^-include' | grep -v '^[a-z-]*:\([^=]\|$$\)' > $@
 
 -include Makefile.variables
 
@@ -52,126 +57,87 @@ clean::
 	- rm -rf html mlihtml
 	rm -f Makefile.coq Makefile.variables .depend
 
-native:
-	$(MAKE) -C Bedrock native
-
-ltac:
-	$(MAKE) -C Bedrock ltac
-
-version:
-	$(MAKE) -C Bedrock version
-
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
-ALL_EXAMPLES_VO := $(filter Bedrock/Examples/%.vo,$(VOFILES))
-EXAMPLES_VO := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_VO))))
-CITO_VO := $(filter Bedrock/Platform/Cito/%.vo,$(VOFILES))
-FACADE_ALLVO := $(filter Bedrock/Platform/Facade/%.vo,$(VOFILES))
-FACADE_VO := \
-	Bedrock/Facade/Facade.vo \
-	Bedrock/Facade/DFacade.vo \
-	Bedrock/Facade/CompileUnit.vo
+ALL_EXAMPLES_V := $(filter Bedrock/Examples/%.v,$(VFILES))
+EXAMPLES_V := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_V))))
+CITO_V := $(filter Bedrock/Platform/Cito/%.v,$(VFILES))
+FACADE_ALLV := $(filter Bedrock/Platform/Facade/%.v,$(VFILES))
+FACADE_V := \
+	Bedrock/Facade/Facade.v \
+	Bedrock/Facade/DFacade.v \
+	Bedrock/Facade/CompileUnit.v
 
-FACADE_ALL_VO := \
-	Bedrock/Facade/examples/FiatADTs.vo \
-	Bedrock/Facade/examples/FiatRepInv.vo \
-	Bedrock/Facade/examples/FiatImpl.vo \
-	Bedrock/Facade/DFacadeToBedrock.vo
+FACADE_ALL_V := \
+	Bedrock/Facade/examples/FiatADTs.v \
+	Bedrock/Facade/examples/FiatRepInv.v \
+	Bedrock/Facade/examples/FiatImpl.v \
+	Bedrock/Facade/DFacadeToBedrock.v
 
 # Not sure why we have these files if no target refers to them...
-PLATFORM_UNMADE_VO := \
-	Bedrock/Platform/tests/AbortAMD64.vo \
-	Bedrock/Platform/tests/ArrayTestAMD64.vo \
-	Bedrock/Platform/tests/CallbackAMD64.vo \
-	Bedrock/Platform/tests/ConnectAMD64.vo \
-	Bedrock/Platform/tests/Echo2AMD64.vo \
-	Bedrock/Platform/tests/Echo3AMD64.vo \
-	Bedrock/Platform/tests/EchoAMD64.vo \
-	Bedrock/Platform/tests/EchoServerAMD64.vo \
-	Bedrock/Platform/tests/ListBuilderAMD64.vo \
-	Bedrock/Platform/tests/MiniMasterAMD64.vo \
-	Bedrock/Platform/tests/MiniMasterI386.vo \
-	Bedrock/Platform/tests/PrintIntAMD64.vo \
-	Bedrock/Platform/tests/RosMasterAMD64.vo \
-	Bedrock/Platform/tests/RosMasterI386.vo \
-	Bedrock/Platform/tests/RtosAMD64.vo \
-	Bedrock/Platform/tests/RtosI386.vo \
-	Bedrock/Platform/tests/SharedListAMD64.vo \
-	Bedrock/Platform/tests/WebServerAMD64.vo \
-	Bedrock/Platform/tests/XmlTest2AMD64.vo \
-	Bedrock/Platform/tests/XmlTestAMD64.vo
+PLATFORM_UNMADE_V := \
+	Bedrock/Platform/tests/AbortAMD64.v \
+	Bedrock/Platform/tests/ArrayTestAMD64.v \
+	Bedrock/Platform/tests/CallbackAMD64.v \
+	Bedrock/Platform/tests/ConnectAMD64.v \
+	Bedrock/Platform/tests/Echo2AMD64.v \
+	Bedrock/Platform/tests/Echo3AMD64.v \
+	Bedrock/Platform/tests/EchoAMD64.v \
+	Bedrock/Platform/tests/EchoServerAMD64.v \
+	Bedrock/Platform/tests/ListBuilderAMD64.v \
+	Bedrock/Platform/tests/MiniMasterAMD64.v \
+	Bedrock/Platform/tests/MiniMasterI386.v \
+	Bedrock/Platform/tests/PrintIntAMD64.v \
+	Bedrock/Platform/tests/RosMasterAMD64.v \
+	Bedrock/Platform/tests/RosMasterI386.v \
+	Bedrock/Platform/tests/RtosAMD64.v \
+	Bedrock/Platform/tests/RtosI386.v \
+	Bedrock/Platform/tests/SharedListAMD64.v \
+	Bedrock/Platform/tests/WebServerAMD64.v \
+	Bedrock/Platform/tests/XmlTest2AMD64.v \
+	Bedrock/Platform/tests/XmlTestAMD64.v
 
-SRC_UNMADE_VO := \
-	Bedrock/ILTacLtac.vo \
-	Bedrock/ILTacML.vo \
-	Bedrock/SepExprTests.vo \
-	Bedrock/SymEvalTests.vo \
-	Bedrock/UnfolderTests.vo \
-	Bedrock/provers/TransitivityProver.vo
+SRC_UNMADE_V := \
+	Bedrock/ILTacLtac.v \
+	Bedrock/ILTacML.v \
+	Bedrock/SepExprTests.v \
+	Bedrock/SymEvalTests.v \
+	Bedrock/UnfolderTests.v \
+	Bedrock/provers/TransitivityProver.v
 
-PLATFORM_VO := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_VO),$(filter Bedrock/Examples/%.vo,$(VOFILES)))
+PLATFORM_V := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_V),$(filter Bedrock/Examples/%.v,$(VFILES)))
 
-SRC_VO := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_VO),$(VOFILES))
+SRC_V := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_V),$(VFILES))
 
-SRC_TEST_VO := \
-	Bedrock/UnfolderTests.vo
+SRC_TEST_V := \
+	Bedrock/UnfolderTests.v
 
-examples: src
-	$(MAKE) -f Makefile.coq $(EXAMPLES_VO)
+REIFICATION_V := \
+	$(filter Bedrock/reification/%,$(VFILES)) $(CMOFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES))
 
-facade: src
-	$(MAKE) -f Makefile.coq $(FACADE_VO)
+examples facade facade_all facade_allv cito platform src src-test: reification
+install-examples examples: T = $(EXAMPLES_V)
+install-facade facade: T = $(FACADE_V)
+install-facade-all facade-all: T = $(FACADE_ALL_V)
+install-facade-allv facade-allv: T = $(FACADE_ALLV)
+install-cito cito: T = $(CITO_V)
+install-platform platform: T = $(PLATFORM_V)
+install-examples examples: T = $(EXAMPLES_V)
+install-src src: T = $(SRC_V)
 
-facade_all: src
-	$(MAKE) -f Makefile.coq $(FACADE_ALL_VO)
+examples facade facade-all facade-allv cito platform src:
+	$(Q)$(MAKE) -f Makefile.coq $(patsubst %.v,%.vo,$(T))
 
-facade_allv: src
-	$(MAKE) -f Makefile.coq $(FACADE_ALLVO)
+install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
+	$(VECHO) "MAKE -f Makefile.coq INSTALL"
+	$(Q)$(MAKE) -f Makefile.coq VFILES="$(filter %.v,$(T))" install
 
-cito: src
-	$(MAKE) -f Makefile.coq $(CITO_VO)
-
-platform: src
-	$(MAKE) -f Makefile.coq $(PLATFORM_VO)
-
-src:
-	$(MAKE) -C Bedrock/reification
-	$(MAKE) -f Makefile.coq $(SRC_VO)
-
-src-test:
-	$(MAKE) -f Makefile.coq $(SRC_TEST_VO)
-
-install-examples: T=$(EXAMPLES_VO)
-install-examples: selective-install
-install-facade: T=$(FACADE_VO)
-install-facade: selective-install
-install-facade-all: T=$(FACADE_ALL_VO)
-install-facade-all: selective-install
-install-facade-allv: T=$(FACADE_ALLVO)
-install-facade-allv: selective-install
-install-cito: T=$(CITO_VO)
-install-cito: selective-install
-install-platform: T=$(PLATFORM_VO)
-install-platform: selective-install
-install-examples: T=$(EXAMPLES_VO)
-install-examples: selective-install
-install-examples: T=$(EXAMPLES_VO)
-install-examples: selective-install
-
-# TODO: combine Bedrock/reification/Makefile with this makefile
-install-src: T=$(SRC_VO)
-install-src: selective-install
-	$(MAKE) -C Bedrock/reification install
-
-selective-install:
-	cd "." && for i in $(addsuffix .vo,$(basename $(T))) $(addsuffix .v,$(basename $(T))) $(addsuffix .glob,$(basename $(T))); do \
-	 install -d "`dirname "$(DSTROOT)"$(COQLIBINSTALL)/Bedrock/$$i`"; \
-	 install -m 0644 $$i "$(DSTROOT)"$(COQLIBINSTALL)/Bedrock/$$i; \
-	done
+reification:
+	$(MAKE) -f Makefile.coq extlib.cmi
+	$(MAKE) -f Makefile.coq $(patsubst %.v,%.vo,$(REIFICATION_V))
 
 install:
-	$(MAKE) -C Bedrock/reification install
 	$(MAKE) -f Makefile.coq install
 
 update-_CoqProject:
