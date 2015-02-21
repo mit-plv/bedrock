@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep.
-Require Import List.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

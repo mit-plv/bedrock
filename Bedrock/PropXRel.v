@@ -1,5 +1,5 @@
-Require Import PropX PropXTac.
-Require Import Setoid Classes.Morphisms.
+Require Import Bedrock.PropX Bedrock.PropXTac.
+Require Import Coq.Setoids.Setoid Coq.Classes.Morphisms.
 
 Section machine.
   Variable pc st : Type.
@@ -67,7 +67,7 @@ Section machine.
   Qed.
 End machine.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
 (* I'm sure this is duplication of work *)
 Section tactic.

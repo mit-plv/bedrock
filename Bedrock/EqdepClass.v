@@ -1,5 +1,5 @@
-Require Import Eqdep_dec.
-Require Import EquivDec.
+Require Import Coq.Logic.Eqdep_dec.
+Require Import Coq.Classes.EquivDec.
 
 Section Classes.
   Context {A : Type}.
@@ -92,4 +92,4 @@ Ltac uip_all :=
              | [ H : ?X = ?X |- _ ] => rewrite (UIP_refl H) in *
            end.
 
-Require Export EquivDec.
+Require Export Coq.Classes.EquivDec.

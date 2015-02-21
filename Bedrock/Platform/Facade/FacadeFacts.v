@@ -1,12 +1,12 @@
 Set Implicit Arguments.
 
-Require Import Facade.
+Require Import Bedrock.Platform.Facade.Facade.
 
 Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.Option.
 
   Notation State := (@State ADTValue).
   Notation Env := (@Env ADTValue).
@@ -80,16 +80,16 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import SyntaxExpr.
+  Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
   (* test boolean deciders *)
   Open Scope string_scope.
-  Require Import List.
+  Require Import Coq.Lists.List.
   Import ListNotations.
 
-  Require Import StringSet.
+  Require Import Bedrock.StringSet.
   Import StringSet.
-  Require Import StringSetFacts.
+  Require Import Bedrock.Platform.Cito.StringSetFacts.
 
   Import Logic.
 
@@ -122,15 +122,15 @@ Section ADTValue.
 
   Definition not_reachable key (k : key) ks ins := forall i, nth_error ks i = Some k -> exists w, nth_error ins i = Some (Sca w).
 
-  Require Import String.
-  Require Import List.
-  Require Import StringMap.
+  Require Import Coq.Strings.String.
+  Require Import Coq.Lists.List.
+  Require Import Bedrock.Platform.Cito.StringMap.
   Import StringMap.
-  Require Import StringMapFacts.
-  Require Import ListFacts4.
-  Require Import GeneralTactics.
-  Require Import GeneralTactics2.
-  Require Import GeneralTactics4.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
   
   Lemma find_Some_add_remove_many ks : 
     forall ins outs h k v, 
@@ -420,7 +420,7 @@ Section ADTValue.
     eapply IHks; eauto.
   Qed.      
 
-  Require Import ListFacts3.
+  Require Import Bedrock.Platform.Cito.ListFacts3.
 
   Lemma NoDup_ArgVars : forall spec, NoDup (ArgVars spec).
     intros; destruct spec; simpl; eapply is_no_dup_sound; eauto.
@@ -463,7 +463,7 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
 
   Lemma safe_while_is_bool (env : Env) e s st : Safe env (While e s) st -> is_bool st e.
   Proof.
@@ -516,9 +516,9 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import StringMap.
+  Require Import Bedrock.Platform.Cito.StringMap.
   Import StringMap.
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
 
@@ -539,7 +539,7 @@ Section ADTValue.
   Qed.
 
   Import Logic.
-  Require Import Setoid.
+  Require Import Coq.Setoids.Setoid.
 
   Global Add Morphism (@add_remove_many ADTValue)
       with signature eq ==> eq ==> eq ==> Equal ==> Equal as add_remove_many_m.

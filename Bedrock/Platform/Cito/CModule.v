@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import GoodModuleDec.
-Require Import FuncCore.
+Require Import Bedrock.Platform.Cito.GoodModuleDec.
+Require Import Bedrock.Platform.Cito.FuncCore.
 
 Record CFun :=
   {
@@ -11,7 +11,7 @@ Record CFun :=
     
 Coercion Core : CFun >-> FuncCore.
 
-Require Import StringMap.
+Require Import Bedrock.Platform.Cito.StringMap.
 
 Record CModule := 
   {

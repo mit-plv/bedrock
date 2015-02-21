@@ -3,7 +3,7 @@ Set Implicit Arguments.
 Local Open Scope bool_scope.
 Local Notation "! b" := (negb b) (at level 35).
 
-Require Import Word.
+Require Import Bedrock.Word.
 Import NArith.BinNat.
 Local Open Scope N_scope.
 
@@ -13,7 +13,7 @@ Definition is_good_size (n : nat) :=
     | _ => false
   end. 
 
-Require Import SyntaxModule.
+Require Import Bedrock.Platform.Cito.SyntaxModule.
 
 Fixpoint is_arg_len_ok s :=
   match s with
@@ -26,11 +26,11 @@ Fixpoint is_arg_len_ok s :=
     | Syntax.Label _ _ => true
   end.
 
-Require Import GetLocalVars.
-Require Import List.
-Require Import ListFacts3.
-Require Import NoUninitDec.
-Require Import Depth.
+Require Import Bedrock.Platform.Cito.GetLocalVars.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Platform.Cito.ListFacts3.
+Require Import Bedrock.Platform.Cito.NoUninitDec.
+Require Import Bedrock.Platform.Cito.Depth.
 
 Definition is_good_func f := 
   let body := Body f in 
@@ -43,7 +43,7 @@ Definition is_good_func f :=
 
 Definition is_good_funcs fs := forallb is_good_func fs.
 
-Require Import Cito.NameDecoration.
+Require Import Bedrock.Platform.Cito.NameDecoration.
 
 Definition is_good_module (m : Module) :=
   is_good_module_name (SyntaxModule.Name m) &&

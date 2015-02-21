@@ -1,4 +1,4 @@
-Require Import Bedrock PreAutoSep.
+Require Import Bedrock.Bedrock Bedrock.Platform.PreAutoSep.
 
 
 Import DefineStructured.
@@ -99,7 +99,7 @@ End WrapC.
 
 (** * Some tactics useful in clients of [Wrap] *)
 
-Require Import Locals.
+Require Import Bedrock.sep.Locals.
 
 Lemma four_plus_variablePosition : forall x ns',
   ~In "rp" ns'

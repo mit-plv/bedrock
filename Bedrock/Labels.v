@@ -1,4 +1,4 @@
-Require Import String NArith.
+Require Import Coq.Strings.String Coq.NArith.NArith.
 
 (* Basic block labels *)
 Inductive label' :=

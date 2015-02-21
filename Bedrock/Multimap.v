@@ -1,7 +1,7 @@
-Require Import FMapInterface FMapFacts.
-Require Import List.
-Require Import NatMap.
-Require Permutation.
+Require Import Coq.FSets.FMapInterface Coq.FSets.FMapFacts.
+Require Import Coq.Lists.List.
+Require Import Bedrock.NatMap.
+Require Coq.Sorting.Permutation.
 
 Set Implicit Arguments.
 Set Strict Implicit.

@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
 Section TopSection.
 
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
   Lemma NoDup_cons_cons : forall A (x y : A) ls, List.NoDup (x :: y :: ls) -> x <> y.
     intros.
@@ -24,7 +24,7 @@ Section TopSection.
     intuition.
   Qed.
 
-  Require Import Morphisms.
+  Require Import Coq.Classes.Morphisms.
 
   Lemma Forall2_map : forall A B (f1 f2 : A -> B) R ls, pointwise_relation _ R f1 f2 -> Forall2 R (List.map f1 ls) (List.map f2 ls).
     unfold pointwise_relation.

@@ -4,19 +4,19 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import List.
+  Require Import Coq.Lists.List.
 
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
   Import WordMap.
-  Require Import WordMapFacts.
+  Require Import Bedrock.Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
 
-  Require Import GeneralTactics4.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
   Arguments empty {_}.
 
-  Require Import SemanticsUtil.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
 
   Definition make_heap' := fold_right (fun x m => @store_pair ADTValue m x) empty.
 
@@ -34,7 +34,7 @@ Section ADTValue.
       | ADT _ => ~ WordMap.In w h
     end.
 
-  Require Import Setoid.
+  Require Import Coq.Setoids.Setoid.
 
   Add Morphism (@store_pair ADTValue) with signature Equal ==> eq ==> Equal as store_pair_Equal_m.
   Proof.
@@ -67,7 +67,7 @@ Section ADTValue.
     destruct v1 as [? | a1]; destruct v2 as [? | a2]; eauto.
     unfold no_clash in *.
     simpl in *.
-    Require Import Word.
+    Require Import Bedrock.Word.
     destruct (weq p w2) as [? | Hne2].
     {
       subst.
@@ -92,7 +92,7 @@ Section ADTValue.
 
   Definition DisjointPtrs A := List.ForallOrdPairs (@no_clash A).
 
-  Require Import Memory.
+  Require Import Bedrock.Memory.
 
   Definition disjoint_ptrs_ls (p : W * Value ADTValue) (pairs : list (W * Value ADTValue)):=
     match (snd p) with
@@ -100,7 +100,7 @@ Section ADTValue.
       | ADT _ => ~ List.In (fst p) (List.map fst (List.filter (fun p => is_adt (snd p)) pairs))
     end.
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
 
   Lemma disjoint_ptrs_cons_elim' pairs : forall p, disjoint_ptrs (p :: pairs) -> disjoint_ptrs_ls p pairs /\ disjoint_ptrs pairs.
   Proof.
@@ -164,7 +164,7 @@ Section ADTValue.
   Lemma disjoint_ptrs_cons_elim pairs : forall p, disjoint_ptrs (p :: pairs) -> no_clash_ls p pairs /\ disjoint_ptrs pairs.
     intros p H.
     eapply disjoint_ptrs_cons_elim' in H.
-    Require Import GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
     openhyp.
     split; eauto.
     eapply disjoint_ptrs_ls_no_clash_ls; eauto.

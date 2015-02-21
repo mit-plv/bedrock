@@ -1,8 +1,8 @@
-Require Import DepList List.
-Require Import Expr SepExpr SymEval.
-Require Import Memory SepIL SymIL.
-Require Import Prover.
-Require Import Reflection.
+Require Import Bedrock.DepList Coq.Lists.List.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SymEval.
+Require Import Bedrock.Memory Bedrock.SepIL Bedrock.SymIL.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -199,7 +199,7 @@ Module BedrockPtsToEvaluator.
                    [ intros ? Heq | intro Heq ];
                    rewrite Heq in *; try discriminate
              end.
-      Require Import Nomega.
+      Require Import Bedrock.Nomega.
       repeat erewrite smem_set_get_neq by eauto.
       eapply expr_equal_correct in H; [ | eauto | eauto | eauto ].
       subst.

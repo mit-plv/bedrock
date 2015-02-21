@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
 Section TopSection.
 
@@ -33,8 +33,8 @@ Section TopSection.
     rewrite map_app; f_equal; eauto.
   Qed.
 
-  Require Import Sumbool.
-  Require Import GeneralTactics.
+  Require Import Coq.Bool.Sumbool.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
   Lemma find_spec : forall (f : t -> bool) ls a, find f ls = Some a -> f a = true /\ In a ls.
     induction ls; simpl; intuition; try discriminate;
@@ -153,7 +153,7 @@ Section TopSection.
 
 End TopSection.
 
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 
 Local Open Scope bool_scope.
 

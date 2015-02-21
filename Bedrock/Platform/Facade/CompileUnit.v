@@ -1,9 +1,9 @@
 Set Implicit Arguments.
 
-Require Import FModule.
-Require Import CompileDFacade.
-Require Import DFacade.
-Require Import StringMap WordMap GLabelMap String List ListFacts3 Cito.NameDecoration.
+Require Import Bedrock.Platform.Facade.FModule.
+Require Import Bedrock.Platform.Facade.CompileDFacade.
+Require Import Bedrock.Platform.Facade.DFacade.
+Require Import Bedrock.Platform.Cito.StringMap Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.GLabelMap Coq.Strings.String Coq.Lists.List Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.NameDecoration.
 Local Open Scope string_scope.
 
 Notation module_name := "dfmodule".

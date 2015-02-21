@@ -1,20 +1,20 @@
 Set Implicit Arguments.
 
-Require Import Memory IL.
-Require Import GLabel.
-Require Import Facade.
+Require Import Bedrock.Memory Bedrock.IL.
+Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Bedrock.Platform.Facade.Facade.
 
-Require Import String.
+Require Import Coq.Strings.String.
 Local Open Scope string_scope.
-Require Syntax.
-Require Import SyntaxExpr.
-Require Import StringMap.
+Require Bedrock.Platform.Cito.Syntax.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Bedrock.Platform.Cito.StringMap.
 Import StringMap.
-Require Import StringMapFacts.
+Require Import Bedrock.Platform.Cito.StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
 
-Require Import Compile.
+Require Import Bedrock.Platform.Facade.Compile.
 
 Coercion Var : string >-> Expr.
 
@@ -22,7 +22,7 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Semantics.
+  Require Bedrock.Platform.Cito.Semantics.
 
   Notation RunsTo := (@RunsTo ADTValue).
   Notation State := (@State ADTValue).
@@ -38,7 +38,7 @@ Section ADTValue.
       | ADT a => o = Some a
     end.
 
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
 
   Notation CitoState := (@Semantics.State ADTValue).
   Notation CitoCallee := (@Semantics.Callee ADTValue).
@@ -56,7 +56,7 @@ Section ADTValue.
                 
   Definition CitoEnv := ((glabel -> option W) * (W -> option CitoCallee))%type.
 
-  Require Import ListFacts1 ListFacts2 ListFacts3 ListFacts5.
+  Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5.
 
   Definition FuncSpec := @FuncSpec ADTValue.
 
@@ -74,10 +74,10 @@ Section ADTValue.
        Word2Spec env w = Some spec ->
        snd cenv w = Some (compile_spec spec)).
 
-  Require Import GeneralTactics.
-  Require Import GeneralTactics3.
-  Require Import GeneralTactics4.
-  Require Import FacadeFacts.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
+  Require Import Bedrock.Platform.Facade.FacadeFacts.
 
   Notation ceval := SemanticsExpr.eval.
   Notation cRunsTo := Semantics.RunsTo.
@@ -180,15 +180,15 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Require Import StringSet.
+  Require Import Bedrock.StringSet.
 
-  Require Import WordMapFacts.
+  Require Import Bedrock.Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Local Open Scope fmap_scope.
-  Require Import WordMap.
+  Require Import Bedrock.Platform.Cito.WordMap.
   Import WordMap.
 
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
   Hint Extern 0 (_ == _) => reflexivity.
 
   Ltac subst' H := rewrite H in *; clear H.
@@ -221,7 +221,7 @@ Section ADTValue.
 
   Arguments related_no_alias [_ _] _ _ _ _ _ _ _ _ _.
 
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.Option.
 
 (*
 
@@ -325,11 +325,11 @@ Section ADTValue.
       reflexivity.
       Unfocus.
 
-      Require Import List.
-      Require Import ListFacts4.
+      Require Import Coq.Lists.List.
+      Require Import Bedrock.Platform.Cito.ListFacts4.
       Import WordMap.
       
-      Require Import SemanticsFacts8.
+      Require Import Bedrock.Platform.Cito.SemanticsFacts8.
 
       Lemma related_no_aliasM st args input vs h :
         mapM (sel st) args = Some input -> 
@@ -585,7 +585,7 @@ Section ADTValue.
           rewrite Locals.sel_upd_eq by eauto.
           inject Hf.
           unfold_related H13.
-          Require Import Facade.
+          Require Import Bedrock.Platform.Facade.Facade.
           set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
           eapply H13 in H.
           Lemma submap_represent p h1 h2 v : represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
@@ -1198,7 +1198,7 @@ Section ADTValue.
         eapply diff_find_Some_iff in Hf.
         openhyp.
 
-        Require Import SemanticsFacts7.
+        Require Import Bedrock.Platform.Cito.SemanticsFacts7.
 
         rewrite (@split_triples _ triples words_cinput coutput) by eauto.
 

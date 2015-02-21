@@ -1,10 +1,10 @@
-Require Import Omega.
-Require Import List DepList Word Memory.
-Require Import Heaps SepTheoryX.
-Require Import Expr SepHeap.
-Require Import Prover.
-Require Import PropX.
-Require Import Env.
+Require Import Coq.omega.Omega.
+Require Import Coq.Lists.List Bedrock.DepList Bedrock.Word Bedrock.Memory.
+Require Import Bedrock.Heaps Bedrock.SepTheoryX.
+Require Import Bedrock.Expr Bedrock.SepHeap.
+Require Import Bedrock.Prover.
+Require Import Bedrock.PropX.
+Require Import Bedrock.Env.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -81,7 +81,7 @@ Section over_types.
     { specialize (H0 nil nil). repeat rewrite app_nil_r in *. auto. }
   Qed.
 
-  Require Import Tactics.
+  Require Import Bedrock.Tactics.
 
   Theorem gatherEx_appendQ : forall q1 q2,
     gatherEx (appendQ q1 q2) = gatherEx q2 ++ gatherEx q1.

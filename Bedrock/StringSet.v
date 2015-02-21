@@ -1,8 +1,8 @@
 (* Finite maps for labels *)
 
-Require Import LabelMap.
+Require Import Bedrock.LabelMap.
 
-Require Import Ascii NArith String OrderedType FSetAVL.
+Require Import Coq.Strings.Ascii Coq.NArith.NArith Coq.Strings.String Coq.Structures.OrderedType Coq.FSets.FSetAVL.
 
 Module StringKey.
   Definition t := string.
@@ -69,5 +69,5 @@ Module StringSet := FSetAVL.Make(StringKey).
 Remove Hints StringSet.MSet.Raw.L.eq_cons StringSet.E.lt_trans
   StringSet.E.lt_not_eq StringSet.E.eq_trans StringSet.X'.eq_trans.
 
-Require FSetFacts.
+Require Coq.FSets.FSetFacts.
 Module StringFacts := FSetFacts.WFacts_fun(StringKey)(StringSet).

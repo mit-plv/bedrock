@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import CompileUnit.
-Require Import StringMap WordMap GLabelMap String List.
+Require Import Bedrock.Platform.Facade.CompileUnit.
+Require Import Bedrock.Platform.Cito.StringMap Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.GLabelMap Coq.Strings.String Coq.Lists.List.
 Local Open Scope string_scope.
 
 (* the exported Bedrock function and its spec is [export_module_name!fun_name@compileS] *)
@@ -10,13 +10,13 @@ Notation export_module_name := "export".
 (* Notation extra_stack := 200. *)
 Notation extra_stack := 10.
 
-Require Import ADT RepInv.
+Require Import Bedrock.Platform.Cito.ADT Bedrock.Platform.Cito.RepInv.
 Module Make (Import E : ADT) (Import M : RepInv E).
-  Require Import Inv Malloc.
+  Require Import Bedrock.Platform.Cito.Inv Bedrock.Platform.Malloc.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
-  Require Import Semantics.
-  Require Import SemanticsUtil.
+  Require Import Bedrock.Platform.Cito.Semantics.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
 
   Section TopSection.
 
@@ -30,7 +30,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V argvar1, v1) :: (V argvar2, v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ WordMap.Equal h (make_heap pairs) |] * mallocHeap 0
       POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ WordMap.Equal h' (make_heap pairs) |] * mallocHeap 0.
 
-    Require Import LabelMap.
+    Require Import Bedrock.LabelMap.
 
     Record CompileOut :=
       {

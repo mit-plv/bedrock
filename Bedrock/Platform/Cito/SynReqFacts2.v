@@ -1,7 +1,7 @@
-Require Import CompileStmtSpec.
-Require Import StringSet.
-Require Import FreeVars.
-Require Import SynReqFactsUtil.
+Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+Require Import Bedrock.StringSet.
+Require Import Bedrock.Platform.Cito.FreeVars.
+Require Import Bedrock.Platform.Cito.SynReqFactsUtil.
 
 Local Infix ";;" := Syntax.Seq (right associativity, at level 95).
 

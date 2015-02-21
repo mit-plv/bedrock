@@ -1,13 +1,13 @@
-Require Import List.
-Require Import EqdepClass.
-Require Import Word.
-Require Import Bool Folds.
-Require Import Reflection.
-Require Import Expr.
+Require Import Coq.Lists.List.
+Require Import Bedrock.EqdepClass.
+Require Import Bedrock.Word.
+Require Import Coq.Bool.Bool Bedrock.Folds.
+Require Import Bedrock.Reflection.
+Require Import Bedrock.Expr.
 
 
 (** Tactics **)
-Require Import Reflect.
+Require Import Bedrock.Reflect.
 
 (*
 Ltac lift_signature s nt :=

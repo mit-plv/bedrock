@@ -9,11 +9,11 @@ Bedrock IL (an abstract CISC ISA) to an embedded subset of ARM assembly (a RISC
 ISA); in the second, it serializes the embedded ARM assembly to a [string]
 suitable for GAS consumption. *)
 
-Require Import List.  Import ListNotations.
+Require Import Coq.Lists.List.  Import ListNotations.
 
-Require Import FastString.
+Require Import Bedrock.FastString.
 
-Require Ascii Memory Word.
+Require Coq.Strings.Ascii Bedrock.Memory Bedrock.Word.
 
 
 (** A function application operator, à la Haskell, makes quite a bit of the
@@ -140,12 +140,12 @@ End Thumb.
 
 (** * Converting [IL.instr] to [Thumb.instruction] *)
 
-Require IL.
-Require Import LabelMap.
-Require Import Labels.
-Require Import Memory.
-Require Import Word.
-Require XCAP.
+Require Bedrock.IL.
+Require Import Bedrock.LabelMap.
+Require Import Bedrock.Labels.
+Require Import Bedrock.Memory.
+Require Import Bedrock.Word.
+Require Bedrock.XCAP.
 
 (** Make [natToWord] transparent so Coq can actually compute the result of
 [moduleS] far enough to actually yield a string of assembly. *)

@@ -1,17 +1,17 @@
-Require Import Omega.
-Require Import Arith Bool EqdepClass List.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Coq.Bool.Bool Bedrock.EqdepClass Coq.Lists.List.
 
-Require Import Heaps.
-Require Import Expr ExprUnify Folds.
-Require Import SepExpr SepHeap SepLemma.
-Require Import Prover.
-Require Import Env.
-Require Import Reflection Tactics ListFacts.
+Require Import Bedrock.Heaps.
+Require Import Bedrock.Expr Bedrock.ExprUnify Bedrock.Folds.
+Require Import Bedrock.SepExpr Bedrock.SepHeap Bedrock.SepLemma.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Env.
+Require Import Bedrock.Reflection Bedrock.Tactics Bedrock.ListFacts.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Require NatMap.
+Require Bedrock.NatMap.
 
 Module FM := NatMap.IntMap.
 

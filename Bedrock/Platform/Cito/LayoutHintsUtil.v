@@ -1,8 +1,8 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv WordMap.
-Require Import Inv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.WordMap.
+Require Import Bedrock.Platform.Cito.Inv.
 
 Lemma starL_in : forall A P x (ls : list A),
   NoDup ls

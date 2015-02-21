@@ -1,9 +1,9 @@
-Require Import Omega.
-Require Import Ascii Bool String List.
-Require Import Word Memory Expr SepExpr SymEval SepIL Env Prover SymEval IL SymIL.
-Require Import sep.Array.
-Require Import Allocated.
-Require Import ListFacts.
+Require Import Coq.omega.Omega.
+Require Import Coq.Strings.Ascii Coq.Bool.Bool Coq.Strings.String Coq.Lists.List.
+Require Import Bedrock.Word Bedrock.Memory Bedrock.Expr Bedrock.SepExpr Bedrock.SymEval Bedrock.SepIL Bedrock.Env Bedrock.Prover Bedrock.SymEval Bedrock.IL Bedrock.SymIL.
+Require Import Bedrock.sep.Array.
+Require Import Bedrock.Allocated.
+Require Import Bedrock.ListFacts.
 
 Set Implicit Arguments.
 
@@ -552,7 +552,7 @@ Section correctness.
     rewrite Heq'' in H4.
     rewrite H in H4.
     subst.
-    Require Import PropXTac.
+    Require Import Bedrock.PropXTac.
     apply simplify_fwd in H2.
     destruct H2 as [ ? [ ? [ ? [ ] ] ] ].
     destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
@@ -577,7 +577,7 @@ Section correctness.
       injection H; clear H; intros; subst; reflexivity.
     Qed.
 
-    Require Import NArith Nomega.
+    Require Import Coq.NArith.NArith Bedrock.Nomega.
 
     unfold Array.sel.
     apply array_selN.
@@ -915,7 +915,7 @@ Section correctness.
     erewrite array_updN in H9; eauto.
     apply nth_error_Some_length in Heq.
     apply array_bound in H9.
-    Require Import Arrays.
+    Require Import Bedrock.Arrays.
     rewrite updN_length in H9.
     rewrite length_toArray in H9.
     apply Nlt_in.

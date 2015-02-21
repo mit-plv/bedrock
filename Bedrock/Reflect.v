@@ -7,7 +7,7 @@
 (* Add ML Path "reification/".  *)
 (* Declare ML Module "extlib".  *)
 (* Declare ML Module "reif".  *)
-Require Import List.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

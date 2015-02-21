@@ -1,12 +1,12 @@
 (** This file contains generic environment information for the Bedrock IL
  **)
-Require Import List.
-Require Import Word.
-Require Import Expr.
-Require Import Env.
-Require Import Memory IL.
-Require Import TypedPackage.
-Require Import Arith.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Word.
+Require Import Bedrock.Expr.
+Require Import Bedrock.Env.
+Require Import Bedrock.Memory Bedrock.IL.
+Require Import Bedrock.TypedPackage.
+Require Import Coq.Arith.Arith.
 
 
 Set Implicit Arguments.

@@ -1,4 +1,4 @@
-Require Import IL.
+Require Import Bedrock.IL.
 
 Ltac unfolder:= repeat match goal with
                         | H:= _ |- _ => unfold H in *; clear H

@@ -1,12 +1,12 @@
-Require Import Omega.
-Require Import Bool.
-Require Import DepList List.
-Require Import Expr SepExpr SymEval.
-Require Import Word Memory IL SepIL SymIL ILEnv.
-Require Import EqdepClass.
-Require Import Env Prover.
-Require Import PropX PropXTac Nomega NArith.
-Require Import Array.
+Require Import Coq.omega.Omega.
+Require Import Coq.Bool.Bool.
+Require Import Bedrock.DepList Coq.Lists.List.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SymEval.
+Require Import Bedrock.Word Bedrock.Memory Bedrock.IL Bedrock.SepIL Bedrock.SymIL Bedrock.ILEnv.
+Require Import Bedrock.EqdepClass.
+Require Import Bedrock.Env Bedrock.Prover.
+Require Import Bedrock.PropX Bedrock.PropXTac Bedrock.Nomega Coq.NArith.NArith.
+Require Import Bedrock.sep.Array.
 
 Set Implicit Arguments.
 
@@ -282,7 +282,7 @@ Section correctness.
     -> tht = 32
     -> (length bs <= pow2 tht)%nat.
     intros.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     destruct (le_lt_dec (length bs) (pow2 tht)); auto.
     eapply array8_bound' in H; try tauto.
     instantiate (1 := pow2 tht); intuition.

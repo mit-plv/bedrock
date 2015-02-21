@@ -1,17 +1,17 @@
 Set Implicit Arguments.
 
-Require Import Syntax.
-Require Import String.
+Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Coq.Strings.String.
 
 Definition Optimizer := Stmt -> string -> Stmt.
 
 Definition compose (f g : Optimizer) : Optimizer := fun s r => g (f s r) r.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
   Section TopSection.
@@ -20,9 +20,9 @@ Module Make (Import E : ADT).
 
     Definition PreserveSafe (opt : Optimizer) := forall fs s v, Safe fs s v -> forall ret, Safe fs (opt s ret) v.
 
-    Require Import GetLocalVars.
-    Require Import Depth.
-    Require Import IL.
+    Require Import Bedrock.Platform.Cito.GetLocalVars.
+    Require Import Bedrock.Platform.Cito.Depth.
+    Require Import Bedrock.IL.
 
     Definition PreserveGoodSize (opt : Optimizer) :=
       forall stmt argvars retvar,
@@ -30,8 +30,8 @@ Module Make (Import E : ADT).
         goodSize (size stmt) ->
         goodSize (size (opt stmt retvar)).
 
-    Require Import CompileStmtSpec.
-    Require Import List.
+    Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+    Require Import Coq.Lists.List.
 
     Definition PreserveSynReq (opt : Optimizer) :=
       forall stmt argvars retvar,
@@ -46,8 +46,8 @@ Module Make (Import E : ADT).
       PreserveGoodSize opt /\
       PreserveSynReq opt.
 
-    Require Import GoodFunc.
-    Require Import SyntaxFunc.
+    Require Import Bedrock.Platform.Cito.GoodFunc.
+    Require Import Bedrock.Platform.Cito.SyntaxFunc.
     Definition PreserveGoodSize' (opt : Optimizer) :=
       forall f,
         GoodFunc f ->
@@ -68,7 +68,7 @@ Module Make (Import E : ADT).
       unfold GoodOptimizer; intuition.
     Qed.
 
-    Require Import GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
 
     Lemma GoodFunc_GoodOptimizer_goodSize : forall opt, GoodOptimizer opt -> PreserveGoodSize' opt.
       unfold GoodOptimizer.

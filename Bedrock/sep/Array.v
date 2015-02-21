@@ -1,11 +1,11 @@
-Require Import Omega.
-Require Import Bool.
-Require Import DepList List.
-Require Import Expr SepExpr SymEval.
-Require Import Word Memory IL SepIL SymIL ILEnv.
-Require Import EqdepClass.
-Require Import Env Prover.
-Require Import PropX PropXTac Nomega NArith.
+Require Import Coq.omega.Omega.
+Require Import Coq.Bool.Bool.
+Require Import Bedrock.DepList Coq.Lists.List.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SymEval.
+Require Import Bedrock.Word Bedrock.Memory Bedrock.IL Bedrock.SepIL Bedrock.SymIL Bedrock.ILEnv.
+Require Import Bedrock.EqdepClass.
+Require Import Bedrock.Env Bedrock.Prover.
+Require Import Bedrock.PropX Bedrock.PropXTac Bedrock.Nomega Coq.NArith.NArith.
 
 Set Implicit Arguments.
 
@@ -487,7 +487,7 @@ Section correctness.
     interp cs (array ws base stn m)
     -> (length ws < pow2 32)%nat.
     intros.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     destruct (lt_dec (length ws) (pow2 32)); auto.
     elimtype False.
     apply ptsto32m'_in in H.

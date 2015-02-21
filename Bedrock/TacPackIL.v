@@ -1,10 +1,10 @@
-Require Import Expr SepExpr.
-Require Import Prover SymEval.
-Require Import Env TypedPackage.
+Require Import Bedrock.Expr Bedrock.SepExpr.
+Require Import Bedrock.Prover Bedrock.SymEval.
+Require Import Bedrock.Env Bedrock.TypedPackage.
 Import List.
-Require Import IL SepIL SymIL ILEnv.
-Require ReifyExpr ReifySepExpr ReifyHints.
-Require Unfolder.
+Require Import Bedrock.IL Bedrock.SepIL Bedrock.SymIL Bedrock.ILEnv.
+Require Bedrock.ReifyExpr Bedrock.ReifySepExpr Bedrock.ReifyHints.
+Require Bedrock.Unfolder.
 
 Set Implicit Arguments.
 Set Strict Implicit.
@@ -204,7 +204,7 @@ Module ILAlgoTypes <: AlgoTypes SEP BedrockCoreEnv.
       ret res.
 
     Module ProverPackTest.
-      Require provers.ReflexivityProver.
+      Require Bedrock.provers.ReflexivityProver.
       (** Test **)
       Goal TypedPackage.
         build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x => refine x).
@@ -442,7 +442,7 @@ Ltac opaque_pack pack :=
   end.
 
 Goal TypedPackage.
-  Require provers.ReflexivityProver.
+  Require Bedrock.provers.ReflexivityProver.
   build_prover_pack provers.ReflexivityProver.ReflexivityProver ltac:(fun x =>
     build_mem_pack (MEVAL.Default.package bedrock_types_r (tvType 0) (tvType 1) (tvType 0) (tvType 0) IL_mem_satisfies IL_ReadWord IL_WriteWord IL_ReadByte IL_WriteByte) ltac:(fun y =>
     glue_pack x y ltac:(opaque_pack))).

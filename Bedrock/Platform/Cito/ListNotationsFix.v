@@ -1,4 +1,4 @@
-Require Import List.
+Require Import Coq.Lists.List.
 Import ListNotations.
 Local Open Scope list_scope.
 

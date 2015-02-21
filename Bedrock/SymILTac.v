@@ -1,20 +1,20 @@
 (** This file implements the tactics for symbolic evaluation for the
  ** language defined in IL.v
  **)
-Require Import IL SepIL SymIL SymILProofs.
-Require Import Word Memory.
-Require Import DepList EqdepClass.
-Require Import PropX.
-Require Import SepExpr SymEval.
-Require Import Expr ReifyExpr.
-Require Import Prover.
-Require Import Env TypedPackage.
+Require Import Bedrock.IL Bedrock.SepIL Bedrock.SymIL Bedrock.SymILProofs.
+Require Import Bedrock.Word Bedrock.Memory.
+Require Import Bedrock.DepList Bedrock.EqdepClass.
+Require Import Bedrock.PropX.
+Require Import Bedrock.SepExpr Bedrock.SymEval.
+Require Import Bedrock.Expr Bedrock.ReifyExpr.
+Require Import Bedrock.Prover.
+Require Import Bedrock.Env Bedrock.TypedPackage.
 Import List Tactics Reflection.
-Require Folds.
-Require Import TacPackIL.
+Require Bedrock.Folds.
+Require Import Bedrock.TacPackIL.
 
-Require Structured SymEval.
-Require Import ILEnv.
+Require Bedrock.Structured Bedrock.SymEval.
+Require Import Bedrock.ILEnv.
 
 Set Implicit Arguments.
 Set Strict Implicit.

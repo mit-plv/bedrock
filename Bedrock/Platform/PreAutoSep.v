@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSepExt.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSepExt.
 Export AutoSepExt.
 
 Ltac refold' A :=
@@ -178,7 +178,7 @@ Local Notation INV := (fun inv => inv true (fun w => w)).
 
 Notation "'Assert*' [ l1 , .. , lN ] [ post ]" := (AssertStar (cons l1 (.. (cons lN nil) ..)) (INV post)) (no associativity, at level 95) : SP_scope.
 
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 
 Definition localsInvariantCont (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)
   (ns : list string) (res : nat) : assert :=
@@ -219,7 +219,7 @@ Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
 (* added Conditional *)
-Require Import Conditional.
+Require Import Bedrock.Platform.Conditional.
 Export Conditional.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
@@ -304,7 +304,7 @@ Ltac sep_firstorder := sep_easy;
                                               end; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula; rereg; try subst.
 
-Require Import NArith.
+Require Import Coq.NArith.NArith.
 Import TacPackIL.
 
 Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>

@@ -1,7 +1,7 @@
-Require Import CompileStmtSpec.
-Require Import StringSet.
+Require Import Bedrock.Platform.Cito.CompileStmtSpec.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import FreeVars.
+Require Import Bedrock.Platform.Cito.FreeVars.
 
 Lemma Subset_singleton : forall x s,
   Subset (singleton x) s
@@ -13,7 +13,7 @@ Qed.
 
 Local Hint Resolve Subset_singleton.
 
-Require Import SetoidListFacts.
+Require Import Bedrock.Platform.Cito.SetoidListFacts.
 
 Lemma In_to_set : forall x ls,
   List.In x ls

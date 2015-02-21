@@ -2,20 +2,20 @@
 
 Set Implicit Arguments.
 
-Require Import String.
+Require Import Coq.Strings.String.
 
-Require Import StringMap.
+Require Import Bedrock.Platform.Cito.StringMap.
 Import StringMap.
-Require Import AxSpec.
+Require Import Bedrock.Platform.Cito.AxSpec.
 Export AxSpec.
 
 Section ADTSection.
 
   (* Syntax *)
 
-  Require Import Memory IL.
-  Require Import SyntaxExpr.
-  Require Import GLabel.
+  Require Import Bedrock.Memory Bedrock.IL.
+  Require Import Bedrock.Platform.Cito.SyntaxExpr.
+  Require Import Bedrock.Platform.Cito.GLabel.
 
   Inductive Stmt :=
   | Skip
@@ -66,11 +66,11 @@ Section ADTSection.
   Definition is_true st e := eval_bool st e = Some true.
   Definition is_false st e := eval_bool st e = Some false.
 
-  Require Import StringMapFacts.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
   
-  Require Import List.
+  Require Import Coq.Lists.List.
 
   Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
     match keys, input, output with 
@@ -85,11 +85,11 @@ Section ADTSection.
       | _, _, _ => st
     end.
 
-  Require Import ListFacts3 ListFacts4.
+  Require Import Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts4.
 
   Definition is_in (a : string) ls := if in_dec string_dec a ls then true else false.
 
-  Require Import StringSet StringSetFacts.
+  Require Import Bedrock.StringSet Bedrock.Platform.Cito.StringSetFacts.
   Import StringSet FSetNotations.
   Open Scope fset_scope.
 

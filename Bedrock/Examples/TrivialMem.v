@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Examples.AutoSep.
 
 (** * A trivial example to make sure the separation logic proof automation isn't completely borked *)
 

@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Set Implicit Arguments.
 
@@ -15,7 +15,7 @@ Section TopLevel.
     x ~> ExX, Ex vs,
     ![^[is_state x#Sp vs] * #0]x.
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
 
   Definition runs_to x_pre x :=
     forall specs other vs,
@@ -59,7 +59,7 @@ Section TopLevel.
       | Some x => SaveRv (var_slot x)
     end.
 
-  Require Import Wrap.
+  Require Import Bedrock.Platform.Wrap.
 
   Definition compile : cmd imports modName.
     refine (Wrap imports imports_global modName body post verifCond _ _).

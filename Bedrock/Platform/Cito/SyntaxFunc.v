@@ -1,8 +1,8 @@
 Set Implicit Arguments.
 
-Require Import Syntax.
-Require Import String.
-Require Import FuncCore.
+Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.FuncCore.
 Export Syntax FuncCore.
 
 Record Func :=

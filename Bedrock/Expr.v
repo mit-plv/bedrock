@@ -1,9 +1,9 @@
-Require Import Omega.
-Require Import List DepList.
-Require Import EqdepClass.
-Require Import Word.
-Require Import Bool Folds.
-Require Import Reflection Tactics.
+Require Import Coq.omega.Omega.
+Require Import Coq.Lists.List Bedrock.DepList.
+Require Import Bedrock.EqdepClass.
+Require Import Bedrock.Word.
+Require Import Coq.Bool.Bool Bedrock.Folds.
+Require Import Bedrock.Reflection Bedrock.Tactics.
 
 Set Implicit Arguments.
 

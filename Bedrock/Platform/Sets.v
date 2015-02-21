@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Bags.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Bags.
 
 Set Implicit Arguments.
 

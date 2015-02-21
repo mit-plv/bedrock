@@ -1,7 +1,7 @@
-Require Import Omega.
-Require Import Nomega NArith Word PropX PropXTac Memory SepIL IL.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Nomega Coq.NArith.NArith Bedrock.Word Bedrock.PropX Bedrock.PropXTac Bedrock.Memory Bedrock.SepIL Bedrock.IL.
 
-Require Import sep.Array Allocated.
+Require Import Bedrock.sep.Array Bedrock.Allocated.
 
 Lemma updN_length : forall ls a v,
   length (updN ls a v) = length ls.
@@ -61,7 +61,7 @@ Qed.
 
 Hint Resolve containsArray_goodSize.
 
-Require Import NArith Nomega.
+Require Import Coq.NArith.NArith Bedrock.Nomega.
 
 Lemma bound_N_nat : forall n,
   (n < pow2 32)%nat
@@ -111,7 +111,7 @@ End next.
 
 Hint Resolve next.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
 Lemma updN_app : forall b v a,
   Array.updN (a ++ b) (Datatypes.length a) v
@@ -214,7 +214,7 @@ Qed.
 Hint Rewrite upd0 natToWord_wordToNat DepList.pf_list_simpl : Arr.
 Hint Rewrite <- plus_n_O : Arr.
 
-Require Import Arith.
+Require Import Coq.Arith.Arith.
 
 Lemma le_wordToN : forall (n : nat) (w w' : W),
   w' <= w

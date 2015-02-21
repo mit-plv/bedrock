@@ -1,11 +1,11 @@
-Require Import Omega.
-Require Import List Arith Bool.
-Require Import Expr Env.
-Require Import EquivDec EqdepClass.
-Require Import DepList.
-Require Import Word Prover.
-Require Import sep.Array IL.
-Require Import Arrays.
+Require Import Coq.omega.Omega.
+Require Import Coq.Lists.List Coq.Arith.Arith Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Coq.Classes.EquivDec Bedrock.EqdepClass.
+Require Import Bedrock.DepList.
+Require Import Bedrock.Word Bedrock.Prover.
+Require Import Bedrock.sep.Array Bedrock.IL.
+Require Import Bedrock.Arrays.
 
 Set Implicit Arguments.
 

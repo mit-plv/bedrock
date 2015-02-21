@@ -1,15 +1,15 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 Set Implicit Arguments.
 
-Require Import OrderedType.
+Require Import Coq.Structures.OrderedType.
 
 Module W_as_MOT <: MiniOrderedType.
 
-  Require Import Memory.
+  Require Import Bedrock.Memory.
 
   Definition t := W.
 
-  Require Import Word.
+  Require Import Bedrock.Word.
 
   Definition eq := @eq t.
 
@@ -40,7 +40,7 @@ Module W_as_MOT <: MiniOrderedType.
     omega.
   Qed.
 
-  Require Import WordFacts.
+  Require Import Bedrock.Platform.Cito.WordFacts.
 
   Definition compare : forall x y : t, Compare lt eq x y.
     unfold lt; unfold eq.
@@ -56,7 +56,7 @@ Module W_as_MOT <: MiniOrderedType.
 End W_as_MOT.
 
 Module W_as_OT := MOT_to_OT W_as_MOT.
-Require Import OrdersAlt.
+Require Import Coq.Structures.OrdersAlt.
 Module W_as_OT_new := Update_OT W_as_OT.
-Require Import Equalities.
+Require Import Coq.Structures.Equalities.
 Module W_as_UDT := Make_UDT W_as_OT.

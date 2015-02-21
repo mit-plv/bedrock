@@ -4,8 +4,8 @@ This library defines tail-recursive, unverified versions of some of the
 functions in String.  It's intended to be used in unverified applications
 (e.g., the Bedrock assembly generator) where speed is important. *)
 
-Require Import Ascii List.
-Require Export String.
+Require Import Coq.Strings.Ascii Coq.Lists.List.
+Require Export Coq.Strings.String.
 
 Module Import ForReverse.
 

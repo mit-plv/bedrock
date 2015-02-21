@@ -1,10 +1,10 @@
 (* Final syntax for structured programming *)
 
-Require Import List NArith Bool String.
+Require Import Coq.Lists.List Coq.NArith.NArith Coq.Bool.Bool Coq.Strings.String.
 
-Require Import Word PropX PropXTac IL LabelMap XCAP Structured StructuredModule Linker Memory SepIL.
+Require Import Bedrock.Word Bedrock.PropX Bedrock.PropXTac Bedrock.IL Bedrock.LabelMap Bedrock.XCAP Bedrock.Structured Bedrock.StructuredModule Bedrock.Linker Bedrock.Memory Bedrock.SepIL.
 
-Require Import sep.Locals.
+Require Import Bedrock.sep.Locals.
 
 Set Implicit Arguments.
 

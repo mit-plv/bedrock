@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import ProgramLogic2.
+Require Import Bedrock.Platform.Cito.ProgramLogic2.
 
-Require Import AutoSep.
-Require Import Syntax.
-Require Import SyntaxExpr Memory IL String.
-Require Import Notations3.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Bedrock.Platform.Cito.SyntaxExpr Bedrock.Memory Bedrock.IL Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.Notations3.
 
 Local Open Scope expr.
 
@@ -56,8 +56,8 @@ Section ADTValue.
 
   Local Close Scope expr.
 
-  Require Import SyntaxFunc GeneralTactics.
-  Require Import FuncCore.
+  Require Import Bedrock.Platform.Cito.SyntaxFunc Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.FuncCore.
 
   Notation is_false := (@is_false ADTValue).
 
@@ -93,7 +93,7 @@ Section ADTValue.
     simpl in *; rewrite map_length in *; eauto.
   Qed.
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
 
   Notation Value := (@Value ADTValue).
 

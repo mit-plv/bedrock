@@ -1,26 +1,26 @@
 Set Implicit Arguments.
 
-Require Import FacadeFacts.
-Require Import DFacadeFacts.
-Require Import Facade.
-Require Import DFacade.
+Require Import Bedrock.Platform.Facade.FacadeFacts.
+Require Import Bedrock.Platform.Facade.DFacadeFacts.
+Require Import Bedrock.Platform.Facade.Facade.
+Require Import Bedrock.Platform.Facade.DFacade.
 
-Require Import Facade.NameDecoration.
-Require Import SyntaxExpr.
-Require Import String.
+Require Import Bedrock.Platform.Facade.NameDecoration.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
-Require Import Option.
-Require Import Bool.
+Require Import Bedrock.Platform.Cito.Option.
+Require Import Coq.Bool.Bool.
 
-Require Import GeneralTactics.
-Require Import GeneralTactics3.
-Require Import GeneralTactics4.
-Require Import GeneralTactics5.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics3.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
+Require Import Bedrock.Platform.Cito.GeneralTactics5.
 
-Require Import StringSet.
+Require Import Bedrock.StringSet.
 Import StringSet.
-Require Import StringSetFacts.
+Require Import Bedrock.Platform.Cito.StringSetFacts.
 
 Local Notation PRE := tmp_prefix.
 Definition fun_ptr_varname := PRE ++ "fptr".

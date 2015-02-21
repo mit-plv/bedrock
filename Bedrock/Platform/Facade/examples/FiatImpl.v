@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
 (* there is a name conflict on tactic 'unfolder' between GeneralTactics and MakeADT *)
-Require Import Cito.GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
 
-Require Import FiatADTs.
+Require Import Bedrock.Platform.Facade.examples.FiatADTs.
 Import Adt.
-Require Import Cito.WordMap.
-Require Import Cito.RepInv Cito.MakeADT.
+Require Import Bedrock.Platform.Cito.WordMap.
+Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.MakeADT.
 
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
-Require Import ListSetF ListSeqF FiatRepInv.
+Require Import Bedrock.Platform.Facade.examples.ListSetF Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.FiatRepInv.
 
 Module Import Made := MakeADT.Make(FiatADTs.Adt)(Ri).
 
@@ -36,8 +36,8 @@ Lemma readd_FEnsemble : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, FEnsemble rv') (heap_elements (WordMap.add c (FEnsemble rv') (heap_upd heap_empty c (FEnsemble rv))))).
-  Require Import SemanticsFacts5.
-  Require Import LayoutHintsUtil.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+  Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -168,7 +168,7 @@ Defined.
 Arguments SCA {ADTValue} _.
 Arguments ADT {ADTValue} _.
 
-Require AxSpec.
+Require Bedrock.Platform.Cito.AxSpec.
 Import AxSpec.ConformTactic.
 
 Definition m0 := bimport [[ "sys"!"abort" @ [abortS],

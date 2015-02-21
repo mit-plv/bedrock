@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import GoodFunc.
-Require Import SyntaxFunc.
+Require Import Bedrock.Platform.Cito.GoodFunc.
+Require Import Bedrock.Platform.Cito.SyntaxFunc.
 Export SyntaxFunc.
 
 Record GoodFunction :=
@@ -30,7 +30,7 @@ Lemma to_func_good : forall (f : GoodFunction), GoodFunc f.
   intros; destruct f; eauto.
 Qed.
 
-Require Import Semantics.
+Require Import Bedrock.Platform.Cito.Semantics.
 
 Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
   {|

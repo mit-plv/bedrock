@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import OrderedType.
+Require Import Coq.Structures.OrderedType.
 
 Module GLabel_as_MOT <: MiniOrderedType.
 
-  Require Import GLabel.
+  Require Import Bedrock.Platform.Cito.GLabel.
 
   Definition t := glabel.
 
   Definition eq := @eq t.
 
-  Require Import LabelMap.
+  Require Import Bedrock.LabelMap.
 
   Definition to_bl (lbl : t) : Labels.label := (fst lbl, Labels.Global (snd lbl)).
 
@@ -60,7 +60,7 @@ Module GLabel_as_MOT <: MiniOrderedType.
 End GLabel_as_MOT.
 
 Module GLabel_as_OT := MOT_to_OT GLabel_as_MOT.
-Require Import OrdersAlt.
+Require Import Coq.Structures.OrdersAlt.
 Module GLabel_as_OT_new := Update_OT GLabel_as_OT.
-Require Import Equalities.
+Require Import Coq.Structures.Equalities.
 Module GLabel_as_UDT := Make_UDT GLabel_as_OT.

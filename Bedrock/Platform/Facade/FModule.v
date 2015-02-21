@@ -1,12 +1,12 @@
 Set Implicit Arguments.
 
-Require Import StringMap.
+Require Import Bedrock.Platform.Cito.StringMap.
 Import StringMap.
 
-Require Import Facade.
-Require Import Compile.
-Require Import Semantics.
-Require Import GoodModuleDec.
+Require Import Bedrock.Platform.Facade.Facade.
+Require Import Bedrock.Platform.Facade.Compile.
+Require Import Bedrock.Platform.Cito.Semantics.
+Require Import Bedrock.Platform.Cito.GoodModuleDec.
 
 Local Notation FunCore := OperationalSpec.
 
@@ -26,7 +26,7 @@ Section ADTValue.
 
   Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
 
-  Require Import GLabelMap.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
 
   Record FModule := 
     {

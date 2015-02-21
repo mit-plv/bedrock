@@ -1,13 +1,13 @@
 Set Implicit Arguments.
 
-Require Import DecidableTypeEx.
-Require Import FMapInterface.
+Require Import Coq.Structures.DecidableTypeEx.
+Require Import Coq.FSets.FMapInterface.
 
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
-  Require Import ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
 
-  Require Import FMapFacts1.
+  Require Import Bedrock.Platform.Cito.FMapFacts1.
   Module Import UWFacts := UWFacts_fun E M.
   Import WFacts.
   Import P.
@@ -28,9 +28,9 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Section TopSection.
 
-    Require Import GeneralTactics.
-    Require Import GeneralTactics2.
-    Require Import Option.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics2.
+    Require Import Bedrock.Platform.Cito.Option.
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap_scope.
@@ -993,7 +993,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_find_Some_iff in Hf; openhyp; rewrite diff_o; eauto.
     Qed.
 
-    Require Import GeneralTactics4.
+    Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
     Lemma submap_diff_diff elt (h1 h2 h3 : t elt) : h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
     Proof.
@@ -1260,7 +1260,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         | _, _ => @empty elt
       end.
 
-    Require Import ListFacts4.
+    Require Import Bedrock.Platform.Cito.ListFacts4.
 
     Lemma in_make_mapM_iff elt ks : forall vs k, length ks = length vs -> (In k (make_mapM ks vs) <-> exists i (a : elt), nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
     Proof.
@@ -1618,7 +1618,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Definition is_sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forallb (fun k => mem k m2) (keys m1).
 
-    Require Import SetoidListFacts.
+    Require Import Bedrock.Platform.Cito.SetoidListFacts.
 
     Lemma is_sub_domain_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), is_sub_domain m1 m2 = true -> sub_domain m1 m2.
       intros.

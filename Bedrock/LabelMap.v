@@ -1,8 +1,8 @@
 (* Finite maps for labels *)
 
-Require Import Ascii NArith String OrderedType FMapAVL.
+Require Import Coq.Strings.Ascii Coq.NArith.NArith Coq.Strings.String Coq.Structures.OrderedType Coq.FSets.FMapAVL.
 
-Require Import Nomega Labels.
+Require Import Bedrock.Nomega Bedrock.Labels.
 
 Local Open Scope string_scope.
 Local Open Scope N_scope.
@@ -282,5 +282,5 @@ Remove Hints LabelMap.E.eq_sym LabelMap.E.eq_refl LabelMap.E.eq_trans LabelMap.E
   LabelMap.Raw.Proofs.MX.Sort_NoDup
   LabelMap.Raw.BSLeaf LabelMap.Raw.BSNode LabelMap.Raw.Leaf LabelMap.Raw.Node.
 
-Require FMapFacts.
+Require Coq.FSets.FMapFacts.
 Module LabelFacts := FMapFacts.WFacts_fun(LabelKey)(LabelMap).

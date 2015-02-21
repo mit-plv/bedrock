@@ -1,4 +1,4 @@
-Require Import IL Memory String.
+Require Import Bedrock.IL Bedrock.Memory Coq.Strings.String.
 
 Inductive Expr : Set :=
 | Var : string -> Expr

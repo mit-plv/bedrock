@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
-Require Import Facade.
+Require Import Bedrock.Platform.Facade.Facade.
 
-Require Import StringMapFacts.
-Require Import List.
-Require Import ListFacts4.
+Require Import Bedrock.Platform.Cito.StringMapFacts.
+Require Import Coq.Lists.List.
+Require Import Bedrock.Platform.Cito.ListFacts4.
 
 Section ADTValue.
 
@@ -67,7 +67,7 @@ Section ADTValue.
     
     Hint Constructors Safe.
 
-    Require Import GeneralTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
 
     Theorem Safe_coind : forall c st, R c st -> Safe env c st.
       cofix; intros; destruct c.

@@ -1,15 +1,15 @@
 Set Implicit Arguments.
 
-Require Import Wf.
+Require Import Bedrock.Platform.Cito.Wf.
 Export Wf.
 
 Section TopSection.
 
-  Require Import SyntaxFunc.
-  Require CompileStmtSpec.
-  Require Import GetLocalVars.
-  Require Import Depth.
-  Require Import WellFormed.
+  Require Import Bedrock.Platform.Cito.SyntaxFunc.
+  Require Bedrock.Platform.Cito.CompileStmtSpec.
+  Require Import Bedrock.Platform.Cito.GetLocalVars.
+  Require Import Bedrock.Platform.Cito.Depth.
+  Require Import Bedrock.Platform.Cito.WellFormed.
 
   Definition GoodFunc f :=
     let body := Body f in
@@ -21,8 +21,8 @@ Section TopSection.
 
   Hint Constructors NoDup.
 
-  Require Import GeneralTactics.
-  Require Import GetLocalVarsFacts.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GetLocalVarsFacts.
 
   Lemma GoodFunc_syn_req :
     forall f,
@@ -64,10 +64,10 @@ Section TopSection.
     induction 1; intuition auto using In_InA.
   Qed.
 
-  Require Import GetLocalVars.
-  Require Import GeneralTactics2.
-  Require Import SetoidListFacts.
-  Require Import GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GetLocalVars.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.SetoidListFacts.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
   Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> forall s r, NoDup (ArgVars f ++ get_local_vars s (ArgVars f) r).
     unfold GoodFunc; intuition.
     apply NoDup_app; auto.
@@ -81,21 +81,21 @@ Section TopSection.
     eapply StringSet.StringFacts.diff_iff in H4.
     openhyp.
     contradict H5.
-    Require Import StringSetFacts.
+    Require Import Bedrock.Platform.Cito.StringSetFacts.
     eapply of_list_spec; eauto.
   Qed.
 
 End TopSection.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
   Module Import WfMake := Wf.Make E.
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Import SemanticsMake.
 
-  Require Import GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
   Section TopSection.
 

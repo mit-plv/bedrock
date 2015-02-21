@@ -1,4 +1,4 @@
-Require Import Bedrock.
+Require Import Bedrock.Bedrock.
 
 
 Import DefineStructured.

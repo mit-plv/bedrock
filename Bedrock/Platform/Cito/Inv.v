@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Definition empty_vs : vals := fun _ => $0.
 
@@ -15,19 +15,19 @@ Definition cptr_AlX G (p : W) (stn : settings) a : propX _ _ G :=
            AlX : settings * smem,
                  a (stn, st) ---> #1 (stn, st))%PropX.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Make (Import E : ADT).
 
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Semantics.
   Module Import SemanticsMake := Semantics.Make E.
 
-  Require Import RepInv.
+  Require Import Bedrock.Platform.Cito.RepInv.
 
   Module Make (Import R : RepInv E).
 
-    Require Import Bags.
-    Require Import SemanticsUtil.
+    Require Import Bedrock.Platform.Bags.
+    Require Import Bedrock.Platform.Cito.SemanticsUtil.
 
     Definition is_heap (h : Heap) : HProp := starL (fun p => rep_inv (fst p) (snd p)) (heap_elements h).
 
@@ -42,8 +42,8 @@ Module Make (Import E : ADT).
           has_extra_stack sp (length vars + length temps) e_stack e_stack_real
         )%Sep.
 
-      Require Import Malloc.
-      Require Import Basics.
+      Require Import Bedrock.Platform.Malloc.
+      Require Import Coq.Program.Basics.
 
       Definition layout_option addr ret : HProp :=
         match ret with
@@ -53,7 +53,7 @@ Module Make (Import E : ADT).
 
       Open Scope type.
 
-      Require Import ConvertLabel.
+      Require Import Bedrock.Platform.Cito.ConvertLabel.
       (* universe inconsistency *)
       Set Printing Universes.
       Definition internal_spec G fs spec st : propX _ _ (settings * smem :: G) :=

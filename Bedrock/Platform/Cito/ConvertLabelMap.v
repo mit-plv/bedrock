@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import List.
+Require Import Coq.Lists.List.
 
-Require Import Labels.
-Require Import LabelMap.
-Require LabelMapFacts.
-Require Import GLabel.
-Require Import GLabelMap.
+Require Import Bedrock.Labels.
+Require Import Bedrock.LabelMap.
+Require Bedrock.Platform.Cito.LabelMapFacts.
+Require Import Bedrock.Platform.Cito.GLabel.
+Require Import Bedrock.Platform.Cito.GLabelMap.
 Import GLabelMap.
-Require Import GLabelMapFacts.
+Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-Require Import ConvertLabel.
+Require Import Bedrock.Platform.Cito.ConvertLabel.
 
 Definition to_bl_pair elt (p : glabel * elt) := (fst p : label, snd p).
 
@@ -28,10 +28,10 @@ Section TopSection.
   Import FMapNotations.
   Open Scope fmap.
 
-  Require Import Setoid.
-  Require Import SetoidList.
-  Require Import GeneralTactics.
-  Require Import ListFacts1.
+  Require Import Coq.Setoids.Setoid.
+  Require Import Coq.Lists.SetoidList.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
 
   Set Printing Coercions.
 
@@ -181,7 +181,7 @@ Section TopSection.
     intuition.
   Qed.
 
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
   Lemma to_blm_update : forall elt m1 m2, @LabelMap.Equal elt (to_blm (update m1 m2)) (LabelMapFacts.update (to_blm m1) (to_blm m2)).
     unfold Equal, LabelMap.Equal.

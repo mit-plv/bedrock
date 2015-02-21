@@ -1,4 +1,4 @@
-Require Import Bedrock.
+Require Import Bedrock.Bedrock.
 Export Bedrock.
 
 (** * Specialize the library proof automation to some parameters useful for basic examples. *)
@@ -6,7 +6,7 @@ Export Bedrock.
 Import TacPackIL.
 Require Bedrock.sep.PtsTo.
 Require Export Bedrock.sep.Array8 Bedrock.sep.Array Bedrock.sep.Locals.
-Require Import Provers.
+Require Import Bedrock.Provers.
 
 (** Build our memory plugin **)
 Module Plugin_PtsTo := Bedrock.sep.PtsTo.BedrockPtsToEvaluator.

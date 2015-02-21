@@ -1,5 +1,5 @@
-Require Import Syntax.
-Require Import IL.
+Require Import Bedrock.Platform.Cito.Syntax.
+Require Import Bedrock.IL.
 
 Set Implicit Arguments.
 

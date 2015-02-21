@@ -1,9 +1,9 @@
-Require Import Omega.
-Require Import OrderedType FMapAVL.
-Require Import List.
-Require Import Setoid RelationClasses.
-Require Import Reflection.
-Require Import NPeano.
+Require Import Coq.omega.Omega.
+Require Import Coq.Structures.OrderedType Coq.FSets.FMapAVL.
+Require Import Coq.Lists.List.
+Require Import Coq.Setoids.Setoid Coq.Classes.RelationClasses.
+Require Import Bedrock.Reflection.
+Require Import Coq.Numbers.Natural.Peano.NPeano.
 
 Set Implict Arguments.
 Set Strict Implicit.
@@ -107,7 +107,7 @@ Remove Hints IntMap.E.eq_sym IntMap.E.eq_refl IntMap.E.eq_trans IntMap.E.lt_not_
   IntMap.Raw.Proofs.MX.Sort_NoDup
   IntMap.Raw.BSLeaf IntMap.Raw.BSNode IntMap.Raw.Leaf IntMap.Raw.Node.
 
-Require FMapFacts.
+Require Coq.FSets.FMapFacts.
 Module IntMapFacts := FMapFacts.WFacts_fun(Ordered_nat)(IntMap).
 
 Module IntMapProperties := FMapFacts.WProperties_fun(Ordered_nat)(IntMap).

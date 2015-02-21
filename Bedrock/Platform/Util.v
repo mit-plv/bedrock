@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Arith Bedrock Locals List PreAutoSep.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Bedrock.Bedrock Bedrock.sep.Locals Coq.Lists.List Bedrock.Platform.PreAutoSep.
 
 Lemma wordToNat_wminus : forall sz (w u : word sz),
   u <= w

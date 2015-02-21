@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import GLabelKey.
+Require Import Bedrock.Platform.Cito.GLabelKey.
 
-Require Import FMapAVL.
+Require Import Coq.FSets.FMapAVL.
 Module GLabelMap := Make GLabel_as_OT.

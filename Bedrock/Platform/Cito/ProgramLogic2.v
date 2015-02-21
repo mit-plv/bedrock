@@ -4,15 +4,15 @@ Section ADTValue.
 
   Variable ADTValue : Type.
 
-  Require Import Transit.
-  Require Import Semantics.
+  Require Import Bedrock.Platform.Cito.Transit.
+  Require Import Bedrock.Platform.Cito.Semantics.
 
-  Require Import Syntax.
-  Require Import GLabel.
-  Require Import GLabelMap.
+  Require Import Bedrock.Platform.Cito.Syntax.
+  Require Import Bedrock.Platform.Cito.GLabel.
+  Require Import Bedrock.Platform.Cito.GLabelMap.
   Import GLabelMap.
-  Require Import SemanticsExpr.
-  Require Import GeneralTactics GeneralTactics2 GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.SemanticsExpr.
+  Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics2 Bedrock.Platform.Cito.GeneralTactics3.
 
   Notation Callee := (@Callee ADTValue).
 
@@ -170,10 +170,10 @@ Section ADTValue.
     specs_stn_injective specs (fst env) /\
     specs_fs_agree specs env.
 
-  Require Import GLabelMapFacts.
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+  Require Import Bedrock.Platform.Cito.Option.
 
-  Require Import BedrockTactics.
+  Require Import Bedrock.Platform.Cito.BedrockTactics.
 
   Lemma RunsTo_RunsToDCall : 
     forall specs env r f args v v', 

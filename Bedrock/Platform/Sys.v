@@ -1,4 +1,4 @@
-Require Import Bedrock PreAutoSep.
+Require Import Bedrock.Bedrock Bedrock.Platform.PreAutoSep.
 
 
 (** * Separation logic specifications for system calls *)

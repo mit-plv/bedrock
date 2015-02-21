@@ -6,7 +6,7 @@ Section ADTSection.
 
   Variable ADTValue : Type.
 
-  Require Import Memory.
+  Require Import Bedrock.Memory.
 
   Inductive Value :=
   | SCA : W -> Value
@@ -19,7 +19,7 @@ Section ADTSection.
       | _, _ => false
     end.
 
-  Require Import ListFacts1.
+  Require Import Bedrock.Platform.Cito.ListFacts1.
 
   Definition is_same_types := forall2 is_same_type.
 
@@ -61,7 +61,7 @@ Section ADTSection.
       | _ => false
     end.
 
-  Require Import GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
   Lemma is_adt_iff v : is_adt v = true <-> exists a : ADTValue, v = ADT a.
   Proof.
@@ -78,7 +78,7 @@ Module ConformTactic.
   (* a tactic to discharge the PreCondTypeConform condition *)
   Ltac conform := unfold type_conforming; intros; openhyp; subst; reflexivity.
 
-  Require Import List.
+  Require Import Coq.Lists.List.
 
   (* a test and example usage *)
   Definition test_spec ADTValue : AxiomaticSpec ADTValue.

@@ -1,6 +1,6 @@
-Require Import Omega.
+Require Import Coq.omega.Omega.
 
-Require Import PreAutoSep.
+Require Import Bedrock.Examples.PreAutoSep.
 
 
 (** Let's put the lemma prover through its paces. *)

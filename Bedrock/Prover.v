@@ -1,6 +1,6 @@
-Require Import List Arith Bool.
-Require Import Expr Env.
-Require Import Reflection.
+Require Import Coq.Lists.List Coq.Arith.Arith Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.

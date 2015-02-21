@@ -1,19 +1,19 @@
-Require Import Omega.
-Require Import List.
-Require Import SepTheoryX PropX.
-Require Import PropXTac.
-Require Import RelationClasses EqdepClass.
-Require Import Expr SepExpr.
-Require Import DepList.
-Require Import Setoid.
-Require Import Tactics.
-Require Import Bool Folds.
-Require Import Reflection.
+Require Import Coq.omega.Omega.
+Require Import Coq.Lists.List.
+Require Import Bedrock.SepTheoryX Bedrock.PropX.
+Require Import Bedrock.PropXTac.
+Require Import Coq.Classes.RelationClasses Bedrock.EqdepClass.
+Require Import Bedrock.Expr Bedrock.SepExpr.
+Require Import Bedrock.DepList.
+Require Import Coq.Setoids.Setoid.
+Require Import Bedrock.Tactics.
+Require Import Coq.Bool.Bool Bedrock.Folds.
+Require Import Bedrock.Reflection.
 
 Set Implicit Arguments.
 Set Strict Implicit.
 
-Require NatMap Multimap.
+Require Bedrock.NatMap Bedrock.Multimap.
 
 Module FM := NatMap.IntMap.
 

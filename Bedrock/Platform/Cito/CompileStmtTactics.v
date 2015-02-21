@@ -1,5 +1,5 @@
-Require Import AutoSep.
-Require Import GeneralTactics.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
 
 Ltac clear_imports :=
   try match goal with
@@ -21,7 +21,7 @@ Ltac cond_solver :=
       unfold evalCond in *; simpl in *; open_Some; rewriter_r; f_equal
   end.
 
-Require Import SemanticsExpr.
+Require Import Bedrock.Platform.Cito.SemanticsExpr.
 
 Ltac find_cond :=
   match goal with
@@ -71,7 +71,7 @@ Ltac simpl_sp :=
              H : (_, _) # Sp = _ |- _ => simpl in H
          end.
 
-Require Import Wrap.
+Require Import Bedrock.Platform.Wrap.
 
 Lemma pack_pair' : forall A B (x : A * B), (let (x, _) := x in x, let (_, y) := x in y) = x.
   destruct x; simpl; intuition.
@@ -104,12 +104,12 @@ Ltac not_mem_rv INST :=
     | _ => idtac
   end.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Import SemanticsMake.
 

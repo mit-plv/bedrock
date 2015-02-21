@@ -1,12 +1,12 @@
 Set Implicit Arguments.
 
-Require Import StringSet.
-Require Import Equalities.
+Require Import Bedrock.StringSet.
+Require Import Coq.Structures.Equalities.
 Module K := Make_UDT StringKey.
 Module M := StringSet.
-Require Import FSetProperties.
+Require Import Coq.FSets.FSetProperties.
 Include (Properties M).
-Require Import FSetFacts.
+Require Import Coq.FSets.FSetFacts.
 Include (Facts M).
-Require Import FSetFacts1.
+Require Import Bedrock.Platform.Cito.FSetFacts1.
 Include (UWFacts_fun K M).

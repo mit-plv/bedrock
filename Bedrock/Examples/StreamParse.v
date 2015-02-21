@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import PreAutoSep Wrap Conditional.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Examples.PreAutoSep Bedrock.Examples.Wrap Bedrock.Examples.Conditional.
 
 Import DefineStructured.
 
@@ -167,7 +167,7 @@ Section Parse.
     pre.
 
   Hint Rewrite wordToN_nat wordToNat_natToWord_idempotent using assumption : N.
-  Require Import Arith.
+  Require Import Coq.Arith.Arith.
 
   Hint Resolve goodSize_weaken.
 

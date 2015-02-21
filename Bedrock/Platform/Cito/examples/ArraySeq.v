@@ -1,7 +1,7 @@
-Require Import Omega.
-Require Import AutoSep.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep.
 
-Require Import Malloc Seq.
+Require Import Bedrock.Platform.Malloc Bedrock.Platform.Cito.examples.Seq.
 
 Module Type ADT.
   Parameter arr : list W -> W -> HProp.

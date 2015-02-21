@@ -1,15 +1,15 @@
-Require Import Facade.
-Require Import Memory.
-Require Import Ensembles.
+Require Import Bedrock.Platform.Facade.Facade.
+Require Import Bedrock.Memory.
+Require Import Coq.Sets.Ensembles.
 
-Require Bedrock.
+Require Bedrock.Bedrock.
 
 Inductive ADTValue :=
   | List : list W -> ADTValue
   | Junk : False -> ADTValue
   | FEnsemble : Ensemble W -> ADTValue.
 
-Require Import Cito.ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module Adt <: ADT.
 
@@ -17,7 +17,7 @@ Module Adt <: ADT.
 
 End Adt.
 
-Require Import List Program.
+Require Import Coq.Lists.List Coq.Program.Program.
 
 Definition SCAZero {t} := SCA t (Word.natToWord 32 0).
 Definition SCAOne  {t} := SCA t (Word.natToWord 32 1).

@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
-Require Import String.
-Require Import NatFacts.
+Require Import Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.NatFacts.
 
 Lemma length_append : forall s1 s2, String.length (s1 ++ s2) = String.length s1 + String.length s2.
   induction s1; simpl; intuition.

@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import SetoidList.
+Require Import Coq.Lists.SetoidList.
 
 Definition equiv_2 A B p1 p2 := forall (a : A) (b : B), p1 a b <-> p2 a b.
 

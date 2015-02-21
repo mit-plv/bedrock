@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
-Require Import Facade.
-Require Semantics.
+Require Import Bedrock.Platform.Facade.Facade.
+Require Bedrock.Platform.Cito.Semantics.
 
-Require Import String.
-Require Import SyntaxExpr.
+Require Import Coq.Strings.String.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
 
 Fixpoint compile (s : Stmt) : Syntax.Stmt :=
   match s with
@@ -17,7 +17,7 @@ Fixpoint compile (s : Stmt) : Syntax.Stmt :=
     | Call x f args => Syntax.Call (Some x) f (List.map Var args)
   end.
 
-Require Import ListFacts3.
+Require Import Bedrock.Platform.Cito.ListFacts3.
 
 Definition compile_op (spec : OperationalSpec) :=
   {|

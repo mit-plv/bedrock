@@ -1,8 +1,8 @@
-Require Import List.
-Require Reflect ReifySepExpr.
-Require Import Expr.
-Require Import SepExpr SepLemma.
-Require Import Env.
+Require Import Coq.Lists.List.
+Require Bedrock.Reflect Bedrock.ReifySepExpr.
+Require Import Bedrock.Expr.
+Require Import Bedrock.SepExpr Bedrock.SepLemma.
+Require Import Bedrock.Env.
 
 Module Make (SL : SepLemma).
   Module SE := SL.SE.

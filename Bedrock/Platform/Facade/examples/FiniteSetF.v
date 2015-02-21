@@ -1,5 +1,5 @@
-Require Import Ensembles AutoSep Malloc.
-Require Import FiatADTs.
+Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Bedrock.Platform.Facade.examples.FiatADTs.
 
 Infix "===" := (@Same_set W).
 

@@ -1,16 +1,16 @@
 Set Implicit Arguments.
 
-Require Import ADT.
-Require Import RepInv.
+Require Import Bedrock.Platform.Cito.ADT.
+Require Import Bedrock.Platform.Cito.RepInv.
 
 Module Make (Import E : ADT) (Import M : RepInv E).
 
-  Require Import Inv.
+  Require Import Bedrock.Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Module Import InvMake2 := Make M.
   Import SemanticsMake.
-  Require Import WordMap.
-  Require Import FMapFacts.
+  Require Import Bedrock.Platform.Cito.WordMap.
+  Require Import Coq.FSets.FMapFacts.
   Module Import P := Properties WordMap.
 
   Section TopSection.

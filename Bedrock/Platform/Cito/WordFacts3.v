@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import Arith AutoSep. (* necessary for lemmas related to N *)
+Require Import Coq.Arith.Arith Bedrock.Platform.AutoSep. (* necessary for lemmas related to N *)
 
 (* usuful and safe hints *)
 Hint Rewrite Npow2_nat : N.

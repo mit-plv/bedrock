@@ -1,23 +1,23 @@
 Set Implicit Arguments.
 
-Require Import CModule.
-Require Import GoodModuleDec.
-Require Import GoodModule.
-Require Import GoodFunction.
+Require Import Bedrock.Platform.Cito.CModule.
+Require Import Bedrock.Platform.Cito.GoodModuleDec.
+Require Import Bedrock.Platform.Cito.GoodModule.
+Require Import Bedrock.Platform.Cito.GoodFunction.
 
 Definition cfun_to_gfun (name : string) (f : CFun) : GoodFunction.
   refine (Build_GoodFunction (Build_Func name f) _).
   destruct f; simpl in *.
-  Require Import GoodModuleDecFacts.
+  Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
   eapply is_good_func_sound; eauto.
 Defined.
 
-Require Import StringMap.
-Require Import StringMapFacts.
+Require Import Bedrock.Platform.Cito.StringMap.
+Require Import Bedrock.Platform.Cito.StringMapFacts.
 
 Definition cfuns_to_gfuns (fs : StringMap.t CFun) : list GoodFunction := List.map (uncurry cfun_to_gfun) (StringMap.elements fs).
 
-Require Import Cito.NameDecoration.
+Require Import Bedrock.Platform.Cito.NameDecoration.
 
 Lemma cfuns_to_gfuns_nodup fs : NoDup (List.map (fun (f : GoodFunction) => SyntaxFunc.Name f) (cfuns_to_gfuns fs)).
 Proof.
@@ -36,7 +36,7 @@ Defined.
 Lemma NoDup_ArgVars (f : CFun) : NoDup (ArgVars f).
 Proof.
   destruct f; simpl.
-  Require Import GoodModuleDecFacts.
+  Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
   eapply is_good_func_sound in good_func.
   destruct good_func.
   eauto.

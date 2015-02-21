@@ -1,8 +1,8 @@
 Set Implicit Arguments.
 
-Require Import AutoSep.
-Require Import WordFacts2 WordFacts3.
-Require Import Arith.
+Require Import Bedrock.Platform.AutoSep.
+Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3.
+Require Import Coq.Arith.Arith.
 
 (* ============================================================================
  * N lemmas and Local Hints

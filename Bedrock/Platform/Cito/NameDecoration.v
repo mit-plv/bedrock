@@ -1,6 +1,6 @@
 Set Implicit Arguments.
 
-Require Import String.
+Require Import Coq.Strings.String.
 Local Open Scope string_scope.
 
 Definition cito_module_impl_prefix := "__cmod_impl_".
@@ -17,7 +17,7 @@ Lemma is_good_module_name_sound : forall s, is_good_module_name s = true -> IsGo
   eauto.
 Qed.
 
-Require Import GeneralTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics.
 
 Lemma IsGoodModuleName_not_impl_module_name : forall s, IsGoodModuleName s -> ~ exists s', impl_module_name s' = s.
   unfold IsGoodModuleName, impl_module_name.

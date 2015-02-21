@@ -1,7 +1,7 @@
-Require Import List Bool.
-Require Import Expr SepExpr.
-Require Import Reflection.
-Require Import Folds.
+Require Import Coq.Lists.List Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.SepExpr.
+Require Import Bedrock.Reflection.
+Require Import Bedrock.Folds.
 
 Set Implicit Arguments.
 Set Strict Implicit.

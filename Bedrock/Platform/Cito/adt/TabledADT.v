@@ -1,12 +1,12 @@
 Set Implicit Arguments.
 
-Require Import String.
+Require Import Coq.Strings.String.
 
 Inductive ADTScheme :=
 | Primitive : string -> ADTScheme
 | Product : ADTScheme -> ADTScheme -> ADTScheme.
 
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Record ADTEntry :=
   {
@@ -15,7 +15,7 @@ Record ADTEntry :=
     RepInvGood : forall p a, RepInv p a ===> p =?> 1 * any
   }.
 
-Require Import StringMap.
+Require Import Bedrock.Platform.Cito.StringMap.
 Import StringMap.
 
 Definition PrimitiveTable := t ADTEntry.
@@ -73,7 +73,7 @@ Module Type ADTTable.
 
 End ADTTable.
 
-Require Import ADT.
+Require Import Bedrock.Platform.Cito.ADT.
 
 Module TabledADT (Import T : ADTTable) <: ADT.
 
@@ -85,7 +85,7 @@ Module Make (Import T : ADTTable).
 
   Module Import A := TabledADT T.
 
-  Require Import RepInv.
+  Require Import Bedrock.Platform.Cito.RepInv.
 
   Module TabledADTRepInv <: RepInv A.
 
