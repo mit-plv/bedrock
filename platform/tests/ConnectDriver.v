@@ -1,4 +1,4 @@
-Require Import Thread0 Connect Bootstrap.
+Require Import Platform.tests.Thread0 Platform.tests.Connect Platform.Bootstrap.
 
 
 Module Type S.

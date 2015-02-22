@@ -1,4 +1,4 @@
-Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers StringOps Ascii Io.
+Require Import Platform.AutoSep Platform.Scheduler Platform.Arrays8 Platform.MoreArrays Platform.Buffers Platform.StringOps Coq.Strings.Ascii Platform.Io.
 
 
 Definition atoiS := SPEC("buf", "pos", "len") reserving 2

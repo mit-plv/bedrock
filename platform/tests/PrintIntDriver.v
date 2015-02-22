@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc PrintInt Bootstrap.
+Require Import Platform.AutoSep Platform.Malloc Platform.tests.PrintInt Platform.Bootstrap.
 
 
 Module Type S.

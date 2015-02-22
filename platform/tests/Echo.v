@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc Arrays8.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Malloc Platform.Arrays8.
 
 
 Definition mainS := SPEC reserving 12

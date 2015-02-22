@@ -1,5 +1,5 @@
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import RelDb.
+Require Import Platform.AutoSep Platform.Wrap Platform.StringOps Platform.Malloc Platform.ArrayOps Platform.Buffers Platform.Bags.
+Require Import Platform.RelDb.
 
 Set Implicit Arguments.
 

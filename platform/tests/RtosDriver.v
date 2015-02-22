@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Thread0 Bootstrap.
+Require Import Coq.omega.Omega.
+Require Import Platform.tests.Thread0 Platform.Bootstrap.
 
 
 Module Type HIDE.

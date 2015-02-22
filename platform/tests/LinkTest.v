@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Platform.AutoSep.
 
 
 Definition spec1 := SPEC reserving 0

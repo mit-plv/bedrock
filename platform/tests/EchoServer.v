@@ -1,4 +1,4 @@
-Require Import Thread Arrays8 MoreArrays Buffers Io.
+Require Import Platform.Thread Platform.Arrays8 Platform.MoreArrays Platform.Buffers Platform.Io.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 

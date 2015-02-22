@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Thread0 WebServer Bootstrap.
+Require Import Coq.omega.Omega.
+Require Import Platform.tests.Thread0 Platform.tests.WebServer Platform.Bootstrap.
 
 
 Module Type HIDE.

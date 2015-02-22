@@ -1,5 +1,5 @@
-Require Import AutoSep Malloc.
-Require Import List.
+Require Import Platform.AutoSep Platform.Malloc.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

@@ -1,4 +1,4 @@
-Require Import Thread SinglyLinkedList.
+Require Import Platform.Thread Platform.SinglyLinkedList.
 
 
 Module Type S.

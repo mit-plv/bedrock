@@ -1,4 +1,4 @@
-Require Import AutoSep Arrays8.
+Require Import Platform.AutoSep Platform.Arrays8.
 
 
 Definition copyS := SPEC("dst", "dstPos", "src", "srcPos", "len") reserving 1

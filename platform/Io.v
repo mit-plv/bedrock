@@ -1,4 +1,4 @@
-Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers.
+Require Import Platform.AutoSep Platform.Scheduler Platform.Arrays8 Platform.MoreArrays Platform.Buffers.
 
 
 Section specs.

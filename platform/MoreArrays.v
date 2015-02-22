@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep.
 
 
 Lemma allocate_array' : forall p n offset,

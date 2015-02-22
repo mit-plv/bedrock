@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps SinglyLinkedList Malloc ArrayOps Bags.
-Require Import RelDb RelDbCondition RelDbSelect.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Wrap Platform.StringOps Platform.SinglyLinkedList Platform.Malloc Platform.ArrayOps Platform.Bags.
+Require Import Platform.RelDb Platform.RelDbCondition Platform.RelDbSelect.
 
 
 Set Implicit Arguments.

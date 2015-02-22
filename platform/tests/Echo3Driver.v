@@ -1,4 +1,4 @@
-Require Import Thread0 Echo3 Bootstrap.
+Require Import Platform.tests.Thread0 Platform.tests.Echo3 Platform.Bootstrap.
 
 
 Module Type S.

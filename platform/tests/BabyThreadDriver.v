@@ -1,4 +1,4 @@
-Require Import Thread0 BabyThread Bootstrap.
+Require Import Platform.tests.Thread0 Platform.tests.BabyThread Platform.Bootstrap.
 
 
 Module Type S.

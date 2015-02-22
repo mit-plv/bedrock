@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Platform.AutoSep.
 
 Set Implicit Arguments.
 

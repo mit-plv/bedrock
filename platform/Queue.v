@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc Bags.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Malloc Platform.Bags.
 Import W_W_Bag.
 
 

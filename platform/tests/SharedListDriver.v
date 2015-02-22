@@ -1,4 +1,4 @@
-Require Import Thread0 SharedList Bootstrap.
+Require Import Platform.tests.Thread0 Platform.tests.SharedList Platform.Bootstrap.
 
 
 Module Type S.

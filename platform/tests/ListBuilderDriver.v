@@ -1,4 +1,4 @@
-Require Import Thread0 ListBuilder Bootstrap.
+Require Import Platform.tests.Thread0 Platform.tests.ListBuilder Platform.Bootstrap.
 
 
 Module Type S.

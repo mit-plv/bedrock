@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Abort Bootstrap.
+Require Import Platform.AutoSep Platform.Malloc Platform.tests.Abort Platform.Bootstrap.
 
 
 Module Type S.

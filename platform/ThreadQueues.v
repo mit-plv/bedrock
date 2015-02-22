@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Bags Malloc ThreadQueue Misc.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Bags Platform.Malloc Platform.ThreadQueue Platform.Misc.
 Import W_Bag.
 
 Set Implicit Arguments.

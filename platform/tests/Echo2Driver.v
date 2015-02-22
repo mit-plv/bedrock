@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Echo2 Bootstrap.
+Require Import Platform.AutoSep Platform.Malloc Platform.tests.Echo2 Platform.Bootstrap.
 
 
 Module Type S.

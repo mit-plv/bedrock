@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Arrays8 MoreArrays.
+Require Import Platform.AutoSep Platform.Malloc Platform.Arrays8 Platform.MoreArrays.
 
 
 Definition bmallocS : spec := SPEC("n") reserving 8

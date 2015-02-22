@@ -1,5 +1,5 @@
-Require Import AutoSep Malloc.
-Require Import List SinglyLinkedList.
+Require Import Platform.AutoSep Platform.Malloc.
+Require Import Coq.Lists.List Platform.SinglyLinkedList.
 
 Set Implicit Arguments.
 

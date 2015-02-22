@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers StringOps Ascii Io.
-Require Import Http SinglyLinkedList Bags ArrayOps.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Scheduler Platform.Arrays8 Platform.MoreArrays Platform.Buffers Platform.StringOps Coq.Strings.Ascii Platform.Io.
+Require Import Platform.Http Platform.SinglyLinkedList Platform.Bags Platform.ArrayOps.
 
 
 Module Type S.

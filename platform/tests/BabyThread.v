@@ -1,4 +1,4 @@
-Require Import Thread0.
+Require Import Platform.tests.Thread0.
 
 
 Module Make(M : S).

@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc ArrayTest Bootstrap.
+Require Import Platform.AutoSep Platform.Malloc Platform.tests.ArrayTest Platform.Bootstrap.
 
 
 Module Type S.

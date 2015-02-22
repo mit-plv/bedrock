@@ -1,4 +1,4 @@
-Require Import Thread.
+Require Import Platform.Thread.
 Export Thread.
 
 Module Type S.

@@ -1,4 +1,4 @@
-Require Import Thread0 SinglyLinkedList.
+Require Import Platform.tests.Thread0 Platform.SinglyLinkedList.
 
 
 Module Make(M : S).
