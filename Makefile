@@ -168,7 +168,7 @@ install-examples install-facade install-facade-all install-facade-allv install-c
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 update-_CoqProject:
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v"; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml") > _CoqProject
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v'; echo 'Bedrock/ILTac.v'; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml") > _CoqProject
 
 time:
 	@ rm -rf timing
