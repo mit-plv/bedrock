@@ -8,6 +8,18 @@ SILENCE_COQDEP_0 = @echo "COQDEP $<"; #
 SILENCE_COQDEP_1 =
 SILENCE_COQDEP = $(SILENCE_COQDEP_$(V))
 
+SILENCE_OCAMLC_0 = @echo "OCAMLC $<"; #
+SILENCE_OCAMLC_1 =
+SILENCE_OCAMLC = $(SILENCE_OCAMLC_$(V))
+
+SILENCE_OCAMLDEP_0 = @echo "OCAMLDEP $<"; #
+SILENCE_OCAMLDEP_1 =
+SILENCE_OCAMLDEP = $(SILENCE_OCAMLDEP_$(V))
+
+SILENCE_OCAMLOPT_0 = @echo "OCAMLOPT $<"; #
+SILENCE_OCAMLOPT_1 =
+SILENCE_OCAMLOPT = $(SILENCE_OCAMLOPT_$(V))
+
 Q_0 := @
 Q_1 :=
 Q = $(Q_$(V))
@@ -33,14 +45,24 @@ HASNATDYNLINK = true
 	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject
 
-QUICK_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time
+FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac
 
 # pipe the output of coq_makefile through sed so that we don't have to run coqdep just to clean
 Makefile.coq: Makefile _CoqProject
 	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
-	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(QUICK_TARGETS),$$(MAKECMDGOALS)),)\n\1\nelse\nifeq ($$(MAKECMDGOALS),)\n\1\nendif\nendif/g' | sed s'/^clean:$$/clean-old::/g' > $@
+	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(FAST_TARGETS),$$(MAKECMDGOALS)),)\n\1\nelse\nifeq ($$(MAKECMDGOALS),)\n\1\nendif\nendif/g' | sed s'/^clean:$$/clean-old::/g' > $@
 
 -include Makefile.coq
+
+# overwrite OCAMLC, OCAMLOPT, OCAMLDEP to make `make` quieter
+OCAMLC_OLD := $(OCAMLC)
+OCAMLC = $(SILENCE_OCAMLC)$(OCAMLC_OLD)
+
+OCAMLDEP_OLD := $(OCAMLDEP)
+OCAMLDEP = $(SILENCE_OCAMLDEP)$(OCAMLDEP_OLD)
+
+OCAMLOPT_OLD := $(OCAMLOPT)
+OCAMLOPT = $(SILENCE_OCAMLOPT)$(OCAMLOPT_OLD)
 
 clean::
 	$(VECHO) "RM *.CMO *.CMI *.CMA"
@@ -54,6 +76,7 @@ clean::
 	$(VECHO) "RM *.PS *.PDF *.GLOB *.TEX *.G.TEX"
 	$(Q)rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
 	- rm -rf html mlihtml
+	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi
 	rm -f Makefile.coq .depend
 
 dist:
@@ -142,7 +165,7 @@ install-examples install-facade install-facade-all install-facade-allv install-c
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(filter %.vo,$(T))))" install
 
-reification: extlib.cmi $(REIFICATION_VO)
+reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 update-_CoqProject:
 	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v"; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml") > _CoqProject
@@ -155,6 +178,11 @@ time:
 	@ cp Bedrock/Examples/Makefile Bedrock/Examples/Makefile.coq timing/Bedrock/Examples
 	@ (cd timing; $(MAKE) all)
 
+REIF_VERSION = $(patsubst ILTac%.v,%,$(shell readlink Bedrock/ILTac.v))
+
+ifeq ($(REIF_VERSION),ML)
+native: reification
+else
 native:
 	@ echo "## "
 	@ echo "## Switching to OCaml reification."
@@ -162,13 +190,18 @@ native:
 	$(Q) (cd Bedrock/; rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob)
 	$(Q) (cd Bedrock/; ln -s ILTacML.v ILTac.v)
 	$(Q) $(MAKE) reification
+endif
 
+ifeq ($(REIF_VERSION),Ltac)
+ltac:
+else
 ltac:
 	@ echo "## "
 	@ echo "## Switching to Ltac reification."
 	@ echo "## "
 	$(Q) (cd Bedrock/; rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob)
 	$(Q) (cd Bedrock/; ln -s ILTacLtac.v ILTac.v)
+endif
 
 Bedrock/ILTac.v:
 	@ echo "## "
@@ -178,7 +211,7 @@ Bedrock/ILTac.v:
 
 version:
 	@ echo "## "
-	@ echo "## You are running" $(patsubst Bedrock/ILTac%.v,%,$(shell readlink Bedrock/ILTac.v)) "reification"
+	@ echo "## You are running $(REIF_VERSION) reification"
 	@ echo "## "
 
 package:
