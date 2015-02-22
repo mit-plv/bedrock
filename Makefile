@@ -1,11 +1,11 @@
 V = 0
 
-SILENCE_COQC_0 := @echo \"COQC $$<\"; #
-SILENCE_COQC_1 :=
+SILENCE_COQC_0 = @echo "COQC $<"; #
+SILENCE_COQC_1 =
 SILENCE_COQC = $(SILENCE_COQC_$(V))
 
-SILENCE_COQDEP_0 := @echo \"COQDEP $$<\"; #
-SILENCE_COQDEP_1 :=
+SILENCE_COQDEP_0 = echo "COQDEP $<"; #
+SILENCE_COQDEP_1 =
 SILENCE_COQDEP = $(SILENCE_COQDEP_$(V))
 
 Q_0 := @
@@ -18,7 +18,7 @@ VECHO = $(VECHO_$(V))
 
 TIMED=
 TIMECMD=
-STDTIME?=/usr/bin/time -f "$$* (user: %U mem: %M ko)"
+STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 TIMER=$(if $(TIMED), $(STDTIME), $(TIMECMD))
 
 containing = $(foreach v,$2,$(if $(findstring $1,$v),$v))
@@ -38,7 +38,7 @@ QUICK_TARGETS := clean archclean printenv dist version package admit clean-old u
 # pipe the output of coq_makefile through sed so that we don't have to run coqdep just to clean
 Makefile.coq: Makefile _CoqProject
 	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
-	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(QUICK_TARGETS),$$(MAKECMDGOALS)),)\n\1\nendif/g' | sed s'/^clean:$$/clean-old::/g' > $@
+	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(QUICK_TARGETS),$$(MAKECMDGOALS)),)\n\1\nelse\nifeq ($$(MAKECMDGOALS),)\n\1\nendif\nendif/g' | sed s'/^clean:$$/clean-old::/g' > $@
 
 -include Makefile.coq
 
