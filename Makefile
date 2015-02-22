@@ -18,7 +18,7 @@ VECHO = $(VECHO_$(V))
 
 TIMED=
 TIMECMD=
-STDTIME?=/usr/bin/time -f \"$$* (user: %U mem: %M ko)\"
+STDTIME?=/usr/bin/time -f "$$* (user: %U mem: %M ko)"
 TIMER=$(if $(TIMED), $(STDTIME), $(TIMECMD))
 
 containing = $(foreach v,$2,$(if $(findstring $1,$v),$v))
@@ -33,15 +33,14 @@ HASNATDYNLINK = true
 	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject
 
-Makefile.coq::
+QUICK_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time
+
+# pipe the output of coq_makefile through sed so that we don't have to run coqdep just to clean
+Makefile.coq: Makefile _CoqProject
 	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
-	$(Q)$(COQBIN)coq_makefile COQC = "$(SILENCE_COQC)$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject > $@
+	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(QUICK_TARGETS),$$(MAKECMDGOALS)),)\n\1\nendif/g' | sed s'/^clean:$$/clean-old::/g' > $@
 
-Makefile.variables: Makefile.coq
-	$(VECHO) "CAT $< | GREP > $@"
-	$(Q)cat $< | grep -v '^%' | grep -v "^	" | grep -v '^\..*:.*' | grep -v '^-include' | grep -v '^[a-z-]*:\([^=]\|$$\)' > $@
-
--include Makefile.variables
+-include Makefile.coq
 
 clean::
 	$(VECHO) "RM *.CMO *.CMI *.CMA"
@@ -55,90 +54,95 @@ clean::
 	$(VECHO) "RM *.PS *.PDF *.GLOB *.TEX *.G.TEX"
 	$(Q)rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
 	- rm -rf html mlihtml
-	rm -f Makefile.coq Makefile.variables .depend
+	rm -f Makefile.coq .depend
 
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
 
-ALL_EXAMPLES_V := $(filter Bedrock/Examples/%.v,$(VFILES))
-EXAMPLES_V := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_V))))
-CITO_V := $(filter Bedrock/Platform/Cito/%.v,$(VFILES))
-FACADE_ALLV := $(filter Bedrock/Platform/Facade/%.v,$(VFILES))
-FACADE_V := \
-	Bedrock/Facade/Facade.v \
-	Bedrock/Facade/DFacade.v \
-	Bedrock/Facade/CompileUnit.v
+ALL_EXAMPLES_VO := $(filter Bedrock/Examples/%.vo,$(VOFILES))
+EXAMPLES_VO := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_VO))))
+CITO_VO := $(filter Bedrock/Platform/Cito/%.vo,$(VOFILES))
+FACADE_ALLVO := $(filter Bedrock/Platform/Facade/%.vo,$(VOFILES))
+FACADE_VO := \
+	Bedrock/Facade/Facade.vo \
+	Bedrock/Facade/DFacade.vo \
+	Bedrock/Facade/CompileUnit.vo
 
-FACADE_ALL_V := \
-	Bedrock/Facade/examples/FiatADTs.v \
-	Bedrock/Facade/examples/FiatRepInv.v \
-	Bedrock/Facade/examples/FiatImpl.v \
-	Bedrock/Facade/DFacadeToBedrock.v
+FACADE_ALL_VO := \
+	Bedrock/Facade/examples/FiatADTs.vo \
+	Bedrock/Facade/examples/FiatRepInv.vo \
+	Bedrock/Facade/examples/FiatImpl.vo \
+	Bedrock/Facade/DFacadeToBedrock.vo
 
 # Not sure why we have these files if no target refers to them...
-PLATFORM_UNMADE_V := \
-	Bedrock/Platform/tests/AbortAMD64.v \
-	Bedrock/Platform/tests/ArrayTestAMD64.v \
-	Bedrock/Platform/tests/CallbackAMD64.v \
-	Bedrock/Platform/tests/ConnectAMD64.v \
-	Bedrock/Platform/tests/Echo2AMD64.v \
-	Bedrock/Platform/tests/Echo3AMD64.v \
-	Bedrock/Platform/tests/EchoAMD64.v \
-	Bedrock/Platform/tests/EchoServerAMD64.v \
-	Bedrock/Platform/tests/ListBuilderAMD64.v \
-	Bedrock/Platform/tests/MiniMasterAMD64.v \
-	Bedrock/Platform/tests/MiniMasterI386.v \
-	Bedrock/Platform/tests/PrintIntAMD64.v \
-	Bedrock/Platform/tests/RosMasterAMD64.v \
-	Bedrock/Platform/tests/RosMasterI386.v \
-	Bedrock/Platform/tests/RtosAMD64.v \
-	Bedrock/Platform/tests/RtosI386.v \
-	Bedrock/Platform/tests/SharedListAMD64.v \
-	Bedrock/Platform/tests/WebServerAMD64.v \
-	Bedrock/Platform/tests/XmlTest2AMD64.v \
-	Bedrock/Platform/tests/XmlTestAMD64.v
+PLATFORM_UNMADE_VO := \
+	Bedrock/Platform/tests/AbortAMD64.vo \
+	Bedrock/Platform/tests/ArrayTestAMD64.vo \
+	Bedrock/Platform/tests/CallbackAMD64.vo \
+	Bedrock/Platform/tests/ConnectAMD64.vo \
+	Bedrock/Platform/tests/Echo2AMD64.vo \
+	Bedrock/Platform/tests/Echo3AMD64.vo \
+	Bedrock/Platform/tests/EchoAMD64.vo \
+	Bedrock/Platform/tests/EchoServerAMD64.vo \
+	Bedrock/Platform/tests/ListBuilderAMD64.vo \
+	Bedrock/Platform/tests/MiniMasterAMD64.vo \
+	Bedrock/Platform/tests/MiniMasterI386.vo \
+	Bedrock/Platform/tests/PrintIntAMD64.vo \
+	Bedrock/Platform/tests/RosMasterAMD64.vo \
+	Bedrock/Platform/tests/RosMasterI386.vo \
+	Bedrock/Platform/tests/RtosAMD64.vo \
+	Bedrock/Platform/tests/RtosI386.vo \
+	Bedrock/Platform/tests/SharedListAMD64.vo \
+	Bedrock/Platform/tests/WebServerAMD64.vo \
+	Bedrock/Platform/tests/XmlTest2AMD64.vo \
+	Bedrock/Platform/tests/XmlTestAMD64.vo
 
-SRC_UNMADE_V := \
-	Bedrock/ILTacLtac.v \
-	Bedrock/ILTacML.v \
-	Bedrock/SepExprTests.v \
-	Bedrock/SymEvalTests.v \
-	Bedrock/UnfolderTests.v \
-	Bedrock/provers/TransitivityProver.v
+SRC_UNMADE_VO := \
+	Bedrock/ILTacLtac.vo \
+	Bedrock/ILTacML.vo \
+	Bedrock/SepExprTests.vo \
+	Bedrock/SymEvalTests.vo \
+	Bedrock/UnfolderTests.vo \
+	Bedrock/provers/TransitivityProver.vo
 
-PLATFORM_V := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_V),$(filter Bedrock/Examples/%.v,$(VFILES)))
+PLATFORM_VO := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_VO),$(filter Bedrock/Examples/%.vo,$(VOFILES)))
 
-SRC_V := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_V),$(VFILES))
+SRC_VO := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_VO),$(VOFILES))
 
-SRC_TEST_V := \
-	Bedrock/UnfolderTests.v
+SRC_TEST_VO := \
+	Bedrock/UnfolderTests.vo
 
-REIFICATION_V := \
-	$(filter Bedrock/reification/%,$(VFILES)) $(CMOFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES))
+REIFICATION_VO := \
+	$(filter Bedrock/reification/%,$(VOFILES)) $(CMOFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES))
 
-examples facade facade_all facade_allv cito platform src src-test: reification
-install-examples examples: T = $(EXAMPLES_V)
-install-facade facade: T = $(FACADE_V)
-install-facade-all facade-all: T = $(FACADE_ALL_V)
-install-facade-allv facade-allv: T = $(FACADE_ALLV)
-install-cito cito: T = $(CITO_V)
-install-platform platform: T = $(PLATFORM_V)
-install-examples examples: T = $(EXAMPLES_V)
-install-src src: T = $(SRC_V)
+examples facade facade-all facade-allv cito platform src src-test: reification
+examples: $(EXAMPLES_VO)
+facade: $(FACADE_VO)
+facade-all: $(FACADE_ALL_VO)
+facade-allv: $(FACADE_ALLVO)
+cito: $(CITO_VO)
+platform: $(PLATFORM_VO)
+src: $(SRC_VO)
+src-test: $(SRC_TEST_VO)
+
+
+install-examples: T = $(EXAMPLES_VO)
+install-facade: T = $(FACADE_VO)
+install-facade-all: T = $(FACADE_ALL_VO)
+install-facade-allv: T = $(FACADE_ALLVO)
+install-cito: T = $(CITO_VO)
+install-platform: T = $(PLATFORM_VO)
+install-examples: T = $(EXAMPLES_VO)
+install-src: T = $(SRC_VO)
 
 examples facade facade-all facade-allv cito platform src:
 	$(Q)$(MAKE) -f Makefile.coq $(patsubst %.v,%.vo,$(T))
 
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
-	$(Q)$(MAKE) -f Makefile.coq VFILES="$(filter %.v,$(T))" install
+	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(filter %.vo,$(T))))" install
 
-reification:
-	$(MAKE) -f Makefile.coq extlib.cmi
-	$(MAKE) -f Makefile.coq $(patsubst %.v,%.vo,$(REIFICATION_V))
-
-install:
-	$(MAKE) -f Makefile.coq install
+reification: extlib.cmi $(REIFICATION_VO)
 
 update-_CoqProject:
 	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v"; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml") > _CoqProject
@@ -157,20 +161,18 @@ native:
 	@ echo "## "
 	$(Q) (cd Bedrock/; rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob)
 	$(Q) (cd Bedrock/; ln -s ILTacML.v ILTac.v)
-	$(Q) $(MAKE) -C Bedrock/reification
+	$(Q) $(MAKE) reification
 
 ltac:
 	@ echo "## "
-	@ echo "## Switching to ltac reification."
+	@ echo "## Switching to Ltac reification."
 	@ echo "## "
 	$(Q) (cd Bedrock/; rm -f ILTac.v ILTac.vo ILTac.v.d ILTac.glob)
 	$(Q) (cd Bedrock/; ln -s ILTacLtac.v ILTac.v)
 
 Bedrock/ILTac.v:
 	@ echo "## "
-	@ echo "## Warning: No ILTac.v, defaulting to Ltac reification."
-	@ echo "## NOTE: If you would like to use the faster, ML reification"
-	@ echo "##       run 'make native'"
+	@ echo "## Warning: No ILTac.v, defaulting to ML reification."
 	@ echo "## "
 	$(Q) $(MAKE) native
 
@@ -188,6 +190,6 @@ admit:
 depgraph:
 	@ echo Generating dependency graph to deps.pdf
 	$(VECHO) "DEPS.PY *.V.D > DEPS.DOT"
-	$(Q) ./tools/deps.py $(SRC_VOFILES:%.v=%.v.d) > deps.dot
+	$(Q) ./tools/deps.py $(SRC_VO:%.vo=%.v.d) > deps.dot
 	$(VECHO) "DEPS.PY *.V.D | DOT -o DEPS.PDF"
-	$(Q) ./tools/deps.py $(SRC_VOFILES:%.v=%.v.d) | dot -Tpdf -o deps.pdf
+	$(Q) ./tools/deps.py $(SRC_VO:%.vo=%.v.d) | dot -Tpdf -o deps.pdf
