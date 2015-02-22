@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 Set Implicit Arguments.
 

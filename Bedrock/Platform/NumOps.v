@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep.
 
 
 Definition div4S := SPEC("n") reserving 1

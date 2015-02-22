@@ -1,4 +1,4 @@
-Require Import Thread0 BabyThread Bootstrap.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.BabyThread Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

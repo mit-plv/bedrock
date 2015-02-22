@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Arrays8 MoreArrays.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays.
 
 
 Definition bmallocS : spec := SPEC("n") reserving 8

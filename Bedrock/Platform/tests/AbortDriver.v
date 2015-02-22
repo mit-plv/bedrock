@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Abort Bootstrap.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.tests.Abort Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

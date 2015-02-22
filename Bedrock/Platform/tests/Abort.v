@@ -1,4 +1,4 @@
-Require Import AutoSep.
+Require Import Bedrock.Platform.AutoSep.
 
 
 Definition mainS := SPEC reserving 0

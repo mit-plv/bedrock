@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Bags Malloc ThreadQueue Misc.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Bags Bedrock.Platform.Malloc Bedrock.Platform.ThreadQueue Bedrock.Platform.Misc.
 Import W_Bag.
 
 Set Implicit Arguments.

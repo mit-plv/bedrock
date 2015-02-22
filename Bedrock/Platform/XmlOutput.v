@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps SinglyLinkedList Malloc ArrayOps Bags.
-Require Import RelDb RelDbCondition RelDbSelect.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.StringOps Bedrock.Platform.SinglyLinkedList Bedrock.Platform.Malloc Bedrock.Platform.ArrayOps Bedrock.Platform.Bags.
+Require Import Bedrock.Platform.RelDb Bedrock.Platform.RelDbCondition Bedrock.Platform.RelDbSelect.
 
 
 Set Implicit Arguments.

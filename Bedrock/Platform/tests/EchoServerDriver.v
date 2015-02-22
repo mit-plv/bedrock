@@ -1,4 +1,4 @@
-Require Import Thread0 EchoServer Bootstrap.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.EchoServer Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

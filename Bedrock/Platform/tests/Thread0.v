@@ -1,4 +1,4 @@
-Require Import Thread.
+Require Import Bedrock.Platform.Thread.
 Export Thread.
 
 Module Type S.

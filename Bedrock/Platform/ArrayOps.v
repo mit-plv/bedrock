@@ -1,4 +1,4 @@
-Require Import AutoSep Arrays8.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Arrays8.
 
 
 Definition copyS := SPEC("dst", "dstPos", "src", "srcPos", "len") reserving 1

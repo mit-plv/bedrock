@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Echo2 Bootstrap.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.tests.Echo2 Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

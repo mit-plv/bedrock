@@ -1,4 +1,4 @@
-Require Import Thread SinglyLinkedList.
+Require Import Bedrock.Platform.Thread Bedrock.Platform.SinglyLinkedList.
 
 
 Module Type S.

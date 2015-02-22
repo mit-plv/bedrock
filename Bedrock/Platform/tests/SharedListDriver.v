@@ -1,4 +1,4 @@
-Require Import Thread0 SharedList Bootstrap.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.SharedList Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

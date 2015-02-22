@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Arith AutoSep Malloc Arrays8.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Arrays8.
 
 
 Definition readS := SPEC("arr", "pos") reserving 0

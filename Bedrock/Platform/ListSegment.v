@@ -1,5 +1,5 @@
-Require Import AutoSep Malloc.
-Require Import List SinglyLinkedList.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Coq.Lists.List Bedrock.Platform.SinglyLinkedList.
 
 Set Implicit Arguments.
 

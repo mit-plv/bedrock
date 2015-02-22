@@ -1,4 +1,4 @@
-Require Import Thread Arrays8 MoreArrays Buffers.
+Require Import Bedrock.Platform.Thread Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays Bedrock.Platform.Buffers.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 

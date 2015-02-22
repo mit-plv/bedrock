@@ -1,5 +1,5 @@
-Require Import Thread Arrays8 MoreArrays Buffers Io StringDb.
-Require Import Ascii.
+Require Import Bedrock.Platform.Thread Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays Bedrock.Platform.Buffers Bedrock.Platform.Io Bedrock.Platform.tests.StringDb.
+Require Import Coq.Strings.Ascii.
 
 Definition W_of_ascii (ch : ascii) : W := N_of_ascii ch.
 Coercion W_of_ascii : ascii >-> W.

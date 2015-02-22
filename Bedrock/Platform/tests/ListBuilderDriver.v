@@ -1,4 +1,4 @@
-Require Import Thread0 ListBuilder Bootstrap.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.ListBuilder Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

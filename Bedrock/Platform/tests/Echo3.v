@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Thread Arrays8 MoreArrays.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.Thread Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 

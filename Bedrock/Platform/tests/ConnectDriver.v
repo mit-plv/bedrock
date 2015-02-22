@@ -1,4 +1,4 @@
-Require Import Thread0 Connect Bootstrap.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.Connect Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

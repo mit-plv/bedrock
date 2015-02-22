@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc MoreArrays.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.MoreArrays.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
@@ -78,7 +78,7 @@ Defined.
 
 (** * Specs *)
 
-Require Import Ascii.
+Require Import Coq.Strings.Ascii.
 Definition W_of_ascii (ch : ascii) : W := N_of_ascii ch.
 Coercion W_of_ascii : ascii >-> W.
 

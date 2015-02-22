@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Bootstrap.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Bootstrap.
 
 
 Hint Rewrite roundTrip_0 : N.
@@ -114,7 +114,7 @@ Lemma materialize_array8'' : forall p v,
   propxFo.
   unfold smem_get_word, H.footprint_w in *.
 
-  Require Import Bootstrap.
+  Require Import Bedrock.Platform.Bootstrap.
 
   repeat match type of H0 with
            | match ?E with None => _ | _ => _ end = _ => case_eq E; intros;

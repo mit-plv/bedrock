@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc PrintInt Bootstrap.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.tests.PrintInt Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

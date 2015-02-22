@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers StringOps Ascii Io.
-Require Import Http SinglyLinkedList Bags ArrayOps.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Scheduler Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays Bedrock.Platform.Buffers Bedrock.Platform.StringOps Coq.Strings.Ascii Bedrock.Platform.Io.
+Require Import Bedrock.Platform.Http Bedrock.Platform.SinglyLinkedList Bedrock.Platform.Bags Bedrock.Platform.ArrayOps.
 
 
 Module Type S.

@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc ArrayTest Bootstrap.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.tests.ArrayTest Bedrock.Platform.Bootstrap.
 
 
 Module Type S.

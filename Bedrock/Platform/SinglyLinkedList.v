@@ -1,5 +1,5 @@
-Require Import AutoSep Malloc.
-Require Import List.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

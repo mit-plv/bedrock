@@ -1,4 +1,4 @@
-Require Import AutoSep Scheduler Arrays8 MoreArrays Buffers.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Scheduler Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays Bedrock.Platform.Buffers.
 
 
 Section specs.

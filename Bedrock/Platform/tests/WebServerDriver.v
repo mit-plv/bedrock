@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Thread0 WebServer Bootstrap.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.WebServer Bedrock.Platform.Bootstrap.
 
 
 Module Type HIDE.

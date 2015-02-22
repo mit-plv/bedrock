@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc Scheduler ThreadQueue.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Scheduler Bedrock.Platform.ThreadQueue.
 Export AutoSep Malloc Bags.W_Bag.
 
 
@@ -87,7 +87,7 @@ Definition Spawn_ (l : label) (ss : W) (afterCall : list string -> nat -> assert
 
 Notation "'Spawn' ( l , ss ) [ afterCall ]" := (Spawn_ l ss (RET afterCall)) : SP_scope.
 
-Require Import Bool.
+Require Import Coq.Bool.Bool.
 
 Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   LabelMap.add Entry Blocks Postcondition VerifCond

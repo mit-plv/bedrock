@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Ascii Wrap Arrays8.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Coq.Strings.Ascii Bedrock.Platform.Wrap Bedrock.Platform.Arrays8.
 
 Set Implicit Arguments.
 

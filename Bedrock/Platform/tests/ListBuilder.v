@@ -1,4 +1,4 @@
-Require Import Thread0 SinglyLinkedList.
+Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.SinglyLinkedList.
 
 
 Module Make(M : S).
