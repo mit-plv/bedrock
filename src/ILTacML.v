@@ -1,14 +1,14 @@
-Require Import List.
+Require Import Coq.Lists.List.
 
-Require ReifySepExpr.
-Require Import ILTacCommon.
-Require Import SepIL.
-Require Import TacPackIL.
-Require Import IL ILEnv SymIL.
-Require Import Word Memory.
-Require Import Env.
-Require PropX.
-Require Import ILTacCommon.
+Require Bedrock.ReifySepExpr.
+Require Import Bedrock.ILTacCommon.
+Require Import Bedrock.SepIL.
+Require Import Bedrock.TacPackIL.
+Require Import Bedrock.IL Bedrock.ILEnv Bedrock.SymIL.
+Require Import Bedrock.Word Bedrock.Memory.
+Require Import Bedrock.Env.
+Require Bedrock.PropX.
+Require Import Bedrock.ILTacCommon.
 
 Set Implicit Arguments.
 Set Strict Implicit.
