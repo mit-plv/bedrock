@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bootstrap UseCell.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Bootstrap Bedrock.Platform.Cito.examples.UseCell.
 
 
 Module Type S.
@@ -40,7 +40,7 @@ Section boot.
     vcgen; abstract genesis.
   Qed.
 
-  Require ExampleImpl.
+  Require Bedrock.Platform.Cito.examples.ExampleImpl.
 
   Definition m0 := link ExampleImpl.m boot.
   Definition m1 := link all m0.

@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bootstrap FactorialRecur.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Bootstrap Bedrock.Platform.Cito.examples.FactorialRecur.
 
 
 Module Type S.

@@ -1,4 +1,4 @@
-Require Import CountUniqueDriver AMD64_gas.
+Require Import Bedrock.Platform.Cito.examples.CountUniqueDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.
