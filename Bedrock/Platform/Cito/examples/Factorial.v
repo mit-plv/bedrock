@@ -10,7 +10,7 @@ Module Import Notations4Make := Make ExampleADT.
 
 Open Scope nat.
 
-Require Import Arith.
+Require Import Coq.Arith.Arith.
 
 Definition fact_w (w : W) := natToW (fact (wordToNat w)).
 
@@ -73,7 +73,7 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
 
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
-Require Import WordFacts2 WordFacts5.
+Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
 
 Lemma fact_step : forall n,
   ($0 < n)%word
@@ -103,7 +103,7 @@ Definition modules := gm :: nil.
 Definition imports := empty ForeignFuncSpec.
 
 Import LinkSpecMake.
-Require Import LinkSpecFacts.
+Require Import Bedrock.Platform.Cito.LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import Notations4Make.
 Import LinkSpecMake.
@@ -138,7 +138,7 @@ Lemma specs_good : specs_equal specs modules imports.
 
   subst; simpl in *.
   right; descend; eauto.
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
   nintro.
   subst; simpl in *.
   compute in H0.
@@ -179,7 +179,7 @@ Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Saf
   eapply specs_equal_agree; eauto.
 Qed.
 
-Require Import Inv.
+Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
@@ -215,7 +215,7 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
@@ -226,7 +226,7 @@ Theorem top_ok : moduleOk top.
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  Require Import BedrockTactics.
+  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   rewrite H9.
   rewrite H11.

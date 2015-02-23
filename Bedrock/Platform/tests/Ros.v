@@ -1,4 +1,4 @@
-Require Import Bedrock Xml.
+Require Import Bedrock.Bedrock Bedrock.Platform.Xml.
 Export Bedrock Xml.
 
 

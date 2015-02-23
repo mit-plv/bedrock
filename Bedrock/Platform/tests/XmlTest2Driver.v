@@ -1,4 +1,4 @@
-Require Import Bedrock Xml XmlProg.
+Require Import Bedrock.Bedrock Bedrock.Platform.Xml Bedrock.Platform.XmlProg.
 
 Module M.
   Definition buf_size := 1024%N.

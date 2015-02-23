@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Arith AutoSep Malloc SinglyLinkedList.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Bedrock.Examples.AutoSep Bedrock.Examples.Malloc Bedrock.Examples.SinglyLinkedList.
 Import SinglyLinkedList.SinglyLinkedList.
 
 

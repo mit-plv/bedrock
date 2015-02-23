@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Server.
+Require Import Bedrock.Examples.AutoSep Bedrock.Examples.Malloc Bedrock.Examples.comparison.Server.
 
 
 Definition program := link mallocM m.
@@ -11,7 +11,7 @@ Theorem ok : moduleOk program.
   link mallocMOk ok.
 Qed.
 
-Require Import AMD64_gas.
+Require Import Bedrock.AMD64_gas.
 
 Definition compiled := moduleS program.
 Recursive Extraction compiled.

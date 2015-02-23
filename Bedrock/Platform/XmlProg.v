@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
-Require Import RelDb XmlOutput Bags Io Http HttpQ Thread.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Bootstrap Bedrock.Platform.Malloc Bedrock.Platform.Buffers Bedrock.Platform.XmlLex Bedrock.Platform.XmlLang Bedrock.Platform.Arrays8 Bedrock.Platform.ArrayOps.
+Require Import Bedrock.Platform.RelDb Bedrock.Platform.XmlOutput Bedrock.Platform.Bags Bedrock.Platform.Io Bedrock.Platform.Http Bedrock.Platform.HttpQ Bedrock.Platform.Thread.
 
 
 Module Type HIDE.

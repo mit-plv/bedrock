@@ -8,7 +8,7 @@ Export Wrp.
 Require Import Bedrock.Platform.Cito.Notations4.
 Module Import Notations4Make := Make ExampleADT.
 
-Require Import Arith.
+Require Import Coq.Arith.Arith.
 Import ProgramLogicMake.
 Open Scope nat.
 
@@ -77,10 +77,10 @@ Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
 Import LinkSpecMake.
 
-Require Import SemanticsFacts4.
+Require Import Bedrock.Platform.Cito.SemanticsFacts4.
 Module Import SemanticsFacts4Make := Make ExampleADT.
 
-Require AxSpec.
+Require Bedrock.Platform.Cito.AxSpec.
 Import AxSpec.ConformTactic.
 
 Arguments SCA {ADTValue} _.
@@ -133,7 +133,7 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold specs_fs_agree; simpl in *.
   unfold change_fs.
   intros.
-  Require Import Option.
+  Require Import Bedrock.Platform.Cito.Option.
   destruct (option_dec (fs0 stn p)).
   destruct s; rewrite e in *.
   destruct x; simpl in *.
@@ -235,7 +235,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   destruct_state.
   unfold ProgramLogicMake.TransitMake.TransitSafe.
   descend.
-  Require Import BedrockTactics.
+  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   instantiate (1 := [[ (sel v "n" ^- $1, SCA (sel v "n" ^- $1)) ]]).
   eauto.
@@ -247,7 +247,7 @@ Qed.
 
 Local Hint Immediate vcs_good.
 
-Require Import WordFacts2 WordFacts5.
+Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
 
 Lemma fact_step : forall n,
   ($0 < n)%word
@@ -399,7 +399,7 @@ Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -
   eapply change_fs_agree; eauto.
 Qed.
 
-Require Import Inv.
+Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
@@ -435,7 +435,7 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
@@ -447,7 +447,7 @@ Theorem top_ok : moduleOk top.
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  Require Import BedrockTactics.
+  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   rewrite H9.
   rewrite H11.

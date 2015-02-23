@@ -8,15 +8,15 @@ Export Wrp.
 Require Import Bedrock.Platform.Cito.Notations4.
 Module Import Notations4Make := Make ExampleADT.
 
-Require Import Arith.
+Require Import Coq.Arith.Arith.
 Import ProgramLogicMake.
 Open Scope nat.
 
-Require Import ExampleImpl.
+Require Import Bedrock.Platform.Cito.examples.ExampleImpl.
 
 Notation value := 42.
 
-Require Import WordMap.
+Require Import Bedrock.Platform.Cito.WordMap.
 
 Infix "==" := WordMap.Equal.
 Notation addw := WordMap.add.
@@ -114,7 +114,7 @@ Definition spec_op := hd dummy_gf (Functions gm).
 Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign imports).
 
 Import LinkSpecMake.
-Require Import LinkSpecFacts.
+Require Import Bedrock.Platform.Cito.LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 Import Notations4Make.
 Import LinkSpecMake.
@@ -153,7 +153,7 @@ Lemma specs_good : specs_equal specs modules imports.
 
   subst; simpl in *.
   right; descend; eauto.
-  Require Import GeneralTactics2.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
   nintro.
   subst; simpl in *.
   compute in H0.
@@ -165,8 +165,8 @@ Qed.
 
 Definition empty_precond : assert := fun _ v0 v => v0 = v.
 
-Require Import WordFacts2 WordFacts5.
-Require Import WordMapFacts.
+Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
+Require Import Bedrock.Platform.Cito.WordMapFacts.
 
 Lemma map_add_same_key : forall elt m k v1 v2, @addw elt k v2 (addw k v1 m) == addw k v2 m.
   unfold WordMap.Equal; intros.
@@ -225,7 +225,7 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   rewrite H0.
   subst.
   split.
-  Require Import BedrockTactics.
+  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   eauto.
   Import SemanticsMake.
@@ -402,7 +402,7 @@ Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -
   eapply specs_equal_agree; eauto.
 Qed.
 
-Require Import Inv.
+Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
@@ -438,7 +438,7 @@ Theorem top_ok : moduleOk top.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 20 with (wordToNat (sel (upd x2 "extra_stack" 20) "extra_stack")).

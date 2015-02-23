@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.StringOps Bedrock.Platform.XmlLex Bedrock.Platform.SinglyLinkedList Bedrock.Platform.Malloc.
 
 Set Implicit Arguments.
 

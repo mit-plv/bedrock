@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import XmlLang.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.XmlLang.
 Export XmlOutput XmlLang.
 
 

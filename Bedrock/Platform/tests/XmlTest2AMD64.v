@@ -1,4 +1,4 @@
-Require Import Bedrock XmlTest2Driver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.XmlTest2Driver Bedrock.AMD64_gas.
 
 Definition compiled := moduleS E.m.
 Recursive Extraction compiled.

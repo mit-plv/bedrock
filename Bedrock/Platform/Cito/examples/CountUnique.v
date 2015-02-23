@@ -170,7 +170,7 @@ Definition dummy_gf : GoodFunction.
   refine (to_good_function (cfunction "dummy"() "ret" <- 0 end)%Citofuncs _).
   eapply is_good_func_sound.
   reflexivity.
-Defined.    
+Defined.
 
 Definition count := nth 0 (Functions gm) dummy_gf.
 Definition main := nth 1 (Functions gm) dummy_gf.
@@ -237,8 +237,8 @@ Definition make_specs modules imports := fold_right (fun m acc => fold_right (fu
 (*
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
 
-    Lemma make_specs_equal : 
-      forall modules imports, 
+    Lemma make_specs_equal :
+      forall modules imports,
         List.NoDup (List.map GName modules) ->
         ListFacts1.Disjoint (List.map GName modules) (List.map fst2 (elements imports)) ->
         specs_equal (make_specs modules imports) modules imports.
@@ -266,10 +266,10 @@ Definition specs := apply_specs_diff specs_op specs_change_table.
 
 Definition empty_precond : assert ADTValue := fun _ v0 v => v0 = v.
 
-Require Import WordFacts2 WordFacts5.
-Require Import WordMapFacts.
+Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
+Require Import Bedrock.Platform.Cito.WordMapFacts.
 Import WordMap.
-Require Import GeneralTactics2.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
 Lemma empty_mapsto_elim : forall P elt k v, MapsTo k v (empty elt) -> P.
   intros.
@@ -353,7 +353,7 @@ Lemma separated_star : forall elt h k (v : elt), separated h k (Some v) -> add k
   eapply singleton_disj; eauto.
 Qed.
 
-Require Import BedrockTactics.
+Require Import Bedrock.Platform.Cito.BedrockTactics.
 Lemma map_fst_combine : forall A B (a : list A) (b : list B), length a = length b -> a = List.map fst (List.combine a b).
   induction a; destruct b; simpl; intuition.
   f_equal; eauto.
@@ -388,7 +388,7 @@ Fixpoint same_keys_ls elt (hs1 hs2 : list (t elt)) :=
 
 Lemma same_keys_all_disj : forall elt hs1 hs2, @AllDisjoint elt hs1 -> same_keys_ls hs1 hs2 -> AllDisjoint hs2.
   unfold AllDisjoint; induction hs1; destruct hs2; simpl; intuition.
-  Require Import GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   inv_clear H.
   econstructor; eauto.
   Lemma same_keys_forall_disj : forall elt hs1 hs2 h1 h2, List.Forall (@Disjoint elt h1) hs1 -> same_keys_ls hs1 hs2 -> keys h1 = keys h2 -> List.Forall (Disjoint h2) hs2.
@@ -426,10 +426,10 @@ Ltac split_all :=
            | |- _ /\ _ => split
          end.
 
-Definition count_pre : assert ADTValue := 
-  fun _ v0 v => 
-    v0 = v /\ 
-    let vs := fst v in 
+Definition count_pre : assert ADTValue :=
+  fun _ v0 v =>
+    v0 = v /\
+    let vs := fst v in
     let h := snd v in
     exists arr,
       find (vs "arr") h = Some (Arr arr) /\
@@ -513,7 +513,7 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   eauto.
   eauto.
   rewrite H3.
-  Require Import WordFacts WordFacts2 WordFacts3 WordFacts4 WordFacts5.
+  Require Import Bedrock.Platform.Cito.WordFacts Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3 Bedrock.Platform.Cito.WordFacts4 Bedrock.Platform.Cito.WordFacts5.
   unfold wnat.
   erewrite <- next; eauto.
   rewrite plus_comm.
@@ -1396,7 +1396,7 @@ Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> str
 Qed.
 
 Import LinkSpecMake.
-Require Import LinkSpecFacts.
+Require Import Bedrock.Platform.Cito.LinkSpecFacts.
 Module Import LinkSpecFactsMake := Make ExampleADT.
 
 Import GLabelMap.GLabelMap.
@@ -1496,7 +1496,7 @@ Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -
   eapply main_safe'; eauto.
 Qed.
 
-Require Import Inv.
+Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.

@@ -1,7 +1,7 @@
-Require Import Omega.
-Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags NumOps Buffers.
-Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps HttpQ.
-Require Import RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete.
+Require Import Coq.omega.Omega.
+Require Import Coq.Strings.Ascii Coq.Bool.Bool Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.Malloc Bedrock.Platform.SinglyLinkedList Bedrock.Platform.Bags Bedrock.Platform.NumOps Bedrock.Platform.Buffers.
+Require Import Bedrock.Platform.StringOps Bedrock.Platform.XmlLex Bedrock.Platform.XmlSearch Bedrock.Platform.XmlOutput Bedrock.Platform.ArrayOps Bedrock.Platform.HttpQ.
+Require Import Bedrock.Platform.RelDb Bedrock.Platform.RelDbCondition Bedrock.Platform.RelDbSelect Bedrock.Platform.RelDbInsert Bedrock.Platform.RelDbDelete.
 
 Set Implicit Arguments.
 
