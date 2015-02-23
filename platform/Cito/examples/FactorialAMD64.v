@@ -1,4 +1,4 @@
-Require Import FactorialDriver AMD64_gas.
+Require Import Platform.Cito.examples.FactorialDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.

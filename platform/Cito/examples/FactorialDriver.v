@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bootstrap Factorial.
+Require Import Platform.AutoSep Platform.Malloc Platform.Bootstrap Platform.Cito.examples.Factorial.
 
 
 Module Type S.
