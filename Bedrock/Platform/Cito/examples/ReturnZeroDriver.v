@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bootstrap ReturnZero.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Bootstrap Bedrock.Platform.Cito.examples.ReturnZero.
 
 
 Module Type S.

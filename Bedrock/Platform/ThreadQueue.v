@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Arith AutoSep Bags Malloc Queue Misc.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Bedrock.Platform.AutoSep Bedrock.Platform.Bags Bedrock.Platform.Malloc Bedrock.Platform.Queue Bedrock.Platform.Misc.
 Import W_W_Bag.
 
 Set Implicit Arguments.
@@ -229,7 +229,7 @@ Lemma expose_stack : forall ns vs ss sp,
   eapply Himp_trans; [ apply ptsto32m_allocated | ].
   rewrite length_toArray; apply Himp_refl.
   apply allocated_shift_base.
-  Require Import Arith.
+  Require Import Coq.Arith.Arith.
   unfold natToW; rewrite mult_comm; words.
   omega.
   Transparent mult.
@@ -839,7 +839,7 @@ Theorem ok : moduleOk m.
   rewrite H9 in H2; injection H2; clear H2 H9; intros; subst.
   apply (f_equal (fun f => f (stn, st))) in H.
 
-  Require Import Eqdep.
+  Require Import Coq.Logic.Eqdep.
   injection H; clear H; intros; subst.
   do 2 apply inj_pair2 in H; subst; simpl.
   change (fun x y => tq x2 (sel x7 "sc") x y) with (tq x2 (sel x7 "sc")).

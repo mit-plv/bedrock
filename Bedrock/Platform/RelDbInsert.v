@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import SinglyLinkedList ListSegment RelDb.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.StringOps Bedrock.Platform.Malloc Bedrock.Platform.ArrayOps Bedrock.Platform.Buffers Bedrock.Platform.Bags.
+Require Import Bedrock.Platform.SinglyLinkedList Bedrock.Platform.ListSegment Bedrock.Platform.RelDb.
 
 Set Implicit Arguments.
 
@@ -343,7 +343,7 @@ Section Insert.
 
   Hint Immediate incl_refl.
 
-  Require Import Div2.
+  Require Import Coq.Arith.Div2.
 
   Lemma div2_double : forall n, div2 (n + n) = n.
     apply div2_double'.

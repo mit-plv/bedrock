@@ -1,19 +1,19 @@
 Set Implicit Arguments.
 
-Require Import MakeWrapper ExampleADT ExampleRepInv.
+Require Import Bedrock.Platform.Cito.MakeWrapper Bedrock.Platform.Cito.examples.ExampleADT Bedrock.Platform.Cito.examples.ExampleRepInv.
 
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
-Require Import ExampleImpl.
+Require Import Bedrock.Platform.Cito.examples.ExampleImpl.
 
-Require Import Notations4.
+Require Import Bedrock.Platform.Cito.Notations4.
 
-Require Import Arith.
+Require Import Coq.Arith.Arith.
 Open Scope nat.
 
-Require Import FiniteSet.
-Require Import WordMap.
+Require Import Bedrock.Platform.Cito.examples.FiniteSet.
+Require Import Bedrock.Platform.Cito.WordMap.
 Import WordMap.
 
 Infix "==" := Equal.
@@ -21,10 +21,10 @@ Infix "=s=" := WordSet.Equal (at level 60).
 
 Definition singleton_map elt k v := @add elt k v (empty _).
 
-Require Import Morphisms Setoid.
+Require Import Coq.Classes.Morphisms Coq.Setoids.Setoid.
 Infix "-->" := (@singleton_map _).
 
-Require Import WordMapFacts.
+Require Import Bedrock.Platform.Cito.WordMapFacts.
 
 Definition AllDisjoint elt := ForallOrdPairs (@Disjoint elt).
 
@@ -32,7 +32,7 @@ Definition equal_disj_update_all elt h' hs := (h' == @update_all elt hs) /\ AllD
 
 Notation "h === x ** .. ** y" := (equal_disj_update_all h (cons x .. (cons y nil) ..)) (at level 60).
 
-Require MSetProperties.
+Require Coq.MSets.MSetProperties.
 Module WordSetFacts := MSetProperties.Properties WordSet.
 
 Notation to_set := WordSetFacts.of_list.
@@ -124,7 +124,7 @@ Definition main_body := (
       h' == h /\ V' "ret" = 2 ]
 )%stmtex.
 
-Require Import ProgramLogic2.
+Require Import Bedrock.Platform.Cito.ProgramLogic2.
 
 Definition m := cmodule "count" {{
   cfunction "count"("arr", "len")
@@ -135,8 +135,8 @@ Definition m := cmodule "count" {{
   end
 }}.
 
-Require Import GoodModuleDec.
-Require Import GoodModuleDecFacts.
+Require Import Bedrock.Platform.Cito.GoodModuleDec.
+Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
 
 Lemma good : IsGoodModule m.
   eapply is_good_module_sound.
@@ -151,7 +151,7 @@ Notation "name @ [ p ]" := (name%stmtex, p) (only parsing).
 
 Definition modules := [[ gm ]].
 
-Require Import GLabelMapFacts.
+Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
 Definition imports :=
   of_list
@@ -198,11 +198,11 @@ Definition top := bimport [[ ("count"!"main", main_spec_Bedrock), "sys"!"printIn
   }}.
 
 Import Semantics.
-Require Import GLabelMap.
+Require Import Bedrock.Platform.Cito.GLabelMap.
 Import GLabelMap.GLabelMap.
-Require Import ChangeSpec.
+Require Import Bedrock.Platform.Cito.ChangeSpec.
 
-Require AxSpec.
+Require Bedrock.Platform.Cito.AxSpec.
 Import AxSpec.ConformTactic.
 
 Definition count_spec : ForeignFuncSpec.

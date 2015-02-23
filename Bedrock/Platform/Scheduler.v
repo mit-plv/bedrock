@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc Bags ThreadQueue ThreadQueues SinglyLinkedList MoreArrays.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Bags Bedrock.Platform.ThreadQueue Bedrock.Platform.ThreadQueues Bedrock.Platform.SinglyLinkedList Bedrock.Platform.MoreArrays.
 Import W_Bag.
 Export AutoSep Malloc W_Bag.
 

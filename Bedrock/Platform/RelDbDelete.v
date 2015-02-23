@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import SinglyLinkedList Buffers NumOps RelDb RelDbCondition.
+Require Import Coq.omega.Omega.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.StringOps Bedrock.Platform.Malloc Bedrock.Platform.ArrayOps Bedrock.Platform.Buffers Bedrock.Platform.Bags.
+Require Import Bedrock.Platform.SinglyLinkedList Bedrock.Platform.Buffers Bedrock.Platform.NumOps Bedrock.Platform.RelDb Bedrock.Platform.RelDbCondition.
 
 Set Implicit Arguments.
 
@@ -336,7 +336,7 @@ Section Delete.
     apply Himp_star_frame; apply allocated_shift_base; eauto.
     words.
     rewrite natToW_plus.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     rewrite (mult_comm 4).
     rewrite natToW_times4.
     rewrite natToW_times4.

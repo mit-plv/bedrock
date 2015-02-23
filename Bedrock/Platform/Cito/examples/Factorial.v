@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import MakeWrapper ExampleADT ExampleRepInv.
+Require Import Bedrock.Platform.Cito.MakeWrapper Bedrock.Platform.Cito.examples.ExampleADT Bedrock.Platform.Cito.examples.ExampleRepInv.
 
 Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
-Require Import Notations4.
+Require Import Bedrock.Platform.Cito.Notations4.
 Module Import Notations4Make := Make ExampleADT.
 
 Open Scope nat.

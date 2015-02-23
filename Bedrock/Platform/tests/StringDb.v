@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bags Arrays8 MoreArrays.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform.Bags Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays.
 Import Bags.W_Bag.
 
 Local Hint Extern 1 (@eq W _ _) => words.

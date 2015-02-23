@@ -1,5 +1,5 @@
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import SinglyLinkedList ListSegment RelDb RelDbCondition.
+Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Wrap Bedrock.Platform.StringOps Bedrock.Platform.Malloc Bedrock.Platform.ArrayOps Bedrock.Platform.Buffers Bedrock.Platform.Bags.
+Require Import Bedrock.Platform.SinglyLinkedList Bedrock.Platform.ListSegment Bedrock.Platform.RelDb Bedrock.Platform.RelDbCondition.
 
 Set Implicit Arguments.
 
