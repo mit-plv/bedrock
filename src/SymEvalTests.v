@@ -1,6 +1,6 @@
-Require Import List DepList.
-Require Import Heaps.
-Require Import Expr SepExpr SymEval.
+Require Import Coq.Lists.List Bedrock.DepList.
+Require Import Bedrock.Heaps.
+Require Import Bedrock.Expr Bedrock.SepExpr Bedrock.SymEval.
 
 Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
   Module Import SE := Evaluator B ST.
@@ -44,7 +44,7 @@ Module EvaluatorTests (B : Heap) (ST : SepTheoryX.SepTheoryXType B).
        ; Eq := fun _ _ => None
        |}.
 
-    Require Import Word.
+    Require Import Bedrock.Word.
 
     Definition pre_types : list Expr.type :=
       a_type :: b_type :: addr_type :: W_type :: nil.

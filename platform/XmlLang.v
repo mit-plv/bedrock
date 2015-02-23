@@ -1,7 +1,7 @@
-Require Import Omega.
-Require Import Ascii Bool AutoSep Wrap Malloc SinglyLinkedList Bags NumOps Buffers.
-Require Import StringOps XmlLex XmlSearch XmlOutput ArrayOps HttpQ.
-Require Import RelDb RelDbCondition RelDbSelect RelDbInsert RelDbDelete.
+Require Import Coq.omega.Omega.
+Require Import Coq.Strings.Ascii Coq.Bool.Bool Platform.AutoSep Platform.Wrap Platform.Malloc Platform.SinglyLinkedList Platform.Bags Platform.NumOps Platform.Buffers.
+Require Import Platform.StringOps Platform.XmlLex Platform.XmlSearch Platform.XmlOutput Platform.ArrayOps Platform.HttpQ.
+Require Import Platform.RelDb Platform.RelDbCondition Platform.RelDbSelect Platform.RelDbInsert Platform.RelDbDelete.
 
 Set Implicit Arguments.
 

@@ -1,8 +1,8 @@
-Require Import Heaps.
-Require SepExpr Expr.
-Require Import Provers.
-Require Import EquivDec.
-Require Import List.
+Require Import Bedrock.Heaps.
+Require Bedrock.SepExpr Bedrock.Expr.
+Require Import Bedrock.Provers.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

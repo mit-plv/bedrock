@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import Arith AutoSep Malloc SinglyLinkedList.
+Require Import Coq.omega.Omega.
+Require Import Coq.Arith.Arith Examples.AutoSep Examples.Malloc Examples.SinglyLinkedList.
 Import SinglyLinkedList.SinglyLinkedList.
 
 

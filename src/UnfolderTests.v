@@ -1,9 +1,9 @@
-Require Import Heaps Reflect.
-Require SepExpr Expr Unfolder.
-Require Decidables.
+Require Import Bedrock.Heaps Bedrock.Reflect.
+Require Bedrock.SepExpr Bedrock.Expr Bedrock.Unfolder.
+Require Bedrock.Decidables.
 Import Expr.
-Require Import EquivDec.
-Require Import List.
+Require Import Coq.Classes.EquivDec.
+Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
 

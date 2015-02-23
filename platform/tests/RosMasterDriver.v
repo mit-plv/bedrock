@@ -1,4 +1,4 @@
-Require Import Ros XmlProg.
+Require Import Platform.tests.Ros Platform.XmlProg.
 
 Module M.
   Definition buf_size := (15 * 1024)%N.

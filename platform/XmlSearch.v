@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps XmlLex SinglyLinkedList Malloc.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Wrap Platform.StringOps Platform.XmlLex Platform.SinglyLinkedList Platform.Malloc.
 
 Set Implicit Arguments.
 

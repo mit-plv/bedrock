@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Bootstrap Malloc Buffers XmlLex XmlLang Arrays8 ArrayOps.
-Require Import RelDb XmlOutput Bags Io Http HttpQ Thread.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Bootstrap Platform.Malloc Platform.Buffers Platform.XmlLex Platform.XmlLang Platform.Arrays8 Platform.ArrayOps.
+Require Import Platform.RelDb Platform.XmlOutput Platform.Bags Platform.Io Platform.Http Platform.HttpQ Platform.Thread.
 
 
 Module Type HIDE.
