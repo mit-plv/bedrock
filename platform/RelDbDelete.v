@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import SinglyLinkedList Buffers NumOps RelDb RelDbCondition.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Wrap Platform.StringOps Platform.Malloc Platform.ArrayOps Platform.Buffers Platform.Bags.
+Require Import Platform.SinglyLinkedList Platform.Buffers Platform.NumOps Platform.RelDb Platform.RelDbCondition.
 
 Set Implicit Arguments.
 
@@ -336,7 +336,7 @@ Section Delete.
     apply Himp_star_frame; apply allocated_shift_base; eauto.
     words.
     rewrite natToW_plus.
-    Require Import Arith.
+    Require Import Coq.Arith.Arith.
     rewrite (mult_comm 4).
     rewrite natToW_times4.
     rewrite natToW_times4.

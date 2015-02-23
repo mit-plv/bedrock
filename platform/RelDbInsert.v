@@ -1,6 +1,6 @@
-Require Import Omega.
-Require Import AutoSep Wrap StringOps Malloc ArrayOps Buffers Bags.
-Require Import SinglyLinkedList ListSegment RelDb.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Wrap Platform.StringOps Platform.Malloc Platform.ArrayOps Platform.Buffers Platform.Bags.
+Require Import Platform.SinglyLinkedList Platform.ListSegment Platform.RelDb.
 
 Set Implicit Arguments.
 
@@ -343,7 +343,7 @@ Section Insert.
 
   Hint Immediate incl_refl.
 
-  Require Import Div2.
+  Require Import Coq.Arith.Div2.
 
   Lemma div2_double : forall n, div2 (n + n) = n.
     apply div2_double'.

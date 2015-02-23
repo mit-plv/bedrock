@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bags Arrays8 MoreArrays.
+Require Import Platform.AutoSep Platform.Malloc Platform.Bags Platform.Arrays8 Platform.MoreArrays.
 Import Bags.W_Bag.
 
 Local Hint Extern 1 (@eq W _ _) => words.

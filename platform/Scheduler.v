@@ -1,5 +1,5 @@
-Require Import Omega.
-Require Import AutoSep Malloc Bags ThreadQueue ThreadQueues SinglyLinkedList MoreArrays.
+Require Import Coq.omega.Omega.
+Require Import Platform.AutoSep Platform.Malloc Platform.Bags Platform.ThreadQueue Platform.ThreadQueues Platform.SinglyLinkedList Platform.MoreArrays.
 Import W_Bag.
 Export AutoSep Malloc W_Bag.
 

@@ -1,4 +1,4 @@
-Require Import AutoSep Malloc Bootstrap ReturnZero.
+Require Import Platform.AutoSep Platform.Malloc Platform.Bootstrap Platform.Cito.examples.ReturnZero.
 
 
 Module Type S.
