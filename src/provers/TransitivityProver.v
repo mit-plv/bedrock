@@ -1,8 +1,8 @@
-Require Import List Arith Bool.
-Require Import Expr Env.
-Require Import EquivDec EqdepClass.
-Require Import DepList.
-Require Import Word Prover.
+Require Import Coq.Lists.List Coq.Arith.Arith Coq.Bool.Bool.
+Require Import Bedrock.Expr Bedrock.Env.
+Require Import Coq.Classes.EquivDec Bedrock.EqdepClass.
+Require Import Bedrock.DepList.
+Require Import Bedrock.Word Bedrock.Prover.
 
 Set Implicit Arguments.
 Set Strict Implicit.
