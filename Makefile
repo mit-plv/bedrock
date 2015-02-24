@@ -203,6 +203,8 @@ ltac:
 	$(Q) (cd Bedrock/; ln -s ILTacLtac.v ILTac.v)
 endif
 
+$(VFILES:.v=.v.d): | Bedrock/ILTac.v
+
 Bedrock/ILTac.v:
 	@ echo "## "
 	@ echo "## Warning: No ILTac.v, defaulting to ML reification."
