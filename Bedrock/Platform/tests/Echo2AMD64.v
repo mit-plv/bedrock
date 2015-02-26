@@ -1,4 +1,4 @@
-Require Import Bedrock Echo2Driver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.Echo2Driver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.

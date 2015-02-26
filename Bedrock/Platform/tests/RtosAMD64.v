@@ -1,4 +1,4 @@
-Require Import Bedrock RtosDriver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.RtosDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := (1024 * 1024)%N.

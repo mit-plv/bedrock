@@ -1,4 +1,4 @@
-Require Import Bedrock RtosDriver I386_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.RtosDriver Bedrock.I386_gas.
 
 Module M.
   Definition heapSize := (1024 * 1024)%N.

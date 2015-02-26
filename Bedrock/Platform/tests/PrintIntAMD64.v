@@ -1,4 +1,4 @@
-Require Import Bedrock PrintIntDriver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.PrintIntDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.

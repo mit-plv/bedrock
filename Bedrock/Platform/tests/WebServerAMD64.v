@@ -1,4 +1,4 @@
-Require Import Bedrock WebServerDriver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.WebServerDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := (1024 * 1024 * 25)%N.

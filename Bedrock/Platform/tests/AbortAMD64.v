@@ -1,4 +1,4 @@
-Require Import Bedrock AbortDriver AMD64_gas.
+Require Import Bedrock.Bedrock Bedrock.Platform.tests.AbortDriver Bedrock.AMD64_gas.
 
 Module M.
   Definition heapSize := 1024.
