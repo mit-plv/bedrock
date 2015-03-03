@@ -21,5 +21,6 @@ and go take a break while it runs for an hour or so (if you're lucky enough to h
    make cito
 (no need to run "make" beforehand) to make the Cito compiler.
 
-To make executable Cito example programs, see 'platform/cito/README'.
-Also see the 'examples', 'platform' and 'platform/cito' directories and their READMEs.
+To make executable Cito example programs, see 'Bedrock/Platform/Cito/README'.
+Also see the 'Examples', 'Platform', 'Platform/Cito', and 'Platform/Facade'
+subdirectories of 'Bedrock/', and their READMEs.
