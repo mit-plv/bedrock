@@ -159,9 +159,12 @@ install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
+vo_closure_test = $(if $(filter-out $1,$2),$(call vo_closure,$2),$1)
+vo_closure = $(call vo_closure_test,$1,$(sort $1 $(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $(1:.vo=.v.d)))))
+
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
-	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(filter %.vo,$(T))))" install
+	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(call vo_closure,$(filter %.vo,$(T)))))" install
 
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
