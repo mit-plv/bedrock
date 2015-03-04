@@ -159,9 +159,6 @@ install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
-examples facade facade-all facade-allv cito platform src:
-	$(Q)$(MAKE) -f Makefile.coq $(patsubst %.v,%.vo,$(T))
-
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(filter %.vo,$(T))))" install
