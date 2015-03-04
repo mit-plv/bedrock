@@ -159,8 +159,7 @@ install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
-vo_closure_test = $(if $(filter-out $1,$2),$(call vo_closure,$2),$1)
-vo_closure = $(call vo_closure_test,$1,$(sort $1 $(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $(1:.vo=.v.d)))))
+vo_closure = $(if $1,$(call vo_closure,$(sort $(filter-out $1 $2,$(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $(1:.vo=.v.d))))),$1 $2),$2)
 
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
