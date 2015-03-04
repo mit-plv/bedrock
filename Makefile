@@ -88,15 +88,15 @@ EXAMPLES_VO := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst 
 CITO_VO := $(filter Bedrock/Platform/Cito/%.vo,$(VOFILES))
 FACADE_ALLVO := $(filter Bedrock/Platform/Facade/%.vo,$(VOFILES))
 FACADE_VO := \
-	Bedrock/Facade/Facade.vo \
-	Bedrock/Facade/DFacade.vo \
-	Bedrock/Facade/CompileUnit.vo
+	Bedrock/Platform/Facade/Facade.vo \
+	Bedrock/Platform/Facade/DFacade.vo \
+	Bedrock/Platform/Facade/CompileUnit.vo
 
 FACADE_ALL_VO := \
-	Bedrock/Facade/examples/FiatADTs.vo \
-	Bedrock/Facade/examples/FiatRepInv.vo \
-	Bedrock/Facade/examples/FiatImpl.vo \
-	Bedrock/Facade/DFacadeToBedrock.vo
+	Bedrock/Platform/Facade/examples/FiatADTs.vo \
+	Bedrock/Platform/Facade/examples/FiatRepInv.vo \
+	Bedrock/Platform/Facade/examples/FiatImpl.vo \
+	Bedrock/Platform/Facade/DFacadeToBedrock.vo
 
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \
