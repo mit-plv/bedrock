@@ -159,6 +159,13 @@ install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
+# Recursively find the transitively closed dependencies of the set $1
+# of *.vo files, using an accumulating parameter $2 of dependencies
+# previously found.  We extract the dependencies from the
+# corresponding *.v.d files using sed(1), filter out previously found
+# dependencies, sort to remove duplicates, then make a recursive call
+# with the deduplicated newly found dependencies.  When $1 becomes
+# empty, the result is $2.
 vo_closure = $(if $1,$(call vo_closure,$(sort $(filter-out $1 $2,$(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $(1:.vo=.v.d))))),$1 $2),$2)
 
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
