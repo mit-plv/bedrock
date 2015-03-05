@@ -6,7 +6,6 @@ Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
 Require Import Bedrock.Platform.Cito.Notations4.
-Module Import Notations4Make := Make ExampleADT.
 
 Open Scope nat.
 
@@ -14,9 +13,9 @@ Require Import Coq.Arith.Arith.
 
 Definition fact_w (w : W) := natToW (fact (wordToNat w)).
 
-Import ProgramLogicMake.
+Require Import ProgramLogic2.
 
-Definition body := (
+Definition body : StmtEx ADTValue := (
     "ret" <- 1;;
     [BEFORE(V, h)
      AFTER(V', h')
@@ -71,7 +70,7 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
     end
   }}.
 
-Definition empty_precond : assert := fun _ v0 v => v0 = v.
+Definition empty_precond : assert ADTValue := fun _ v0 v => v0 = v.
 
 Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
 
@@ -104,8 +103,6 @@ Definition imports := empty ForeignFuncSpec.
 
 Import LinkSpecMake.
 Require Import Bedrock.Platform.Cito.LinkSpecFacts.
-Module Import LinkSpecFactsMake := Make ExampleADT.
-Import Notations4Make.
 Import LinkSpecMake.
 
 Lemma specs_good : specs_equal specs modules imports.
@@ -145,6 +142,8 @@ Lemma specs_good : specs_equal specs modules imports.
   intuition.
   rewrite empty_o in H0; intuition.
 Qed.
+
+Hint Immediate lt0_false lt0_true.
 
 Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold empty_precond; cito_vcs body; words.

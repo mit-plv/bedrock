@@ -6,15 +6,16 @@ Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
 Require Import Bedrock.Platform.Cito.Notations4.
-Module Import Notations4Make := Make ExampleADT.
 
 Require Import Coq.Arith.Arith.
-Import ProgramLogicMake.
+
 Open Scope nat.
 
 Definition fact_w (w : W) := natToW (fact (wordToNat w)).
 
-Definition body := (
+Require Import ProgramLogic2.
+
+Definition body : StmtEx ADTValue := (
   If (0 < "n") {
     "ret" <-- DCall "fact"!"fact" ("n" - 1);;
     "ret" <- "n" * "ret"
@@ -73,12 +74,11 @@ Definition top := bimport [[ ("fact"!"fact", fspec), "sys"!"printInt" @ [printIn
     end
   }}.
 
-Definition empty_precond : assert := fun _ v0 v => v0 = v.
+Definition empty_precond : assert ADTValue := fun _ v0 v => v0 = v.
 
 Import LinkSpecMake.
 
 Require Import Bedrock.Platform.Cito.SemanticsFacts4.
-Module Import SemanticsFacts4Make := Make ExampleADT.
 
 Require Bedrock.Platform.Cito.AxSpec.
 Import AxSpec.ConformTactic.
@@ -134,7 +134,7 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold change_fs.
   intros.
   Require Import Bedrock.Platform.Cito.Option.
-  destruct (option_dec (fs0 stn p)).
+  destruct (option_dec (fs stn p)).
   destruct s; rewrite e in *.
   destruct x; simpl in *.
   eapply H in e.
@@ -210,12 +210,12 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   eapply in_specs_label_in; eauto.
 Qed.
 
-Import ProgramLogicMake.SemanticsMake.
-
 Ltac destruct_state :=
   repeat match goal with
-           | [ x : State |- _ ] => destruct x; simpl in *
+           | [ x : Semantics.State ADTValue |- _ ] => destruct x; simpl in *
          end.
+
+Hint Immediate lt0_false lt0_true.
 
 Lemma vcs_good : and_all (vc body empty_precond) specs.
   Ltac cito_vcs body := unfold body; simpl;
@@ -233,11 +233,11 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   simpl.
   intros.
   destruct_state.
-  unfold ProgramLogicMake.TransitMake.TransitSafe.
+  unfold Transit.TransitSafe.
   descend.
   Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
-  instantiate (1 := [[ (sel v "n" ^- $1, SCA (sel v "n" ^- $1)) ]]).
+  instantiate (1 := [[ (SCA (sel v "n" ^- $1)) ]]).
   eauto.
   repeat constructor.
   descend; eauto.
@@ -293,14 +293,18 @@ Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (B
   unfold RunsToDCall in *.
   simpl in *.
   openhyp.
-  unfold ProgramLogicMake.TransitMake.TransitTo in *.
+  unfold Transit.TransitTo in *.
   openhyp.
   unfold PostCond in *; simpl in *.
   openhyp.
   subst; simpl in *.
-  eapply triples_intro in H5; try eassumption.
+  destruct x0; simpl in *; try discriminate.
+  destruct x0; simpl in *; try discriminate.
+  destruct x2; simpl in *; try discriminate.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
+  inject H6.
+  inject H9.
   subst; simpl in *.
-  Import ProgramLogicMake.TransitMake.SemanticsMake.
   unfold store_out, Semantics.store_out in *; simpl in *.
   unfold good_inputs, Semantics.good_inputs in *.
   openhyp.
@@ -331,7 +335,7 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   unfold change_fs at 1.
   simpl.
   intros.
-  destruct (option_dec (fs0 stn w)); simpl in *.
+  destruct (option_dec (fs stn w)); simpl in *.
   destruct s; rewrite e in *; simpl in *.
   destruct x; simpl in *.
   eauto.
@@ -359,16 +363,20 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   eapply change_fs_agree; eauto.
   simpl.
   openhyp.
-  unfold TransitMake.TransitTo.
+  unfold Transit.TransitTo.
+  unfold Transit.TransitSafe in *.
+  openhyp; simpl in *.
+  openhyp; simpl in *.
+  subst; simpl in *.
   descend.
-  instantiate (1 := [[ {| Word := sel (fst v) "n"; ADTIn := SCA (sel (fst v) "n"); ADTOut := None |} ]]).
+  (*here*)
+  eauto.
   eauto.
   repeat econstructor.
   descend; eauto.
   descend; eauto.
   repeat econstructor.
   simpl.
-  Import TransitMake.SemanticsMake.
   unfold store_out, Semantics.store_out; simpl; eauto.
   unfold f in *; simpl in *.
   eauto.

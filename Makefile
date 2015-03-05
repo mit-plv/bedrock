@@ -40,7 +40,7 @@ HASNATDYNLINK = true
 
 .DEFAULT_GOAL := examples
 
-.PHONY: examples platform cito facade facade_all src src-test reification \
+.PHONY: examples platform cito facade facade-all src src-test reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
 	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject
