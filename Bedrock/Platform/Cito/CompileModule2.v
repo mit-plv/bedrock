@@ -723,9 +723,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
-      let outputs := List.map (fun k => find k h') words in
       let ret_w := sel vs_callee' (RetVar op_spec) in
-      let ret_a := find ret_w h' in
       RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
@@ -733,7 +731,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
+      exists outputs ret_a,
+        TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
     Proof.
       simpl.
       intros Hrt Hin Hegu Hfst Hpre Hdisj Hgs.
@@ -781,6 +780,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Proof.
       simpl; intros Hrt; intros.
       eapply runsto_TransitTo in Hrt; eauto.
+      (*here*)
       unfold TransitTo in *; openhyp.
       Require Import Bedrock.Platform.Cito.SemanticsFacts7.
       rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).

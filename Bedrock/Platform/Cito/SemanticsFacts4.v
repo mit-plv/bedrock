@@ -40,11 +40,10 @@ Section ADTValue.
         let vs' := fst v' in
         let h' := snd v' in
         let words := List.map (sel vs) args in
-        let outputs := List.map (fun k => find k h') words in
-        let ret_w := sel vs' rvar in
-        let ret_a := find ret_w h' in
         TransitSafe spec_ax words inputs h ->
-        TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
+        let ret_w := sel vs' rvar in
+        exists outputs ret_a,
+          TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
   
   Arguments Internal {_} _.
 
@@ -101,12 +100,11 @@ Section ADTValue.
       {
         eapply H9 in H4; clear H9.
         {
+          destruct H4 as [outputs [ret_a Htt] ].
           simpl in *.
-          eapply TransitTo_RunsTo; eauto.
+          eapply TransitTo_RunsTo; simpl; eauto.
           simpl in *.
           rewrite <- H0.
-          eauto.
-          simpl.
           eauto.
         }
         simpl in *.
