@@ -6,10 +6,9 @@ Module Import Wrp := Make(ExampleADT)(ExampleRepInv).
 Export Wrp.
 
 Require Import Bedrock.Platform.Cito.Notations4.
-Module Import Notations4Make := Make ExampleADT.
 
 Require Import Coq.Arith.Arith.
-Import ProgramLogicMake.
+
 Open Scope nat.
 
 Require Import Bedrock.Platform.Cito.examples.ExampleImpl.
@@ -48,6 +47,8 @@ Definition body := (
     AFTER(V', h')
     h' == h /\ V' "ret" = value]
   )%stmtex.
+
+Require Import ProgramLogic2.
 
 Definition f := (
   cfunction "use_cell"()
@@ -115,8 +116,6 @@ Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign
 
 Import LinkSpecMake.
 Require Import Bedrock.Platform.Cito.LinkSpecFacts.
-Module Import LinkSpecFactsMake := Make ExampleADT.
-Import Notations4Make.
 Import LinkSpecMake.
 
 Lemma specs_good : specs_equal specs modules imports.
@@ -163,7 +162,7 @@ Lemma specs_good : specs_equal specs modules imports.
   eapply find_mapsto_iff; eauto.
 Qed.
 
-Definition empty_precond : assert := fun _ v0 v => v0 = v.
+Definition empty_precond : assert ADTValue := fun _ v0 v => v0 = v.
 
 Require Import Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts5.
 Require Import Bedrock.Platform.Cito.WordMapFacts.
@@ -183,208 +182,249 @@ Lemma add_remove : forall elt m k v, ~ @Inw elt k m -> WordMap.remove k (addw k 
   symmetry; eapply not_find_in_iff; eauto.
 Qed.
 
-Import ProgramLogicMake.SemanticsMake.
-
 Ltac destruct_state :=
   repeat match goal with
-           | [ x : State |- _ ] => destruct x; simpl in *
+           | [ x : Semantics.State ADTValue |- _ ] => destruct x; simpl in *
          end.
 
 Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold empty_precond, body; simpl; unfold imply_close, and_lift; simpl.
-
   split.
-  intros.
-  subst.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  Import TransitMake.
-  unfold TransitSafe.
-  descend.
-  instantiate (1 := nil).
-  eauto.
-  repeat econstructor.
-  simpl; eauto.
-
+  {
+    intros.
+    subst.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    Import Transit.
+    unfold TransitSafe.
+    descend.
+    instantiate (1 := nil).
+    eauto.
+    repeat econstructor.
+    simpl; eauto.
+  }
   split.
-  intros.
-  openhyp.
-  subst.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply triples_intro in H3; try eassumption.
-  subst; simpl in *.
-  destruct v'; simpl in *.
-  rewrite H0.
-  subst.
+  {
+    intros.
+    openhyp.
+    subst.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct v'; simpl in *.
+    rewrite H0.
+    subst.
+    split.
+    {
+      Require Import Bedrock.Platform.Cito.BedrockTactics.
+      sel_upd_simpl.
+      destruct x3; simpl in *; try discriminate.
+      Require Import Bedrock.Platform.Cito.GeneralTactics4.
+      inject H7.
+      eauto.
+    }
+    Import SemanticsMake.
+    unfold separated, Semantics.separated in *; simpl in *.
+    openhyp; subst; simpl in *; intuition.
+  }
   split.
-  Require Import Bedrock.Platform.Cito.BedrockTactics.
-  sel_upd_simpl.
-  eauto.
-  Import SemanticsMake.
-  unfold separated, Semantics.separated in *.
-  openhyp; intuition.
-
+  {
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct v'; simpl in *.
+    unfold TransitSafe.
+    descend.
+    {
+      instantiate (1 := [[ ADT (Cell 0), SCA ($42) ]]).
+      eauto.
+    }
+    {
+      unfold good_inputs.
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor.
+        simpl.
+        destruct H.
+        rewrite H.
+        eapply find_mapsto_iff.
+        eapply add_mapsto_iff.
+        eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+  }
   split.
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct v'; simpl in *.
-  unfold TransitSafe.
-  descend.
-  instantiate (1 := [[ (sel v0 "c", ADT (Cell 0)), ($42, SCA ($42)) ]]).
-  eauto.
-  unfold good_inputs.
+  {
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    destruct H.
+    split.
+    {
+      sel_upd_simpl.
+      destruct x0; simpl in *; try discriminate.
+      destruct x0; simpl in *; try discriminate.
+      destruct o; simpl in *; try discriminate.
+      destruct x2; simpl in *; try discriminate.
+      inject H8.
+      inject H5.
+      rewrite H7.
+      rewrite H.
+      eapply map_add_same_key.
+    }
+    unfold separated, Semantics.separated in *; simpl in *.
+    openhyp; subst; simpl in *; intuition.
+  }
   split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  eauto.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-
+  {
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    unfold TransitSafe.
+    descend.
+    {
+      sel_upd_simpl.
+      instantiate (1 := [[ ADT (Cell 42) ]]).
+      eauto.
+    }
+    split.
+    {
+      unfold Semantics.word_adt_match.
+      repeat econstructor.
+      simpl.
+      destruct H.
+      rewrite H.
+      eapply find_mapsto_iff.
+      eapply add_mapsto_iff.
+      eauto.
+    }
+    {
+      NoDup.
+    }
+    descend; eauto.
+  }
   split.
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply triples_intro in H4; try eassumption.
-  subst; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
+  {
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x0; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H5.
+    inject H8.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    destruct H.
+    rewrite H in H8.
+    eapply find_mapsto_iff in H8.
+    eapply add_mapsto_iff in H8.
+    sel_upd_simpl.
+    openhyp; intuition.
+    inject H5.
+    split.
+    {
+      rewrite H7.
+      rewrite H.
+      eapply map_add_same_key.
+    }
+    eauto.
+  }
   split.
-  sel_upd_simpl.
-  rewrite H6.
-  rewrite H.
-  eapply map_add_same_key.
-  eauto.
-
+  {
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    unfold TransitSafe.
+    descend.
+    {
+      sel_upd_simpl.
+      instantiate (1 := [[ ADT (Cell 42) ]]).
+      eauto.
+    }
+    split.
+    {
+      unfold Semantics.word_adt_match.
+      repeat econstructor.
+      simpl.
+      openhyp.
+      destruct H.
+      rewrite H.
+      eapply find_mapsto_iff.
+      eapply add_mapsto_iff.
+      eauto.
+    }
+    {
+      NoDup.
+    }
+    descend; eauto.
+  }
   split.
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  unfold TransitSafe.
-  descend.
-  sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", ADT (Cell 42)) ]]).
-  eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  eauto.
-  NoDup.
-  descend; eauto.
-
-  split.
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply triples_intro in H8; try eassumption.
-  subst; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
-  rewrite H in H8.
-  eapply find_mapsto_iff in H8.
-  eapply add_mapsto_iff in H8.
-  sel_upd_simpl.
-  openhyp; intuition.
-  injection H7; intros; subst.
-  split.
-  rewrite H6.
-  rewrite H.
-  eapply map_add_same_key.
-  eauto.
-
-  split.
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  unfold TransitSafe.
-  descend.
-  sel_upd_simpl.
-  instantiate (1 := [[ (sel v0 "c", ADT (Cell 42)) ]]).
-  eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor.
-  simpl.
-  openhyp.
-  destruct H.
-  rewrite H.
-  eapply find_mapsto_iff.
-  eapply add_mapsto_iff.
-  eauto.
-  NoDup.
-  descend; eauto.
-
-  split.
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply triples_intro in H5; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  destruct H.
-  split.
-  rewrite H7.
-  rewrite H.
-  eapply add_remove; eauto.
-  eauto.
-
+  {
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x0; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H6.
+    inject H9.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    destruct H.
+    split.
+    {
+      rewrite H8.
+      rewrite H.
+      eapply add_remove; eauto.
+    }
+    eauto.
+  }
   eauto.
 Qed.
 

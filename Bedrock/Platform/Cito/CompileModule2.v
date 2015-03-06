@@ -741,7 +741,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      let outputs := outputs_gen words h' in
+      let outputs := outputs_gen words inputs h' in
       let ret_a := ret_a_gen ret_w h' in
       TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
     Proof.
@@ -781,13 +781,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
-      (forall words h, length (outputs_gen words h) = length words) ->
+      (forall words h, length (outputs_gen words inputs h) = length words) ->
       strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
       List.map (sel vs_callee) (ArgVars op_spec) = words ->
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      let outputs := outputs_gen words h' in
+      let outputs := outputs_gen words inputs h' in
       let ret_a := ret_a_gen ret_w h' in
       let ret := combine_ret ret_w ret_a in
       PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs outputs)) ret.
@@ -958,7 +958,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           {
             instantiate (2 := rv).
             instantiate (2 := combine_ret rv (ret_a_gen rv (snd x1))).
-            instantiate (2 := outputs_gen arr (snd x1)).
+            instantiate (2 := outputs_gen arr (map snd pairs) (snd x1)).
             instantiate (4 := x2).
             instantiate (3 := x4).
             instantiate (1 := List.map (fst x1) avars).

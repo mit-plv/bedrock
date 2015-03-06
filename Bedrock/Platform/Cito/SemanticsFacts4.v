@@ -21,7 +21,8 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.WordMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
-  
+
+  (* outputs_gen and ret_a_gen used to be existantial 'outputs' and 'ret_a' just before TransitTo. I skolemized them to the outermost because of some technical problems with XCAP reasoning  *)
   Definition strengthen_op_ax' (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) outputs_gen ret_a_gen :=
     let args := ArgVars spec_op in
     let rvar := RetVar spec_op in
@@ -42,12 +43,12 @@ Section ADTValue.
         let words := List.map (sel vs) args in
         TransitSafe spec_ax words inputs h ->
         let ret_w := sel vs' rvar in
-        let outputs := outputs_gen words h' in
+        let outputs := outputs_gen words inputs h' in
         let ret_a := ret_a_gen ret_w h' in
         TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
   
   Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) :=
-    exists outputs_gen ret_a_gen (outputs_gen_ok : forall words h, length (outputs_gen words h) = length words),
+    exists outputs_gen ret_a_gen (outputs_gen_ok : forall words inputs h, length (outputs_gen words inputs h) = length words),
       strengthen_op_ax' spec_op spec_ax env_ax outputs_gen ret_a_gen.
   
   Arguments Internal {_} _.
