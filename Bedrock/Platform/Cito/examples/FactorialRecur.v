@@ -330,63 +330,95 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
   generalize H; intro.
   unfold strengthen, strengthen_op_ax.
   split.
-  eauto.
+  {
+    eauto.
+  }
   unfold change_fs at 1.
   unfold change_fs at 1.
   simpl.
   intros.
   destruct (option_dec (fs stn w)); simpl in *.
-  destruct s; rewrite e in *; simpl in *.
-  destruct x; simpl in *.
-  eauto.
-  eapply H0 in e.
-  unfold label_mapsto in *.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  injection H2; intros; subst; simpl in *; clear H2.
-  right; descend.
-  eauto.
-  eauto.
-  simpl in *.
-  openhyp.
-  rewrite H2.
-  eauto.
-  simpl in *.
-  eapply body_safe'; eauto.
-  eapply change_fs_agree; eauto.
-  eapply body_runsto' in H2; eauto.
-  Focus 2.
-  eapply change_fs_agree; eauto.
-  simpl.
-  openhyp.
-  unfold Transit.TransitTo.
-  unfold Transit.TransitSafe in *.
-  openhyp; simpl in *.
-  openhyp; simpl in *.
-  subst; simpl in *.
-  descend.
-  (*here*)
-  eauto.
-  eauto.
-  repeat econstructor.
-  descend; eauto.
-  descend; eauto.
-  repeat econstructor.
-  simpl.
-  unfold store_out, Semantics.store_out; simpl; eauto.
-  unfold f in *; simpl in *.
-  eauto.
-  intuition.
-  intuition.
-  rewrite empty_o in H3; intuition.
-  rewrite e in *.
-  eauto.
-  Grab Existential Variables.
-  eauto.
+  {
+    destruct s; rewrite e in *; simpl in *.
+    destruct x; simpl in *.
+    {
+      eauto.
+    }
+    eapply H0 in e.
+    unfold label_mapsto in *.
+    openhyp.
+    {
+      subst; simpl in *.
+      openhyp; try contradiction. 
+      subst; simpl in *.
+      openhyp; try contradiction. 
+      subst; simpl in *.
+      injection H2; intros; subst; simpl in *; clear H2.
+      right; descend.
+      { eauto. }
+      { eauto. }
+      {
+        instantiate (1 := fun words h => List.map (fun _ => None) words).
+        simpl.
+        rewrite map_length.
+        eauto.
+      }
+      {
+        unfold strengthen_op_ax'.
+        descend.
+        {
+          simpl in *.
+          openhyp.
+          rewrite H2.
+          eauto.
+        }
+        {
+          simpl in *.
+          eapply body_safe'; eauto.
+          eapply change_fs_agree; eauto.
+        }
+        {
+          eapply body_runsto' in H2; eauto.
+          Focus 2.
+          eapply change_fs_agree; eauto.
+          simpl.
+          openhyp.
+          unfold Transit.TransitTo.
+          unfold Transit.TransitSafe in *.
+          openhyp; simpl in *.
+          openhyp; simpl in *.
+          subst; simpl in *.
+          descend.
+          { eauto. }
+          { eauto. }
+          {
+            unfold Semantics.good_inputs in *.
+            openhyp.
+            unfold Semantics.word_adt_match in *.
+            inversion_Forall; simpl in *.
+            subst.
+            instantiate (1 := fun _ _ => None); simpl.
+            f_equal.
+            eauto.
+          }
+          {
+            repeat econstructor.
+          }
+          {
+            simpl.
+            unfold store_out, Semantics.store_out; simpl; eauto.
+          }
+        }
+      }
+    }
+    {
+      descend; eauto.
+    }
+  }
+  {
+    rewrite e.
+    left; eauto.
+  }
 Qed.
 
 Lemma body_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body f) v.
@@ -399,7 +431,7 @@ Qed.
 
 Lemma body_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' == snd v.
   intros.
-  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs0 stn)) in H0.
+  eapply strengthen_runsto with (env_ax := (from_bedrock_label_map (Labels stn), change_fs fs stn)) in H0.
   eapply body_runsto'; eauto.
   eapply change_fs_agree; eauto.
   eapply change_fs_strengthen; eauto.

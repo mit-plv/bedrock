@@ -697,20 +697,29 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation gl2w := from_bedrock_label_map.
     Notation specs := (specs m imports exports op_mod_name).
 
-    Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs : 
+    (* shadow the previous version that requires too many premises *)
+    Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
+      List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> 
+      env_good_to_use modules imports stn fs -> 
+      strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
+    Proof.
+      intros; eapply strengthen_elim_single; eauto.
+    Qed.
+
+    Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs outputs_gen ret_a_gen : 
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
+      strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
       List.map (sel vs_callee) (ArgVars op_spec) = List.map fst pairs ->
       PreCond ax_spec (List.map snd pairs) ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
       Safe (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs).
     Proof.
-      intros Hin Hegu Hfst Hpre Hdisj Hgs.
+      intros Hin Hegu Hstr Hfst Hpre Hdisj Hgs.
       eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
       { 
-        eapply strengthen_elim_single in Hegu; eauto.
-        eapply Hegu.
+        eapply Hstr.
         simpl in *.
         rewrite Hfst.
         eapply TransitSafe_intro; eauto.
@@ -720,23 +729,24 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+    Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen : 
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
       let ret_w := sel vs_callee' (RetVar op_spec) in
       RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
+      strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
       List.map (sel vs_callee) (ArgVars op_spec) = words ->
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      exists outputs ret_a,
-        TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
+      let outputs := outputs_gen words h' in
+      let ret_a := ret_a_gen ret_w h' in
+      TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
     Proof.
       simpl.
-      intros Hrt Hin Hegu Hfst Hpre Hdisj Hgs.
-      copy_as Hegu Hstr; eapply strengthen_elim_single in Hstr; eauto.
+      intros Hrt Hin Hegu Hstr Hfst Hpre Hdisj Hgs.
       eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)) in Hrt.
       {
         set (words := List.map fst pairs) in *.
@@ -764,26 +774,29 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
 
-    Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs : 
+    Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen : 
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
-      let outputs := List.map (fun k => find k h') words in
       let ret_w := sel vs_callee' (RetVar op_spec) in
       RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
+      (forall words h, length (outputs_gen words h) = length words) ->
+      strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
       List.map (sel vs_callee) (ArgVars op_spec) = words ->
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs outputs)) (retv ret_w h').
+      let outputs := outputs_gen words h' in
+      let ret_a := ret_a_gen ret_w h' in
+      let ret := combine_ret ret_w ret_a in
+      PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs outputs)) ret.
     Proof.
-      simpl; intros Hrt; intros.
+      simpl; intros Hrt ? ? Hogok; intros.
       eapply runsto_TransitTo in Hrt; eauto.
-      (*here*)
       unfold TransitTo in *; openhyp.
       Require Import Bedrock.Platform.Cito.SemanticsFacts7.
-      rewrite make_triples_ADTIn_ADTOut by (unfold_all; repeat rewrite map_length; eauto).
+      rewrite make_triples_ADTIn_ADTOut by (unfold_all; rewrite Hogok; repeat rewrite map_length; eauto).
       eauto.
     Qed.
 
@@ -850,14 +863,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         set (avars := ArgVars op_spec) in *.
         Require Import Bedrock.Platform.Cito.SepHints3.
         rewrite (@replace_array_to_locals arr _ avars) in Hst.
+        (* get some info from strengthen_op_ax *)
+        copy_as Hegu Hstr.
+        eapply strengthen_elim_single in Hstr; eauto.
+        unfold strengthen_op_ax in Hstr.
+        destruct Hstr as [outputs_gen [ret_a_gen [Hogok Hstr] ] ].
         assert (Halok : array_to_locals_ok arr avars).
         {
           unfold array_to_locals_ok.
           unfold_all.
           split.
           {
-            eapply strengthen_elim_single in Hegu; eauto.
-            eapply Hegu in Hpre.
+            eapply Hstr in Hpre.
             repeat rewrite map_length in *.
             eauto.
           }
@@ -868,6 +885,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         Ltac gd t := generalize dependent t.
         
         gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
+        gd Hstr.
         clear Hewi.
         (* cause of universe inconsistency *)
         rename H1 into Haugment.
@@ -921,7 +939,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
           rewrite  Hleq in *.
 
-          clear Hvcs Hegu Hpre Hewi.
+          clear Hvcs Hegu Hpre Hewi Hstr.
           repeat hiding ltac:(step auto_ext).
         }
         {
@@ -939,8 +957,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           hiding ltac:(step auto_ext).
           {
             instantiate (2 := rv).
-            instantiate (2 := retv rv (snd x1)).
-            instantiate (2 := List.map (heap_sel (snd x1)) arr).
+            instantiate (2 := combine_ret rv (ret_a_gen rv (snd x1))).
+            instantiate (2 := outputs_gen arr (snd x1)).
             instantiate (4 := x2).
             instantiate (3 := x4).
             instantiate (1 := List.map (fst x1) avars).
@@ -963,6 +981,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               rewrite snd_decide_ret_combine_ret.
               rewrite Hrv.
               eapply runsto_TransitTo in Hrt; eauto.
+              destruct Hrt as [outputs [ret_a Htt] ].
               unfold TransitTo in *; openhyp.
               rewrite combine_fst_snd in *.
               eauto.
@@ -1005,7 +1024,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             rewrite  Hleq in *.
             rewrite Hargs' in *.
 
-            clear Hvcs Hegu Hpre Hrt Hewi.
+            clear Hvcs Hegu Hpre Hrt Hewi Hstr.
             unfold locals.
             simpl.
             hiding ltac:(step auto_ext).
@@ -1029,7 +1048,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             {
               Require Import Bedrock.Platform.Cito.GeneralTactics3.
               unfold_all.
-              repeat rewrite map_length; eauto.
+              rewrite Hogok; repeat rewrite map_length; eauto.
             }
             split.
             {
@@ -1046,11 +1065,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               Require Import Bedrock.Platform.Cito.ListFacts5.
               unfold toArray in *; simpl in *.
               eapply map_eq_length_eq; eauto.
+              rewrite Hogok; repeat rewrite map_length; eauto.
             }
             split; trivial.
             unfold retv.
             Import WordMap.WordMap.
-            destruct (find rv h'); simpl; eauto.
+            destruct (ret_a_gen rv h'); simpl; eauto.
           }
         }
       }

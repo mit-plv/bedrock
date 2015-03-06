@@ -22,7 +22,7 @@ Section ADTValue.
   Import FMapNotations.
   Open Scope fmap_scope.
   
-  Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) :=
+  Definition strengthen_op_ax' (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) outputs_gen ret_a_gen :=
     let args := ArgVars spec_op in
     let rvar := RetVar spec_op in
     let s := Body spec_op in
@@ -42,8 +42,13 @@ Section ADTValue.
         let words := List.map (sel vs) args in
         TransitSafe spec_ax words inputs h ->
         let ret_w := sel vs' rvar in
-        exists outputs ret_a,
-          TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
+        let outputs := outputs_gen words h' in
+        let ret_a := ret_a_gen ret_w h' in
+        TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
+  
+  Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) :=
+    exists outputs_gen ret_a_gen (outputs_gen_ok : forall words h, length (outputs_gen words h) = length words),
+      strengthen_op_ax' spec_op spec_ax env_ax outputs_gen ret_a_gen.
   
   Arguments Internal {_} _.
 
@@ -70,7 +75,7 @@ Section ADTValue.
     {
       (* call internal *)
       generalize H2; intro.
-      unfold strengthen, strengthen_op_ax in H2; openhyp.
+      unfold strengthen, strengthen_op_ax, strengthen_op_ax' in H2; openhyp.
       destruct (H5 (eval (fst v) f)); clear H5.
       {
         eapply RunsToCallInternal; eauto.
@@ -90,6 +95,9 @@ Section ADTValue.
         rewrite H9 in H; discriminate.
       }
       openhyp.
+      rename x1 into outputs_gen.
+      rename x2 into ret_a_gen.
+      rename x3 into outputs_gen_ok.
       destruct env_ax; destruct env_op; simpl in *.
       rewrite H in H5; injection H5; intros; subst.
       Require Import Bedrock.Platform.Cito.GeneralTactics4.
@@ -100,7 +108,6 @@ Section ADTValue.
       {
         eapply H9 in H4; clear H9.
         {
-          destruct H4 as [outputs [ret_a Htt] ].
           simpl in *.
           eapply TransitTo_RunsTo; simpl; eauto.
           simpl in *.
@@ -208,7 +215,7 @@ Section ADTValue.
       }
       (* call foreign *)
       generalize H0; intro.
-      unfold strengthen, strengthen_op_ax in H0; openhyp.
+      unfold strengthen, strengthen_op_ax, strengthen_op_ax' in H0; openhyp.
       destruct (H2 (eval (fst v) f)); clear H2.
       {
         right; descend; eauto.
