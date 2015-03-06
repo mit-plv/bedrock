@@ -781,7 +781,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       RunsTo (gl2w (Labels stn), fs stn) (Body op_spec) (vs_callee, make_heap pairs) (vs_callee', h') ->
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
-      (forall words h, length (outputs_gen words inputs h) = length words) ->
+      outputs_gen_ok ax_spec outputs_gen ->
       strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
       List.map (sel vs_callee) (ArgVars op_spec) = words ->
       PreCond ax_spec inputs ->
@@ -885,7 +885,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         Ltac gd t := generalize dependent t.
         
         gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
-        gd Hstr.
+        gd Hstr; gd Hogok.
         clear Hewi.
         (* cause of universe inconsistency *)
         rename H1 into Haugment.
@@ -939,7 +939,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
           rewrite  Hleq in *.
 
-          clear Hvcs Hegu Hpre Hewi Hstr.
+          clear Hvcs Hegu Hpre Hewi Hstr Hogok.
           repeat hiding ltac:(step auto_ext).
         }
         {
@@ -1024,7 +1024,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             rewrite  Hleq in *.
             rewrite Hargs' in *.
 
-            clear Hvcs Hegu Hpre Hrt Hewi Hstr.
+            clear Hvcs Hegu Hpre Hrt Hewi Hstr Hogok.
             unfold locals.
             simpl.
             hiding ltac:(step auto_ext).

@@ -232,7 +232,10 @@ Definition specs_change_table :=
         "count"!"main" @ [main_spec]
     ]]%stmtex.
 
-Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (Internal f) acc) acc (Functions m)) (map Foreign imports) modules.
+Arguments Internal {ADTValue} _.
+Arguments Foreign {ADTValue} _.
+
+Definition make_specs modules imports := fold_right (fun m acc => fold_right (fun (f : GoodFunction) acc => add (GName m, FName f) (@Internal ADTValue f) acc) acc (Functions m)) (map Foreign imports) modules.
 
 (*
     Notation fst2 := (fun x => @fst _ _ (@fst _ _ x)).
@@ -438,902 +441,1073 @@ Definition count_pre : assert ADTValue :=
 
 Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold count_pre, count_body; simpl; unfold imply_close, and_lift; simpl; split_all.
-
-  (* vc1 *)
-  intros.
-  subst.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  openhyp.
-  descend.
-  instantiate (1 := [[ ]]).
-  eauto.
-  repeat econstructor.
-  eauto.
-
-  (* vc2 *)
-  intros.
-  Ltac destruct_state :=
-    repeat match goal with
-             | [ x : State _ |- _ ] => destruct x; simpl in *
-           end.
-
-  destruct_state.
-  openhyp.
-  subst.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  (*here*)
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  descend; eauto.
-  Global Add Parametric Morphism elt : (@equal_disj_update_all elt)
-      with signature @Equal elt ==> Logic.eq ==> iff as equal_disj_update_all_m.
-  Proof.
-    unfold equal_disj_update_all.
-    split; intros; openhyp; split.
-    rewrite <- H; eauto.
-    eauto.
-    rewrite H; eauto.
-    eauto.
-  Qed.
-
-  rewrite H8.
-  eapply separated_star; eauto.
-
-  (* vc3 *)
-  intros.
-  openhyp.
-  destruct_state.
-  simpl in *.
-  injection H0; intros; subst.
-  sel_upd_simpl.
-  descend.
-  eauto.
-  eauto.
-  eauto.
-  reflexivity.
-  eauto.
-
-  (* vc4 *)
-  intros.
-  openhyp.
-  destruct_state.
-  simpl in *.
-  injection H0; intros; subst.
-  sel_upd_simpl.
-  descend.
-  eauto.
-  eauto.
-  eauto.
-  rewrite H3.
-  Require Import Bedrock.Platform.Cito.WordFacts Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3 Bedrock.Platform.Cito.WordFacts4 Bedrock.Platform.Cito.WordFacts5.
-  unfold wnat.
-  erewrite <- next; eauto.
-  rewrite plus_comm.
-  reflexivity.
-  eauto.
-
-  (* vc5 *)
-  intros.
-  openhyp.
-  destruct_state.
-  simpl in *.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff.
-  right.
-  rewrite H4 in *; clear H4.
-  split.
-  Lemma in_alldisj_neq : forall elt k1 k2 v2 h, @In elt k1 h -> AllDisjoint [[h, k2 --> v2]] -> k2 <> k1.
-    intuition; subst.
-    inv_clear H0.
-    inversion_Forall.
-    eapply H2.
-    split; eauto.
-    eapply singleton_in_iff; eauto.
-  Qed.
-  eapply in_alldisj_neq; eauto.
-  eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-  eapply find_mapsto_iff; eauto.
-  instantiate (1 := SCA (sel v0 "i")); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-  Theorem lt_true : forall (a b : string) env vs h vs' h',
-    is_true (a < b)%expr env (vs, h) (vs', h')
-    -> (sel vs' a < sel vs' b)%word.
+  {
+    (* vc1 *)
     intros.
-    hnf in H.
-    simpl in H.
-    unfold wltb in H.
-    destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
-  Qed.
-
-  Theorem lt_false : forall (a b : string) env vs h vs' h',
-    is_false (a < b)%expr env (vs, h) (vs', h')
-    -> (sel vs' a >= sel vs' b)%word.
-    intros.
-    hnf in H.
-    simpl in H.
-    unfold wltb in H.
-    destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
-    discriminate.
-  Qed.
-
-  Hint Resolve lt_false lt_true.
-
-  rewrite <- H1; eauto.
-
-  (* vc6 *)
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H14.
-  rewrite H5 in *.
-  assert (sel v0 "set" <> sel v "arr").
-  eapply in_alldisj_neq; eauto.
-  eapply MapsTo_In; eapply find_mapsto_iff; eauto.
-  rewrite add_neq_o in H14 by eauto.
-  change ExampleADT.ADTValue with ADTValue in *.
-  change M.find with find in *.
-  rewrite H14 in H; injection H; intros; subst.
-  descend.
-  eauto.
-  eauto.
-  split.
-  rewrite H12.
-  rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  Lemma add_swap : forall elt k1 v1 k2 v2 h, @find elt k1 h = Some v1 -> k2 <> k1 -> add k1 v1 (add k2 v2 h) == add k2 v2 h.
-    intros; unfold Equal; intros.
-    repeat rewrite add_o.
-    destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
-  Qed.
-  eapply add_swap; eauto.
-  eauto.
-  eauto.
-  eauto.
-  eauto.
-
-  (* vc7 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (FSet x0)); simpl in *.
-  rewrite H1; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := SCA (sel v0 "e")); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  simpl; eauto.
-
-  (* vc8 *)
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H2 in H15; eapply_in_any add_o_eq; subst; injection H15; intros; subst.
-  descend.
-  eauto.
-  eauto.
-  split.
-  rewrite H13.
-  rewrite H2; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  rewrite H3.
-  rewrite H5.
-  rewrite H1 in *.
-  Open Scope nat.
-  Lemma firstn_plus_1 : forall ls n, n < length ls -> firstn (1 + n) ls = firstn n ls ++ selN ls n :: nil.
-    induction ls; destruct n; simpl; intuition.
-    f_equal.
-    eapply IHls.
-    eauto.
-  Qed.
-  Lemma fold_firstn :
-    forall A (ls : list A) n,
-      match ls with
-        | [[]] => [[]]
-        | a :: l => a :: firstn n l
-      end = firstn (1 + n) ls.
-    eauto.
-  Qed.
-  rewrite fold_firstn.
-  rewrite firstn_plus_1.
-  Import WordSet.
-  Lemma of_list_union : forall ls1 ls2, to_set (ls1 ++ ls2) =s= union (to_set ls1) (to_set ls2).
-    induction ls1; destruct ls2; simpl; intuition.
-    rewrite IHls1.
+    subst.
+    unfold SafeDCall.
     simpl.
-    Lemma union_empty_right : forall s, union s empty =s= s.
-      intros.
-      Import WordSetFacts.
-      Import FM.
-      rewrite empty_union_2; eauto.
-      reflexivity.
+    intros.
+    openhyp.
+    descend.
+    instantiate (1 := [[ ]]).
+    eauto.
+    repeat econstructor.
+  }
+  {
+    (* vc2 *)
+    intros.
+    Ltac destruct_state :=
+      repeat match goal with
+               | [ x : State _ |- _ ] => destruct x; simpl in *
+             end.
+
+    destruct_state.
+    openhyp.
+    subst.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold Transit.TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x1; simpl in *; try discriminate.
+    destruct x3; simpl in *; try discriminate.
+    Require Import Bedrock.Platform.Cito.GeneralTactics4.
+    inject H10.
+    descend; eauto.
+    Global Add Parametric Morphism elt : (@equal_disj_update_all elt)
+        with signature @Equal elt ==> Logic.eq ==> iff as equal_disj_update_all_m.
+    Proof.
+      unfold equal_disj_update_all.
+      split; intros; openhyp; split.
+      rewrite <- H; eauto.
+      eauto.
+      rewrite H; eauto.
+      eauto.
     Qed.
-    repeat rewrite union_empty_right.
+
+    rewrite H9.
+    eapply separated_star; eauto.
+  }
+  {
+    (* vc3 *)
+    intros.
+    openhyp.
+    destruct_state.
+    simpl in *.
+    injection H0; intros; subst.
+    sel_upd_simpl.
+    descend.
+    eauto.
+    eauto.
+    eauto.
     reflexivity.
-    rewrite IHls1.
+    eauto.
+  }
+  {
+    (* vc4 *)
+    intros.
+    openhyp.
+    destruct_state.
+    simpl in *.
+    injection H0; intros; subst.
+    sel_upd_simpl.
+    descend.
+    eauto.
+    eauto.
+    eauto.
+    rewrite H3.
+    Require Import Bedrock.Platform.Cito.WordFacts Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3 Bedrock.Platform.Cito.WordFacts4 Bedrock.Platform.Cito.WordFacts5.
+    unfold wnat.
+    erewrite <- next; eauto.
+    rewrite plus_comm.
+    reflexivity.
+    eauto.
+  }
+  {
+    (* vc5 *)
+    intros.
+    openhyp.
+    destruct_state.
+    simpl in *.
+    unfold SafeDCall.
     simpl.
-    rewrite union_add.
-    reflexivity.
-  Qed.
-  rewrite of_list_union.
-  rewrite union_sym.
-  rewrite add_union_singleton.
-  simpl.
-  rewrite singleton_equal_add.
-  reflexivity.
-  unfold wnat.
-  nomega.
-  eauto.
+    intros.
+    destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    Import Transit.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ _, _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl.
+        {
+          instantiate (1 := ADT (Arr x)); simpl in *.
+          rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff.
+          right.
+          rewrite H4 in *; clear H4.
+          split.
+          {
+            Lemma in_alldisj_neq : forall elt k1 k2 v2 h, @In elt k1 h -> AllDisjoint [[h, k2 --> v2]] -> k2 <> k1.
+              intuition; subst.
+              inv_clear H0.
+              inversion_Forall.
+              eapply H2.
+              split; eauto.
+              eapply singleton_in_iff; eauto.
+            Qed.
+            eapply in_alldisj_neq; eauto.
+            eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+          }
+          eapply find_mapsto_iff; eauto.
+        }
+        instantiate (1 := SCA (sel v0 "i")); simpl in *.
+        eauto.
+      }
+      simpl.
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+    Theorem lt_true : forall (a b : string) env vs h vs' h',
+                        @is_true ADTValue (a < b)%expr env (vs, h) (vs', h')
+                        -> (sel vs' a < sel vs' b)%word.
+      intros.
+      hnf in H.
+      simpl in H.
+      unfold wltb in H.
+      destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
+    Qed.
 
-  (* vc9 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (FSet x0)); simpl in *.
-  rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  simpl; eauto.
+    Theorem lt_false : forall (a b : string) env vs h vs' h',
+                         @is_false ADTValue (a < b)%expr env (vs, h) (vs', h')
+                         -> (sel vs' a >= sel vs' b)%word.
+      intros.
+      hnf in H.
+      simpl in H.
+      unfold wltb in H.
+      destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
+      discriminate.
+    Qed.
 
+    Hint Resolve lt_false lt_true.
+
+    rewrite <- H1; eauto.
+  }
+  {
+    (* vc6 *)
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H14.
+    destruct x4; simpl in *; try discriminate.
+    inject H11.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    rewrite H3 in H14.
+    rewrite H5 in *.
+    assert (sel v0 "set" <> sel v "arr").
+    {
+      eapply in_alldisj_neq; eauto.
+      eapply MapsTo_In; eapply find_mapsto_iff; eauto.
+    }
+    rewrite add_neq_o in H14 by eauto.
+    change M.find with find in *.
+    rewrite H14 in H; injection H; intros; subst.
+    descend.
+    {
+      eauto.
+    }
+    {
+      eauto.
+    }
+    {
+      split.
+      {
+        rewrite H13.
+        rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        Lemma add_swap : forall elt k1 v1 k2 v2 h, @find elt k1 h = Some v1 -> k2 <> k1 -> add k1 v1 (add k2 v2 h) == add k2 v2 h.
+          intros; unfold Equal; intros.
+          repeat rewrite add_o.
+          destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
+        Qed.
+        eapply add_swap; eauto.
+      }
+      eauto.
+    }
+    {
+      eauto.
+    }
+    {
+      eauto.
+    }
+    eauto.
+  }
+  {
+    (* vc7 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    descend.
+    instantiate (1 := [[ _, _ ]]); eauto.
+    split.
+    {
+      unfold Semantics.word_adt_match.
+      repeat econstructor; simpl.
+      {
+        instantiate (1 := ADT (FSet x0)); simpl in *.
+        rewrite H1; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      instantiate (1 := SCA (sel v0 "e")); simpl in *.
+      eauto.
+    }
+    {
+      simpl.
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    simpl; eauto.
+  }
+  (* vc8 *)
+  {
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H12.
+    destruct x4; simpl in *; try discriminate.
+    inject H15.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    rewrite H2 in H15; eapply_in_any add_o_eq; subst; injection H15; intros; subst.
+    descend.
+    {
+      eauto.
+    }
+    {
+      eauto.
+    }
+    {
+      split.
+      {
+        rewrite H14.
+        rewrite H2; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    {
+      rewrite H3.
+      rewrite H5.
+      rewrite H1 in *.
+      Open Scope nat.
+      Lemma firstn_plus_1 : forall ls n, n < length ls -> firstn (1 + n) ls = firstn n ls ++ selN ls n :: nil.
+        induction ls; destruct n; simpl; intuition.
+        f_equal.
+        eapply IHls.
+        eauto.
+      Qed.
+      Lemma fold_firstn :
+        forall A (ls : list A) n,
+          match ls with
+            | [[]] => [[]]
+            | a :: l => a :: firstn n l
+          end = firstn (1 + n) ls.
+        eauto.
+      Qed.
+      rewrite fold_firstn.
+      rewrite firstn_plus_1.
+      {
+        Import WordSet.
+        Lemma of_list_union : forall ls1 ls2, to_set (ls1 ++ ls2) =s= union (to_set ls1) (to_set ls2).
+          induction ls1; destruct ls2; simpl; intuition.
+          rewrite IHls1.
+          simpl.
+          Lemma union_empty_right : forall s, union s empty =s= s.
+            intros.
+            Import WordSetFacts.
+            Import FM.
+            rewrite empty_union_2; eauto.
+            reflexivity.
+          Qed.
+          repeat rewrite union_empty_right.
+          reflexivity.
+          rewrite IHls1.
+          simpl.
+          rewrite union_add.
+          reflexivity.
+        Qed.
+        rewrite of_list_union.
+        rewrite union_sym.
+        rewrite add_union_singleton.
+        simpl.
+        rewrite singleton_equal_add.
+        reflexivity.
+      }
+      unfold wnat.
+      nomega.
+    }
+    eauto.
+  }
+  {
+    (* vc9 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    descend.
+    {
+      instantiate (1 := [[ _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl.
+        instantiate (1 := ADT (FSet x0)); simpl in *.
+        rewrite H2; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      simpl.
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    simpl; eauto.
+  }
   (* vc10 *)
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H3 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
-  descend.
-  eauto.
-  split.
-  rewrite H12.
-  rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  unfold unique_count.
-  rewrite H4.
-  repeat f_equal.
-  Lemma firstn_whole : forall A (ls : list A) n, length ls <= n -> firstn n ls = ls.
-    induction ls; destruct n; simpl; intuition.
-    f_equal; eauto.
-  Qed.
-  eapply firstn_whole.
-  eapply lt_false in H1.
-  rewrite H2 in *.
-  unfold wnat in *.
-  nomega.
-
-  (* vc11 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H0; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (FSet x0)); simpl in *.
-  rewrite H0; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-
-  (* vc12 *)
-  intros.
-  openhyp.
-  destruct_state.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-  rewrite H1 in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
-  descend.
-  eauto.
-  rewrite H8.
-  rewrite H1.
-  eapply not_in_add_remove.
-  eapply singleton_disj.
-  inv_clear H3.
-  inversion_Forall.
-  eauto.
-  eauto.
-
+  {
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H14.
+    destruct x4; simpl in *; try discriminate.
+    inject H11.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    destruct H3; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    rewrite H3 in H14; eapply_in_any add_o_eq; subst; injection H14; intros; subst.
+    descend.
+    {
+      eauto.
+    }
+    {
+      split.
+      {
+        rewrite H13.
+        rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    unfold unique_count.
+    rewrite H4.
+    repeat f_equal.
+    Lemma firstn_whole : forall A (ls : list A) n, length ls <= n -> firstn n ls = ls.
+      induction ls; destruct n; simpl; intuition.
+      f_equal; eauto.
+    Qed.
+    eapply firstn_whole.
+    eapply lt_false in H1.
+    rewrite H2 in *.
+    unfold wnat in *.
+    nomega.
+  }
+  {
+    (* vc11 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H0; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl.
+        instantiate (1 := ADT (FSet x0)); simpl in *.
+        rewrite H0; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      simpl.
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+  }
+  {
+    (* vc12 *)
+    intros.
+    openhyp.
+    destruct_state.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H7.
+    destruct x4; simpl in *; try discriminate.
+    inject H10.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    destruct H1; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
+    rewrite H1 in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
+    descend.
+    {
+      eauto.
+    }
+    {
+      rewrite H9.
+      rewrite H1.
+      eapply not_in_add_remove.
+      eapply singleton_disj.
+      inv_clear H3.
+      inversion_Forall.
+      eauto.
+    }
+    eauto.
+  }
   eauto.
 Qed.
 
 Local Hint Immediate count_vcs_good.
 
+Require Import SemanticsFacts4.
+
 Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
   intros.
-  unfold strengthen_op_ax.
+  unfold strengthen_op_ax, strengthen_op_ax'.
+  Definition output_gen (h : Heap ADTValue) w (i : Value ADTValue) :=
+    match w, i with
+      | _, SCA _ => None
+      | w, ADT _ => WordMap.find w h
+    end.
+
+  exists (fun words inputs h => List.map (uncurry (output_gen h)) (List.combine words inputs)).
+  exists (fun _ _ => None).
   split_all.
-  intros.
-  simpl in *.
-  openhyp.
-  rewrite H0; simpl; eauto.
-
-  intros.
-  cito_safe count count_pre count_vcs_good.
-  split.
-  eauto.
-  Import SemanticsFacts4Make.TransitMake.
-  unfold TransitSafe in *.
-  openhyp.
-  simpl in *.
-  openhyp.
-  subst; simpl in *.
-  Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
-    induction ls; simpl; intuition.
-    simpl; f_equal; eauto.
-  Qed.
-  Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
-    intros.
-    specialize (combine_fst_snd ls); intros.
-    rewrite H0 in H1.
-    rewrite <- H in H1.
+  {
+    unfold outputs_gen_ok.
+    intros words inputs h Hpre Hlen.
+    rewrite map_length.
+    Require Import ListFacts4.
+    rewrite combine_length_eq by eauto.
     eauto.
-  Qed.
-  eapply_in_any combine_fst_snd'; try eassumption.
-  subst; simpl in *.
-  Import SemanticsMake.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  descend; eauto.
-
-  cito_runsto count count_pre count_vcs_good.
-  2 : split; eauto.
-  unfold TransitSafe in *.
-  openhyp.
-  simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any combine_fst_snd'; try eassumption.
-  subst; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  rewrite H9 in H0; injection H0; intros; subst.
-  unfold TransitTo.
-  descend.
-  instantiate (1 := [[ {| Word := sel (fst v) "arr"; ADTIn := ADT (Arr x); ADTOut := Some (Arr x) |}, {| Word := sel (fst v) "len"; ADTIn := SCA (sel (fst v) "len"); ADTOut := None |} ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match in *.
-  simpl.
-  repeat econstructor.
-  simpl; eauto.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  simpl.
-  descend.
-  eauto.
-  eauto.
-  eauto.
-  simpl.
-  descend; eauto.
-  simpl.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  repeat econstructor.
-  simpl.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  Import WordMap.
-  rewrite H2.
-  Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
-    unfold Equal; intros.
-    repeat rewrite add_o.
-    destruct (eq_dec k y); subst; intuition.
-  Qed.
-  rewrite add_no_effect; eauto; reflexivity.
-  unfold decide_ret, Semantics.decide_ret.
-  simpl.
-  eauto.
-
-  unfold TransitSafe in *.
-  openhyp.
-  simpl in *.
-  openhyp.
-  subst; simpl in *.
-  specialize (combine_fst_snd x); intros.
-  rewrite H3 in H4.
-  rewrite <- H1 in H4.
-  subst; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  descend; eauto.
-  Grab Existential Variables.
-  eapply ($0).
+  }
+  {
+    intros.
+    simpl in *.
+    openhyp.
+    rewrite H0; simpl; eauto.
+  }
+  {
+    intros.
+    cito_safe count count_pre count_vcs_good.
+    split.
+    {
+      eauto.
+    }
+    Import Transit.
+    unfold TransitSafe in *.
+    openhyp.
+    simpl in *.
+    openhyp.
+    subst; simpl in *.
+    Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
+      induction ls; simpl; intuition.
+      simpl; f_equal; eauto.
+    Qed.
+    Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
+      intros.
+      specialize (combine_fst_snd ls); intros.
+      rewrite H0 in H1.
+      rewrite <- H in H1.
+      eauto.
+    Qed.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    descend; eauto.
+  }
+  {
+    cito_runsto count count_pre count_vcs_good.
+    {
+      unfold TransitSafe in *.
+      openhyp.
+      simpl in *.
+      openhyp.
+      subst; simpl in *.
+      unfold good_inputs, Semantics.good_inputs in *.
+      openhyp.
+      unfold Semantics.word_adt_match in *.
+      inversion_Forall; simpl in *.
+      unfold ExampleADT.ADTValue in *.
+      erewrite H0 in H9.
+      inject H9.
+      unfold TransitTo.
+      descend.
+      {
+        split.
+        {
+          unfold Semantics.word_adt_match in *.
+          simpl.
+          repeat econstructor.
+          {
+            simpl; eauto.
+          }
+          unfold Semantics.disjoint_ptrs.
+          NoDup.
+        }
+        simpl.
+        descend.
+      }
+      {
+        eauto.
+      }
+      {
+        simpl.
+        descend; eauto.
+        {
+          Arguments uncurry {_ _ _} _ _ / .
+          simpl.
+          unfold store_out, Semantics.store_out in *; simpl in *.
+          repeat f_equal.
+          Import WordMap.
+          rewrite H2.
+          eauto.
+        }
+        Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
+          unfold Equal; intros.
+          repeat rewrite add_o.
+          destruct (eq_dec k y); subst; intuition.
+        Qed.
+        f_equal.
+        eauto.
+      }
+      {
+        repeat econstructor.
+      }
+      simpl.
+      unfold store_out, Semantics.store_out in *; simpl in *.
+      rewrite H2.
+      rewrite H0.
+      rewrite add_no_effect; eauto; reflexivity.
+    }
+    split.
+    { eauto. }
+    unfold TransitSafe in *.
+    openhyp.
+    simpl in *.
+    openhyp.
+    subst; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    descend; eauto.
+  }
 Qed.
 
 Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
-
-  (* vc1 *)
-  intros.
-  subst.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  Import Notations4Make.
-  Import ProgramLogicMake.
-  Import TransitMake.
-  unfold TransitSafe.
-  descend.
-  instantiate (1 := [[ ($3, _) ]]).
-  eauto.
-  repeat econstructor.
-  instantiate (1 := SCA $3).
-  repeat econstructor.
-  repeat econstructor.
-  descend; eauto.
-
-  (* vc2 *)
-  intros.
-  destruct_state.
-  openhyp.
-  subst.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply triples_intro in H3; try eassumption.
-  subst; simpl in *.
-  Import SemanticsMake.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  descend; eauto.
-  rewrite H5.
-  eapply separated_star; eauto.
-
-  (* vc3 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; rewrite update_add in *.
-  unfold TransitSafe.
-  descend.
-  sel_upd_simpl.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  eauto.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := SCA $0); simpl in *.
-  eauto.
-  instantiate (1 := SCA $10); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-  rewrite H0.
-  eauto.
-
-  (* vc4 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H10.
-  eapply_in_any add_o_eq; subst.
-  injection H10; intros; subst.
-  descend.
-  split.
-  rewrite H8.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  rewrite upd_length; eauto.
-  eapply CompileExpr.sel_upd_eq; eauto.
-  rewrite H1; eauto.
-
-  (* vc5 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := SCA $1); simpl in *.
-  eauto.
-  instantiate (1 := SCA $20); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-  rewrite H0; eauto.
-
-  (* vc6 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
-  destruct x5; simpl in *; try discriminate.
-  destruct x5; simpl in *; try discriminate.
-  destruct x5; simpl in *; try discriminate.
-  descend.
-  split.
-  rewrite H9.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  Transparent natToWord.
-  unfold Array.upd; simpl.
-  unfold Array.sel in H2; simpl in H2; subst.
-  repeat f_equal.
-  destruct x5; simpl in *; try discriminate.
-  eauto.
-  Opaque natToWord.
-
-  (* vc7 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := SCA $2); simpl in *.
-  eauto.
-  instantiate (1 := SCA $10); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend; eauto.
-  rewrite H0; eauto.
-
-  (* vc8 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
-  descend.
-  split.
-  rewrite H8.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  Transparent natToWord.
-  reflexivity.
-  Opaque natToWord.
-
-  (* vc9 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _, _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  instantiate (1 := SCA $3); simpl in *.
-  eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend.
-  eauto.
-  rewrite H0; eauto.
-  rewrite H0; simpl.
-  eauto.
-
-  (* vc10 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H9; eapply_in_any add_o_eq; subst; injection H9; intros; subst.
-  descend.
-  split.
-  rewrite H8.
-  rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-  eapply map_add_same_key.
-  eapply same_keys_all_disj; eauto.
-  simpl; eauto.
-  reflexivity.
-
-  (* vc11 *)
-  intros.
-  unfold SafeDCall.
-  simpl.
-  intros.
-  destruct_state.
-  openhyp.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold TransitSafe.
-  sel_upd_simpl.
-  descend.
-  eapply map_fst_combine.
-  instantiate (1 := [[ _ ]]); eauto.
-  split.
-  unfold Semantics.word_adt_match.
-  repeat econstructor; simpl.
-  instantiate (1 := ADT (Arr x)); simpl in *.
-  rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
-  simpl.
-  unfold Semantics.disjoint_ptrs.
-  NoDup.
-  descend.
-  eauto.
-
-  (* vc12 *)
-  intros.
-  openhyp.
-  destruct_state.
-  destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
-  unfold RunsToDCall in *.
-  simpl in *.
-  openhyp.
-  unfold TransitTo in *.
-  openhyp.
-  unfold PostCond in *; simpl in *.
-  openhyp.
-  subst; simpl in *.
-  eapply_in_any triples_intro; try eassumption.
-  subst; simpl in *.
-  unfold store_out, Semantics.store_out in *; simpl in *.
-  unfold good_inputs, Semantics.good_inputs in *.
-  openhyp.
-  unfold Semantics.word_adt_match in *.
-  inversion_Forall; simpl in *.
-  subst; simpl in *.
-  sel_upd_simpl.
-  rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
-  descend.
-  rewrite H8.
-  rewrite H.
-  eapply not_in_add_remove.
-  eapply singleton_disj.
-  inv_clear H2.
-  inversion_Forall.
-  eauto.
-
+  {
+    (* vc1 *)
+    intros.
+    subst.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    Import Transit.
+    unfold TransitSafe.
+    descend.
+    instantiate (1 := [[ _ ]]).
+    eauto.
+    repeat econstructor.
+    instantiate (1 := SCA $3).
+    repeat econstructor.
+    repeat econstructor.
+    descend; eauto.
+  }
+  {
+    (* vc2 *)
+    intros.
+    destruct_state.
+    openhyp.
+    subst.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x0; simpl in *; try discriminate.
+    destruct x0; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    inject H7.
+    inject H4.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    descend; eauto.
+    rewrite H6.
+    eapply separated_star; eauto.
+  }
+  {
+    (* vc3 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; rewrite update_add in *.
+    unfold TransitSafe.
+    descend.
+    {
+      sel_upd_simpl.
+      instantiate (1 := [[ ADT _, SCA _, SCA _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl; eauto.
+        sel_upd_simpl.
+        instantiate (1 := Arr x); simpl in *.
+        rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+    rewrite H0.
+    eauto.
+  }
+  {
+    (* vc4 *)
+    intros.
+    openhyp.
+    destruct_state.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x3; simpl in *; try discriminate.
+    inject H7.
+    inject H10.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    rewrite H in H10.
+    eapply_in_any add_o_eq; subst.
+    injection H10; intros; subst.
+    descend.
+    {
+      split.
+      {
+        rewrite H9.
+        rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    {
+      rewrite upd_length; eauto.
+    }
+    eapply CompileExpr.sel_upd_eq; eauto.
+    rewrite H1; eauto.
+  }
+  {
+    (* vc5 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ ADT _, SCA _, SCA _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl; eauto.
+        instantiate (1 := Arr x); simpl in *.
+        rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+    rewrite H0; eauto.
+  }
+  {
+    (* vc6 *)
+    intros.
+    openhyp.
+    destruct_state.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x3; simpl in *; try discriminate.
+    inject H8.
+    inject H11.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    rewrite H in H11; eapply_in_any add_o_eq; subst; injection H11; intros; subst.
+    destruct x5; simpl in *; try discriminate.
+    destruct x5; simpl in *; try discriminate.
+    destruct x5; simpl in *; try discriminate.
+    destruct x5; simpl in *; try discriminate.
+    descend.
+    {
+      split.
+      {
+        rewrite H10.
+        rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    Transparent natToWord.
+    unfold Array.upd; simpl.
+    unfold Array.sel in H2; simpl in H2; subst.
+    repeat f_equal.
+  }
+  {
+    (* vc7 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ ADT _, SCA _, SCA _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl; eauto.
+        instantiate (1 := Arr x); simpl in *.
+        rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend; eauto.
+    rewrite H0; eauto.
+  }
+  {
+    (* vc8 *)
+    intros.
+    openhyp.
+    destruct_state.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    destruct x2; simpl in *; try discriminate.
+    destruct x4; simpl in *; try discriminate.
+    inject H7.
+    inject H10.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    rewrite H in H7; eapply_in_any add_o_eq; subst; inject H7.
+    descend.
+    {
+      split.
+      {
+        rewrite H9.
+        rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    Transparent natToWord.
+    reflexivity.
+    Opaque natToWord.
+  }
+  {
+    (* vc9 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ ADT _, SCA _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl; eauto.
+        instantiate (1 := Arr x); simpl in *.
+        rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend.
+    { eauto. }
+    { rewrite H0; eauto. }
+    rewrite H0; simpl.
+    eauto.
+  }
+  {
+    (* vc10 *)
+    intros.
+    openhyp.
+    destruct_state.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x3; simpl in *; try discriminate.
+    inject H7.
+    inject H10.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    rewrite H in H7; eapply_in_any add_o_eq; subst; inject H7.
+    descend.
+    {
+      split.
+      {
+        rewrite H9.
+        rewrite H; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
+        eapply map_add_same_key.
+      }
+      eapply same_keys_all_disj; eauto.
+      simpl; eauto.
+    }
+    reflexivity.
+  }
+  {
+    (* vc11 *)
+    intros.
+    unfold SafeDCall.
+    simpl.
+    intros.
+    destruct_state.
+    openhyp.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold TransitSafe.
+    sel_upd_simpl.
+    descend.
+    {
+      instantiate (1 := [[ _ ]]); eauto.
+    }
+    {
+      split.
+      {
+        unfold Semantics.word_adt_match.
+        repeat econstructor; simpl.
+        instantiate (1 := ADT (Arr x)); simpl in *.
+        rewrite H; eapply find_mapsto_iff; eapply add_mapsto_iff; eauto.
+      }
+      unfold Semantics.disjoint_ptrs.
+      NoDup.
+    }
+    descend.
+    eauto.
+  }
+  {
+    (* vc12 *)
+    intros.
+    openhyp.
+    destruct_state.
+    destruct H; unfold update_all in *; simpl in *; rewrite update_empty_1 in H; repeat rewrite update_add in H.
+    unfold RunsToDCall in *.
+    simpl in *.
+    openhyp.
+    unfold TransitTo in *.
+    openhyp.
+    unfold PostCond in *; simpl in *.
+    openhyp.
+    subst; simpl in *.
+    destruct x1; simpl in *; try discriminate.
+    destruct x1; simpl in *; try discriminate.
+    destruct x3; simpl in *; try discriminate.
+    inject H7.
+    inject H10.
+    unfold store_out, Semantics.store_out in *; simpl in *.
+    unfold good_inputs, Semantics.good_inputs in *.
+    openhyp.
+    unfold Semantics.word_adt_match in *.
+    inversion_Forall; simpl in *.
+    subst; simpl in *.
+    sel_upd_simpl.
+    rewrite H in H10; eapply_in_any add_o_eq; subst; injection H10; intros; subst.
+    descend.
+    rewrite H9.
+    rewrite H.
+    eapply not_in_add_remove.
+    eapply singleton_disj.
+    inv_clear H2.
+    inversion_Forall.
+    eauto.
+  }
   eauto.
 Qed.
 
@@ -1341,36 +1515,40 @@ Local Hint Immediate main_vcs_good.
 
 Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
   intros.
-  unfold strengthen_op_ax.
+  unfold strengthen_op_ax, strengthen_op_ax'.
+  exists (fun words inputs h => List.map (uncurry (output_gen h)) (List.combine words inputs)).
+  exists (fun _ _ => None).
   split_all.
-  intros.
-  simpl in *.
-  rewrite H0; simpl; eauto.
-
-  intros.
-  cito_safe main empty_precond main_vcs_good.
-
-  cito_runsto main empty_precond main_vcs_good.
-  2 : eauto.
-  Import SemanticsFacts4Make.TransitMake.
-  unfold TransitTo.
-  descend.
-  instantiate (1 := [[]]).
-  eauto.
-  simpl.
-  Import SemanticsMake.
-  repeat econstructor.
-  eauto.
-  eauto.
-  simpl.
-  repeat econstructor.
-  simpl.
-  eauto.
-  unfold decide_ret, Semantics.decide_ret.
-  simpl.
-  eauto.
-  Grab Existential Variables.
-  eapply ($0).
+  {
+    unfold outputs_gen_ok.
+    intros words inputs h Hpre Hlen.
+    rewrite map_length.
+    rewrite combine_length_eq by eauto.
+    eauto.
+  }
+  {
+    intros.
+    simpl in *.
+    rewrite H0; simpl; eauto.
+  }
+  {
+    intros.
+    cito_safe main empty_precond main_vcs_good.
+  }
+  {
+    cito_runsto main empty_precond main_vcs_good.
+    2 : eauto.
+    Import Transit.
+    unfold TransitTo.
+    unfold TransitSafe in *; simpl in *.
+    openhyp.
+    descend.
+    { f_equal; eauto. }
+    {
+      repeat econstructor.
+    }
+    eauto.
+  }
 Qed.
 
 Lemma specs_strengthen_diff : forall env_ax, specs_env_agree specs env_ax -> strengthen_diff specs_op specs_change_table env_ax.
@@ -1397,7 +1575,6 @@ Qed.
 
 Import LinkSpecMake.
 Require Import Bedrock.Platform.Cito.LinkSpecFacts.
-Module Import LinkSpecFactsMake := Make ExampleADT.
 
 Import GLabelMap.GLabelMap.
 Import GLabelMapFacts.
@@ -1480,14 +1657,14 @@ Qed.
 
 Lemma main_safe : forall stn fs v, env_good_to_use modules imports stn fs -> Safe (from_bedrock_label_map (Labels stn), fs stn) (Body main) v.
   intros.
-  eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)).
+  eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
   eapply main_safe'; eauto.
   eapply new_env_strengthen; eauto.
 Qed.
 
 Lemma main_runsto : forall stn fs v v', env_good_to_use modules imports stn fs -> RunsTo (from_bedrock_label_map (Labels stn), fs stn) (Body main) v v' -> sel (fst v') (RetVar f) = 2 /\ snd v' == snd v.
   intros.
-  eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs0 stn)) in H0.
+  eapply strengthen_runsto with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)) in H0.
   cito_runsto main empty_precond main_vcs_good.
   split; eauto.
   2 : eauto.

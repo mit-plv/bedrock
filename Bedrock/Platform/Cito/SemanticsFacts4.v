@@ -46,9 +46,16 @@ Section ADTValue.
         let outputs := outputs_gen words inputs h' in
         let ret_a := ret_a_gen ret_w h' in
         TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
-  
+
+  Definition outputs_gen_ok spec_ax outputs_gen := 
+    forall (words : list W) (inputs : list (Value ADTValue)) (h : Heap ADTValue), 
+      PreCond spec_ax inputs ->
+      length words = length inputs ->
+      @length (option ADTValue) (outputs_gen words inputs h) = length words.
+
   Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) :=
-    exists outputs_gen ret_a_gen (outputs_gen_ok : forall words inputs h, length (outputs_gen words inputs h) = length words),
+    exists outputs_gen ret_a_gen,
+      outputs_gen_ok spec_ax outputs_gen /\
       strengthen_op_ax' spec_op spec_ax env_ax outputs_gen ret_a_gen.
   
   Arguments Internal {_} _.
@@ -95,10 +102,8 @@ Section ADTValue.
         rewrite H6 in H.
         rewrite H9 in H; discriminate.
       }
+      destruct H6 as [spec_op [spec_ax [? [? [outputs_gen [ret_a_gen [Hogok ?] ] ] ] ] ] ].
       openhyp.
-      rename x1 into outputs_gen.
-      rename x2 into ret_a_gen.
-      rename x3 into outputs_gen_ok.
       destruct env_ax; destruct env_op; simpl in *.
       rewrite H in H5; injection H5; intros; subst.
       Require Import Bedrock.Platform.Cito.GeneralTactics4.
@@ -223,6 +228,7 @@ Section ADTValue.
         destruct env_ax; destruct env_op; simpl in *.
         rewrite H3; eauto.
       }
+      destruct H3 as [spec_op [spec_ax [? [? [outputs_gen [ret_a_gen [Hogok ?] ] ] ] ] ] ].
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
       destruct v; simpl in *.

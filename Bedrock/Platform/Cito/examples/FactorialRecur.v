@@ -359,6 +359,7 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
       { eauto. }
       {
         instantiate (1 := fun words _ _ => List.map (fun _ => None) words).
+        unfold outputs_gen_ok; intros.
         simpl.
         rewrite map_length.
         eauto.
