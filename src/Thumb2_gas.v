@@ -65,10 +65,14 @@ Module Thumb.
   | Register : register -> registerOrLiteral
   | Literal : W -> registerOrLiteral.
 
-  (** Thumb-2 supports a whole host of condition flags, but these three are
-  sufficient to implement Bedrock’s conditional jumps. *)
+  (** Thumb-2 supports a whole host of condition flags, but these six are
+  sufficient to compile Bedrock.  Comparison flags are for unsigned comparison,
+  as defined by the Bedrock IL semantics. *)
 
-  Inductive condition := EQ | NE | MI | PL.
+  Inductive condition :=
+  | EQ | NE
+  | HS (* ≥ *) | LO (* < *)
+  | HI (* > *) | LS (* ≤ *).
 
   (** We need fairly few Thumb mnemonics to actually compile Bedrock code.
   Note that <<ldr =>> (e.g., <<ldr r1, =12345>>) is not an actual Thumb
@@ -133,8 +137,10 @@ Module Thumb.
       match cond with
         | EQ => "eq"
         | NE => "ne"
-        | MI => "mi"
-        | PL => "pl"
+        | HS => "hs"
+        | LO => "lo"
+        | HI => "hi"
+        | LS => "ls"
       end.
 
     Definition mnemonic (name : string) (operands : list string) : string :=
@@ -296,22 +302,15 @@ Definition cmpAndBranch (tmp : Thumb.register)
   let (condTrue, condFalse) := match op with
                                  | IL.Eq => (Thumb.EQ, Thumb.NE)
                                  | IL.Ne => (Thumb.NE, Thumb.EQ)
-                                 | IL.Lt | IL.Le => (Thumb.MI, Thumb.PL)
+                                 | IL.Lt => (Thumb.LO, Thumb.HS)
+                                 | IL.Le => (Thumb.LS, Thumb.HI)
                                end
   in
-  (match op with
-     | IL.Eq | IL.Ne | IL.Lt =>
-       [ Thumb.Cmp left right;
-         Thumb.Ite condTrue;
-         Thumb.CondLdrEq condTrue  tmp (Thumb.Label $ labelS ifTrue);
-         Thumb.CondLdrEq condFalse tmp (Thumb.Label $ labelS ifFalse) ]
-     | IL.Le =>
-       [ Thumb.Cmp right left;
-         Thumb.Ite condTrue;
-         Thumb.CondLdrEq condTrue  tmp (Thumb.Label $ labelS ifFalse);
-         Thumb.CondLdrEq condFalse tmp (Thumb.Label $ labelS ifTrue) ]
-    end)
-    ++ [Thumb.Mov Thumb.PC tmp].
+  [ Thumb.Cmp left right;
+    Thumb.Ite condTrue;
+    Thumb.CondLdrEq condTrue  tmp (Thumb.Label $ labelS ifTrue);
+    Thumb.CondLdrEq condFalse tmp (Thumb.Label $ labelS ifFalse);
+    Thumb.Mov Thumb.PC tmp ].
 
 (** ** Memory operations
 
