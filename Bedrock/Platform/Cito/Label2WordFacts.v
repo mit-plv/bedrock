@@ -19,29 +19,35 @@ Proof.
   intros e.
   unfold find_by_word in *.
   destruct (option_dec (List.find (is_label_map_to_word' l2w p) (elements d))).
-  destruct s.
-  destruct x.
-  rewrite e0 in e.
-  injection e; intros.
-  subst.
-  eapply find_spec in e0.
-  openhyp.
-  unfold is_label_map_to_word', is_label_map_to_word in *.
-  simpl in *.
-  destruct (option_dec (l2w g)).
   {
     destruct s.
-    rewrite e0 in H.
-    destruct (weq p x).
+    destruct x.
+    rewrite e0 in e.
+    injection e; intros.
     subst.
-    exists g.
-    split.
-    eapply In_find_Some; eauto.
-    eapply InA_eqke_In; intuition.
-    intuition.
-    intuition.
+    eapply find_spec in e0.
+    openhyp.
+    unfold is_label_map_to_word', is_label_map_to_word in *.
+    simpl in *.
+    destruct (option_dec (l2w g)).
+    {
+      destruct s.
+      rewrite e0 in H.
+      destruct (weq p x).
+      {
+        subst.
+        exists g.
+        split.
+        {
+          eapply In_find_Some; eauto.
+          eapply InA_eqke_In; intuition.
+        }
+        intuition.
+      }
+      discriminate.
+    }
+    rewrite e0 in H; discriminate.
   }
-  rewrite e0 in H; intuition.
   rewrite e0 in e; discriminate.
 Qed.
 
@@ -80,9 +86,9 @@ Proof.
         eapply find_mapsto_iff in H2.
         congruence.
       }
-      intuition.
+      discriminate.
     }
-    rewrite e in H1; intuition.
+    rewrite e in H1; discriminate.
   }
   eapply find_spec_None in e.
   contradict e.

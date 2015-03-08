@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import Coq.Lists.List.
-Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5.
+Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3. 
 Require Import Bedrock.ListFacts.
 Require Import Bedrock.Platform.Cito.GeneralTactics.
 Require Import Bedrock.Platform.Cito.GeneralTactics4.
@@ -186,26 +186,34 @@ Proof.
   induction ls; simpl in *; intros; try f_equal; eauto.
 Qed.
 
-Require Import Bedrock.sep.Locals.
+Lemma nth_error_In : forall A (x : A) ls n,
+                       nth_error ls n = Some x
+                       -> In x ls.
+  induction ls; destruct n; simpl; intuition; try discriminate; eauto.
+  injection H; intros; subst; auto.
+Qed.
 
 Lemma NoDup_nth_error A ls : NoDup ls -> forall i i' (x : A), nth_error ls i = Some x -> nth_error ls i' = Some x -> i = i'.
 Proof.
   induction 1; destruct i; destruct i'; simpl in *; intros; try discriminate.
   eauto.
   inject H1.
-  contradict H; eapply Locals.nth_error_In; eauto.
+  contradict H; eapply nth_error_In; eauto.
   inject H2.
-  contradict H; eapply Locals.nth_error_In; eauto.
+  contradict H; eapply nth_error_In; eauto.
   f_equal; eauto.
 Qed.
 
+Arguments fst {A B} _ .
+Arguments snd {A B} _ .
+
 Lemma map_fst_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map fst (combine ls1 ls2) = ls1.
-  induction ls1; destruct ls2; simpl in *; intros; intuition.
+  induction ls1; destruct ls2; simpl in *; intros; try discriminate; intuition.
   f_equal; eauto.
 Qed.
 
 Lemma map_snd_combine A B (ls1 : list A) : forall (ls2 : list B), length ls1 = length ls2 -> List.map snd (combine ls1 ls2) = ls2.
-  induction ls1; destruct ls2; simpl in *; intros; intuition.
+  induction ls1; destruct ls2; simpl in *; intros; try discriminate; intuition.
   f_equal; eauto.
 Qed.
 
@@ -237,3 +245,6 @@ Proof.
   eauto.
 Qed.
 
+Lemma map_eq_length_eq : forall A B C (f1 : A -> B) ls1 (f2 : C -> B) ls2, map f1 ls1 = map f2 ls2 -> length ls1 = length ls2.
+  intros; assert (length (map f1 ls1) = length (map f2 ls2)) by congruence; repeat rewrite map_length in *; eauto.
+Qed.

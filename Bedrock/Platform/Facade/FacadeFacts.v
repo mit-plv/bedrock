@@ -288,7 +288,7 @@ Section ADTValue.
       unfold not_reachable; intros Hni.
       intros i Hk.
       contradict Hni.
-      eapply Locals.nth_error_In; eauto.
+      eapply nth_error_In; eauto.
     Qed.
     solve [eapply not_in_not_reachable; eauto].
     eauto.
@@ -415,7 +415,7 @@ Section ADTValue.
     destruct (string_dec k k') as [Heq | Hne].
     subst.
     contradict H2.
-    solve [eapply Locals.nth_error_In; eauto].
+    solve [eapply nth_error_In; eauto].
     rewrite StringMapFacts.add_neq_o in * by eauto.
     eapply IHks; eauto.
   Qed.      
@@ -602,7 +602,7 @@ Section ADTValue.
     unfold not_mapsto_adt_types in *.
     intros i Hnth Hex.
     contradict Hnin.
-    eapply Locals.nth_error_In; eauto.
+    eapply nth_error_In; eauto.
   Qed.
 
   Lemma not_mapsto_adt_types_cons_neq_elim ks types k k' type : not_mapsto_adt_types k (k' :: ks) (type :: types) -> k <> k' -> not_mapsto_adt_types k ks types.

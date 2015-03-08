@@ -24,6 +24,3 @@ Lemma length_upd_sublist : forall a n b, length (upd_sublist a n b) = length a.
   auto using length_upd_sublist'.
 Qed.
 
-Lemma map_eq_length_eq : forall A B C (f1 : A -> B) ls1 (f2 : C -> B) ls2, map f1 ls1 = map f2 ls2 -> length ls1 = length ls2.
-  intros; assert (length (map f1 ls1) = length (map f2 ls2)) by congruence; repeat rewrite map_length in *; eauto.
-Qed.

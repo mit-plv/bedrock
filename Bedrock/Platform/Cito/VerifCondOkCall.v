@@ -49,6 +49,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Bedrock.Platform.Cito.SemanticsFacts.
     Require Import Bedrock.Platform.Cito.SynReqFacts.
+    Require Import Bedrock.Platform.Cito.ListFacts4.
     Require Import Bedrock.Platform.Cito.ListFacts5.
     Require Import Bedrock.StringSet.
     Import StringSet.

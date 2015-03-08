@@ -47,7 +47,7 @@ Proof.
   - eauto.
   - eapply union_iff in Hin; openhyp; eauto.
     eapply singleton_iff in H; subst.
-    intuition.
+    discriminate.
   - eauto.
 Qed.
 
