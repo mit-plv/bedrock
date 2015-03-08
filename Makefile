@@ -38,8 +38,6 @@ not-containing = $(foreach v,$2,$(if $(findstring $1,$v),,$v))
 
 HASNATDYNLINK = true
 
-.DEFAULT_GOAL := examples
-
 .PHONY: examples platform cito facade facade-all src src-test reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
 	selective-install selective-build \
@@ -54,6 +52,8 @@ Makefile.coq: Makefile _CoqProject
 	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(FAST_TARGETS),$$(MAKECMDGOALS)),)~\1~else~ifeq ($$(MAKECMDGOALS),)~\1~endif~endif/g' | tr '~' '\n' | sed s'/^clean:$$/clean-old::/g' | sed s'/^Makefile: /Makefile-old: /g' > $@
 
 -include Makefile.coq
+
+.DEFAULT_GOAL := examples
 
 # overwrite OCAMLC, OCAMLOPT, OCAMLDEP to make `make` quieter
 OCAMLC_OLD := $(OCAMLC)
