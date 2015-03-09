@@ -35,7 +35,7 @@ Section ADTValue.
     destruct x; simpl in *.
     destruct v; auto.
     erewrite <- find_m; eauto.
-  Qed.    
+  Qed.
 
   Hint Constructors Semantics.RunsTo.
 
@@ -277,10 +277,10 @@ Section ADTValue.
   Import WordMap.
   Require Import Bedrock.Platform.Cito.WordMapFacts.
 
-  Lemma heap_merge_store_out : 
-    forall h pairs outs, 
-      good_inputs h pairs -> 
-      let h1 := make_heap pairs in 
+  Lemma heap_merge_store_out :
+    forall h pairs outs,
+      good_inputs h pairs ->
+      let h1 := make_heap pairs in
       let triples := make_triples pairs outs in
       WordMap.Equal (update (diff h h1) (fold_left store_out triples h1))
       (fold_left store_out triples h).
@@ -428,7 +428,7 @@ Section ADTValue.
       simpl in *.
       eauto.
     Qed.
-      
+
     apply get_pair'; auto.
     destruct H; auto.
     apply WordMap.mem_2 in H1.
@@ -584,7 +584,7 @@ Section ADTValue.
     destruct b; auto.
     apply add_mapsto_iff in H0; intuition subst; auto.
   Qed.
-  
+
   Lemma store_keys'' : forall k v pairs h,
     WordMap.MapsTo k v h
     -> ~ List.In k (List.map fst (List.filter (fun p => is_adt (snd p)) pairs))
@@ -603,7 +603,7 @@ Section ADTValue.
     List.In (k, ADT v) pairs
     -> NoDup (List.map fst (List.filter (fun p => is_adt (snd p)) pairs))
     -> WordMap.MapsTo k v (fold_left store_pair pairs h).
-    induction pairs; simpl; intuition (try discriminate; eauto); destruct b; intuition (try discriminate; eauto); 
+    induction pairs; simpl; intuition (try discriminate; eauto); destruct b; intuition (try discriminate; eauto);
       unfold is_adt in *; simpl in *.
 
     injection H1; clear H1; intros; subst.

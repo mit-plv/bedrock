@@ -9,7 +9,7 @@ Section TopSection.
   Variable ADTValue : Type.
 
   Variable modules : list GoodModule.
-  
+
   Require Import Bedrock.Platform.Cito.Semantics.
   Require Import Bedrock.Platform.Cito.AxSpec.
 
@@ -32,7 +32,7 @@ Section TopSection.
        spec = Internal ispec /\
        List.In m modules /\
        List.In f (Functions m) /\
-       ispec = f /\ 
+       ispec = f /\
        lbl = (MName m, FName f)) \/
     (exists fspec,
        spec = Foreign fspec /\
@@ -46,29 +46,29 @@ Section TopSection.
   Notation Callee := (@Callee ADTValue).
 
   Definition fs_good_to_use (fs : settings -> W -> option Callee) (stn : settings) :=
-    forall p spec, 
-      fs stn p = Some spec <-> 
+    forall p spec,
+      fs stn p = Some spec <->
       exists lbl : glabel,
         Labels stn lbl = Some p /\
         label_mapsto lbl spec.
 
   Definition glabel2w (stn : settings) (lbl : glabel) : option W := Labels stn lbl.
-  
+
   Definition env_good_to_use stn fs :=
     stn_good_to_use stn /\
     stn_injective label_in (glabel2w stn) /\
     fs_good_to_use fs stn.
 
   Definition func_export_IFS m (f : GoodFunction) := ((MName m, FName f), f : InternalFuncSpec).
-  
-  Definition module_exports_IFS m := 
+
+  Definition module_exports_IFS m :=
     List.map (func_export_IFS m) (Functions m).
 
   Require Import Bedrock.Platform.Cito.ListFacts1.
 
   Definition exports_IFS :=
     to_map
-      (app_all 
+      (app_all
          (List.map module_exports_IFS modules)).
 
   Section fs.
@@ -82,7 +82,7 @@ Section TopSection.
     Definition fs (p : W) : option Callee :=
       match is_export p with
         | Some spec => Some (Internal spec)
-        | None => 
+        | None =>
           match is_import p with
             | Some spec => Some (Foreign spec)
             | None => None
@@ -119,12 +119,12 @@ Module Make (Import E : ADT).
       Variable imps : t ForeignFuncSpec.
 
       Notation fs := (fs modules imps).
-      
+
       (* the exported Bedrock spec format *)
       Definition func_spec (id : glabel) f : assert := (st ~> name_marker id /\ [| env_good_to_use modules imps (fst st) fs |] ---> spec_without_funcs_ok f fs st)%PropX.
 
       (* the imported Bedrock spec format *)
-      Definition foreign_func_spec id spec : assert := 
+      Definition foreign_func_spec id spec : assert :=
         st ~> name_marker id /\ ExX, foreign_spec _ spec st.
 
       (* the imported Bedrock specs *)

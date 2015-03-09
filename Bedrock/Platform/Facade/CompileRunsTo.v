@@ -45,15 +45,15 @@ Section ADTValue.
   Notation CitoInternal := (@Semantics.Internal ADTValue).
   Notation CitoRunsTo := (@Semantics.RunsTo ADTValue).
 
-  Definition related (s_st : State) (t_st : CitoState) := 
-    (forall x v, 
+  Definition related (s_st : State) (t_st : CitoState) :=
+    (forall x v,
        find x s_st = Some v -> let p := Locals.sel (fst t_st) x in represent p (WordMap.find p (snd t_st)) v) /\
     (forall p a,
        WordMap.find p (snd t_st) = Some a ->
        exists! x,
          Locals.sel (fst t_st)  x = p /\
          find x s_st = Some (ADT a)).
-                
+
   Definition CitoEnv := ((glabel -> option W) * (W -> option CitoCallee))%type.
 
   Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3 Bedrock.Platform.Cito.ListFacts5.
@@ -112,7 +112,7 @@ Section ADTValue.
     destruct s.
     rewrite e in *; discriminate.
     rewrite e in *; discriminate.
-    
+
     unfold eval_binop_m in *.
     destruct (option_value_dec (eval s_st e1)).
     destruct s.
@@ -193,7 +193,7 @@ Section ADTValue.
 
   Ltac subst' H := rewrite H in *; clear H.
 
-  Ltac openhyp' := 
+  Ltac openhyp' :=
     repeat match goal with
              | H : _ /\ _ |- _  => destruct H
              | H : _ \/ _ |- _ => destruct H
@@ -227,34 +227,34 @@ Section ADTValue.
 
   s_st ------- s_env, s --------> exists s_st'
  (Safe)
-   ||             |                  ||          
+   ||             |                  ||
    ||          compile               ||
    ||             |                  ||
    ||             v                  ||
 
-  t_st ------ t_env, t -------->    t_st' 
+  t_st ------ t_env, t -------->    t_st'
 
 *)
 
-  Theorem compile_runsto : 
-    forall t t_env t_st t_st', 
-      CitoRunsTo t_env t t_st t_st' -> 
-      forall s, 
-        t = compile s -> 
+  Theorem compile_runsto :
+    forall t t_env t_st t_st',
+      CitoRunsTo t_env t t_st t_st' ->
+      forall s,
+        t = compile s ->
         (* h1 : the heap portion that this program is allowed to change *)
-        forall h1, 
-          h1 <= snd t_st -> 
-          forall s_st, 
-            related s_st (fst t_st, h1) -> 
-            forall s_env, 
-              cenv_impls_env t_env s_env -> 
-              Safe s_env s s_st -> 
-              exists s_st', 
-                RunsTo s_env s s_st s_st' /\ 
+        forall h1,
+          h1 <= snd t_st ->
+          forall s_st,
+            related s_st (fst t_st, h1) ->
+            forall s_env,
+              cenv_impls_env t_env s_env ->
+              Safe s_env s s_st ->
+              exists s_st',
+                RunsTo s_env s s_st s_st' /\
                 (* h2 : the frame heap (the outside portion that won't be touched by this program *)
-                let h2 := snd t_st - h1 in 
+                let h2 := snd t_st - h1 in
                 (* the frame heap will be intacked in the final state *)
-                h2 <= snd t_st' /\ 
+                h2 <= snd t_st' /\
                 (* variables not appearing as LHS won't change value in Cito state *)
                 (forall x, ~ StringSet.In x (assigned s) -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
                 (* newly allocated ADT objects during this program's execution won't collide with the frame heap *)
@@ -294,7 +294,7 @@ Section ADTValue.
         replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
         rewrite e0 in *.
         discriminate.
-      }      
+      }
       unfold_all.
       replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
       rewrite e0 in *.
@@ -328,12 +328,12 @@ Section ADTValue.
       Require Import Coq.Lists.List.
       Require Import Bedrock.Platform.Cito.ListFacts4.
       Import WordMap.
-      
+
       Require Import Bedrock.Platform.Cito.SemanticsFacts8.
 
       Lemma related_no_aliasM st args input vs h :
-        mapM (sel st) args = Some input -> 
-        related st (vs, h) -> 
+        mapM (sel st) args = Some input ->
+        related st (vs, h) ->
         NoDup args ->
         no_aliasM vs args input.
       Proof.
@@ -372,9 +372,9 @@ Section ADTValue.
           | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
         end.
 
-      Lemma change_var_names vs1 vs2 h vars1 vars2 input : 
-        related (StringMapFacts.make_map vars1 input) (vs1, h) -> 
-        List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1 -> 
+      Lemma change_var_names vs1 vs2 h vars1 vars2 input :
+        related (StringMapFacts.make_map vars1 input) (vs1, h) ->
+        List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1 ->
         NoDup vars1 ->
         NoDup vars2 ->
         length vars1 = length input ->
@@ -431,11 +431,11 @@ Section ADTValue.
         rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
       Qed.
 
-      Lemma reachable_submap_related st args input vs h : 
-        mapM (sel st) args = Some input -> 
-        related st (vs, h) -> 
+      Lemma reachable_submap_related st args input vs h :
+        mapM (sel st) args = Some input ->
+        related st (vs, h) ->
         NoDup args ->
-        reachable_heap vs args input <= h /\ 
+        reachable_heap vs args input <= h /\
         related (StringMapFacts.make_map args input) (vs, reachable_heap vs args input).
       Proof.
         intros Hmm Hr Hdn.
@@ -452,7 +452,7 @@ Section ADTValue.
         solve [eauto].
         solve [eapply mapM_length; eauto].
         solve [eapply related_no_aliasM; eauto].
-        
+
         split; simpl.
         intros k v Hfk.
         eapply find_Some_make_map_iff in Hfk; eauto.
@@ -557,7 +557,7 @@ Section ADTValue.
         solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
         solve [intuition].
       }
-      
+
       copy H4; eapply reachable_submap_related in H4; openhyp; eauto.
       destruct v as [vs h]; simpl in *.
       set (h2 := h - h1) in *.
@@ -810,10 +810,10 @@ Section ADTValue.
         split.
         eauto.
         Lemma not_reachable_add_remove_many k ks ins outs h :
-          NoDup ks -> 
-          length ks = length ins -> 
-          length ks = length outs -> 
-          not_reachable (ADTValue := ADTValue) k ks ins -> 
+          NoDup ks ->
+          length ks = length ins ->
+          length ks = length outs ->
+          not_reachable (ADTValue := ADTValue) k ks ins ->
           StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
         Proof.
           intros Hnd Hlki Hlko Hnr.
@@ -841,7 +841,7 @@ Section ADTValue.
         solve [eapply find_Some_in; eauto].
         solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
       }
-      
+
       (* p is in h3' *)
       unfold_related H13.
       copy_as H20 Hf; eapply H27 in H20.
@@ -1048,7 +1048,7 @@ Section ADTValue.
       replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
       rewrite e0 in *.
       discriminate.
-      
+
       unfold_all.
       replace f_w with (SemanticsExpr.eval (fst v) e) in * by  (eapply eval_ceval; eauto).
       rewrite e0 in *.
@@ -1066,7 +1066,7 @@ Section ADTValue.
       set (words_cinput := List.map (fun x => (Semantics.Word x, Semantics.ADTIn x)) triples) in *.
       assert (input = cinput).
       {
-        Lemma good_input_mapM args : 
+        Lemma good_input_mapM args :
           forall words cinput input h h2 st vs,
             Forall (word_adt_match h) (combine words cinput) ->
             length words = length cinput ->
@@ -1171,10 +1171,10 @@ Section ADTValue.
           eapply nth_error_map_elim in Haj; eauto.
           destruct Haj as [xj [Haj ?]]; subst.
           copy_as Hai Hai'; eapply mapM_nth_error_1 in Hai'; eauto.
-          destruct Hai' as [vi [Hii' Hvi]]. 
+          destruct Hai' as [vi [Hii' Hvi]].
           unif vi; simpl in *.
           copy_as Haj Haj'; eapply mapM_nth_error_1 in Haj'; eauto.
-          destruct Haj' as [vj [Hij' Hvj]]. 
+          destruct Haj' as [vj [Hij' Hvj]].
           unif vj; simpl in *.
           assert (xi = xj) by (eapply related_no_alias; eauto).
           subst; eapply NoDup_nth_error in Hnd; eauto.
@@ -1210,9 +1210,9 @@ Section ADTValue.
         split.
         {
           Lemma not_in_not_reachable_p st vs h args words cinput p :
-            related st (vs, h) -> 
-            List.map (fun x => vs x) args = words -> 
-            mapM (sel st) args = Some cinput -> 
+            related st (vs, h) ->
+            List.map (fun x => vs x) args = words ->
+            mapM (sel st) args = Some cinput ->
             ~ In p h ->
             not_reachable_p p (combine words cinput).
           Proof.
@@ -1295,9 +1295,9 @@ Section ADTValue.
       }
 
       Lemma not_reachable_p_not_reachable (st : Facade.State ADTValue) vs args words cinput x :
-        List.map (fun x => vs x) args = words -> 
-        mapM (sel st) args = Some cinput -> 
-        not_reachable_p (vs x) (combine words cinput) -> 
+        List.map (fun x => vs x) args = words ->
+        mapM (sel st) args = Some cinput ->
+        not_reachable_p (vs x) (combine words cinput) ->
         not_reachable x args cinput.
       Proof.
         intros Hm Hmm.
@@ -1315,10 +1315,10 @@ Section ADTValue.
       Qed.
 
       Lemma not_reachable_not_reachable_p st vs h args words cinput x a :
-        related st (vs, h) -> 
+        related st (vs, h) ->
         NoDup args ->
-        List.map (fun x => vs x) args = words -> 
-        mapM (sel st) args = Some cinput -> 
+        List.map (fun x => vs x) args = words ->
+        mapM (sel st) args = Some cinput ->
         StringMap.find x st = Some (ADT a) ->
         not_reachable x args cinput ->
         not_reachable_p (vs x) (combine words cinput).
@@ -1346,8 +1346,8 @@ Section ADTValue.
         simpl in *; discriminate.
       Qed.
 
-      Lemma add_remove_many_fold_store_out_iff : 
-        forall st vs h2 args triples words cinput coutput input h h' p a, 
+      Lemma add_remove_many_fold_store_out_iff :
+        forall st vs h2 args triples words cinput coutput input h h' p a,
           related st (vs, h2) ->
           NoDup args ->
           words = List.map (@Word _) triples ->
@@ -1370,7 +1370,7 @@ Section ADTValue.
         assert (Hsm1 : h1 <= h) by eapply diff_submap.
         assert (Hd : Disjoint h1 h2) by eapply diff_disjoint.
         assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
-        
+
         rewrite He.
         erewrite (@split_triples' _ triples) by eauto.
         split; intro Hf.
@@ -1501,8 +1501,8 @@ Section ADTValue.
 
       Qed.
 
-      Lemma add_remove_many_fold_store_out : 
-        forall st vs h2 args triples words cinput coutput input h h' x p a, 
+      Lemma add_remove_many_fold_store_out :
+        forall st vs h2 args triples words cinput coutput input h h' x p a,
           related st (vs, h2) ->
           NoDup args ->
           words = List.map (@Word _) triples ->
@@ -1935,7 +1935,7 @@ Section ADTValue.
       rewrite Locals.sel_upd_ne in * by eauto.
       eapply Hr in Hfx; simpl in *.
       solve [rewrite Hheq; eauto].
-      
+
       intros p a Hfp.
       rewrite Hheq in Hfp.
       eapply Hr in Hfp.

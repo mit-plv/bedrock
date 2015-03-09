@@ -34,7 +34,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.ListFacts3.
 
-  Hypothesis import_module_names_ok : 
+  Hypothesis import_module_names_ok :
     let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
     List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
 
@@ -193,7 +193,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.ListFacts4.
 
-  Lemma find_Funs_label_mapsto fname op_spec : 
+  Lemma find_Funs_label_mapsto fname op_spec :
     find fname (Funs m) = Some (op_spec) ->
     exists (ispec : InternalFuncSpec) (m0 : GoodModule) (f : GoodFunction),
       Internal op_spec = Internal ispec /\
@@ -249,7 +249,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.Option.
   Require Import Coq.Bool.Bool.
-  
+
   Lemma find_op_mod_name_imports_none fname : find (op_mod_name, fname) imports = None.
   Proof.
     simpl in *.
@@ -258,10 +258,10 @@ Section ADTValue.
     eapply forallb_forall with (x := op_mod_name) in Himn.
     {
       eapply negb_true_iff in Himn.
-      unfold string_bool in *. 
+      unfold string_bool in *.
       unfold sumbool_to_bool in *.
       destruct (string_dec op_mod_name op_mod_name); intuition.
-    }        
+    }
     eapply in_map_iff.
     exists (op_mod_name, fname, v); simpl; split; trivial.
     eapply find_in_elements; eauto.
@@ -376,9 +376,9 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.GLabelMap Bedrock.Platform.Cito.GLabelMapFacts.
   Import GLabelMap.GLabelMap GLabelMapFacts.FMapNotations.
 
-  Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
-    List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> 
-    env_good_to_use modules imports stn fs -> 
+  Lemma strengthen_elim_single stn fs fname op_spec ax_spec :
+    List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) ->
+    env_good_to_use modules imports stn fs ->
     strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
   Proof.
     intros Hin Hegu.
@@ -431,7 +431,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Section M.
 
     Variable m : CModule.
-    
+
     Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
 
     Variable imports : GLabelMap.t AxiomaticSpec.
@@ -450,7 +450,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Bedrock.Platform.Cito.ListFacts3.
 
-    Hypothesis import_module_names_ok : 
+    Hypothesis import_module_names_ok :
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
 
@@ -467,7 +467,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Bedrock.Platform.Cito.StringMapFacts.
 
-    Definition accessible_labels := 
+    Definition accessible_labels :=
       List.map (fun fname => (op_mod_name, fname)) (StringMapFacts.keys exports).
 
     Section Fun.
@@ -479,7 +479,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Variable f : CFun.
 
       Section body.
-        
+
         Require Import Bedrock.XCAP.
 
         Variable im : LabelMap.t assert.
@@ -490,7 +490,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         Definition tgt_spec := func_spec modules imports tgt_label f.
 
-        Definition body := 
+        Definition body :=
           @Seq_ _ im_g ax_mod_name
                 (AssertStar_ im ax_mod_name accessible_labels tgt_spec)
                 (Goto_ im_g ax_mod_name tgt_label).
@@ -506,7 +506,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import StringMap.
 
-    Definition tgt_spec_as_import {unused} (x : string * (CFun * unused)) : import := 
+    Definition tgt_spec_as_import {unused} (x : string * (CFun * unused)) : import :=
       let fname := fst x in
       let f := fst (snd x) in
       (tgt_label fname, tgt_spec fname f).
@@ -515,7 +515,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition bimports : list import := List.map tgt_spec_as_import (elements content).
 
-    Definition make_stub' x := 
+    Definition make_stub' x :=
       let name := fst x in
       let op := fst (snd x) in
       let ax := snd (snd x) in
@@ -558,7 +558,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Proof.
       Require Import Coq.Bool.Bool.
       eapply negb_true_iff in name_neq.
-      unfold string_bool in *. 
+      unfold string_bool in *.
       unfold sumbool_to_bool in *.
       destruct (string_dec ax_mod_name op_mod_name); intuition.
     Qed.
@@ -644,7 +644,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.SemanticsFacts9.
 
     Arguments store_pair {_} _ _.
-    
+
     Require Import Coq.Setoids.Setoid.
 
     Require Import Bedrock.Platform.Cito.WordMap Bedrock.Platform.Cito.WordMapFacts.
@@ -674,7 +674,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.ListFacts5.
     Require Import Bedrock.Platform.Cito.GeneralTactics5.
 
-    Lemma TransitSafe_intro fun_name op_spec ax_spec pairs : 
+    Lemma TransitSafe_intro fun_name op_spec ax_spec pairs :
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
@@ -698,15 +698,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation specs := (specs m imports exports op_mod_name).
 
     (* shadow the previous version that requires too many premises *)
-    Lemma strengthen_elim_single stn fs fname op_spec ax_spec : 
-      List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) -> 
-      env_good_to_use modules imports stn fs -> 
+    Lemma strengthen_elim_single stn fs fname op_spec ax_spec :
+      List.In (fname, (op_spec, ax_spec)) (StringMap.elements content) ->
+      env_good_to_use modules imports stn fs ->
       strengthen_op_ax op_spec ax_spec ((change_env specs (gl2w (Labels stn), fs stn))).
     Proof.
       intros; eapply strengthen_elim_single; eauto.
     Qed.
 
-    Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs outputs_gen ret_a_gen : 
+    Lemma safe_intro fun_name op_spec ax_spec stn fs vs_callee pairs outputs_gen ret_a_gen :
       List.In (fun_name, (op_spec, ax_spec)) (StringMap.elements content) ->
       env_good_to_use modules imports stn fs ->
       strengthen_op_ax' op_spec ax_spec (change_env specs (gl2w (Labels stn), fs stn)) outputs_gen ret_a_gen ->
@@ -718,7 +718,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Proof.
       intros Hin Hegu Hstr Hfst Hpre Hdisj Hgs.
       eapply strengthen_safe with (env_ax := change_env specs (from_bedrock_label_map (Labels stn), fs stn)).
-      { 
+      {
         eapply Hstr.
         simpl in *.
         rewrite Hfst.
@@ -729,7 +729,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen : 
+    Lemma runsto_TransitTo fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen :
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
       let ret_w := sel vs_callee' (RetVar op_spec) in
@@ -763,18 +763,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
       {
         eapply new_env_strengthen; eauto.
-      }                
+      }
       {
         eapply Hstr.
         simpl in *.
         rewrite Hfst in *.
         eapply TransitSafe_intro; eauto.
-      }                
+      }
     Qed.
 
     Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
 
-    Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen : 
+    Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen :
       let words := List.map fst pairs in
       let inputs := List.map snd pairs in
       let ret_w := sel vs_callee' (RetVar op_spec) in
@@ -883,7 +883,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
         }
         Ltac gd t := generalize dependent t.
-        
+
         gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
         gd Hstr; gd Hogok.
         clear Hewi.
@@ -997,7 +997,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               unfold TransitTo in *; openhyp.
               rewrite combine_fst_snd in *.
               eauto.
-            }                
+            }
             set (args' := List.map vs_callee'' avars).
             assert (Hargs' : args' = toArray avars vs_callee'').
             {

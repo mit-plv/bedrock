@@ -22,7 +22,7 @@ Section TopSection.
   (* post_cond arg1 arg2 ret *)
   Variable post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop.
 
-  Record CompileUnit := 
+  Record CompileUnit :=
     {
       (* the DFacade program *)
       prog : Stmt;
@@ -36,16 +36,16 @@ Section TopSection.
         forallb (fun x => negb (string_bool module_name x)) imported_module_names &&
         forallb Cito.NameDecoration.is_good_module_name imported_module_names = true;
       (* correctness conditions *)
-      pre_safe : 
-        forall st value1 value2, 
-          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
-          pre_cond value1 value2 -> 
+      pre_safe :
+        forall st value1 value2,
+          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) ->
+          pre_cond value1 value2 ->
           DFacade.Safe (GLabelMap.map (@Axiomatic _) imports) prog st;
-      pre_runsto_post : 
-        forall st st' value1 value2, 
-          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) -> 
-          pre_cond value1 value2 -> 
-          DFacade.RunsTo (GLabelMap.map (@Axiomatic _) imports) prog st st' -> 
+      pre_runsto_post :
+        forall st st' value1 value2,
+          StringMap.Equal st (StringMapFacts.make_map (argvar1 :: argvar2 :: nil) (value1 :: value2 :: nil)) ->
+          pre_cond value1 value2 ->
+          DFacade.RunsTo (GLabelMap.map (@Axiomatic _) imports) prog st st' ->
           exists ret, StringMapFacts.Submap (StringMapFacts.make_map (retvar :: nil) (ret :: nil)) st' /\ (forall x, x <> retvar -> not_mapsto_adt x st' = true) /\ post_cond value1 value2 ret
     }.
 

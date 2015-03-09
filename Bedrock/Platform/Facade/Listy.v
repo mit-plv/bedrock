@@ -1,10 +1,10 @@
 Set Implicit Arguments.
 
 (* a typeclass to share notation {a ; b ; ...} *)
-Class Listy e t := 
+Class Listy e t :=
   {
     Nil : t;
-    Cons : e -> t -> t 
+    Cons : e -> t -> t
   }.
 
 Module Notations.
@@ -25,7 +25,7 @@ Module Instances.
 
   Require Import Coq.Lists.List.
 
-  Instance list_Listy e : Listy e (list e) := 
+  Instance list_Listy e : Listy e (list e) :=
     {
       Nil := nil;
       Cons := @cons _

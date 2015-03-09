@@ -136,9 +136,9 @@ Section ADTValue.
     forall s_env s s_st,
       Safe s_env s s_st ->
       (* h1 : the heap portion that this program is allowed to change *)
-      forall vs h h1, 
-        h1 <= h -> 
-        related s_st (vs, h1) -> 
+      forall vs h h1,
+        h1 <= h ->
+        related s_st (vs, h1) ->
         forall t_env,
           cenv_impls_env t_env s_env ->
           let t := compile s in
@@ -147,8 +147,8 @@ Section ADTValue.
   Proof.
     simpl; intros.
     rename H2 into Henv.
-    eapply 
-      (Semantics.Safe_coind 
+    eapply
+      (Semantics.Safe_coind
          (fun t v =>
             exists s s_st h1,
               let vs := fst v in
@@ -309,7 +309,7 @@ Section ADTValue.
           - eauto.
         }
       }
-    }      
+    }
 
     (* label *)
     {

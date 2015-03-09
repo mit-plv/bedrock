@@ -28,11 +28,11 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.GeneralTactics.
   Require Import Bedrock.Platform.Cito.ListFacts4.
 
-  Lemma fold_bwd p a triples : 
+  Lemma fold_bwd p a triples :
     forall h,
       let words_cinput := List.map (fun x => (Word x, ADTIn x)) triples in
-      no_alias words_cinput -> 
-      ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
+      no_alias words_cinput ->
+      ((not_reachable_p p words_cinput /\ find p h = Some a) \/
        exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}) ->
       find p (List.fold_left store_out triples h) = Some a.
   Proof.
@@ -111,12 +111,12 @@ Section ADTValue.
     eauto.
   Qed.
 
-  Lemma fold_fwd : 
+  Lemma fold_fwd :
     forall k (v : ADTValue) ls h,
-      WordMap.MapsTo k v (fold_left store_out ls h) -> 
-      (WordMap.MapsTo k v h /\ 
-       forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls) 
-      \/ exists a, 
+      WordMap.MapsTo k v (fold_left store_out ls h) ->
+      (WordMap.MapsTo k v h /\
+       forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls)
+      \/ exists a,
            List.In {| Word := k; ADTIn := ADT a; ADTOut := Some v |} ls.
   Proof.
     induction ls; simpl; intuition.
@@ -146,8 +146,8 @@ Section ADTValue.
   Lemma fold_store_out_elim p a triples words_cinput coutput h :
     words_cinput = List.map (fun x => (Word x, ADTIn x)) triples ->
     coutput = List.map ADTOut triples ->
-    find p (List.fold_left store_out triples h) = Some a -> 
-    (not_reachable_p p words_cinput /\ find p h = Some a) \/ 
+    find p (List.fold_left store_out triples h) = Some a ->
+    (not_reachable_p p words_cinput /\ find p h = Some a) \/
     exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}.
   Proof.
     intros Hwid Hod Hf.
@@ -178,8 +178,8 @@ Section ADTValue.
   Lemma fold_store_out_intro p a triples words_cinput coutput h :
     words_cinput = List.map (fun x => (Word x, ADTIn x)) triples ->
     coutput = List.map ADTOut triples ->
-    no_alias words_cinput -> 
-    ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
+    no_alias words_cinput ->
+    ((not_reachable_p p words_cinput /\ find p h = Some a) \/
      exists i input, nth_error triples i = Some {| Word := p; ADTIn := ADT input; ADTOut := Some a |}) ->
     find p (List.fold_left store_out triples h) = Some a.
   Proof.
@@ -187,11 +187,11 @@ Section ADTValue.
   Qed.
 
   Lemma find_Some_fold_store_out p a words_cinput coutput h :
-    no_alias words_cinput -> 
+    no_alias words_cinput ->
     length words_cinput = length coutput ->
-    (find p (List.fold_left store_out (make_triples words_cinput coutput) h) = Some a <-> 
-     ((not_reachable_p p words_cinput /\ find p h = Some a) \/ 
-      exists i input, 
+    (find p (List.fold_left store_out (make_triples words_cinput coutput) h) = Some a <->
+     ((not_reachable_p p words_cinput /\ find p h = Some a) \/
+      exists i input,
         nth_error words_cinput i = Some (p, ADT input) /\
         nth_error coutput i = Some (Some a))).
   Proof.

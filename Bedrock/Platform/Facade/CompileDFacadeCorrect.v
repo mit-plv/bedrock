@@ -35,8 +35,8 @@ Fixpoint compile (s : Stmt) : Facade.Stmt :=
     | If e t f => Facade.If e (compile t) (compile f)
     | While e c => Facade.While e (compile c)
     | Assign x e => Facade.Assign x e
-    | Call x f args => 
-      Facade.Seq 
+    | Call x f args =>
+      Facade.Seq
         (Facade.Label fun_ptr_varname f)
         (Facade.Call x (Var fun_ptr_varname) args)
   end.
@@ -122,7 +122,7 @@ Section ADTValue.
       exists w,
         Label2Word fenv lbl = Some w /\
         Word2Spec fenv w = Some (compile_spec spec).
-    
+
   Require Import Coq.Lists.List.
   Require Import Bedrock.Platform.Cito.ListFacts3.
   Require Import Bedrock.Platform.Cito.ListFacts4.
@@ -221,7 +221,7 @@ Section ADTValue.
         eauto.
     Qed.
 
-    Global Add Morphism equiv 
+    Global Add Morphism equiv
         with signature Equal ==> Equal ==> iff as Equal_equiv_m.
     Proof.
       intros; eapply Equal_equiv; eauto.
@@ -433,7 +433,7 @@ Section ADTValue.
     Qed.
 
   End good_varname_x.
-    
+
   Lemma mapM_find_equiv st1 st2 ls : st1 === st2 -> List.forallb is_good_varname ls = true -> mapM (sel st1) ls = mapM (sel st2) ls.
   Proof.
     induction ls; simpl; intros Heqv Hgn.
@@ -541,14 +541,14 @@ Section ADTValue.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
   Theorem compile_runsto' t t_env t_st t_st' :
-    FRunsTo t_env t t_st t_st' -> 
-    forall s_env, 
-      fenv_impls_env t_env s_env -> 
-      (forall s, 
-         t = compile s -> 
-         is_syntax_ok s = true -> 
+    FRunsTo t_env t t_st t_st' ->
+    forall s_env,
+      fenv_impls_env t_env s_env ->
+      (forall s,
+         t = compile s ->
+         is_syntax_ok s = true ->
          forall s_st,
-           Safe s_env s s_st -> 
+           Safe s_env s s_st ->
            s_st === t_st ->
            exists s_st',
              RunsTo s_env s s_st s_st' /\
@@ -559,7 +559,7 @@ Section ADTValue.
          Word2Spec t_env f_w = Some (Facade.Operational (compile_op spec)) ->
          mapM (sel t_st) args = Some input ->
          let body := Body spec in
-         let avars := ArgVars spec in 
+         let avars := ArgVars spec in
          let retvar := RetVar spec in
          let callee_st := make_map avars input in
          Safe s_env body callee_st ->
@@ -715,7 +715,7 @@ Section ADTValue.
             rewrite Hst'2.
             rewrite add_eq_o by eauto.
             eauto.
-          }          
+          }
           destruct Hscst' as [Hrtbs [Hmcst [Hcstr Hnadts]]].
           exists (add x ret (add_remove_many args input (List.map (sel s_callee_st') ArgVars) s_st)).
           split.
@@ -848,7 +848,7 @@ Section ADTValue.
         eauto.
       }
       {
-        unfold sel in *. 
+        unfold sel in *.
         rewrite (find_equiv s_callee_st' callee_st') by eauto.
         rewrite Hret.
         rewrite Hret'.
@@ -863,14 +863,14 @@ Section ADTValue.
   Qed.
 
   Theorem compile_runsto t t_env t_st t_st' :
-    FRunsTo t_env t t_st t_st' -> 
-    forall s_env, 
-      fenv_impls_env t_env s_env -> 
-      (forall s, 
-         t = compile s -> 
-         is_syntax_ok s = true -> 
+    FRunsTo t_env t t_st t_st' ->
+    forall s_env,
+      fenv_impls_env t_env s_env ->
+      (forall s,
+         t = compile s ->
+         is_syntax_ok s = true ->
          forall s_st,
-           Safe s_env s s_st -> 
+           Safe s_env s s_st ->
            s_st === t_st ->
            exists s_st',
              RunsTo s_env s s_st s_st' /\
@@ -883,7 +883,7 @@ Section ADTValue.
 
   Theorem compile_safe s_env s s_st :
     Safe s_env s s_st ->
-    is_syntax_ok s = true -> 
+    is_syntax_ok s = true ->
     forall t_env t_st,
       fenv_impls_env t_env s_env ->
       s_st === t_st ->
@@ -891,18 +891,18 @@ Section ADTValue.
       FSafe t_env t t_st.
   Proof.
     simpl; intros Hsfs Hsyn t_env t_st Henv Heqv.
-    eapply 
-      (Safe_coind 
+    eapply
+      (Safe_coind
          (fun t t_st =>
             exists s s_st,
               Safe s_env s s_st /\
               is_syntax_ok s = true /\
               s_st === t_st /\
-              (t = compile s \/ 
-               exists x lbl args, 
+              (t = compile s \/
+               exists x lbl args,
                  s = Call x lbl args /\
                  (t = Facade.Label fun_ptr_varname lbl \/
-                  (t = Facade.Call x (Var fun_ptr_varname) args /\ 
+                  (t = Facade.Call x (Var fun_ptr_varname) args /\
                    exists f_w, Label2Word t_env lbl = Some f_w /\ find fun_ptr_varname t_st = Some (SCA f_w)))))
       ); [ .. | solve [repeat try_eexists; simpl in *; intuition eauto] ]; generalize Henv; clear; simpl; intros Henv; intros until st; rename st into t_st; intros [s [s_st [Hsfs [Hsyn [Heqv Ht]]]]]; destruct s; simpl in *; destruct Ht as [Ht | [x' [lbl' [arg' [Hs [Ht | [Ht [f_w' [Hlblfw' Hfpvfw']]]]]]]]]; try discriminate; inject Ht.
 
@@ -1051,7 +1051,7 @@ Section ADTValue.
           copy_as Hst' Hst'2.
           eapply equiv_intro in Hst'; eauto.
           etransitivity; eauto; symmetry; eauto.
-        }          
+        }
         right.
         exists x, f, args.
         repeat try_split; eauto.
@@ -1091,7 +1091,7 @@ Section ADTValue.
           copy_as Hst' Hst'2.
           eapply equiv_intro in Hst'; eauto.
           etransitivity; eauto; symmetry; eauto.
-        }          
+        }
         right.
         exists x, f, args.
         repeat try_split; eauto.

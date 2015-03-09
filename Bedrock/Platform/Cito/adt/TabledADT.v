@@ -34,7 +34,7 @@ Definition product_adt (a b : ADTEntry) : ADTEntry.
         RepInv := fun p adt => (Ex x, Ex y, (p ==*> x, y) * RepInv a x (fst adt) * RepInv b y (snd adt))%Sep;
         RepInvGood := _
       |}).
-  
+
   intros.
   destruct a0; simpl in *.
   unfold any.
@@ -44,7 +44,7 @@ Definition product_adt (a b : ADTEntry) : ADTEntry.
   step auto_ext.
   eauto.
 Defined.
-  
+
 Section TableSection.
 
   Variable primitive_table : PrimitiveTable.

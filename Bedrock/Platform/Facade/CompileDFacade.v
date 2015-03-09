@@ -32,8 +32,8 @@ Fixpoint compile (s : Stmt) : Facade.Stmt :=
     | If e t f => Facade.If e (compile t) (compile f)
     | While e c => Facade.While e (compile c)
     | Assign x e => Facade.Assign x e
-    | Call x f args => 
-      Facade.Seq 
+    | Call x f args =>
+      Facade.Seq
         (Facade.Label fun_ptr_varname f)
         (Facade.Call x (Var fun_ptr_varname) args)
   end.

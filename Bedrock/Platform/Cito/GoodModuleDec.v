@@ -11,7 +11,7 @@ Definition is_good_size (n : nat) :=
   match N.of_nat n ?= Npow2 32 with
     | Datatypes.Lt => true
     | _ => false
-  end. 
+  end.
 
 Require Import Bedrock.Platform.Cito.SyntaxModule.
 
@@ -32,8 +32,8 @@ Require Import Bedrock.Platform.Cito.ListFacts3.
 Require Import Bedrock.Platform.Cito.NoUninitDec.
 Require Import Bedrock.Platform.Cito.Depth.
 
-Definition is_good_func f := 
-  let body := Body f in 
+Definition is_good_func f :=
+  let body := Body f in
   let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
   let all_vars := ArgVars f ++ local_vars in
   is_no_dup (ArgVars f) &&

@@ -1206,7 +1206,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       destruct Hf12 as [Hfd | Hf1].
       eauto.
       contradict Hni1; eapply find_Some_in; eauto.
-      
+
       intros Hor.
       eapply diff_find_Some_iff.
       rewrite Heq2 in Hor.
@@ -1252,7 +1252,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Fixpoint make_mapM {elt} keys values :=
       match keys, values with
-        | k :: keys', v :: values' => 
+        | k :: keys', v :: values' =>
           match v with
             | Some a => add k a (make_mapM keys' values')
             | None => make_mapM keys' values'
@@ -1522,7 +1522,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       Proof.
         intros H1 H2.
         unfold EqualOn in *; intros.
-        etransitivity. 
+        etransitivity.
         - eapply H1; eauto.
         - eauto.
       Qed.

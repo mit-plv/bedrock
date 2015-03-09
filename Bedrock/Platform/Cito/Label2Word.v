@@ -8,18 +8,18 @@ Section stn.
   Variable Domain : glabel -> Prop.
 
   Variable l2w : glabel -> option W.
-  
+
   Definition stn_injective :=
-    forall lbl1 lbl2 p, 
-      Domain lbl1 -> 
-      Domain lbl2 -> 
-      l2w lbl1 = Some p -> 
-      l2w lbl2 = Some p -> 
+    forall lbl1 lbl2 p,
+      Domain lbl1 ->
+      Domain lbl2 ->
+      l2w lbl1 = Some p ->
+      l2w lbl2 = Some p ->
       lbl1 = lbl2.
 
   Definition is_label_map_to_word lbl p :=
     match l2w lbl with
-      | Some p' => 
+      | Some p' =>
         if weq p p' then
           true
         else

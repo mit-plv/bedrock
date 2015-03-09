@@ -349,9 +349,9 @@ Lemma change_fs_strengthen : forall fs stn, env_good_to_use modules imports stn 
     openhyp.
     {
       subst; simpl in *.
-      openhyp; try contradiction. 
+      openhyp; try contradiction.
       subst; simpl in *.
-      openhyp; try contradiction. 
+      openhyp; try contradiction.
       subst; simpl in *.
       injection H2; intros; subst; simpl in *; clear H2.
       right; descend.

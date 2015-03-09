@@ -242,13 +242,13 @@ Section ADTValue.
       destruct Hnin as [Hnin ?].
       eapply union_not_iff in Hnin.
       openhyp; eauto.
-    }      
+    }
     {
       eapply union_not_iff in Hnin.
       destruct Hnin as [Hnin ?].
       eapply union_not_iff in Hnin.
       openhyp; eauto.
-    }      
+    }
     {
       unfold_all.
       simpl in *.
@@ -267,7 +267,7 @@ Section ADTValue.
       rewrite Hst'.
       rewrite add_neq_o by eauto.
       eauto.
-    }      
+    }
     {
       unfold_all.
       simpl in *.
@@ -294,4 +294,4 @@ Section ADTValue.
     }
   Qed.
 
-End ADTValue.  
+End ADTValue.

@@ -25,11 +25,11 @@ Section ADTValue.
 
     Hypothesis IfCase : forall cond t f st, R (If cond t f) st -> (is_true st cond /\ R t st) \/ (is_false st cond /\ R f st).
 
-    Hypothesis WhileCase : 
-      forall cond body st, 
-        let loop := While cond body in 
-        R loop st -> 
-        (is_true st cond /\ R body st /\ (forall st', RunsTo env body st st' -> R loop st')) \/ 
+    Hypothesis WhileCase :
+      forall cond body st,
+        let loop := While cond body in
+        R loop st ->
+        (is_true st cond /\ R body st /\ (forall st', RunsTo env body st st' -> R loop st')) \/
         (is_false st cond).
 
     Hypothesis AssignCase :
@@ -38,18 +38,18 @@ Section ADTValue.
         not_mapsto_adt x st = true /\
         exists w, eval st e = Some (Sca w).
 
-    Hypothesis LabelCase : 
+    Hypothesis LabelCase :
       forall x lbl st,
-        R (Label x lbl) st -> 
+        R (Label x lbl) st ->
         not_mapsto_adt x st = true /\
         exists w, Label2Word env lbl = Some w.
 
-    Hypothesis CallCase : 
+    Hypothesis CallCase :
       forall x f args st,
         R (Call x f args) st ->
         NoDup args /\
         not_mapsto_adt x st = true /\
-        exists f_w input, 
+        exists f_w input,
           eval st f = Some (Sca f_w) /\
           mapM (sel st) args = Some input /\
           ((exists spec,
@@ -64,7 +64,7 @@ Section ADTValue.
                  RunsTo env (Body spec) callee_st callee_st' ->
                  sel callee_st' (RetVar spec) <> None /\
                  no_adt_leak input (ArgVars spec) (RetVar spec) callee_st'))).
-    
+
     Hint Constructors Safe.
 
     Require Import Bedrock.Platform.Cito.GeneralTactics.
@@ -81,5 +81,5 @@ Section ADTValue.
     Qed.
 
   End Safe_coind.
-  
+
 End ADTValue.

@@ -36,7 +36,7 @@ Section ADTSection.
 
   (* some facts *)
 
-  Definition same_type a b := 
+  Definition same_type a b :=
     match a, b with
       | ADT _, ADT _ => True
       | SCA _, SCA _ => True

@@ -17,7 +17,7 @@ Record FFunction :=
     Core : FunCore;
     syntax_ok : is_syntax_ok Core = true
   }.
-    
+
 Coercion Core : FFunction >-> OperationalSpec.
 
 Section ADTValue.
@@ -28,7 +28,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.GLabelMap.
 
-  Record FModule := 
+  Record FModule :=
     {
       Imports : GLabelMap.t AxiomaticSpec;
       (* Exports : StringMap.t AxiomaticSpec; *)

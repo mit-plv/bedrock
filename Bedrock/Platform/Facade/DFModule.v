@@ -14,7 +14,7 @@ Record DFFun :=
     Core : FunCore;
     compiled_syntax_ok : FModule.is_syntax_ok (compile_op Core) = true
   }.
-    
+
 Coercion Core : DFFun >-> OperationalSpec.
 
 Section ADTValue.
@@ -25,7 +25,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.GLabelMap.
 
-  Record DFModule := 
+  Record DFModule :=
     {
       Imports : GLabelMap.t AxiomaticSpec;
       (* Exports : StringMap.t AxiomaticSpec; *)

@@ -45,7 +45,7 @@ Section ADTValue.
   Definition assert := Specs -> State -> State -> Prop.
   Definition entailment := Specs -> Prop.
 
-  Inductive StmtEx := 
+  Inductive StmtEx :=
   | SkipEx : StmtEx
   | SeqEx : StmtEx -> StmtEx -> StmtEx
   | IfEx : Expr -> StmtEx -> StmtEx -> StmtEx
@@ -68,7 +68,7 @@ Section ADTValue.
   Definition is_false e : assert := fun _ _ v => eval (fst v) e = $0.
 
   Open Scope assert_scope.
-  
+
   Fixpoint to_stmt s :=
     match s with
       | SkipEx => Syntax.Skip
@@ -105,14 +105,14 @@ Section ADTValue.
     match stmt with
       | SeqEx a b => vc a p ++ vc b (sp a p)
       | IfEx e t f => vc t (p /\ is_true e) ++ vc f (p /\ is_false e)
-      | WhileEx inv e body => 
+      | WhileEx inv e body =>
         (p --> inv) :: (sp body (inv /\ is_true e) --> inv) :: vc body (inv /\ is_true e)
       | AssertEx a => (p --> a) :: nil
       | SkipEx => nil
       | AssignEx _ _ => nil
       | DCallEx x f args => (p --> (fun specs _ v => SafeDCall specs f args v)) :: nil
     end.
-  
+
   Definition and_all : list entailment -> entailment := fold_right (fun a b specs => a specs /\ b specs)%type (fun _ => True).
 
   Lemma and_all_app : forall ls1 ls2 specs, and_all (ls1 ++ ls2) specs -> and_all ls1 specs /\ and_all ls2 specs.
@@ -154,8 +154,8 @@ Section ADTValue.
   Definition specs_fs_agree (specs : Specs) (env : Env) :=
     let labels := fst env in
     let fs := snd env in
-    forall p spec, 
-      fs p = Some spec <-> 
+    forall p spec,
+      fs p = Some spec <->
       exists (lbl : glabel),
         labels lbl = Some p /\
         find lbl specs = Some spec.
@@ -175,9 +175,9 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.BedrockTactics.
 
-  Lemma RunsTo_RunsToDCall : 
-    forall specs env r f args v v', 
-      specs_env_agree specs env -> 
+  Lemma RunsTo_RunsToDCall :
+    forall specs env r f args v v',
+      specs_env_agree specs env ->
       RunsTo env (DCallEx r f args) v v' ->
       RunsToDCall specs r f args v v'.
   Proof.
@@ -215,9 +215,9 @@ Section ADTValue.
     rewrite e; eauto.
   Qed.
 
-  Lemma SafeDCall_Safe : 
-    forall specs env r f args v, 
-      specs_env_agree specs env -> 
+  Lemma SafeDCall_Safe :
+    forall specs env r f args v,
+      specs_env_agree specs env ->
       SafeDCall specs f args v ->
       Safe env (DCallEx r f args) v.
   Proof.

@@ -79,7 +79,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       refine (to_good_function f _).
       eapply is_good_func_sound.
       reflexivity.
-    Defined.    
+    Defined.
 
     Definition spec_op := hd dummy_gf (Functions good_module).
 
@@ -235,7 +235,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Lemma related_add_adt st vs h x (a : ADTValue) w : related st (vs, h) -> w = vs x -> ~ WordMap.In w h -> not_mapsto_adt x st = true -> related (add x (ADT a) st) (vs, WordMap.add w a h).
       intros Hr ? Hninw Hninx.
       subst.
-      
+
       unfold related in *; simpl in *.
       split.
       {
@@ -363,7 +363,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Lemma make_map_make_heap_related' ks : 
+    Lemma make_map_make_heap_related' ks :
       forall values pairs st h vs cst,
         NoDup ks ->
         StringMap.Equal st (make_map ks values) ->
@@ -419,7 +419,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Lemma make_map_make_heap_related ks : 
+    Lemma make_map_make_heap_related ks :
       forall values pairs st h vs cst,
         NoDup ks ->
         StringMap.Equal st (make_map ks values) ->
@@ -438,16 +438,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma prog_safe cenv stmt cst stn fs v1 v2 w1 w2 :
-      env_good_to_use modules imports stn fs -> 
-      fst cenv = from_bedrock_label_map (Labels stn) -> 
-      snd cenv = fs stn -> 
-      stmt = Compile.compile (CompileDFacade.compile prog) -> 
-      pre_cond v1 v2 -> 
+      env_good_to_use modules imports stn fs ->
+      fst cenv = from_bedrock_label_map (Labels stn) ->
+      snd cenv = fs stn ->
+      stmt = Compile.compile (CompileDFacade.compile prog) ->
+      pre_cond v1 v2 ->
       disjoint_ptrs ((w1, v1) :: (w2, v2) :: nil) ->
-      good_scalars ((w1, v1) :: (w2, v2) :: nil) -> 
-      w1 = Locals.sel (fst cst) argvar1 -> 
-      w2 = Locals.sel (fst cst) argvar2 -> 
-      snd cst == make_heap ((w1, v1) :: (w2, v2) :: nil) -> 
+      good_scalars ((w1, v1) :: (w2, v2) :: nil) ->
+      w1 = Locals.sel (fst cst) argvar1 ->
+      w2 = Locals.sel (fst cst) argvar2 ->
+      snd cst == make_heap ((w1, v1) :: (w2, v2) :: nil) ->
       Safe cenv stmt cst.
     Proof.
       destruct cenv as [l2w w2spec]; simpl in *.
@@ -486,7 +486,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Arguments empty {_}.
     (* a special version of make_map_related_make_heap *)
-    Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs : 
+    Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs :
       StringMapFacts.Submap (add k v empty) st ->
       (forall k', k' <> k -> @not_mapsto_adt ADTValue k' st = true ) ->
       CompileRunsTo.related st cst ->
@@ -595,21 +595,21 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma prog_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
-      RunsTo cenv stmt cst cst' -> 
-      env_good_to_use modules imports stn fs -> 
-      fst cenv = from_bedrock_label_map (Labels stn) -> 
-      snd cenv = fs stn -> 
-      stmt = Compile.compile (CompileDFacade.compile prog) -> 
-      pre_cond v1 v2 -> 
+      RunsTo cenv stmt cst cst' ->
+      env_good_to_use modules imports stn fs ->
+      fst cenv = from_bedrock_label_map (Labels stn) ->
+      snd cenv = fs stn ->
+      stmt = Compile.compile (CompileDFacade.compile prog) ->
+      pre_cond v1 v2 ->
       disjoint_ptrs {(w1, v1); (w2, v2)} ->
-      good_scalars {(w1, v1); (w2, v2)} -> 
-      w1 = Locals.sel (fst cst) argvar1 -> 
-      w2 = Locals.sel (fst cst) argvar2 -> 
-      snd cst == make_heap {(w1, v1); (w2, v2)} -> 
+      good_scalars {(w1, v1); (w2, v2)} ->
+      w1 = Locals.sel (fst cst) argvar1 ->
+      w2 = Locals.sel (fst cst) argvar2 ->
+      snd cst == make_heap {(w1, v1); (w2, v2)} ->
       exists vr,
         let wr := Locals.sel (fst cst') retvar in
         let pairs := {(wr, vr)} in
-        post_cond v1 v2 vr /\ 
+        post_cond v1 v2 vr /\
         snd cst' == make_heap pairs /\
         disjoint_ptrs pairs /\
         good_scalars pairs.
@@ -674,7 +674,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
       {
         eapply submap_refl.
-      }        
+      }
       {
         eauto.
       }
@@ -841,7 +841,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         | [ x : State |- _ ] => destruct x; simpl in *
       end.
       rename H11 into Hrunsto.
-      eapply prog_runsto in Hrunsto; eauto. 
+      eapply prog_runsto in Hrunsto; eauto.
       simpl in *.
       destruct Hrunsto as [vr [Hpost [Hheq [Hdisj Hgs] ] ] ].
       eapply replace_imp.
@@ -887,7 +887,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rewrite H7.
         rewrite H12.
         eauto.
-      }        
+      }
       sep_auto.
       sep_auto.
       sep_auto.
@@ -913,7 +913,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
           let H := fresh in
-          assert (GoodToLink_bool Modules Imports = true); 
+          assert (GoodToLink_bool Modules Imports = true);
             [ unfold GoodToLink_bool(*; simpl*) |
               eapply GoodToLink_bool_sound in H; openhyp; simpl in *; eapply result_ok; simpl in * ]
             ; eauto
@@ -926,8 +926,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       split.
       eapply andb_true_iff.
       split.
-      { 
-        reflexivity. 
+      {
+        reflexivity.
       }
       {
         eapply forallb_forall.
@@ -953,56 +953,56 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
-    Arguments Imports /. 
-              Arguments Exports /. 
-              Arguments CompileModuleMake.mod_name /. 
+    Arguments Imports /.
+              Arguments Exports /.
+              Arguments CompileModuleMake.mod_name /.
               Arguments impl_module_name /.
-              Arguments GName /. 
-              Arguments append /. 
+              Arguments GName /.
+              Arguments append /.
               Arguments CompileModuleMake.imports /.
               Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
               Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
               Arguments diff_map /.
-              Arguments GLabelMapFacts.diff_map /. 
+              Arguments GLabelMapFacts.diff_map /.
               Arguments List.filter /.
               Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
               Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
               Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
-              Arguments GName /. 
-              Arguments impl_module_name /. 
-              Arguments append /. 
-              Arguments IsGoodModule.FName /. 
-              Arguments CompileModuleMake.mod_name /. 
+              Arguments GName /.
+              Arguments impl_module_name /.
+              Arguments append /.
+              Arguments IsGoodModule.FName /.
+              Arguments CompileModuleMake.mod_name /.
               Arguments impl_module_name /.
               Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
               Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
               Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
-              Arguments impl_module_name /. 
+              Arguments impl_module_name /.
               Arguments CompileModuleMake.imports /.
 
               Ltac link_simp2 :=
-                simpl Imports; 
-                simpl Exports; 
-                unfold CompileModuleMake.mod_name; 
+                simpl Imports;
+                simpl Exports;
+                unfold CompileModuleMake.mod_name;
                 unfold impl_module_name;
-                simpl GName; 
-                simpl append; 
+                simpl GName;
+                simpl append;
                 unfold CompileModuleMake.imports;
                 unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports, LinkMake.StubsMake.StubMake.bimports_diff_bexports;
-                unfold diff_map, GLabelMapFacts.diff_map; 
+                unfold diff_map, GLabelMapFacts.diff_map;
                 simpl List.filter;
                 unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export, LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
                 unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label, LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
-                simpl GName; 
-                unfold impl_module_name; 
-                simpl append; 
-                simpl IsGoodModule.FName; 
-                unfold CompileModuleMake.mod_name; 
+                simpl GName;
+                unfold impl_module_name;
+                simpl append;
+                simpl IsGoodModule.FName;
+                unfold CompileModuleMake.mod_name;
                 unfold impl_module_name;
                 unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
                 unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
                 unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
-                unfold impl_module_name; 
+                unfold impl_module_name;
                 unfold CompileModuleMake.imports.
 
     Ltac link2 ok1 ok2 :=

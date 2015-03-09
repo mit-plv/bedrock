@@ -57,7 +57,7 @@ Section ADTSection.
       | TestE op a b => eval_binop_m (inr op) (eval st a) (eval st b)
     end.
 
-  Definition eval_bool st e : option bool := 
+  Definition eval_bool st e : option bool :=
     match eval st e with
       | Some (SCA w) => Some (wneb w $0)
       | _ => None
@@ -69,12 +69,12 @@ Section ADTSection.
   Require Import Bedrock.Platform.Cito.StringMapFacts.
   Import FMapNotations.
   Open Scope fmap_scope.
-  
+
   Require Import Coq.Lists.List.
 
   Fixpoint add_remove_many keys (input : list Value) (output : list (option Value)) st :=
-    match keys, input, output with 
-      | k :: keys', i :: input', o :: output' => 
+    match keys, input, output with
+      | k :: keys', i :: input', o :: output' =>
         let st' :=
             match i, o with
               | ADT _, Some v => add k v st
@@ -104,13 +104,13 @@ Section ADTSection.
       | Label x l => singleton x
       | Call x f es => singleton x
     end.
-  
+
   Definition is_disjoint a b := StringSet.is_empty (StringSet.inter a b).
 
   (* Argument variables are not allowed to be assigned to, which needed for compilation into Cito.
-     The return variable must not be an argument, to prevent aliasing. 
+     The return variable must not be an argument, to prevent aliasing.
      Boolean predicates are used here so that OperationalSpec is proof-irrelavant, and proofs can simply be eq_refl. *)
-  Record OperationalSpec := 
+  Record OperationalSpec :=
     {
       ArgVars : list string;
       RetVar : string;
@@ -126,22 +126,22 @@ Section ADTSection.
 
   Definition sel st x := @StringMap.find Value x st.
 
-  Record Env := 
+  Record Env :=
     {
       Label2Word : glabel -> option W ;
       Word2Spec : W ->option FuncSpec
     }.
 
   Definition no_adt_leak input argvars retvar st :=
-    forall var (a : ADTValue), 
-      sel st var = Some (ADT a) -> 
-      var = retvar \/ 
-      exists i (ai : ADTValue), nth_error argvars i = Some var /\ 
+    forall var (a : ADTValue),
+      sel st var = Some (ADT a) ->
+      var = retvar \/
+      exists i (ai : ADTValue), nth_error argvars i = Some var /\
                    nth_error input i = Some (ADT ai).
 
   Definition wrap_output := List.map (option_map (@ADT ADTValue)).
 
-  Definition is_some_p A (p : A -> bool) o := 
+  Definition is_some_p A (p : A -> bool) o :=
     match o with
       | Some a => p a
       | None => false
@@ -238,32 +238,32 @@ Section ADTSection.
 
     CoInductive Safe : Stmt -> State -> Prop :=
     | SafeSkip : forall st, Safe Skip st
-    | SafeSeq : 
+    | SafeSeq :
         forall a b st,
           Safe a st /\
           (forall st',
              RunsTo a st st' -> Safe b st') ->
           Safe (Seq a b) st
-    | SafeIfTrue : 
-        forall cond t f st, 
+    | SafeIfTrue :
+        forall cond t f st,
           is_true st cond ->
           Safe t st ->
           Safe (If cond t f) st
-    | SafeIfFalse : 
-        forall cond t f st, 
+    | SafeIfFalse :
+        forall cond t f st,
           is_false st cond ->
           Safe f st ->
           Safe (If cond t f) st
-    | SafeWhileTrue : 
-        forall cond body st, 
+    | SafeWhileTrue :
+        forall cond body st,
           let loop := While cond body in
           is_true st cond ->
           Safe body st ->
           (forall st',
              RunsTo body st st' -> Safe loop st') ->
           Safe loop st
-    | SafeWhileFalse : 
-        forall cond body st, 
+    | SafeWhileFalse :
+        forall cond body st,
           let loop := While cond body in
           is_false st cond ->
           Safe loop st
@@ -297,9 +297,9 @@ Section ADTSection.
           let callee_st := make_map (ArgVars spec) input in
           Safe (Body spec) callee_st ->
           (* all paths of callee must be memory-leak free and produce a return value *)
-          (forall callee_st', 
-             RunsTo (Body spec) callee_st callee_st' -> 
-             sel callee_st' (RetVar spec) <> None /\ 
+          (forall callee_st',
+             RunsTo (Body spec) callee_st callee_st' ->
+             sel callee_st' (RetVar spec) <> None /\
              no_adt_leak input (ArgVars spec) (RetVar spec) callee_st') ->
           Safe (Call x f args) st.
 

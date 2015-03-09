@@ -37,7 +37,7 @@ Section ADTValue.
   Arguments SCA {ADTValue} _.
   Arguments ADT {ADTValue} _.
 
-  Inductive Callee := 
+  Inductive Callee :=
   | Foreign : AxiomaticSpec -> Callee
   | Internal : InternalFuncSpec -> Callee.
 
@@ -49,7 +49,7 @@ Section ADTValue.
       | ADT a => WordMap.find word heap = Some a
     end.
 
-  Definition disjoint_ptrs (pairs : list (W * Value)) := 
+  Definition disjoint_ptrs (pairs : list (W * Value)) :=
     let pairs := filter (fun p => is_adt (snd p)) pairs in
     NoDup (List.map fst pairs).
 
@@ -65,7 +65,7 @@ Section ADTValue.
     }.
 
   Definition store_out (heap : Heap) t :=
-    match ADTIn t, ADTOut t with 
+    match ADTIn t, ADTOut t with
       | SCA _, _ => heap
       | ADT _, None => WordMap.remove (Word t) heap
       | ADT _, Some a => WordMap.add (Word t) a heap

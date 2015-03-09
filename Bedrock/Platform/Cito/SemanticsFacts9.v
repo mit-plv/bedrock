@@ -151,14 +151,14 @@ Section ADTValue.
       econstructor; simpl in *.
       eauto.
       eapply (IHpairs (w1, ADT a1)); eauto.
-    }      
+    }
     {
       unfold disjoint_ptrs_ls, no_clash_ls, no_clash in *; simpl in *.
       intuition.
       econstructor; simpl in *.
       eauto.
       eapply (IHpairs (w1, ADT a1)); eauto.
-    }      
+    }
   Qed.
 
   Lemma disjoint_ptrs_cons_elim pairs : forall p, disjoint_ptrs (p :: pairs) -> no_clash_ls p pairs /\ disjoint_ptrs pairs.

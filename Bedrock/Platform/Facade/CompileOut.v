@@ -26,7 +26,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Variable post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop.
 
     Definition compileS := SPEC(argvar1, argvar2) reserving (6 + extra_stack)%nat
-      Al v1, Al v2, Al h,                             
+      Al v1, Al v2, Al h,
       PRE[V] is_heap h * [| pre_cond v1 v2 /\ let pairs := (V argvar1, v1) :: (V argvar2, v2) :: nil in disjoint_ptrs pairs /\ good_scalars pairs /\ WordMap.Equal h (make_heap pairs) |] * mallocHeap 0
       POST[R] Ex h', is_heap h' * [| exists r, post_cond v1 v2 r /\ let pairs := (R, r) :: nil in good_scalars pairs /\ WordMap.Equal h' (make_heap pairs) |] * mallocHeap 0.
 

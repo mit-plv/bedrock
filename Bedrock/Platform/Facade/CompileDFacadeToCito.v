@@ -171,25 +171,25 @@ Section ADTValue.
   Local Open Scope fmap_scope.
 
   Theorem compile_runsto t t_env t_st t_st' :
-    CRunsTo t_env t t_st t_st' -> 
-    forall s, 
-      t = compile s -> 
-      is_syntax_ok s = true -> 
+    CRunsTo t_env t t_st t_st' ->
+    forall s,
+      t = compile s ->
+      is_syntax_ok s = true ->
       (* h1 : the heap portion that this program is allowed to change *)
-      forall h1, 
-        h1 <= snd t_st -> 
-        forall s_st, 
-          related s_st (fst t_st, h1) -> 
+      forall h1,
+        h1 <= snd t_st ->
+        forall s_st,
+          related s_st (fst t_st, h1) ->
           StringMap.find fun_ptr_varname s_st = None ->
-          forall s_env, 
-            cenv_impls_env t_env s_env -> 
-            Safe s_env s s_st -> 
-            exists s_st', 
-              RunsTo s_env s s_st s_st' /\ 
+          forall s_env,
+            cenv_impls_env t_env s_env ->
+            Safe s_env s s_st ->
+            exists s_st',
+              RunsTo s_env s s_st s_st' /\
               (* h2 : the frame heap (the outside portion that won't be touched by this program *)
-              let h2 := snd t_st - h1 in 
+              let h2 := snd t_st - h1 in
               (* the frame heap will be intacked in the final state *)
-              h2 <= snd t_st' /\ 
+              h2 <= snd t_st' /\
               (* main result: final source-level and target level states are related *)
               related s_st' (fst t_st', snd t_st' - h2).
   Proof.
@@ -223,9 +223,9 @@ Section ADTValue.
   is_syntax_ok s = true ->
   StringMap.find fun_ptr_varname s_st = None ->
   (* h1 : the heap portion that this program is allowed to change *)
-  forall vs h h1, 
-    h1 <= h -> 
-    related s_st (vs, h1) -> 
+  forall vs h h1,
+    h1 <= h ->
+    related s_st (vs, h1) ->
     forall t_env t t_st,
       cenv_impls_env t_env s_env ->
       t = compile s ->

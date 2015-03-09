@@ -1,7 +1,7 @@
 Set Implicit Arguments.
 
 Require Import Coq.Lists.List.
-Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3. 
+Require Import Bedrock.Platform.Cito.ListFacts1 Bedrock.Platform.Cito.ListFacts2 Bedrock.Platform.Cito.ListFacts3.
 Require Import Bedrock.ListFacts.
 Require Import Bedrock.Platform.Cito.GeneralTactics.
 Require Import Bedrock.Platform.Cito.GeneralTactics4.
@@ -73,7 +73,7 @@ Qed.
 
 Fixpoint mapM A B (f : A -> option B) ls :=
   match ls with
-    | x :: xs => 
+    | x :: xs =>
       match f x, mapM f xs with
         | Some y, Some ys => Some (y :: ys)
         | _, _ => None

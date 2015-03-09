@@ -19,7 +19,7 @@ Local Open Scope listy_scope.
 Instance seq_Listy : Listy Stmt Stmt := {
   Nil := DFacade.Skip;
   Cons := DFacade.Seq
-}.                                                
+}.
 
 (* for some reason typeclass inference needs to redeclare this instance *)
 Existing Instance list_Listy.
@@ -88,12 +88,12 @@ Notation "'func' () b" :=
 Notation "'func' ( x , .. , y ) b" :=
   (Build_DFFun (Build_OperationalSpec (cons x (.. (cons y nil) ..)) "ret" b eq_refl eq_refl eq_refl eq_refl eq_refl eq_refl) eq_refl) (no associativity, at level 95, only parsing) : dfacade_scope.
 
-Definition test_f := 
+Definition test_f :=
   func(){
     "ret" <- 0
   }.
 
-Definition test_2 := 
+Definition test_2 :=
   func() begin
     "ret" <- 0
   end.
@@ -106,7 +106,7 @@ Infix "::=" := pair (no associativity, at level 95, only parsing) : dfacade_scop
 (* notations for lists *)
 Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : dfacade_scope.
 
-Definition test_name_f := 
+Definition test_name_f :=
   def "test" = func(){
     "ret" <- 0
   }.
@@ -114,16 +114,16 @@ Definition test_name_f :=
 Require Import Bedrock.Platform.Cito.StringMapFacts.
 Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
-Notation "'module' 'import' imps 'define' fs" := 
+Notation "'module' 'import' imps 'define' fs" :=
   (Build_DFModule (GLabelMapFacts.of_list imps) (StringMapFacts.of_list fs)) (no associativity, at level 95, only parsing) : dfacade_scope.
 
 Section Test.
-  
+
   Variable ADTValue : Type.
   Variables ArraySeq_newSpec ArraySeq_writeSpec ArraySeq_readSpec ArraySeq_deleteSpec ListSet_newSpec ListSet_addSpec ListSet_sizeSpec ListSet_deleteSpec : AxiomaticSpec ADTValue.
 
-  Definition test_m := 
-    module 
+  Definition test_m :=
+    module
     import {
       "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;
       "ADT"!"ListSet_delete" ==> ListSet_deleteSpec
@@ -154,7 +154,7 @@ Section Test.
       }
     }.
 
-  Definition test_m2 := 
+  Definition test_m2 :=
     module
     import {
       "ADT"!"ArraySeq_new" ==> ArraySeq_newSpec;

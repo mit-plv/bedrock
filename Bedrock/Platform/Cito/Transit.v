@@ -19,7 +19,7 @@ Section ADTValue.
   Open Scope fmap_scope.
   Require Import Bedrock.Platform.Cito.SemanticsUtil.
 
-  Definition combine_ret w o : Value := 
+  Definition combine_ret w o : Value :=
     match o with
       | Some a => ADT a
       | None => SCA w
@@ -49,8 +49,8 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics2 Bedrock.Platform.Cito.GeneralTactics3.
 
   Definition match_ret vs (lhs : option string) (ret_w : W) :=
-    match lhs with 
-      | Some x => ret_w = vs x 
+    match lhs with
+      | Some x => ret_w = vs x
       | None => True
     end.
 
@@ -222,7 +222,7 @@ Section ADTValue.
     {
       rewrite map_fst_combine by (repeat rewrite map_length; eauto).
       eauto.
-    }        
+    }
     rewrite map_snd_combine by (repeat rewrite map_length; eauto).
     eauto.
   Qed.

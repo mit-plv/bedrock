@@ -83,7 +83,7 @@ Section ADTValue.
   Definition strengthen_diff_f specs env_ax k v a :=
     a /\
     (find k specs = Some (Foreign v) \/
-     exists op, 
+     exists op,
        find k specs = Some (Internal op) /\
        strengthen_op_ax op v env_ax).
 
@@ -154,10 +154,10 @@ Section ADTValue.
   Notation Callee := (@Callee ADTValue).
 
   Definition is_pointer_of_label specs (stn : glabel -> option W) w : option Callee :=
-    fold (fun k v res => 
+    fold (fun k v res =>
             match res with
               | Some _ => res
-              | None => 
+              | None =>
                 match stn k with
                   | Some w' => if weq w w' then Some v else None
                   | None => None

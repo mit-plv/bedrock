@@ -131,17 +131,17 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.GeneralTactics.
   Require Import Bedrock.Platform.Cito.GeneralTactics2.
   Require Import Bedrock.Platform.Cito.GeneralTactics4.
-  
-  Lemma find_Some_add_remove_many ks : 
-    forall ins outs h k v, 
-      NoDup ks -> 
-      length ks = length ins -> 
-      length ks = length outs -> 
-      (StringMap.find k (add_remove_many ks ins outs h) = Some v <-> 
-       ((not_reachable k ks ins /\ StringMap.find k h = Some v) \/ 
-        exists i a, 
-          nth_error ks i = Some k /\ 
-          nth_error ins i = Some (ADT a) /\ 
+
+  Lemma find_Some_add_remove_many ks :
+    forall ins outs h k v,
+      NoDup ks ->
+      length ks = length ins ->
+      length ks = length outs ->
+      (StringMap.find k (add_remove_many ks ins outs h) = Some v <->
+       ((not_reachable k ks ins /\ StringMap.find k h = Some v) \/
+        exists i a,
+          nth_error ks i = Some k /\
+          nth_error ins i = Some (ADT a) /\
           nth_error outs i = Some (Some v))).
   Proof.
     induction ks; destruct ins; destruct outs; simpl in *; try solve [intros; discriminate].
@@ -159,7 +159,7 @@ Section ADTValue.
     intros H.
     openhyp.
     eauto.
-    rewrite nth_error_nil in *; discriminate.    
+    rewrite nth_error_nil in *; discriminate.
 
     Lemma not_reachable_cons_sca key (k : key) ks ins k' w : not_reachable k' ks ins -> not_reachable k' (k :: ks) (SCA ADTValue w :: ins).
     Proof.
@@ -296,7 +296,7 @@ Section ADTValue.
   Qed.
 
   Lemma find_ADT_add_remove_many k ks (ins : list Value) outs st a :
-    NoDup ks -> 
+    NoDup ks ->
     mapM (sel st) ks = Some ins ->
     length ks = length outs ->
     StringMap.find k (add_remove_many ks ins outs st) = Some (ADT a)->
@@ -380,7 +380,7 @@ Section ADTValue.
     eapply iff_negb_not_true_iff; eapply is_mapsto_adt_iff.
   Qed.
 
-  Lemma find_Some_make_map_iff elt ks : 
+  Lemma find_Some_make_map_iff elt ks :
     forall vs k (v : elt),
       NoDup ks ->
       length ks  = length vs ->
@@ -418,7 +418,7 @@ Section ADTValue.
     solve [eapply nth_error_In; eauto].
     rewrite StringMapFacts.add_neq_o in * by eauto.
     eapply IHks; eauto.
-  Qed.      
+  Qed.
 
   Require Import Bedrock.Platform.Cito.ListFacts3.
 
@@ -577,11 +577,11 @@ Section ADTValue.
         eauto.
   Qed.
 
-  Fixpoint output_eqv A (types : list Value) (output1 output2 : list A) := 
+  Fixpoint output_eqv A (types : list Value) (output1 output2 : list A) :=
     match types, output1, output2 with
-      | i :: types', o1 :: output1', o2 :: output2' => 
+      | i :: types', o1 :: output1', o2 :: output2' =>
         match i with
-          | ADT _ => o1 = o2 
+          | ADT _ => o1 = o2
           | _ => True
         end /\ output_eqv types' output1' output2'
       | nil, nil, nil => True
@@ -730,7 +730,7 @@ Section ADTValue.
           }
           {
             eauto.
-          }            
+          }
         }
       }
     }
@@ -774,4 +774,4 @@ Section ADTValue.
     intros; eapply not_in_add_remove_many'; eauto.
   Qed.
 
-End ADTValue.  
+End ADTValue.

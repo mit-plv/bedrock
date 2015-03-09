@@ -8,12 +8,12 @@ Record CFun :=
     Core : FuncCore;
     good_func : is_good_func Core = true
   }.
-    
+
 Coercion Core : CFun >-> FuncCore.
 
 Require Import Bedrock.Platform.Cito.StringMap.
 
-Record CModule := 
+Record CModule :=
   {
     Funs : StringMap.t CFun
   }.
