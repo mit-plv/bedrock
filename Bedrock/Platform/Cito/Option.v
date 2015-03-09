@@ -30,4 +30,3 @@ Proof.
   injection Ho; intros; subst.
   eauto.
 Qed.
-

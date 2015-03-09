@@ -686,4 +686,3 @@ Module Make (ST' : SepTheoryX.SepTheoryX) <: SepExpr with Module ST := ST'.
 
   End env.
 End Make.
-

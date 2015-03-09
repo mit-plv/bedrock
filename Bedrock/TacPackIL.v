@@ -679,4 +679,3 @@ constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (E
   Definition AlgoImpl := AllAlgos.
   Definition AlgoProof := AllAlgos_correct.
 End ILAlgoTypes.
-

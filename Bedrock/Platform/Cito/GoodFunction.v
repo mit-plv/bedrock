@@ -39,4 +39,3 @@ Definition to_internal_func_spec (f : GoodFunction) : InternalFuncSpec :=
   |}.
 
 Coercion to_internal_func_spec : GoodFunction >-> InternalFuncSpec.
-

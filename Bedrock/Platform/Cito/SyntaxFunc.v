@@ -12,4 +12,3 @@ Record Func :=
   }.
 
 Coercion Core : Func >-> FuncCore.
-

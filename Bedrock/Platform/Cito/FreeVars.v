@@ -24,4 +24,3 @@ Fixpoint free_vars (s : Syntax.Stmt) :=
     | Syntax.Label x lbl => singleton x
     | Syntax.Assign x e => union (singleton x) (e_free_vars e)
   end.
-

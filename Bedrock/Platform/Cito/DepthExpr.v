@@ -8,4 +8,3 @@ Fixpoint depth expr :=
     | Binop _ a b => max (depth a) (S (depth b))
     | TestE _ a b => max (depth a) (S (depth b))
   end.
-

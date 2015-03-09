@@ -19,4 +19,3 @@ End ADT.
       Value : Model Type_
     }.
  *)
-

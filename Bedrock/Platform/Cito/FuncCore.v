@@ -9,4 +9,3 @@ Record FuncCore :=
     RetVar : string;
     Body : Stmt
   }.
-

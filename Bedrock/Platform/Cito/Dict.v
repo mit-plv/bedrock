@@ -47,4 +47,3 @@ Module Dict (MKey : KEY) (MData : DATA).
   Qed.
 
 End Dict.
-

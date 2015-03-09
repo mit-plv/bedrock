@@ -60,4 +60,3 @@ Ltac openPair:= match goal with
                   | H: ?x = ( _ , _ ) |- _ => destruct x; eapply pair_eq in H; destruct H
                   | H: ( _ , _ ) = ?x |- _ => destruct x; eapply pair_eq in H; destruct H
                 end.
-

@@ -33,5 +33,3 @@ Lemma cito_module_impl_prefix_not_empty : cito_module_impl_prefix <> "".
 Proof.
   unfold cito_module_impl_prefix; discriminate.
 Qed.
-
-

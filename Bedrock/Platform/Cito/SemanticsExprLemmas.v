@@ -8,4 +8,3 @@ match expr with
   | SyntaxExpr.Binop op a b => varsIn a ++ varsIn b
   | SyntaxExpr.TestE op a b => varsIn a ++ varsIn b
 end.
-

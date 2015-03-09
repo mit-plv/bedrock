@@ -194,26 +194,3 @@ Ltac t L :=
            | H : false = true |- _ => clear - H; discriminate
          end.
 *)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

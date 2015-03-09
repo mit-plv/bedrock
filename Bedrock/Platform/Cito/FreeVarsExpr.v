@@ -11,4 +11,3 @@ Fixpoint free_vars expr:=
     |Binop op a b => union (free_vars a) (free_vars b)
     |TestE te a b => union (free_vars a) (free_vars b)
   end.
-

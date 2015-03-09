@@ -10,4 +10,3 @@ Ltac eapply_in_any t :=
   match goal with
       H : _ |- _ => eapply t in H
   end.
-

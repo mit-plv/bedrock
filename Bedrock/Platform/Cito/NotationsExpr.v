@@ -18,4 +18,3 @@ Require Import Bedrock.Word.
 Notation "$ n" := (natToW n): expr_scope.
 
 Delimit Scope expr_scope with expr.
-

@@ -162,4 +162,3 @@ Ltac inversion_Forall :=
   repeat match goal with
            | H : List.Forall _ _ |- _ => inversion H; subst; clear H
          end.
-

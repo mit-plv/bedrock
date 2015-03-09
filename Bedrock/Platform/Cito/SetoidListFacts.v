@@ -67,4 +67,3 @@ Lemma NoDup_NoDupA : forall A ls,
   @NoDupA A eq ls.
   induction 1; intuition auto using InA_In.
 Qed.
-

@@ -23,4 +23,3 @@ Qed.
 Lemma length_upd_sublist : forall a n b, length (upd_sublist a n b) = length a.
   auto using length_upd_sublist'.
 Qed.
-

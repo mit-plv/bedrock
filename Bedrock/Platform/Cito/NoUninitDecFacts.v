@@ -188,4 +188,3 @@ Proof.
   eapply mem_iff in Hr.
   eapply inits_elim; eauto.
 Qed.
-

@@ -41,4 +41,3 @@ Proof.
   destruct good_func.
   eauto.
 Qed.
-

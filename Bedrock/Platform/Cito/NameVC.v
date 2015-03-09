@@ -79,4 +79,3 @@ Lemma NoDup_NoDupFuncNames : forall mod_name funcs, NoDup (map (fun f => fst (fs
   intros.
   eauto.
 Qed.
-

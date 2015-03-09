@@ -49,4 +49,3 @@ Definition is_good_module (m : Module) :=
   is_good_module_name (SyntaxModule.Name m) &&
                       is_good_funcs (map Core (SyntaxModule.Functions m)) &&
                       is_no_dup (map SyntaxFunc.Name (SyntaxModule.Functions m)).
-

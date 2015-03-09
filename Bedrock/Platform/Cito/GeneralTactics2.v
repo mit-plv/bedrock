@@ -6,4 +6,3 @@ Ltac not_not :=
   end.
 
 Ltac nintro := unfold not; intros.
-

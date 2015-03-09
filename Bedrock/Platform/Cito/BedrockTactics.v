@@ -22,4 +22,3 @@ Ltac sel_upd_simpl :=
       | |- _ => rewrite sel_upd_eq' by reflexivity
       | |- _ => rewrite sel_upd_ne' by discriminate
     end.
-

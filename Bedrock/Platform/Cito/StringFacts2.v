@@ -25,4 +25,3 @@ Lemma append_inj_2 : forall a b c, (a ++ b = a ++ c -> b = c)%string.
   injection H; intros.
   eauto.
 Qed.
-
