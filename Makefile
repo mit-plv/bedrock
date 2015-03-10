@@ -38,7 +38,7 @@ not-containing = $(foreach v,$2,$(if $(findstring $1,$v),,$v))
 
 HASNATDYNLINK = true
 
-.PHONY: examples platform cito facade facade-all facade-allv src src-test reification \
+.PHONY: examples platform cito facade facade-all facade-allv src reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
 	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject
@@ -124,22 +124,16 @@ PLATFORM_UNMADE_VO := \
 SRC_UNMADE_VO := \
 	Bedrock/ILTacLtac.vo \
 	Bedrock/ILTacML.vo \
-	Bedrock/SepExprTests.vo \
-	Bedrock/SymEvalTests.vo \
-	Bedrock/UnfolderTests.vo \
 	Bedrock/provers/TransitivityProver.vo
 
 PLATFORM_VO := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_VO),$(filter Bedrock/Examples/%.vo,$(VOFILES)))
 
 SRC_VO := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_VO),$(VOFILES))
 
-SRC_TEST_VO := \
-	Bedrock/UnfolderTests.vo
-
 REIFICATION_VO := \
 	$(filter Bedrock/reification/%,$(VOFILES)) $(CMOFILES) $(if $(HASNATDYNLINK_OR_EMPTY),$(CMXSFILES))
 
-examples facade facade-all facade-allv cito platform src src-test: reification
+examples facade facade-all facade-allv cito platform src: reification
 examples: $(EXAMPLES_VO)
 facade: $(FACADE_VO)
 facade-all: $(FACADE_ALL_VO)
@@ -147,7 +141,6 @@ facade-allv: $(FACADE_ALLVO)
 cito: $(CITO_VO)
 platform: $(PLATFORM_VO)
 src: $(SRC_VO)
-src-test: $(SRC_TEST_VO)
 
 
 install-examples: T = $(EXAMPLES_VO)

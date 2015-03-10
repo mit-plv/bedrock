@@ -44,7 +44,6 @@ Bedrock/ReifyIL.v
 Bedrock/ReifySepExpr.v
 Bedrock/SepCancel.v
 Bedrock/SepExpr.v
-Bedrock/SepExprTests.v
 Bedrock/SepHeap.v
 Bedrock/SepIL.v
 Bedrock/SepLemma.v
@@ -55,7 +54,6 @@ Bedrock/StringSet.v
 Bedrock/Structured.v
 Bedrock/StructuredModule.v
 Bedrock/SymEval.v
-Bedrock/SymEvalTests.v
 Bedrock/SymIL.v
 Bedrock/SymILProofs.v
 Bedrock/SymILTac.v
@@ -64,7 +62,6 @@ Bedrock/Tactics.v
 Bedrock/Thumb2_gas.v
 Bedrock/TypedPackage.v
 Bedrock/Unfolder.v
-Bedrock/UnfolderTests.v
 Bedrock/Word.v
 Bedrock/XCAP.v
 Bedrock/provers/ArrayBoundProver.v
