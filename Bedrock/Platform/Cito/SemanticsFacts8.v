@@ -27,6 +27,45 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.GeneralTactics.
   Require Import Bedrock.Platform.Cito.ListFacts4.
+  Lemma no_alias_tail ls : forall e, no_alias (e :: ls) -> no_alias ls.
+  Proof.
+    unfold no_alias; intros e Hna.
+    intros i j p ai aj Hi Hj.
+    assert (S i = S j).
+    eapply Hna; eauto.
+    inject H; eauto.
+  Qed.
+  Lemma not_reachable_p_incl ls1 ls2 p : List.incl ls1 ls2 -> not_reachable_p p ls2 -> not_reachable_p p ls1.
+    unfold not_reachable_p; intros Hin Hnr.
+    intros i v Hi.
+    eapply incl_nth_error in Hi; eauto; openhyp.
+    eapply Hnr in H; eauto; openhyp.
+  Qed.
+  Lemma not_reachable_p_tail ls e p : not_reachable_p p (e :: ls) -> not_reachable_p p ls.
+    intros; eapply not_reachable_p_incl; eauto.
+    eapply incl_tl; eapply incl_refl; eauto.
+  Qed.
+  Lemma not_not_reachable_p p a ls : ~ not_reachable_p p ((p, ADT a) :: ls).
+  Proof.
+    unfold not_reachable_p.
+    intros H.
+    specialize (H 0 (ADT a)).
+    simpl in *.
+    edestruct H; eauto.
+    discriminate.
+  Qed.
+  Lemma no_alias_not_reachable_p p a ls : no_alias ((p, ADT a) :: ls) -> not_reachable_p p ls.
+  Proof.
+    intros Hna.
+    unfold not_reachable_p.
+    intros i v Hi.
+    destruct v.
+    eauto.
+    unfold no_alias in *.
+    assert (S i = 0).
+    eapply Hna; simpl in *; eauto.
+    discriminate.
+  Qed.
 
   Lemma fold_bwd p a triples :
     forall h,
@@ -45,43 +84,16 @@ Section ADTValue.
     destruct a0 as [tp ti to]; simpl in *.
     intros h Hna H.
     eapply IHtriples.
-    Lemma no_alias_tail ls : forall e, no_alias (e :: ls) -> no_alias ls.
-    Proof.
-      unfold no_alias; intros e Hna.
-      intros i j p ai aj Hi Hj.
-      assert (S i = S j).
-      eapply Hna; eauto.
-      inject H; eauto.
-    Qed.
     eapply no_alias_tail; eauto.
     destruct H as [[Hnr hf] | [i [ai Ht]] ].
     left.
     split.
-    Lemma not_reachable_p_incl ls1 ls2 p : List.incl ls1 ls2 -> not_reachable_p p ls2 -> not_reachable_p p ls1.
-      unfold not_reachable_p; intros Hin Hnr.
-      intros i v Hi.
-      eapply incl_nth_error in Hi; eauto; openhyp.
-      eapply Hnr in H; eauto; openhyp.
-    Qed.
-    Lemma not_reachable_p_tail ls e p : not_reachable_p p (e :: ls) -> not_reachable_p p ls.
-      intros; eapply not_reachable_p_incl; eauto.
-      eapply incl_tl; eapply incl_refl; eauto.
-    Qed.
     eapply not_reachable_p_tail; eauto.
     unfold store_out; simpl.
     destruct ti as [w | ai].
     eauto.
     destruct to as [ao |].
     destruct (Word.weq p tp).
-    Lemma not_not_reachable_p p a ls : ~ not_reachable_p p ((p, ADT a) :: ls).
-    Proof.
-      unfold not_reachable_p.
-      intros H.
-      specialize (H 0 (ADT a)).
-      simpl in *.
-      edestruct H; eauto.
-      discriminate.
-    Qed.
     subst; solve [eapply not_not_reachable_p in Hnr; intuition].
     solve [rewrite add_neq_o; eauto].
     destruct (Word.weq p tp).
@@ -91,18 +103,6 @@ Section ADTValue.
     inject Ht.
     left.
     split.
-    Lemma no_alias_not_reachable_p p a ls : no_alias ((p, ADT a) :: ls) -> not_reachable_p p ls.
-    Proof.
-      intros Hna.
-      unfold not_reachable_p.
-      intros i v Hi.
-      destruct v.
-      eauto.
-      unfold no_alias in *.
-      assert (S i = 0).
-      eapply Hna; simpl in *; eauto.
-      discriminate.
-    Qed.
     eapply no_alias_not_reachable_p; eauto.
     unfold store_out; simpl.
     solve [rewrite add_eq_o; eauto].
