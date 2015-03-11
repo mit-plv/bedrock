@@ -982,6 +982,9 @@ Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h
   repeat rewrite add_o.
   destruct (eq_dec k y); subst; intuition.
 Qed.
+Arguments uncurry {_ _ _} _ _ / .
+Arguments uncurry {_ _ _} _ _ / .
+Arguments uncurry {_ _ _} _ _ / .
 
 Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
   intros.

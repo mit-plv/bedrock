@@ -541,6 +541,10 @@ Section ADTValue.
 
   (* need some clever induction hypothesis strengthening to utilize induction hypothesis generated from the call case of FRunsTo *)
   Arguments no_adt_leak_equiv st1 st2 [_] _ _ _ _ _ _ _.
+  Arguments no_adt_leak_equiv st1 st2 [_] _ _ _ _ _ _ _.
+  Arguments no_adt_leak_equiv st1 st2 [_] _ _ _ _ _ _ _.
+  Arguments no_adt_leak_equiv st1 st2 [_] _ _ _ _ _ _ _.
+  Arguments no_adt_leak_equiv st1 st2 [_] _ _ _ _ _ _ _.
   Theorem compile_runsto' t t_env t_st t_st' :
     FRunsTo t_env t t_st t_st' ->
     forall s_env,

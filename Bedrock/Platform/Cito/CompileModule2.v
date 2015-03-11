@@ -773,6 +773,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Definition retv p (h : Heap) : Ret := combine_ret p (find p h).
+    Require Import Bedrock.Platform.Cito.SemanticsFacts7.
 
     Lemma runsto_elim fun_name (op_spec : CFun) ax_spec stn fs vs_callee vs_callee' h' pairs outputs_gen ret_a_gen :
       let words := List.map fst pairs in
@@ -795,7 +796,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl; intros Hrt ? ? Hogok; intros.
       eapply runsto_TransitTo in Hrt; eauto.
       unfold TransitTo in *; openhyp.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts7.
       rewrite make_triples_ADTIn_ADTOut by (unfold_all; rewrite Hogok; repeat rewrite map_length; eauto).
       eauto.
     Qed.

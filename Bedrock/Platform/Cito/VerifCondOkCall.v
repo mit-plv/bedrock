@@ -121,6 +121,45 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Opaque funcs_ok.
     Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
     Opaque CompileStmtImplMake.InvMake2.funcs_ok.
+    Require Import Bedrock.Platform.Cito.SepHints2 Bedrock.Platform.Cito.SepHintsUtil.
+
+    Lemma firstn_length : forall A B (l : list A) (l' : list B),
+      length l <= length l'
+      -> length l = length (firstn (length l) l').
+      induction l; destruct l'; simpl; intuition.
+    Qed.
+
+    Hint Extern 1 (length _ = length _) => apply firstn_length.
+
+    Hint Extern 1 (length ?L = _) => subst L; rewrite length_upd_sublist; assumption.
+    Ltac inversion_Safe' :=
+      repeat match goal with
+               | H : Safe _ _ _ |- _ => unfold Safe in H
+               | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
+             end.
+    Opaque funcs_ok.
+    Ltac specialize_funcs_ok' :=
+      match goal with
+        | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ =>
+          specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
+      end.
+    Require Import Bedrock.Platform.Cito.SepHints3.
+    Require Import Bedrock.Platform.Cito.SepHints4.
+    Opaque funcs_ok.
+    Require Import Bedrock.Platform.Cito.SemanticsUtil.
+    Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
+      intros.
+      eapply Forall_weaken.
+      2 : eassumption.
+      intros.
+      destruct x.
+      unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
+      destruct v; simpl in *; intuition.
+    Qed.
+    Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+    Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+
+    Definition are_the_same h0 x18 := is_heap h0 ===> is_heap x18.
 
     Lemma verifCond_ok :
       forall o e l k (pre : assert),
@@ -176,7 +215,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       gen_le.
       hiding ltac:(evaluate hints_buf_2_fwd).
       hiding ltac:(evaluate hints_array).
-      Require Import Bedrock.Platform.Cito.SepHints2 Bedrock.Platform.Cito.SepHintsUtil.
       rewrite (@replace_array_to_split x8 _ (length l)) in H17.
       assert (splittable x8 (length l)) by (unfold splittable; omega).
       hiding ltac:(evaluate hints_array_split).
@@ -254,14 +292,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite natToW_plus in H3.
       repeat rewrite wplus_assoc in *.
 
-      Lemma firstn_length : forall A B (l : list A) (l' : list B),
-        length l <= length l'
-        -> length l = length (firstn (length l) l').
-        induction l; destruct l'; simpl; intuition.
-      Qed.
-
-      Hint Extern 1 (length _ = length _) => apply firstn_length.
-
       transit.
 
       fold (@skipn W) in *.
@@ -323,8 +353,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl in *.
       hide_upd_sublist.
       hide_map.
-
-      Hint Extern 1 (length ?L = _) => subst L; rewrite length_upd_sublist; assumption.
 
       transit.
 
@@ -426,11 +454,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       fold (@firstn W) in *.
       fold (@skipn W) in *.
       intros.
-      Ltac inversion_Safe' :=
-        repeat match goal with
-                 | H : Safe _ _ _ |- _ => unfold Safe in H
-                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
-               end.
 
       inversion_Safe'.
 
@@ -443,11 +466,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       simpl in *.
       repeat rewrite wplus_assoc in *.
       post.
-      Ltac specialize_funcs_ok' :=
-        match goal with
-          | H : context [ (_ ---> _)%PropX ], H2 : _ = Some _ |- _ =>
-            specialize (Imply_sound (H _ _) (Inj_I _ _ H2)); propxFo
-        end.
 
       specialize_funcs_ok'.
       descend.
@@ -460,7 +478,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hide_upd_sublist.
       set (arr := map _ _) in *.
       set (avars := ArgVars _) in *.
-      Require Import Bedrock.Platform.Cito.SepHints3.
       rewrite (@replace_array_to_locals arr _ avars) in H7.
       assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply (NoDupArgVars _) ]).
       hiding ltac:(evaluate hints_array_to_locals).
@@ -628,7 +645,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
       rewrite fold_first in *.
       set (avars := ArgVars _) in *.
-      Require Import Bedrock.Platform.Cito.SepHints4.
       assert (locals_to_elim avars) by (unfold locals_to_elim; eauto).
       hiding ltac:(step hints_elim_locals).
       unfold_all.
@@ -765,16 +781,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       hiding ltac:(step hints_split_heap).
       unfold Semantics.good_inputs in *; openhyp; eauto.
       unfold Semantics.good_inputs in *; openhyp.
-      Require Import Bedrock.Platform.Cito.SemanticsUtil.
-      Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
-        intros.
-        eapply Forall_weaken.
-        2 : eassumption.
-        intros.
-        destruct x.
-        unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
-        destruct v; simpl in *; intuition.
-      Qed.
+      Opaque funcs_ok.
       eapply forall_word_adt_match_good_scalars; eauto.
       eauto.
       eauto.
@@ -844,7 +851,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : map _ _ = map _ _ |- _ => generalize H; eapply map_eq_length_eq in H; intro
       end.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts6.
       rewrite make_triples_length in * by eauto.
       assert (length x15 = length l) by (rewriter; eauto).
       repeat match goal with
@@ -887,7 +893,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : Regs _ Rv = _ |- _ => rewrite H
       end.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts5.
       eapply Safe_Equal; eauto.
       auto_apply.
       econstructor; simpl in *.
@@ -945,8 +950,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       end.
       eassumption.
       Unfocus.
-
-      Definition are_the_same h0 x18 := is_heap h0 ===> is_heap x18.
       assert (Hheap : are_the_same h0 x18) by (apply Inner.is_heap_Equal; assumption).
       generalize Hheap; clear_all.
       intros; hiding ltac:(step auto_ext).

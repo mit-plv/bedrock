@@ -593,6 +593,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       }
     Qed.
+    Require Import Bedrock.Platform.Cito.WordMapFacts.
 
     Lemma prog_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
       RunsTo cenv stmt cst cst' ->
@@ -663,7 +664,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
         {
           simpl.
-          Require Import Bedrock.Platform.Cito.WordMapFacts.
           rewrite diff_same.
           rewrite diff_empty.
           reflexivity.

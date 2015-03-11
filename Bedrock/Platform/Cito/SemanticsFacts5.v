@@ -277,6 +277,162 @@ Section ADTValue.
   Import WordMap.
   Require Import Bedrock.Platform.Cito.WordMapFacts.
 
+  Lemma In_make_heap' : forall k pairs h,
+    WordMap.In (elt:=ADTValue) k (fold_left store_pair pairs h)
+    -> WordMap.In k h \/ exists a, List.In (k, ADT a) pairs.
+    induction pairs; simpl; intuition.
+    apply IHpairs in H; intuition.
+    unfold SemanticsUtil.store_pair in H0; simpl in H0.
+    destruct b; auto.
+    apply add_in_iff in H0; intuition subst.
+    eauto.
+    destruct H0; intuition subst.
+    eauto.
+  Qed.
+
+  Lemma In_make_heap : forall k pairs,
+    WordMap.In (elt:=ADTValue) k (make_heap pairs)
+    -> exists a, List.In (k, ADT a) pairs.
+    intros.
+    apply In_make_heap' in H; intuition eauto.
+    apply empty_in_iff in H0; tauto.
+  Qed.
+
+  Lemma keep_when_agrees : forall k e pairs h outs,
+    ~WordMap.In k (make_heap pairs)
+    -> WordMap.MapsTo k e h
+    -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
+    induction pairs; destruct outs; simpl; intuition.
+    apply IHpairs; clear IHpairs; intros.
+    apply H.
+    unfold make_heap.
+    apply foldp_bwd; right.
+    apply In_make_heap in H1; destruct H1; intuition subst.
+    simpl; eauto.
+    unfold Semantics.store_out; simpl.
+    destruct a; simpl in *.
+    destruct v; auto.
+    destruct o.
+    apply WordMap.add_2; auto.
+    intro; subst.
+    exfalso.
+    apply H.
+    apply foldp_bwd; simpl; eauto.
+    apply WordMap.remove_2; auto.
+    intro; subst.
+    exfalso.
+    apply H.
+    apply foldp_bwd; simpl; eauto.
+  Qed.
+
+  Lemma get_pair : forall k x e pairs outs h,
+    Semantics.disjoint_ptrs pairs
+    -> List.In {| Word := k; ADTIn := ADT x; ADTOut := Some e |} (make_triples pairs outs)
+    -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
+    induction pairs; destruct outs; simpl; intuition.
+    simpl in *; intuition.
+    injection H1; clear H1; intros; subst.
+    assert (WordMap.MapsTo k e (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |})).
+    unfold Semantics.store_out; simpl.
+    apply WordMap.add_1; auto.
+    generalize dependent (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |}).
+    assert (forall v, ~List.In (k, ADT v) pairs).
+    intuition.
+    hnf in H.
+    simpl in H.
+    inversion_clear H.
+    apply H1.
+    change k with (fst (k, ADT v)).
+    apply in_map.
+    apply filter_In; tauto.
+    generalize dependent H0.
+    clear.
+    generalize dependent outs.
+    induction pairs; destruct outs; simpl; intuition.
+    apply IHpairs; eauto.
+    unfold Semantics.store_out; simpl.
+    destruct a; simpl in *.
+    destruct v; auto.
+    destruct o.
+    apply WordMap.add_2; auto.
+    intro; subst; eauto.
+    apply WordMap.remove_2; auto.
+    intro; subst; eauto.
+
+    apply IHpairs.
+    hnf in H.
+    simpl in H.
+    destruct b; simpl in *; auto.
+    inversion H; auto.
+    auto.
+  Qed.
+
+  Lemma get_pair' : forall k e pairs outs h,
+    Semantics.disjoint_ptrs pairs
+    -> WordMap.MapsTo k e h
+    -> (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} (make_triples pairs outs))
+    -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
+    induction pairs; destruct outs; simpl; intuition.
+    apply IHpairs.
+    hnf in H.
+    simpl in H.
+    destruct b; simpl in H; auto.
+    inversion H; auto.
+    simpl.
+    unfold Semantics.store_out; simpl.
+    destruct b; auto.
+    destruct o; simpl in *.
+    apply WordMap.add_2; auto.
+    intro; subst; eauto.
+    apply WordMap.remove_2; auto.
+    intro; subst; eauto.
+    simpl in *.
+    eauto.
+  Qed.
+
+  Lemma grab_it : forall k x pairs h,
+    List.In (k, ADT x) pairs
+    -> Semantics.disjoint_ptrs pairs
+    -> WordMap.MapsTo k x (fold_left store_pair pairs h).
+    induction pairs; simpl; intuition; try destruct b; intuition.
+    injection H1; clear H1; intros; subst.
+    hnf in H0.
+    simpl in H0.
+    inversion_clear H0.
+    generalize dependent H.
+    clear IHpairs H1.
+    assert (WordMap.MapsTo k x (store_pair h (k, ADT x))).
+    unfold SemanticsUtil.store_pair; simpl.
+    apply WordMap.add_1; auto.
+    generalize dependent (store_pair h (k, ADT x)).
+    induction pairs; simpl in *; intuition; try destruct b; intuition.
+    simpl in *; intuition subst.
+    apply IHpairs.
+    unfold SemanticsUtil.store_pair; simpl.
+    apply WordMap.add_2; auto.
+    auto.
+
+    apply IHpairs; auto.
+    hnf in H0.
+    simpl in H0.
+    inversion_clear H0; auto.
+  Qed.
+
+  Lemma i_didn't_do_it : forall k ls h,
+    (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls)
+    -> WordMap.In k (fold_left store_out ls h)
+    -> WordMap.In k h.
+    induction ls; simpl; intuition.
+    apply IHls in H0; eauto.
+    unfold Semantics.store_out in H0.
+    destruct a; simpl in *.
+    destruct ADTIn; auto.
+    destruct ADTOut.
+    apply add_in_iff in H0; intuition subst.
+    exfalso; eauto.
+    apply remove_in_iff in H0; intuition subst.
+  Qed.
+
   Lemma heap_merge_store_out :
     forall h pairs outs,
       good_inputs h pairs ->
@@ -300,54 +456,6 @@ Section ADTValue.
 
     apply diff_mapsto_iff in H0; intuition subst.
 
-    Lemma In_make_heap' : forall k pairs h,
-      WordMap.In (elt:=ADTValue) k (fold_left store_pair pairs h)
-      -> WordMap.In k h \/ exists a, List.In (k, ADT a) pairs.
-      induction pairs; simpl; intuition.
-      apply IHpairs in H; intuition.
-      unfold SemanticsUtil.store_pair in H0; simpl in H0.
-      destruct b; auto.
-      apply add_in_iff in H0; intuition subst.
-      eauto.
-      destruct H0; intuition subst.
-      eauto.
-    Qed.
-
-    Lemma In_make_heap : forall k pairs,
-      WordMap.In (elt:=ADTValue) k (make_heap pairs)
-      -> exists a, List.In (k, ADT a) pairs.
-      intros.
-      apply In_make_heap' in H; intuition eauto.
-      apply empty_in_iff in H0; tauto.
-    Qed.
-
-    Lemma keep_when_agrees : forall k e pairs h outs,
-      ~WordMap.In k (make_heap pairs)
-      -> WordMap.MapsTo k e h
-      -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
-      induction pairs; destruct outs; simpl; intuition.
-      apply IHpairs; clear IHpairs; intros.
-      apply H.
-      unfold make_heap.
-      apply foldp_bwd; right.
-      apply In_make_heap in H1; destruct H1; intuition subst.
-      simpl; eauto.
-      unfold Semantics.store_out; simpl.
-      destruct a; simpl in *.
-      destruct v; auto.
-      destruct o.
-      apply WordMap.add_2; auto.
-      intro; subst.
-      exfalso.
-      apply H.
-      apply foldp_bwd; simpl; eauto.
-      apply WordMap.remove_2; auto.
-      intro; subst.
-      exfalso.
-      apply H.
-      apply foldp_bwd; simpl; eauto.
-    Qed.
-
     eapply keep_when_agrees; eauto.
 
     apply fold_fwd' in H0; intuition idtac.
@@ -358,76 +466,11 @@ Section ADTValue.
 
     apply update_mapsto_iff; left.
 
-    Lemma get_pair : forall k x e pairs outs h,
-      Semantics.disjoint_ptrs pairs
-      -> List.In {| Word := k; ADTIn := ADT x; ADTOut := Some e |} (make_triples pairs outs)
-      -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
-      induction pairs; destruct outs; simpl; intuition.
-      simpl in *; intuition.
-      injection H1; clear H1; intros; subst.
-      assert (WordMap.MapsTo k e (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |})).
-      unfold Semantics.store_out; simpl.
-      apply WordMap.add_1; auto.
-      generalize dependent (store_out h {| Word := k; ADTIn := ADT x; ADTOut := Some e |}).
-      assert (forall v, ~List.In (k, ADT v) pairs).
-      intuition.
-      hnf in H.
-      simpl in H.
-      inversion_clear H.
-      apply H1.
-      change k with (fst (k, ADT v)).
-      apply in_map.
-      apply filter_In; tauto.
-      generalize dependent H0.
-      clear.
-      generalize dependent outs.
-      induction pairs; destruct outs; simpl; intuition.
-      apply IHpairs; eauto.
-      unfold Semantics.store_out; simpl.
-      destruct a; simpl in *.
-      destruct v; auto.
-      destruct o.
-      apply WordMap.add_2; auto.
-      intro; subst; eauto.
-      apply WordMap.remove_2; auto.
-      intro; subst; eauto.
-
-      apply IHpairs.
-      hnf in H.
-      simpl in H.
-      destruct b; simpl in *; auto.
-      inversion H; auto.
-      auto.
-    Qed.
-
     eapply get_pair; eauto.
 
     case_eq (WordMap.mem k (make_heap pairs)); intros.
 
     apply update_mapsto_iff; left; intuition.
-
-    Lemma get_pair' : forall k e pairs outs h,
-      Semantics.disjoint_ptrs pairs
-      -> WordMap.MapsTo k e h
-      -> (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} (make_triples pairs outs))
-      -> WordMap.MapsTo k e (fold_left store_out (make_triples pairs outs) h).
-      induction pairs; destruct outs; simpl; intuition.
-      apply IHpairs.
-      hnf in H.
-      simpl in H.
-      destruct b; simpl in H; auto.
-      inversion H; auto.
-      simpl.
-      unfold Semantics.store_out; simpl.
-      destruct b; auto.
-      destruct o; simpl in *.
-      apply WordMap.add_2; auto.
-      intro; subst; eauto.
-      apply WordMap.remove_2; auto.
-      intro; subst; eauto.
-      simpl in *.
-      eauto.
-    Qed.
 
     apply get_pair'; auto.
     destruct H; auto.
@@ -441,34 +484,6 @@ Section ADTValue.
 
     unfold make_heap.
 
-    Lemma grab_it : forall k x pairs h,
-      List.In (k, ADT x) pairs
-      -> Semantics.disjoint_ptrs pairs
-      -> WordMap.MapsTo k x (fold_left store_pair pairs h).
-      induction pairs; simpl; intuition; try destruct b; intuition.
-      injection H1; clear H1; intros; subst.
-      hnf in H0.
-      simpl in H0.
-      inversion_clear H0.
-      generalize dependent H.
-      clear IHpairs H1.
-      assert (WordMap.MapsTo k x (store_pair h (k, ADT x))).
-      unfold SemanticsUtil.store_pair; simpl.
-      apply WordMap.add_1; auto.
-      generalize dependent (store_pair h (k, ADT x)).
-      induction pairs; simpl in *; intuition; try destruct b; intuition.
-      simpl in *; intuition subst.
-      apply IHpairs.
-      unfold SemanticsUtil.store_pair; simpl.
-      apply WordMap.add_2; auto.
-      auto.
-
-      apply IHpairs; auto.
-      hnf in H0.
-      simpl in H0.
-      inversion_clear H0; auto.
-    Qed.
-
     apply grab_it; auto.
 
     apply update_mapsto_iff; right; intuition.
@@ -479,21 +494,6 @@ Section ADTValue.
     apply not_mem_in_iff in H4; tauto.
     clear H1.
     apply H4; clear H4.
-
-    Lemma i_didn't_do_it : forall k ls h,
-      (forall a o, ~List.In {| Word := k; ADTIn := ADT a; ADTOut := o |} ls)
-      -> WordMap.In k (fold_left store_out ls h)
-      -> WordMap.In k h.
-      induction ls; simpl; intuition.
-      apply IHls in H0; eauto.
-      unfold Semantics.store_out in H0.
-      destruct a; simpl in *.
-      destruct ADTIn; auto.
-      destruct ADTOut.
-      apply add_in_iff in H0; intuition subst.
-      exfalso; eauto.
-      apply remove_in_iff in H0; intuition subst.
-    Qed.
 
     eapply i_didn't_do_it; eauto.
   Qed.

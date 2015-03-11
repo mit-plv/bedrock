@@ -64,6 +64,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.SynReqFacts3.
 
     Open Scope nat.
+    Ltac inversion_Safe :=
+      repeat match goal with
+               | H : Safe _ _ _ |- _ => unfold Safe in H
+               | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
+             end.
+    Ltac auto_apply_in t :=
+      match goal with
+          H : _ |- _ => eapply t in H
+      end.
+    Transparent evalInstrs.
+    Require Import Bedrock.Platform.Cito.ConvertLabel.
+    Opaque evalInstrs.
 
     Lemma verifCond_ok_label :
       forall x lbl k (pre : assert),
@@ -85,17 +97,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold var_slot in *.
       unfold vars_start in *.
       destruct_state.
-      Ltac inversion_Safe :=
-        repeat match goal with
-                 | H : Safe _ _ _ |- _ => unfold Safe in H
-                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
-               end.
 
       inversion_Safe.
-      Ltac auto_apply_in t :=
-        match goal with
-            H : _ |- _ => eapply t in H
-        end.
 
       auto_apply_in ex_up.
       openhyp.
@@ -113,7 +116,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Transparent evalInstrs.
       simpl.
       repeat rewrite wplus_assoc in *.
-      Require Import Bedrock.Platform.Cito.ConvertLabel.
       unfold from_bedrock_label_map in *.
       rewrite H.
       eauto.

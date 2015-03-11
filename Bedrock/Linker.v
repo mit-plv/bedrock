@@ -23,6 +23,23 @@ Lemma lt_trans : forall n m o, (n < o)%N -> m = n -> (m < o)%N.
   congruence.
 Qed.
 
+Lemma lt_rearrange : forall n p m k,
+  (n + (p + m) < k)%N
+  -> (p + n < k)%N.
+  intros; nomega.
+Qed.
+
+Lemma contra : forall x b n,
+  (n < b)%nat
+  -> (S x * b <= n)%nat
+  -> False.
+  simpl; intros.
+  assert (b <= n)%nat.
+  generalize dependent (x * b)%nat.
+  intros; omega.
+  omega.
+Qed.
+
 Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   let labels' := fst (labelsOf' M (w', (labels, prog))) in
     labels' l1 = Some w
@@ -56,12 +73,6 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   rewrite NToWord_nat.
   assert (1 + wordToN w' < 4294967296)%N.
 
-  Lemma lt_rearrange : forall n p m k,
-    (n + (p + m) < k)%N
-    -> (p + n < k)%N.
-    intros; nomega.
-  Qed.
-
   eapply lt_rearrange; eauto.
 
   rewrite nat_of_Nplus.
@@ -81,17 +92,6 @@ Lemma labelsOf'_inj : forall M l1 l2 w w' labels prog,
   nomega.
   elimtype False.
   clear H1.
-
-  Lemma contra : forall x b n,
-    (n < b)%nat
-    -> (S x * b <= n)%nat
-    -> False.
-    simpl; intros.
-    assert (b <= n)%nat.
-    generalize dependent (x * b)%nat.
-    intros; omega.
-    omega.
-  Qed.
 
   eapply contra; [ | eassumption ].
   generalize H; clear; intro.

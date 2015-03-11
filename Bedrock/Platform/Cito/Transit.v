@@ -56,6 +56,21 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Cito.ListFacts5.
   Require Import Bedrock.Platform.Cito.ListFacts4.
+  Arguments ADTIn {_} _.
+  Arguments ADTOut {_} _.
+  Lemma combine_ret_decide_ret addr ret : combine_ret (fst (decide_ret addr ret)) (snd (decide_ret addr ret)) = ret.
+  Proof.
+    destruct ret; simpl; eauto.
+  Qed.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts7.
+  Arguments ADTIn {_} _.
+  Arguments ADTOut {_} _.
+  Arguments ADTIn {_} _.
+  Arguments ADTOut {_} _.
+  Arguments ADTIn {_} _.
+  Arguments ADTOut {_} _.
+  Arguments ADTIn {_} _.
+  Arguments ADTOut {_} _.
 
   Lemma RunsTo_TransitTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> RunsTo env (Syntax.Call lhs f args) v v' -> exists inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') /\ match_ret (fst v') lhs ret_w.
   Proof.
@@ -96,10 +111,8 @@ Section ADTValue.
       {
         unfold_all.
         rewrite combine_map.
-        Lemma combine_ret_decide_ret addr ret : combine_ret (fst (decide_ret addr ret)) (snd (decide_ret addr ret)) = ret.
-        Proof.
-          destruct ret; simpl; eauto.
-        Qed.
+    Arguments ADTIn {_} _.
+    Arguments ADTOut {_} _.
         rewrite combine_ret_decide_ret.
         eauto.
       }
@@ -107,7 +120,6 @@ Section ADTValue.
         unfold_all.
         rewrite H5.
         rewrite combine_map.
-        Require Import Bedrock.Platform.Cito.SemanticsFacts7.
         erewrite <- split_triples; eauto.
       }
       {
@@ -126,6 +138,15 @@ Section ADTValue.
   Qed.
 
   Require Import Coq.Lists.List.
+  Lemma fst_decide_ret_combine_ret ret_w ret_a : fst (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_w.
+  Proof.
+    destruct ret_a; simpl; eauto.
+  Qed.
+  Lemma snd_decide_ret_combine_ret ret_w ret_a : snd (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_a.
+  Proof.
+    destruct ret_a; simpl; eauto.
+  Qed.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts6.
 
   Lemma TransitTo_RunsTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') -> fst v' = upd_option (fst v) lhs ret_w -> RunsTo env (Syntax.Call lhs f args) v v'.
   Proof.
@@ -135,14 +156,6 @@ Section ADTValue.
     unfold TransitTo in *; simpl in *.
     openhyp.
     subst; simpl in *.
-    Lemma fst_decide_ret_combine_ret ret_w ret_a : fst (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_w.
-    Proof.
-      destruct ret_a; simpl; eauto.
-    Qed.
-    Lemma snd_decide_ret_combine_ret ret_w ret_a : snd (decide_ret ret_w (combine_ret ret_w ret_a)) = ret_a.
-    Proof.
-      destruct ret_a; simpl; eauto.
-    Qed.
     rewrite <- (fst_decide_ret_combine_ret ret_w ret_a).
     set (words_inputs := List.combine (List.map (eval w) args) inputs) in *.
     set (triples := make_triples words_inputs outputs) in *.
@@ -151,7 +164,6 @@ Section ADTValue.
     {
       instantiate (1 := triples).
       unfold_all.
-      Require Import Bedrock.Platform.Cito.SemanticsFacts6.
       rewrite make_triples_Word by (rewrite combine_length_eq; repeat rewrite map_length; eauto).
       rewrite map_fst_combine by (repeat rewrite map_length; eauto).
       eauto.

@@ -236,6 +236,185 @@ Section ADTValue.
 
 *)
 
+  Require Import Coq.Lists.List.
+  Require Import Bedrock.Platform.Cito.ListFacts4.
+  Import WordMap.
+
+  Require Import Bedrock.Platform.Cito.SemanticsFacts8.
+
+  Lemma related_no_aliasM st args input vs h :
+    mapM (sel st) args = Some input ->
+    related st (vs, h) ->
+    NoDup args ->
+    no_aliasM vs args input.
+  Proof.
+    intros Hmm Hr Hnd.
+    unfold no_aliasM, no_dupM, only_adt.
+    intros i j p ai aj Hki Hvi Hkj Hvj.
+    eapply nth_error_map_elim in Hki.
+    destruct Hki as [ki [Hki Hvs]].
+    subst.
+    eapply nth_error_map_elim in Hvi.
+    destruct Hvi as [vi [Hvi Hai]].
+    destruct vi as [wi | ai'].
+    discriminate.
+    inject Hai.
+    copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+    destruct Hmm' as [v' [? Hfki]].
+    unif v'.
+    eapply nth_error_map_elim in Hkj.
+    destruct Hkj as [kj [Hkj Hvs]].
+    eapply nth_error_map_elim in Hvj.
+    destruct Hvj as [vj [Hvj Haj]].
+    destruct vj as [wj | aj'].
+    discriminate.
+    inject Haj.
+    copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+    destruct Hmm' as [v' [? Hfkj]].
+    unif v'.
+    assert (ki = kj).
+    eapply related_no_alias; eauto.
+    subst.
+    eapply NoDup_nth_error; eauto.
+  Qed.
+
+  Ltac split' name :=
+    match goal with
+      | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
+    end.
+
+  Lemma change_var_names vs1 vs2 h vars1 vars2 input :
+    related (StringMapFacts.make_map vars1 input) (vs1, h) ->
+    List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1 ->
+    NoDup vars1 ->
+    NoDup vars2 ->
+    length vars1 = length input ->
+    related (StringMapFacts.make_map vars2 input) (vs2, h).
+  Proof.
+    intros Hr Hm Hnd1 Hnd2 Hl.
+    copy_as Hr Hr'.
+    destruct Hr' as [Hr1 Hr2]; unfold related; simpl in *.
+    unfold Locals.sel in *.
+    split.
+
+    intros x2 v Hf.
+    eapply find_Some_make_map_iff in Hf; eauto.
+    destruct Hf as [i [Hx2 Hv]].
+    eapply map_eq_nth_error_1 in Hm; eauto.
+    destruct Hm as [x1 [Hx1 Hvs]].
+    subst' Hvs.
+    eapply Hr1.
+    solve [eapply find_Some_make_map_iff; eauto].
+    rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
+
+    intros p a Hfp.
+    eapply Hr2 in Hfp.
+    destruct Hfp as [x1 [[Hp Hfx1] Hu]].
+    subst.
+    eapply find_Some_make_map_iff in Hfx1; eauto.
+    destruct Hfx1 as [i [Hx1 Hi]].
+    copy_as Hm Hm'; symmetry in Hm'; eapply map_eq_nth_error_1 in Hm'; eauto.
+    destruct Hm' as [x2 [Hx2 Hvs]].
+    subst' Hvs.
+    exists x2.
+    split.
+    split.
+    eauto.
+    eapply find_Some_make_map_iff; eauto.
+    rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
+    intros x2' [Hvs Hfx2'].
+    eapply find_Some_make_map_iff in Hfx2'; eauto.
+    destruct Hfx2' as [i' [Hx'2 Hi']].
+    assert (Heqi : i = i').
+    eapply map_eq_nth_error_1 in Hm; eauto.
+    destruct Hm as [x1' [Hx1' Hvs']].
+    subst' Hvs'.
+    assert (Hex1 : x1 = x1').
+    eapply Hu.
+    split.
+    eauto.
+    eapply find_Some_make_map_iff; eauto.
+    subst.
+    solve [eapply (NoDup_nth_error Hnd1); eauto].
+    subst.
+    unif x2'.
+    eauto.
+    rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
+  Qed.
+
+  Lemma reachable_submap_related st args input vs h :
+    mapM (sel st) args = Some input ->
+    related st (vs, h) ->
+    NoDup args ->
+    reachable_heap vs args input <= h /\
+    related (StringMapFacts.make_map args input) (vs, reachable_heap vs args input).
+  Proof.
+    intros Hmm Hr Hdn.
+    split.
+    unfold Submap.
+    intros p a Hf.
+    eapply find_Some_reachable_heap_iff in Hf.
+    destruct Hf as [i [k [Hk [Hin Hvs]]]].
+    subst.
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    destruct Hmm as [v [Hin' Hfk]].
+    unif v.
+    eapply Hr in Hfk; simpl in *.
+    solve [eauto].
+    solve [eapply mapM_length; eauto].
+    solve [eapply related_no_aliasM; eauto].
+
+    split; simpl.
+    intros k v Hfk.
+    eapply find_Some_make_map_iff in Hfk; eauto.
+    destruct Hfk as [i [Hk Hin]].
+    copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+    destruct Hmm' as [v' [? Hfk]].
+    unif v'.
+    eapply Hr in Hfk; simpl in *.
+    destruct v as [w | a]; simpl in *.
+    eauto.
+    eapply find_Some_reachable_heap_iff; eauto.
+    solve [eapply mapM_length; eauto].
+    solve [eapply related_no_aliasM; eauto].
+    solve [eapply mapM_length; eauto].
+
+    intros p a Hfp.
+    eapply find_Some_reachable_heap_iff in Hfp; eauto.
+    destruct Hfp as [i [k [Hk [Hin Hvs]]]].
+    subst.
+    copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+    destruct Hmm' as [v' [? Hfk]].
+    unif v'.
+    exists k.
+    split.
+    split.
+    eauto.
+    eapply find_Some_make_map_iff; eauto.
+    solve [eapply mapM_length; eauto].
+    intros k' [Hvs Hfk'].
+    eapply find_Some_make_map_iff in Hfk'; eauto.
+    destruct Hfk' as [i' [Hk' Hin']].
+    copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
+    destruct Hmm' as [v' [? Hfk']].
+    unif v'.
+    solve [eapply related_no_alias; eauto].
+    solve [eapply mapM_length; eauto].
+    solve [eapply mapM_length; eauto].
+    solve [eapply related_no_aliasM; eauto].
+  Qed.
+
+  Import WordMap.
+  Import WordMapFacts.
+  Require Import Bedrock.Platform.Facade.Facade.
+  Lemma submap_represent p h1 h2 v : represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
+  Proof.
+    intros Hpr Hsm.
+    destruct v as [w | a]; simpl in *.
+    eauto.
+    eapply submap_find; eauto.
+  Qed.
+
   Theorem compile_runsto :
     forall t t_env t_st t_st',
       CitoRunsTo t_env t t_st t_st' ->
@@ -325,174 +504,6 @@ Section ADTValue.
       reflexivity.
       Unfocus.
 
-      Require Import Coq.Lists.List.
-      Require Import Bedrock.Platform.Cito.ListFacts4.
-      Import WordMap.
-
-      Require Import Bedrock.Platform.Cito.SemanticsFacts8.
-
-      Lemma related_no_aliasM st args input vs h :
-        mapM (sel st) args = Some input ->
-        related st (vs, h) ->
-        NoDup args ->
-        no_aliasM vs args input.
-      Proof.
-        intros Hmm Hr Hnd.
-        unfold no_aliasM, no_dupM, only_adt.
-        intros i j p ai aj Hki Hvi Hkj Hvj.
-        eapply nth_error_map_elim in Hki.
-        destruct Hki as [ki [Hki Hvs]].
-        subst.
-        eapply nth_error_map_elim in Hvi.
-        destruct Hvi as [vi [Hvi Hai]].
-        destruct vi as [wi | ai'].
-        discriminate.
-        inject Hai.
-        copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
-        destruct Hmm' as [v' [? Hfki]].
-        unif v'.
-        eapply nth_error_map_elim in Hkj.
-        destruct Hkj as [kj [Hkj Hvs]].
-        eapply nth_error_map_elim in Hvj.
-        destruct Hvj as [vj [Hvj Haj]].
-        destruct vj as [wj | aj'].
-        discriminate.
-        inject Haj.
-        copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
-        destruct Hmm' as [v' [? Hfkj]].
-        unif v'.
-        assert (ki = kj).
-        eapply related_no_alias; eauto.
-        subst.
-        eapply NoDup_nth_error; eauto.
-      Qed.
-
-      Ltac split' name :=
-        match goal with
-          | |- ?T /\ _ => assert (name: T); [ | split; [ auto | ] ]
-        end.
-
-      Lemma change_var_names vs1 vs2 h vars1 vars2 input :
-        related (StringMapFacts.make_map vars1 input) (vs1, h) ->
-        List.map (fun x => vs2 x) vars2 = List.map (fun x => vs1 x) vars1 ->
-        NoDup vars1 ->
-        NoDup vars2 ->
-        length vars1 = length input ->
-        related (StringMapFacts.make_map vars2 input) (vs2, h).
-      Proof.
-        intros Hr Hm Hnd1 Hnd2 Hl.
-        copy_as Hr Hr'.
-        destruct Hr' as [Hr1 Hr2]; unfold related; simpl in *.
-        unfold Locals.sel in *.
-        split.
-
-        intros x2 v Hf.
-        eapply find_Some_make_map_iff in Hf; eauto.
-        destruct Hf as [i [Hx2 Hv]].
-        eapply map_eq_nth_error_1 in Hm; eauto.
-        destruct Hm as [x1 [Hx1 Hvs]].
-        subst' Hvs.
-        eapply Hr1.
-        solve [eapply find_Some_make_map_iff; eauto].
-        rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
-
-        intros p a Hfp.
-        eapply Hr2 in Hfp.
-        destruct Hfp as [x1 [[Hp Hfx1] Hu]].
-        subst.
-        eapply find_Some_make_map_iff in Hfx1; eauto.
-        destruct Hfx1 as [i [Hx1 Hi]].
-        copy_as Hm Hm'; symmetry in Hm'; eapply map_eq_nth_error_1 in Hm'; eauto.
-        destruct Hm' as [x2 [Hx2 Hvs]].
-        subst' Hvs.
-        exists x2.
-        split.
-        split.
-        eauto.
-        eapply find_Some_make_map_iff; eauto.
-        rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
-        intros x2' [Hvs Hfx2'].
-        eapply find_Some_make_map_iff in Hfx2'; eauto.
-        destruct Hfx2' as [i' [Hx'2 Hi']].
-        assert (Heqi : i = i').
-        eapply map_eq_nth_error_1 in Hm; eauto.
-        destruct Hm as [x1' [Hx1' Hvs']].
-        subst' Hvs'.
-        assert (Hex1 : x1 = x1').
-        eapply Hu.
-        split.
-        eauto.
-        eapply find_Some_make_map_iff; eauto.
-        subst.
-        solve [eapply (NoDup_nth_error Hnd1); eauto].
-        subst.
-        unif x2'.
-        eauto.
-        rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
-      Qed.
-
-      Lemma reachable_submap_related st args input vs h :
-        mapM (sel st) args = Some input ->
-        related st (vs, h) ->
-        NoDup args ->
-        reachable_heap vs args input <= h /\
-        related (StringMapFacts.make_map args input) (vs, reachable_heap vs args input).
-      Proof.
-        intros Hmm Hr Hdn.
-        split.
-        unfold Submap.
-        intros p a Hf.
-        eapply find_Some_reachable_heap_iff in Hf.
-        destruct Hf as [i [k [Hk [Hin Hvs]]]].
-        subst.
-        eapply mapM_nth_error_1 in Hmm; eauto.
-        destruct Hmm as [v [Hin' Hfk]].
-        unif v.
-        eapply Hr in Hfk; simpl in *.
-        solve [eauto].
-        solve [eapply mapM_length; eauto].
-        solve [eapply related_no_aliasM; eauto].
-
-        split; simpl.
-        intros k v Hfk.
-        eapply find_Some_make_map_iff in Hfk; eauto.
-        destruct Hfk as [i [Hk Hin]].
-        copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
-        destruct Hmm' as [v' [? Hfk]].
-        unif v'.
-        eapply Hr in Hfk; simpl in *.
-        destruct v as [w | a]; simpl in *.
-        eauto.
-        eapply find_Some_reachable_heap_iff; eauto.
-        solve [eapply mapM_length; eauto].
-        solve [eapply related_no_aliasM; eauto].
-        solve [eapply mapM_length; eauto].
-
-        intros p a Hfp.
-        eapply find_Some_reachable_heap_iff in Hfp; eauto.
-        destruct Hfp as [i [k [Hk [Hin Hvs]]]].
-        subst.
-        copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
-        destruct Hmm' as [v' [? Hfk]].
-        unif v'.
-        exists k.
-        split.
-        split.
-        eauto.
-        eapply find_Some_make_map_iff; eauto.
-        solve [eapply mapM_length; eauto].
-        intros k' [Hvs Hfk'].
-        eapply find_Some_make_map_iff in Hfk'; eauto.
-        destruct Hfk' as [i' [Hk' Hin']].
-        copy_as Hmm Hmm'; eapply mapM_nth_error_1 in Hmm'; eauto.
-        destruct Hmm' as [v' [? Hfk']].
-        unif v'.
-        solve [eapply related_no_alias; eauto].
-        solve [eapply mapM_length; eauto].
-        solve [eapply mapM_length; eauto].
-        solve [eapply related_no_aliasM; eauto].
-      Qed.
-
       {
         instantiate (1 := reachable_heap (fst v) l input).
         eapply reachable_submap_related in H4; openhyp; eauto.
@@ -521,8 +532,6 @@ Section ADTValue.
         eauto.
       }
 
-      Import WordMap.
-
       split.
       {
         intros.
@@ -537,7 +546,6 @@ Section ADTValue.
         2 : eapply H9.
         eapply submap_diff; eauto.
         solve [eapply reachable_submap_related in H4; openhyp; eauto].
-        Import WordMapFacts.
         left.
         eapply is_mapsto_adt_false_iff.
         eapply not_in_no_adt.
@@ -585,16 +593,8 @@ Section ADTValue.
           rewrite Locals.sel_upd_eq by eauto.
           inject Hf.
           unfold_related H13.
-          Require Import Bedrock.Platform.Facade.Facade.
           set (retp := Locals.sel vs_callee' (RetVar spec)) in *.
           eapply H13 in H.
-          Lemma submap_represent p h1 h2 v : represent p (WordMap.find p h1) v -> h1 <= h2 -> represent p (WordMap.find p h2) v.
-          Proof.
-            intros Hpr Hsm.
-            destruct v as [w | a]; simpl in *.
-            eauto.
-            eapply submap_find; eauto.
-          Qed.
           eapply submap_represent; eauto.
           solve [eapply submap_diff; eauto; eapply submap_diff; eauto].
         }

@@ -130,7 +130,7 @@ Section ADTValue.
 
   Require Import Bedrock.Platform.Facade.Compile.
 
-  Require Import Bedrock.Platform.Cito.GeneralTactics5.
+  Require Import Bedrock.Platform.Cito.GeneralTactics5. Require Import Bedrock.Platform.Cito.SemanticsFacts8.
 
   Theorem compile_safe :
     forall s_env s s_st,
@@ -300,7 +300,7 @@ Section ADTValue.
           destruct Hr as [Hsm2 Hr].
           repeat eexists_split.
           - eauto.
-          - Require Import Bedrock.Platform.Cito.SemanticsFacts8.
+          -
             instantiate (1 := reachable_heap vs args input).
             eapply submap_trans; eauto.
           - eapply change_var_names; eauto.

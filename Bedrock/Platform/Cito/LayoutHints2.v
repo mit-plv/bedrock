@@ -15,6 +15,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Section TopSection.
 
     Definition heap_to_split h (_ : list (W * ArgIn)) := is_heap h.
+    Require Import Bedrock.Platform.Cito.WordMapFacts.
 
     Lemma split_heap' : forall pairs h, good_inputs h pairs -> heap_to_split h pairs ===> let h1 := make_heap pairs in is_heap h1 * is_heap (heap_diff h h1).
       unfold heap_to_split; induction pairs; simpl; intros.
@@ -35,7 +36,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply InA_In.
       apply WordMap.elements_1.
       apply WordMap.elements_2 in H0.
-      Require Import Bedrock.Platform.Cito.WordMapFacts.
       apply diff_mapsto_iff.
       intuition.
       destruct H1.

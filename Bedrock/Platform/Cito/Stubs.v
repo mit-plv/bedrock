@@ -591,6 +591,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition dummy := @StructuredModule.bmodule_ nil "" nil.
 
     Definition link_all ls := fold_right_2 link dummy ls.
+    Hint Extern 1 => reflexivity.
 
     Lemma link_all_ok :
       forall (ms : list GoodModule),
@@ -618,7 +619,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
       rewrite make_module_Modules by intuition.
       setoid_rewrite of_list_singleton.
-      Hint Extern 1 => reflexivity.
       eauto.
       rewrite make_module_Exports by intuition.
       rewrite update_all_single.
