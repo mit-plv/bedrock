@@ -414,6 +414,510 @@ Section ADTValue.
     eauto.
     eapply submap_find; eauto.
   Qed.
+  Lemma not_reachable_iff ks st vs h input k a : related st (vs, h) -> mapM (sel st) ks = Some input -> StringMap.find k st = Some (ADT a) -> (not_reachable k ks input <-> ~ WordMap.In (vs k) (reachable_heap vs ks input)).
+  Proof.
+    intros Hr Hmm Hf.
+    unfold not_reachable.
+    split.
+    intros Hnr.
+    nintro.
+    eapply in_reachable_heap_iff in H.
+    2 : solve [eapply mapM_length; eauto].
+    destruct H as [i [k' [a' [Hk' [Hi Hp]]]]].
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    destruct Hmm as [v [Hi' Hf']].
+    unif v.
+    assert (k = k').
+    eapply related_no_alias; eauto.
+    subst.
+    eapply Hnr in Hk'.
+    destruct Hk' as [w Hi'].
+    rewrite Hi in Hi'; discriminate.
+
+    intros Hni i Hk.
+    contradict Hni.
+    eapply in_reachable_heap_iff.
+    solve [eapply mapM_length; eauto].
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    destruct Hmm as [v [Hi' Hf']].
+    unfold sel in *.
+    unif v.
+    exists i, k, a; eauto.
+  Qed.
+  Arguments direct_sum_submap [_] _ _ _ _.
+  Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+  Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+  Lemma not_reachable_add_remove_many k ks ins outs h :
+    NoDup ks ->
+    length ks = length ins ->
+    length ks = length outs ->
+    not_reachable (ADTValue := ADTValue) k ks ins ->
+    StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
+  Proof.
+    intros Hnd Hlki Hlko Hnr.
+    eapply option_univalence.
+    intros v; split; intros Hf.
+    eapply find_Some_add_remove_many in Hf; eauto.
+    destruct Hf as [[Hnr' Hf] | [i [a [Hk [Hi Ho]]]]].
+    eauto.
+    unfold not_reachable in *.
+    eapply Hnr in Hk.
+    destruct Hk as [w Hw].
+    rewrite Hi in Hw; discriminate.
+    eapply find_Some_add_remove_many; eauto.
+  Qed.
+
+  Import Semantics.
+
+  Arguments store_out {_} _ _.
+  Arguments ADTOut {_} _.
+  Lemma good_input_mapM args :
+    forall words cinput input h h2 st vs,
+      Forall (word_adt_match h) (combine words cinput) ->
+      length words = length cinput ->
+      h2 <= h ->
+      related st (vs, h2) ->
+      List.map (fun x => vs x) args = words ->
+      mapM (sel st) args = Some input ->
+            let input' := cinput in
+            same_types input input' ->
+            input = input'.
+  Proof.
+    simpl; induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate].
+    intros until 5; intros Hmm; intros; eapply mapM_length in Hmm; simpl in *; discriminate.
+    rename a into x.
+    rename v0 into v'.
+    intros h h2 st vs Hfa Hl Hsm Hr Hm Hmm Hte.
+    simpl in *.
+    destruct (option_dec (sel st x)) as [[y Hy] | Hn].
+    2 : rewrite Hn in *; discriminate.
+    rewrite Hy in *.
+    destruct (option_dec (mapM (sel st) args)) as [[ys Hys] | Hn].
+    2 : rewrite Hn in *; discriminate.
+    rewrite Hys in *.
+    inject Hmm.
+    inject Hm.
+    inject Hl.
+    inversion Hfa; subst.
+    inversion Hte; subst.
+    f_equal.
+    2 : solve [eapply IHargs; eauto].
+    eapply Hr in Hy; simpl in *.
+    unfold word_adt_match in H2.
+    destruct v' as [w | a]; simpl in *.
+    subst.
+    destruct v as [w' | a']; simpl in *.
+    subst; eauto.
+    intuition.
+    destruct v as [w' | a']; simpl in *.
+    intuition.
+    eapply submap_find in Hy; eauto.
+    unfold Locals.sel in *.
+    unif a'.
+    eauto.
+  Qed.
+  Lemma NoDup_no_alias st vs h args words cinput input words_cinput :
+    related st (vs, h) ->
+    NoDup args ->
+    List.map (fun x => vs x) args = words ->
+    input = cinput ->
+    mapM (sel st) args = Some input ->
+    words_cinput = combine words cinput ->
+    no_alias words_cinput.
+  Proof.
+    intros Hr Hnd Hm Hid Hmm Hwid.
+    subst.
+    unfold no_alias.
+    intros i j p ai aj Hi Hj.
+    eapply nth_error_combine_elim in Hi; eauto.
+    destruct Hi as [Hai Hii].
+    eapply nth_error_combine_elim in Hj; eauto.
+    destruct Hj as [Haj Hij].
+    eapply nth_error_map_elim in Hai; eauto.
+    destruct Hai as [xi [Hai ?]]; subst.
+    eapply nth_error_map_elim in Haj; eauto.
+    destruct Haj as [xj [Haj ?]]; subst.
+    copy_as Hai Hai'; eapply mapM_nth_error_1 in Hai'; eauto.
+    destruct Hai' as [vi [Hii' Hvi]].
+    unif vi; simpl in *.
+    copy_as Haj Haj'; eapply mapM_nth_error_1 in Haj'; eauto.
+    destruct Haj' as [vj [Hij' Hvj]].
+    unif vj; simpl in *.
+    assert (xi = xj) by (eapply related_no_alias; eauto).
+    subst; eapply NoDup_nth_error in Hnd; eauto.
+  Qed.
+
+  Require Import Bedrock.Platform.Cito.SemanticsFacts7.
+  Lemma not_in_not_reachable_p st vs h args words cinput p :
+    related st (vs, h) ->
+    List.map (fun x => vs x) args = words ->
+    mapM (sel st) args = Some cinput ->
+    ~ In p h ->
+    not_reachable_p p (combine words cinput).
+  Proof.
+    intros Hr Hm Hmm Hni.
+    unfold not_reachable_p.
+    intros i v Hi.
+    eapply nth_error_combine_elim in Hi.
+    destruct Hi as [Hw Hi].
+    eapply map_nth_error_2 in Hm; eauto.
+    destruct Hm as [a [Ha Hp]].
+    subst.
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    destruct Hmm as [b [Hi' Hs]].
+    unif b.
+    destruct v; simpl in *.
+    eexists; eauto.
+    eapply Hr in Hs; simpl in *.
+    contradict Hni.
+    eapply find_Some_in; eauto.
+  Qed.
+
+  Lemma not_reachable_p_not_reachable (st : Facade.State ADTValue) vs args words cinput x :
+    List.map (fun x => vs x) args = words ->
+    mapM (sel st) args = Some cinput ->
+    not_reachable_p (vs x) (combine words cinput) ->
+    not_reachable x args cinput.
+  Proof.
+    intros Hm Hmm.
+    intros Hnr; unfold not_reachable_p, not_reachable in *.
+    intros i Hi.
+    eapply map_nth_error_1 in Hm; eauto.
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    openhyp; rename x0 into v.
+    set (p := vs x) in *.
+    edestruct Hnr.
+    eapply nth_error_combine; eauto.
+    subst; rename x0 into w.
+    exists w.
+    eauto.
+  Qed.
+
+  Lemma not_reachable_not_reachable_p st vs h args words cinput x a :
+    related st (vs, h) ->
+    NoDup args ->
+    List.map (fun x => vs x) args = words ->
+    mapM (sel st) args = Some cinput ->
+    StringMap.find x st = Some (ADT a) ->
+    not_reachable x args cinput ->
+    not_reachable_p (vs x) (combine words cinput).
+  Proof.
+    intros Hr Hnd Hm Hmm Hf.
+    intros Hnr; unfold not_reachable_p, not_reachable in *.
+    intros i v Hi.
+    eapply nth_error_combine_elim in Hi.
+    openhyp.
+    eapply map_nth_error_2 in Hm; eauto.
+    openhyp; subst.
+    rename x0 into x'.
+    eapply mapM_nth_error_1 in Hmm; eauto.
+    openhyp; subst.
+    rename x0 into v'.
+    unif v'.
+    destruct v; simpl in *.
+    eexists; eauto.
+    assert (x = x').
+    eapply related_no_alias; eauto.
+    subst.
+    eapply Hnr in H1.
+    openhyp; subst.
+    rewrite H1 in H0.
+    simpl in *; discriminate.
+  Qed.
+
+  Lemma add_remove_many_fold_store_out_iff :
+    forall st vs h2 args triples words cinput coutput input h h' p a,
+      related st (vs, h2) ->
+      NoDup args ->
+      words = List.map (@Word _) triples ->
+      cinput = List.map (@ADTIn _) triples ->
+      coutput = List.map (@ADTOut _) triples ->
+      input = cinput ->
+          List.map (fun x => vs x) args = words ->
+          mapM (sel st) args = Some input ->
+          h2 <= h ->
+          let h1 := h - h2 in
+          h' == fold_left store_out triples h ->
+          h1 <= h' ->
+          ((exists x,
+              p = Locals.sel vs x /\
+              StringMap.find x (add_remove_many args input (wrap_output coutput) st) = Some (ADT a)) <->
+           find p (h' - h1) = Some a).
+  Proof.
+    intros st vs h2 args triples words cinput coutput input h h' p a Hr Hnd Hw Hci Hco Hi Hm Hmm Hsm2 h1 He Hsm1'.
+    assert (Hna : no_alias (combine words cinput)) by (eapply NoDup_no_alias; eauto).
+    assert (Hsm1 : h1 <= h) by eapply diff_submap.
+    assert (Hd : Disjoint h1 h2) by eapply diff_disjoint.
+    assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
+
+    rewrite He.
+    erewrite (@split_triples' _ triples) by eauto.
+    split; intro Hf.
+
+    (* direction 1 *)
+    destruct Hf as [x Hf].
+    destruct Hf as [Hp Hf].
+    eapply find_Some_add_remove_many in Hf.
+    openhyp.
+
+    (* not_reachable *)
+    unfold_related Hr.
+    copy_as H0 H00; eapply H1 in H0; simpl in *.
+    eapply diff_find_Some_iff.
+    split.
+
+    eapply find_Some_fold_store_out.
+    solve [eauto].
+    solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
+    left.
+    split.
+    subst; eapply not_reachable_not_reachable_p; eauto.
+    solve [subst; eauto].
+
+    subst; eapply Disjoint_in_not.
+    solve [eapply Disjoint_sym; eauto].
+    solve [eapply find_Some_in; eauto].
+
+    (* reachable *)
+    rename x0 into i.
+    rename a into a'.
+    rename x1 into a.
+    eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
+    unif x0.
+    eapply nth_error_map_elim in H0; openhyp.
+    destruct x0; simpl in *.
+    subst.
+    unfold wrap_output in H1; eapply nth_error_map_elim in H1; openhyp.
+    destruct x0; simpl in *.
+    2 : discriminate.
+    inject H2.
+    eapply nth_error_map_elim in H1; openhyp.
+    unif x0; simpl in *; subst.
+    eapply map_eq_nth_error_1 in Hm; [ | eauto ..]; openhyp.
+    unif x0; simpl in *; subst.
+
+    unfold_related Hr.
+    eapply H1 in H3; simpl in *.
+    eapply diff_find_Some_iff.
+    split.
+
+    eapply find_Some_fold_store_out.
+    solve [eauto].
+    solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
+    right.
+    exists i; exists a.
+    unfold Locals.sel in *.
+    split.
+
+    solve [erewrite nth_error_combine; eauto; erewrite map_nth_error by eauto; simpl; eauto].
+    solve [erewrite map_nth_error by eauto; simpl; eauto].
+
+    subst; eapply Disjoint_in_not.
+    solve [eapply Disjoint_sym; eauto].
+    solve [eapply find_Some_in; eauto].
+
+    solve [eauto].
+    solve [subst; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+
+    (* direction 2 *)
+    eapply diff_find_Some_iff in Hf; openhyp.
+    eapply find_Some_fold_store_out in H.
+    openhyp.
+
+    (* p is an address not affected by the call *)
+    eapply find_Some_direct_sum in H1; [ | eauto .. ].
+    openhyp.
+    solve [contradict H0; eapply find_Some_in; eauto].
+    unfold_related Hr.
+    eapply H3 in H1; simpl in *.
+    openhyp'.
+    exists x.
+    split.
+    eauto.
+    eapply find_Some_add_remove_many.
+    solve [eauto].
+    solve [subst; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    left.
+    split.
+    subst; eapply not_reachable_p_not_reachable; eauto.
+    solve [eauto].
+
+    (* p is the address of an output ADT object (but not the returned ADT object) *)
+    rename x into i.
+    rename x0 into a0.
+    eapply nth_error_combine_elim in H; openhyp.
+    subst.
+    eapply nth_error_map_elim in H; openhyp.
+    destruct x; simpl in *; subst.
+    eapply nth_error_map_elim in H2; openhyp.
+    unif x; simpl in *; subst.
+    eapply nth_error_map_elim in H1; openhyp.
+    unif x; simpl in *; subst.
+    eapply mapM_nth_error_2 in Hmm.
+    2 : solve [repeat eapply map_nth_error; eauto].
+    simpl in *.
+    openhyp.
+    copy_as Hm Hm'; eapply map_eq_nth_error_1 in Hm'; [ | eauto ..]; openhyp.
+    unif x0; simpl in *; subst.
+    exists x.
+    split.
+    eauto.
+    eapply find_Some_add_remove_many.
+    solve [eauto].
+    solve [repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    solve [unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
+    right.
+    exists i; exists a0.
+    split.
+    eauto.
+    split.
+    solve [repeat erewrite map_nth_error; eauto; simpl; eauto].
+    solve [unfold wrap_output; repeat erewrite map_nth_error; eauto; simpl; eauto].
+    solve [eauto].
+    solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
+
+  Qed.
+
+  Lemma add_remove_many_fold_store_out :
+    forall st vs h2 args triples words cinput coutput input h h' x p a,
+      related st (vs, h2) ->
+      NoDup args ->
+      words = List.map (@Word _) triples ->
+      cinput = List.map (@ADTIn _) triples ->
+      coutput = List.map (@ADTOut _) triples ->
+      input = cinput ->
+          List.map (fun x => vs x) args = words ->
+          mapM (sel st) args = Some input ->
+          h2 <= h ->
+          let h1 := h - h2 in
+          h' == fold_left store_out triples h ->
+          h1 <= h' ->
+          p = Locals.sel vs x ->
+          StringMap.find x (add_remove_many args input (wrap_output coutput) st) = Some (ADT a) ->
+          find p (h' - h1) = Some a.
+  Proof.
+    intros.
+    eapply add_remove_many_fold_store_out_iff; eauto.
+  Qed.
+
+  Import Facade.
+
+  Ltac pick_related := try match goal with | |- related _ _ => eauto end.
+
+  Infix "===" := (@StringMapFacts.M.Equal _) (at level 70).
+  Hint Extern 0 (_ === _) => reflexivity.
+  Lemma related_Equal_1 st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> related st (vs, h) -> related st' (vs', h').
+  Proof.
+    unfold related; intros Hst Hvs Hh; intros [Hr1 Hr2]; simpl in *.
+    split.
+    intros k v Hfk.
+    rewrite <- Hst in Hfk.
+    rewrite <- Hh.
+    rewrite <- Hvs.
+    eauto.
+    intros p a Hfp.
+    rewrite <- Hh in Hfp.
+    eapply Hr2 in Hfp.
+    destruct Hfp as [k [Hex Hu]].
+    exists k.
+    split.
+    rewrite <- Hst.
+    rewrite <- Hvs.
+    eauto.
+    intros k'.
+    rewrite <- Hst.
+    rewrite <- Hvs.
+    eauto.
+  Qed.
+
+  Lemma related_Equal st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> (related st (vs, h) <-> related st' (vs', h')).
+  Proof.
+    intros Hst Hvs Hh; split; intros Hr.
+    eapply related_Equal_1; eauto.
+    eapply related_Equal_1; pick_related; eauto.
+    symmetry; eauto.
+    symmetry; eauto.
+  Qed.
+
+  Definition new_adt_no_pollute s_st vs s_st' vs' h := forall x, @is_mapsto_adt ADTValue x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel vs x <> Locals.sel vs' x -> @is_mapsto_adt ADTValue x s_st' = true -> ~ @In ADTValue (Locals.sel vs' x) h.
+  Lemma new_adt_no_pollute_seq st vs st' vs' st'' vs'' h h' h'' : new_adt_no_pollute st vs st' vs' h -> new_adt_no_pollute st' vs' st'' vs'' h' -> h == h'' -> h' == h'' -> new_adt_no_pollute st vs st'' vs'' h''.
+  Proof.
+    unfold new_adt_no_pollute; intros Hanew Hbnew Hheq Hheq' x Hmt Hmt''.
+    unfold Locals.sel in *.
+    destruct (boolcase (is_mapsto_adt x st')) as [Hmt' | Hmtf'].
+    destruct (Word.weq (vs' x) (vs'' x)) as [Heq | Hne].
+    rewrite <- Heq in *.
+    rewrite <- Hheq.
+    solve [eapply Hanew; eauto].
+    eapply Hbnew in Hmt''.
+    rewrite <- Hheq'.
+    solve [eauto].
+    solve [right; eauto].
+    eapply Hbnew in Hmt''.
+    rewrite <- Hheq'.
+    solve [eauto].
+    solve [left; eauto].
+  Qed.
+
+  Lemma related_add_sca st vs h lhs w h' : related st (vs, h) -> not_mapsto_adt lhs st = true -> h' == h -> related (StringMap.add lhs (SCA _ w) st) (Locals.upd vs lhs w, h').
+  Proof.
+    intros Hr Hnmt Hheq.
+    unfold related; simpl in *.
+    split.
+    intros x v Hfx.
+    destruct (string_dec x lhs) as [Heq | Hne].
+    subst.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    inject Hfx; simpl in *.
+    rewrite Locals.sel_upd_eq in * by eauto.
+    eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    eapply Hr in Hfx; simpl in *.
+    solve [rewrite Hheq; eauto].
+
+    intros p a Hfp.
+    rewrite Hheq in Hfp.
+    eapply Hr in Hfp.
+    simpl in *.
+    destruct Hfp as [x [[Hvs Hfx] Hu]].
+    subst.
+    destruct (string_dec x lhs) as [Heq | Hne].
+    subst.
+    eapply not_mapsto_adt_find in Hfx; eauto.
+    openhyp; discriminate.
+    exists x.
+    split.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eauto.
+    intros x' [Hvs Hfx'].
+    destruct (string_dec x' lhs) as [Heq' | Hne'].
+    subst.
+    rewrite StringMapFacts.add_eq_o in * by eauto.
+    discriminate.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    rewrite StringMapFacts.add_neq_o in * by eauto.
+    eauto.
+  Qed.
+
+  Lemma new_adt_no_pollute_add_sca st vs lhs w1 w2 h : new_adt_no_pollute st vs (StringMap.add lhs (SCA _ w1) st) (Locals.upd vs lhs w2) h.
+  Proof.
+    unfold new_adt_no_pollute.
+    intros x Hmt Hmt'.
+    destruct (string_dec x lhs) as [Heq | Hne].
+    subst.
+    rewrite Locals.sel_upd_eq in * by eauto.
+    rewrite is_mapsto_adt_eq_sca in *.
+    discriminate.
+    rewrite Locals.sel_upd_ne in * by eauto.
+    rewrite is_mapsto_adt_neq in * by eauto.
+    intros; openhyp; intuition.
+    rewrite H in Hmt'.
+    discriminate.
+  Qed.
 
   Theorem compile_runsto :
     forall t t_env t_st t_st',
@@ -607,36 +1111,6 @@ Section ADTValue.
           openhyp.
           {
             (* not reachable *)
-            Lemma not_reachable_iff ks st vs h input k a : related st (vs, h) -> mapM (sel st) ks = Some input -> StringMap.find k st = Some (ADT a) -> (not_reachable k ks input <-> ~ WordMap.In (vs k) (reachable_heap vs ks input)).
-            Proof.
-              intros Hr Hmm Hf.
-              unfold not_reachable.
-              split.
-              intros Hnr.
-              nintro.
-              eapply in_reachable_heap_iff in H.
-              2 : solve [eapply mapM_length; eauto].
-              destruct H as [i [k' [a' [Hk' [Hi Hp]]]]].
-              eapply mapM_nth_error_1 in Hmm; eauto.
-              destruct Hmm as [v [Hi' Hf']].
-              unif v.
-              assert (k = k').
-              eapply related_no_alias; eauto.
-              subst.
-              eapply Hnr in Hk'.
-              destruct Hk' as [w Hi'].
-              rewrite Hi in Hi'; discriminate.
-
-              intros Hni i Hk.
-              contradict Hni.
-              eapply in_reachable_heap_iff.
-              solve [eapply mapM_length; eauto].
-              eapply mapM_nth_error_1 in Hmm; eauto.
-              destruct Hmm as [v [Hi' Hf']].
-              unfold sel in *.
-              unif v.
-              exists i, k, a; eauto.
-            Qed.
             unfold_related H18.
             copy_as H21 Hf; eapply H18 in H21.
             destruct v as [w | a]; simpl in *.
@@ -809,25 +1283,9 @@ Section ADTValue.
         eapply H28.
         split.
         eauto.
-        Lemma not_reachable_add_remove_many k ks ins outs h :
-          NoDup ks ->
-          length ks = length ins ->
-          length ks = length outs ->
-          not_reachable (ADTValue := ADTValue) k ks ins ->
-          StringMap.find k (add_remove_many ks ins outs h) = StringMap.find k h.
-        Proof.
-          intros Hnd Hlki Hlko Hnr.
-          eapply option_univalence.
-          intros v; split; intros Hf.
-          eapply find_Some_add_remove_many in Hf; eauto.
-          destruct Hf as [[Hnr' Hf] | [i [a [Hk [Hi Ho]]]]].
-          eauto.
-          unfold not_reachable in *.
-          eapply Hnr in Hk.
-          destruct Hk as [w Hw].
-          rewrite Hi in Hw; discriminate.
-          eapply find_Some_add_remove_many; eauto.
-        Qed.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
         erewrite <- not_reachable_add_remove_many; eauto.
         solve [eapply mapM_length; eauto].
         solve [rewrite map_length; eapply map_eq_length_eq in H0; eauto].
@@ -1011,8 +1469,6 @@ Section ADTValue.
     }
     Unfocus.
 
-    Import Semantics.
-
     Arguments store_out {_} _ _.
     Arguments ADTOut {_} _.
 
@@ -1066,51 +1522,12 @@ Section ADTValue.
       set (words_cinput := List.map (fun x => (Semantics.Word x, Semantics.ADTIn x)) triples) in *.
       assert (input = cinput).
       {
-        Lemma good_input_mapM args :
-          forall words cinput input h h2 st vs,
-            Forall (word_adt_match h) (combine words cinput) ->
-            length words = length cinput ->
-            h2 <= h ->
-            related st (vs, h2) ->
-            List.map (fun x => vs x) args = words ->
-            mapM (sel st) args = Some input ->
-            let input' := cinput in
-            same_types input input' ->
-            input = input'.
-        Proof.
-          simpl; induction args; destruct words; destruct cinput; destruct input; try solve [simpl in *; intros; eauto; try discriminate].
-          intros until 5; intros Hmm; intros; eapply mapM_length in Hmm; simpl in *; discriminate.
-          rename a into x.
-          rename v0 into v'.
-          intros h h2 st vs Hfa Hl Hsm Hr Hm Hmm Hte.
-          simpl in *.
-          destruct (option_dec (sel st x)) as [[y Hy] | Hn].
-          2 : rewrite Hn in *; discriminate.
-          rewrite Hy in *.
-          destruct (option_dec (mapM (sel st) args)) as [[ys Hys] | Hn].
-          2 : rewrite Hn in *; discriminate.
-          rewrite Hys in *.
-          inject Hmm.
-          inject Hm.
-          inject Hl.
-          inversion Hfa; subst.
-          inversion Hte; subst.
-          f_equal.
-          2 : solve [eapply IHargs; eauto].
-          eapply Hr in Hy; simpl in *.
-          unfold word_adt_match in H2.
-          destruct v' as [w | a]; simpl in *.
-          subst.
-          destruct v as [w' | a']; simpl in *.
-          subst; eauto.
-          intuition.
-          destruct v as [w' | a']; simpl in *.
-          intuition.
-          eapply submap_find in Hy; eauto.
-          unfold Locals.sel in *.
-          unif a'.
-          eauto.
-        Qed.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
 
         unfold_all.
         eapply good_input_mapM; eauto.
@@ -1149,36 +1566,12 @@ Section ADTValue.
 
       assert (no_alias words_cinput).
       {
-        Lemma NoDup_no_alias st vs h args words cinput input words_cinput :
-          related st (vs, h) ->
-          NoDup args ->
-          List.map (fun x => vs x) args = words ->
-          input = cinput ->
-          mapM (sel st) args = Some input ->
-          words_cinput = combine words cinput ->
-          no_alias words_cinput.
-        Proof.
-          intros Hr Hnd Hm Hid Hmm Hwid.
-          subst.
-          unfold no_alias.
-          intros i j p ai aj Hi Hj.
-          eapply nth_error_combine_elim in Hi; eauto.
-          destruct Hi as [Hai Hii].
-          eapply nth_error_combine_elim in Hj; eauto.
-          destruct Hj as [Haj Hij].
-          eapply nth_error_map_elim in Hai; eauto.
-          destruct Hai as [xi [Hai ?]]; subst.
-          eapply nth_error_map_elim in Haj; eauto.
-          destruct Haj as [xj [Haj ?]]; subst.
-          copy_as Hai Hai'; eapply mapM_nth_error_1 in Hai'; eauto.
-          destruct Hai' as [vi [Hii' Hvi]].
-          unif vi; simpl in *.
-          copy_as Haj Haj'; eapply mapM_nth_error_1 in Haj'; eauto.
-          destruct Haj' as [vj [Hij' Hvj]].
-          unif vj; simpl in *.
-          assert (xi = xj) by (eapply related_no_alias; eauto).
-          subst; eapply NoDup_nth_error in Hnd; eauto.
-        Qed.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
 
         eapply NoDup_no_alias; eauto.
         rewrite H.
@@ -1198,8 +1591,6 @@ Section ADTValue.
         eapply diff_find_Some_iff in Hf.
         openhyp.
 
-        Require Import Bedrock.Platform.Cito.SemanticsFacts7.
-
         rewrite (@split_triples _ triples words_cinput coutput) by eauto.
 
         eapply find_Some_fold_store_out.
@@ -1209,30 +1600,12 @@ Section ADTValue.
         left.
         split.
         {
-          Lemma not_in_not_reachable_p st vs h args words cinput p :
-            related st (vs, h) ->
-            List.map (fun x => vs x) args = words ->
-            mapM (sel st) args = Some cinput ->
-            ~ In p h ->
-            not_reachable_p p (combine words cinput).
-          Proof.
-            intros Hr Hm Hmm Hni.
-            unfold not_reachable_p.
-            intros i v Hi.
-            eapply nth_error_combine_elim in Hi.
-            destruct Hi as [Hw Hi].
-            eapply map_nth_error_2 in Hm; eauto.
-            destruct Hm as [a [Ha Hp]].
-            subst.
-            eapply mapM_nth_error_1 in Hmm; eauto.
-            destruct Hmm as [b [Hi' Hs]].
-            unif b.
-            destruct v; simpl in *.
-            eexists; eauto.
-            eapply Hr in Hs; simpl in *.
-            contradict Hni.
-            eapply find_Some_in; eauto.
-          Qed.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
+
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
           eapply not_in_not_reachable_p; eauto.
         }
         solve [eauto].
@@ -1293,235 +1666,30 @@ Section ADTValue.
         solve [subst; unfold_all; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
         solve [intuition].
       }
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-      Lemma not_reachable_p_not_reachable (st : Facade.State ADTValue) vs args words cinput x :
-        List.map (fun x => vs x) args = words ->
-        mapM (sel st) args = Some cinput ->
-        not_reachable_p (vs x) (combine words cinput) ->
-        not_reachable x args cinput.
-      Proof.
-        intros Hm Hmm.
-        intros Hnr; unfold not_reachable_p, not_reachable in *.
-        intros i Hi.
-        eapply map_nth_error_1 in Hm; eauto.
-        eapply mapM_nth_error_1 in Hmm; eauto.
-        openhyp; rename x0 into v.
-        set (p := vs x) in *.
-        edestruct Hnr.
-        eapply nth_error_combine; eauto.
-        subst; rename x0 into w.
-        exists w.
-        eauto.
-      Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-      Lemma not_reachable_not_reachable_p st vs h args words cinput x a :
-        related st (vs, h) ->
-        NoDup args ->
-        List.map (fun x => vs x) args = words ->
-        mapM (sel st) args = Some cinput ->
-        StringMap.find x st = Some (ADT a) ->
-        not_reachable x args cinput ->
-        not_reachable_p (vs x) (combine words cinput).
-      Proof.
-        intros Hr Hnd Hm Hmm Hf.
-        intros Hnr; unfold not_reachable_p, not_reachable in *.
-        intros i v Hi.
-        eapply nth_error_combine_elim in Hi.
-        openhyp.
-        eapply map_nth_error_2 in Hm; eauto.
-        openhyp; subst.
-        rename x0 into x'.
-        eapply mapM_nth_error_1 in Hmm; eauto.
-        openhyp; subst.
-        rename x0 into v'.
-        unif v'.
-        destruct v; simpl in *.
-        eexists; eauto.
-        assert (x = x').
-        eapply related_no_alias; eauto.
-        subst.
-        eapply Hnr in H1.
-        openhyp; subst.
-        rewrite H1 in H0.
-        simpl in *; discriminate.
-      Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-      Lemma add_remove_many_fold_store_out_iff :
-        forall st vs h2 args triples words cinput coutput input h h' p a,
-          related st (vs, h2) ->
-          NoDup args ->
-          words = List.map (@Word _) triples ->
-          cinput = List.map (@ADTIn _) triples ->
-          coutput = List.map (@ADTOut _) triples ->
-          input = cinput ->
-          List.map (fun x => vs x) args = words ->
-          mapM (sel st) args = Some input ->
-          h2 <= h ->
-          let h1 := h - h2 in
-          h' == fold_left store_out triples h ->
-          h1 <= h' ->
-          ((exists x,
-              p = Locals.sel vs x /\
-              StringMap.find x (add_remove_many args input (wrap_output coutput) st) = Some (ADT a)) <->
-           find p (h' - h1) = Some a).
-      Proof.
-        intros st vs h2 args triples words cinput coutput input h h' p a Hr Hnd Hw Hci Hco Hi Hm Hmm Hsm2 h1 He Hsm1'.
-        assert (Hna : no_alias (combine words cinput)) by (eapply NoDup_no_alias; eauto).
-        assert (Hsm1 : h1 <= h) by eapply diff_submap.
-        assert (Hd : Disjoint h1 h2) by eapply diff_disjoint.
-        assert (Hds : direct_sum h1 h2 h) by (eapply diff_direct_sum; eauto).
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-        rewrite He.
-        erewrite (@split_triples' _ triples) by eauto.
-        split; intro Hf.
-
-        (* direction 1 *)
-        destruct Hf as [x Hf].
-        destruct Hf as [Hp Hf].
-        eapply find_Some_add_remove_many in Hf.
-        openhyp.
-
-        (* not_reachable *)
-        unfold_related Hr.
-        copy_as H0 H00; eapply H1 in H0; simpl in *.
-        eapply diff_find_Some_iff.
-        split.
-
-        eapply find_Some_fold_store_out.
-        solve [eauto].
-        solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
-        left.
-        split.
-        subst; eapply not_reachable_not_reachable_p; eauto.
-        solve [subst; eauto].
-
-        subst; eapply Disjoint_in_not.
-        solve [eapply Disjoint_sym; eauto].
-        solve [eapply find_Some_in; eauto].
-
-        (* reachable *)
-        rename x0 into i.
-        rename a into a'.
-        rename x1 into a.
-        eapply mapM_nth_error_2 in Hmm; eauto; openhyp.
-        unif x0.
-        eapply nth_error_map_elim in H0; openhyp.
-        destruct x0; simpl in *.
-        subst.
-        unfold wrap_output in H1; eapply nth_error_map_elim in H1; openhyp.
-        destruct x0; simpl in *.
-        2 : discriminate.
-        inject H2.
-        eapply nth_error_map_elim in H1; openhyp.
-        unif x0; simpl in *; subst.
-        eapply map_eq_nth_error_1 in Hm; [ | eauto ..]; openhyp.
-        unif x0; simpl in *; subst.
-
-        unfold_related Hr.
-        eapply H1 in H3; simpl in *.
-        eapply diff_find_Some_iff.
-        split.
-
-        eapply find_Some_fold_store_out.
-        solve [eauto].
-        solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
-        right.
-        exists i; exists a.
-        unfold Locals.sel in *.
-        split.
-
-        solve [erewrite nth_error_combine; eauto; erewrite map_nth_error by eauto; simpl; eauto].
-        solve [erewrite map_nth_error by eauto; simpl; eauto].
-
-        subst; eapply Disjoint_in_not.
-        solve [eapply Disjoint_sym; eauto].
-        solve [eapply find_Some_in; eauto].
-
-        solve [eauto].
-        solve [subst; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-        solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-
-        (* direction 2 *)
-        eapply diff_find_Some_iff in Hf; openhyp.
-        eapply find_Some_fold_store_out in H.
-        openhyp.
-
-        (* p is an address not affected by the call *)
-        eapply find_Some_direct_sum in H1; [ | eauto .. ].
-        openhyp.
-        solve [contradict H0; eapply find_Some_in; eauto].
-        unfold_related Hr.
-        eapply H3 in H1; simpl in *.
-        openhyp'.
-        exists x.
-        split.
-        eauto.
-        eapply find_Some_add_remove_many.
-        solve [eauto].
-        solve [subst; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-        solve [subst; unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-        left.
-        split.
-        subst; eapply not_reachable_p_not_reachable; eauto.
-        solve [eauto].
-
-        (* p is the address of an output ADT object (but not the returned ADT object) *)
-        rename x into i.
-        rename x0 into a0.
-        eapply nth_error_combine_elim in H; openhyp.
-        subst.
-        eapply nth_error_map_elim in H; openhyp.
-        destruct x; simpl in *; subst.
-        eapply nth_error_map_elim in H2; openhyp.
-        unif x; simpl in *; subst.
-        eapply nth_error_map_elim in H1; openhyp.
-        unif x; simpl in *; subst.
-        eapply mapM_nth_error_2 in Hmm.
-        2 : solve [repeat eapply map_nth_error; eauto].
-        simpl in *.
-        openhyp.
-        copy_as Hm Hm'; eapply map_eq_nth_error_1 in Hm'; [ | eauto ..]; openhyp.
-        unif x0; simpl in *; subst.
-        exists x.
-        split.
-        eauto.
-        eapply find_Some_add_remove_many.
-        solve [eauto].
-        solve [repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-        solve [unfold wrap_output; repeat rewrite map_length; eapply map_eq_length_eq; eauto].
-        right.
-        exists i; exists a0.
-        split.
-        eauto.
-        split.
-        solve [repeat erewrite map_nth_error; eauto; simpl; eauto].
-        solve [unfold wrap_output; repeat erewrite map_nth_error; eauto; simpl; eauto].
-        solve [eauto].
-        solve [subst; rewrite combine_length_eq; repeat rewrite map_length; eauto].
-
-      Qed.
-
-      Lemma add_remove_many_fold_store_out :
-        forall st vs h2 args triples words cinput coutput input h h' x p a,
-          related st (vs, h2) ->
-          NoDup args ->
-          words = List.map (@Word _) triples ->
-          cinput = List.map (@ADTIn _) triples ->
-          coutput = List.map (@ADTOut _) triples ->
-          input = cinput ->
-          List.map (fun x => vs x) args = words ->
-          mapM (sel st) args = Some input ->
-          h2 <= h ->
-          let h1 := h - h2 in
-          h' == fold_left store_out triples h ->
-          h1 <= h' ->
-          p = Locals.sel vs x ->
-          StringMap.find x (add_remove_many args input (wrap_output coutput) st) = Some (ADT a) ->
-          find p (h' - h1) = Some a.
-      Proof.
-        intros.
-        eapply add_remove_many_fold_store_out_iff; eauto.
-      Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
 
       (* related *)
       unfold related; simpl.
@@ -1665,8 +1833,6 @@ Section ADTValue.
     }
     Unfocus.
 
-    Import Facade.
-
     Focus 3.
     {
       (* if-true *)
@@ -1729,63 +1895,24 @@ Section ADTValue.
       solve [eauto].
     }
     Unfocus.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-    Ltac pick_related := try match goal with | |- related _ _ => eauto end.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-    Infix "===" := (@StringMapFacts.M.Equal _) (at level 70).
-    Hint Extern 0 (_ === _) => reflexivity.
-    Lemma related_Equal_1 st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> related st (vs, h) -> related st' (vs', h').
-    Proof.
-      unfold related; intros Hst Hvs Hh; intros [Hr1 Hr2]; simpl in *.
-      split.
-      intros k v Hfk.
-      rewrite <- Hst in Hfk.
-      rewrite <- Hh.
-      rewrite <- Hvs.
-      eauto.
-      intros p a Hfp.
-      rewrite <- Hh in Hfp.
-      eapply Hr2 in Hfp.
-      destruct Hfp as [k [Hex Hu]].
-      exists k.
-      split.
-      rewrite <- Hst.
-      rewrite <- Hvs.
-      eauto.
-      intros k'.
-      rewrite <- Hst.
-      rewrite <- Hvs.
-      eauto.
-    Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-    Lemma related_Equal st vs h st' vs' h' : st === st' -> (forall x, Locals.sel vs x = Locals.sel vs' x) -> h == h' -> (related st (vs, h) <-> related st' (vs', h')).
-    Proof.
-      intros Hst Hvs Hh; split; intros Hr.
-      eapply related_Equal_1; eauto.
-      eapply related_Equal_1; pick_related; eauto.
-      symmetry; eauto.
-      symmetry; eauto.
-    Qed.
-
-    Definition new_adt_no_pollute s_st vs s_st' vs' h := forall x, @is_mapsto_adt ADTValue x s_st = false \/ is_mapsto_adt x s_st = true /\ Locals.sel vs x <> Locals.sel vs' x -> @is_mapsto_adt ADTValue x s_st' = true -> ~ @In ADTValue (Locals.sel vs' x) h.
-    Lemma new_adt_no_pollute_seq st vs st' vs' st'' vs'' h h' h'' : new_adt_no_pollute st vs st' vs' h -> new_adt_no_pollute st' vs' st'' vs'' h' -> h == h'' -> h' == h'' -> new_adt_no_pollute st vs st'' vs'' h''.
-    Proof.
-      unfold new_adt_no_pollute; intros Hanew Hbnew Hheq Hheq' x Hmt Hmt''.
-      unfold Locals.sel in *.
-      destruct (boolcase (is_mapsto_adt x st')) as [Hmt' | Hmtf'].
-      destruct (Word.weq (vs' x) (vs'' x)) as [Heq | Hne].
-      rewrite <- Heq in *.
-      rewrite <- Hheq.
-      solve [eapply Hanew; eauto].
-      eapply Hbnew in Hmt''.
-      rewrite <- Hheq'.
-      solve [eauto].
-      solve [right; eauto].
-      eapply Hbnew in Hmt''.
-      rewrite <- Hheq'.
-      solve [eauto].
-      solve [left; eauto].
-    Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
 
     Focus 2.
     {
@@ -1918,64 +2045,18 @@ Section ADTValue.
       eapply related_Equal; pick_related; eauto.
       solve [rewrite diff_submap_cancel; eauto].
     }
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-    Lemma related_add_sca st vs h lhs w h' : related st (vs, h) -> not_mapsto_adt lhs st = true -> h' == h -> related (StringMap.add lhs (SCA _ w) st) (Locals.upd vs lhs w, h').
-    Proof.
-      intros Hr Hnmt Hheq.
-      unfold related; simpl in *.
-      split.
-      intros x v Hfx.
-      destruct (string_dec x lhs) as [Heq | Hne].
-      subst.
-      rewrite StringMapFacts.add_eq_o in * by eauto.
-      inject Hfx; simpl in *.
-      rewrite Locals.sel_upd_eq in * by eauto.
-      eauto.
-      rewrite StringMapFacts.add_neq_o in * by eauto.
-      rewrite Locals.sel_upd_ne in * by eauto.
-      eapply Hr in Hfx; simpl in *.
-      solve [rewrite Hheq; eauto].
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
+        Arguments direct_sum_submap [_] _ _ _ _.
+        Arguments submap_disjoint_1 [_] _ _ _ _ _ _ _.
+          Arguments direct_sum_in_not [_] _ _ _ _ _ _ _.
 
-      intros p a Hfp.
-      rewrite Hheq in Hfp.
-      eapply Hr in Hfp.
-      simpl in *.
-      destruct Hfp as [x [[Hvs Hfx] Hu]].
-      subst.
-      destruct (string_dec x lhs) as [Heq | Hne].
-      subst.
-      eapply not_mapsto_adt_find in Hfx; eauto.
-      openhyp; discriminate.
-      exists x.
-      split.
-      rewrite Locals.sel_upd_ne in * by eauto.
-      rewrite StringMapFacts.add_neq_o in * by eauto.
-      eauto.
-      intros x' [Hvs Hfx'].
-      destruct (string_dec x' lhs) as [Heq' | Hne'].
-      subst.
-      rewrite StringMapFacts.add_eq_o in * by eauto.
-      discriminate.
-      rewrite Locals.sel_upd_ne in * by eauto.
-      rewrite StringMapFacts.add_neq_o in * by eauto.
-      eauto.
-    Qed.
-
-    Lemma new_adt_no_pollute_add_sca st vs lhs w1 w2 h : new_adt_no_pollute st vs (StringMap.add lhs (SCA _ w1) st) (Locals.upd vs lhs w2) h.
-    Proof.
-      unfold new_adt_no_pollute.
-      intros x Hmt Hmt'.
-      destruct (string_dec x lhs) as [Heq | Hne].
-      subst.
-      rewrite Locals.sel_upd_eq in * by eauto.
-      rewrite is_mapsto_adt_eq_sca in *.
-      discriminate.
-      rewrite Locals.sel_upd_ne in * by eauto.
-      rewrite is_mapsto_adt_neq in * by eauto.
-      intros; openhyp; intuition.
-      rewrite H in Hmt'.
-      discriminate.
-    Qed.
+    Arguments store_out {_} _ _.
+    Arguments ADTOut {_} _.
 
     {
       (* label *)
