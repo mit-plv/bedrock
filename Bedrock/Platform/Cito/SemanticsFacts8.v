@@ -185,6 +185,7 @@ Section ADTValue.
   Proof.
     intros; subst; eapply fold_bwd; eauto.
   Qed.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts7.
 
   Lemma find_Some_fold_store_out p a words_cinput coutput h :
     no_alias words_cinput ->
@@ -201,7 +202,6 @@ Section ADTValue.
     eapply fold_store_out_elim in Hf; simpl; eauto.
     destruct Hf as [[Hnr Hf] | [i [ai Ht]]].
     left.
-    Require Import Bedrock.Platform.Cito.SemanticsFacts7.
     rewrite make_triples_Word_ADTIn in *; eauto.
     right.
     exists i, ai.

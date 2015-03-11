@@ -17,6 +17,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Module Import LayoutHints2Make := Make E M.
   Require Import Bedrock.Platform.Cito.Semantics.
   Require Import Bedrock.Platform.Cito.SemanticsFacts9.
+  Require Import Bedrock.Platform.Cito.SemanticsUtil.
+  Import InvMake.SemanticsMake.
+  Require Import Bedrock.Platform.Cito.WordMapFacts.
+  Ltac clear_all :=
+    repeat match goal with
+             | H : _ |- _ => clear H
+           end.
 
   Lemma is_heap_upd_option_fwd h addr a : separated h addr a -> is_heap_upd_option h addr a ===> layout_option addr a * is_heap h.
   Proof.
@@ -38,8 +45,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
       {
         simpl.
-        Require Import Bedrock.Platform.Cito.SemanticsUtil.
-        Import InvMake.SemanticsMake.
         unfold make_heap.
         unfold store_pair.
         unfold heap_upd.
@@ -55,16 +60,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
         {
           eapply is_heap_Equal.
-          Require Import Bedrock.Platform.Cito.WordMapFacts.
           eapply add_diff_singleton; eauto.
         }
       }
     }
     {
-      Ltac clear_all :=
-        repeat match goal with
-                 | H : _ |- _ => clear H
-               end.
 
         clear_all.
         sepLemma.

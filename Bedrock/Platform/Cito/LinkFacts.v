@@ -35,6 +35,9 @@ Module Make (Import E : ADT).
 
     Require Import Bedrock.Platform.Cito.GeneralTactics.
     Require Import Bedrock.Platform.Cito.ListFacts1.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Coq.Bool.Bool.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
     Lemma GoodToLink_bool_sound :
       forall modules imports,
@@ -46,8 +49,6 @@ Module Make (Import E : ADT).
     Proof.
       intros.
       unfold GoodToLink_bool in *; simpl in *.
-      Require Import Bedrock.Platform.Cito.GeneralTactics.
-      Require Import Coq.Bool.Bool.
       repeat (eapply andb_true_iff in H; openhyp).
       split.
       eapply negb_true_iff in H.
@@ -66,7 +67,6 @@ Module Make (Import E : ADT).
       eapply forallb_forall in H0; eauto.
       rewrite <- map_map.
       eapply in_map.
-      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
       eapply In_fst_elements_In; eauto.
     Qed.
 

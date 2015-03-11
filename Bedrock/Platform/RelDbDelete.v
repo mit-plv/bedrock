@@ -327,6 +327,7 @@ Section Delete.
     -> P * Q ===> Q * (P' * rows sch head nil).
     sepLemma.
   Qed.
+  Require Import Coq.Arith.Arith.
 
   Lemma row_free' : forall p n m,
     (p ^+ natToW 8) =?> n * (p ^+ natToW 8 ^+ natToW (n * 4)) =?> m
@@ -336,7 +337,6 @@ Section Delete.
     apply Himp_star_frame; apply allocated_shift_base; eauto.
     words.
     rewrite natToW_plus.
-    Require Import Coq.Arith.Arith.
     rewrite (mult_comm 4).
     rewrite natToW_times4.
     rewrite natToW_times4.

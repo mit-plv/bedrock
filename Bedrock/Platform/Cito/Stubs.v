@@ -244,11 +244,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Disjoint_Compat.
       eapply Disjoint_impl_imports_impl_imports; eauto.
     Qed.
+    Existing Instance Disjoint_rel_Symmetric.
 
     Lemma Disjoint_exports_imports : forall m, List.In m modules -> Disjoint (get_module_Exports m) (get_module_Imports m).
       intros.
       unfold StubMake.get_module_Imports.
-      Existing Instance Disjoint_rel_Symmetric.
       symmetry.
       eapply Disjoint_after_diff.
     Qed.
@@ -258,10 +258,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Compat_exports_many_exports; eauto.
       intuition.
     Qed.
+    Existing Instance Compat_rel_Symmetric.
 
     Lemma Compat_many_exports_total_exports : forall ms, incl ms modules -> Compat (update_all (List.map get_module_Exports ms)) total_exports.
       intros.
-      Existing Instance Compat_rel_Symmetric.
       symmetry.
       eapply Compat_update_all.
       eapply Forall_forall.
@@ -317,6 +317,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros.
       eapply Compat_many_exports_impl_imports; intuition.
     Qed.
+    Existing Instance Compat_rel_Reflexive.
 
     Lemma Compat_imports_imports : forall m1 m2, List.In m1 modules -> List.In m2 modules -> MName m1 <> MName m2 -> Compat (get_module_Imports m1) (get_module_Imports m2).
       intros.
@@ -325,7 +326,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       symmetry.
       eapply Compat_diff.
       repeat eapply Compat_update; symmetry; repeat eapply Compat_update.
-      Existing Instance Compat_rel_Reflexive.
       reflexivity.
       eapply Compat_total_exports_foreign_imports; eauto.
       eapply Compat_total_exports_impl_imports; eauto.

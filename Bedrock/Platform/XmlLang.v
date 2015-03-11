@@ -2923,13 +2923,13 @@ Section compileProgram.
 
   Hint Immediate NoDup_both.
 
+  Ltac u := abstract t.
+
   Theorem ok : moduleOk m.
     vcgen;
       (intros; try match goal with
                      | [ H : importsGlobal _ |- _ ] => clear H
                    end; pre).
-
-    Ltac u := abstract t.
 
     u.
     u.

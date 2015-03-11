@@ -307,6 +307,19 @@ Section ADTValue.
 
   Local Hint Constructors Safe.
 
+  Ltac dont_go_crazy H := (inversion H; []) || (inversion H; [ | ]).
+
+  Ltac hammer :=
+    repeat match goal with
+             | [ H : Logic.ex _ |- _ ] => destruct H; intuition idtac
+           end; simpl in *;
+    match goal with
+      | [ H : Safe _ _ _ |- _ ] => dont_go_crazy H; clear H;
+        repeat match goal with
+                 | [ x : _ |- _ ] => subst x
+                 end; simpl in *; cbv beta; intuition idtac
+      end.
+
   Lemma prove_NoUninitializedSafe' : forall s unwritten,
     (forall x, ~reads unwritten s x)
     -> forall fs vs a, Safe (ADTValue := ADTValue) fs s (vs, a)
@@ -318,19 +331,6 @@ Section ADTValue.
         /\ exists vs, Safe fs s (vs, snd st)
           /\ (forall x, sel (fst st) x <> sel vs x -> unwritten x)));
     intuition idtac.
-
-    Ltac dont_go_crazy H := (inversion H; []) || (inversion H; [ | ]).
-
-    Ltac hammer :=
-      repeat match goal with
-               | [ H : Logic.ex _ |- _ ] => destruct H; intuition idtac
-             end; simpl in *;
-      match goal with
-        | [ H : Safe _ _ _ |- _ ] => dont_go_crazy H; clear H;
-          repeat match goal with
-                   | [ x : _ |- _ ] => subst x
-                 end; simpl in *; cbv beta; intuition idtac
-      end.
 
     hammer.
     eauto 10.

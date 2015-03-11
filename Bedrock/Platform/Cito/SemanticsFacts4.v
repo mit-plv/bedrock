@@ -75,6 +75,7 @@ Section ADTValue.
   Hint Constructors Semantics.Safe.
 
   Require Import Bedrock.Platform.Cito.GeneralTactics Bedrock.Platform.Cito.GeneralTactics3.
+  Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
   Lemma strengthen_runsto : forall env_op s v v', RunsTo env_op s v v' -> forall env_ax, strengthen env_op env_ax -> Safe env_ax s v -> RunsTo env_ax s v v'.
     induction 1; simpl; intros; unfold_all.
@@ -106,7 +107,6 @@ Section ADTValue.
       openhyp.
       destruct env_ax; destruct env_op; simpl in *.
       rewrite H in H5; injection H5; intros; subst.
-      Require Import Bedrock.Platform.Cito.GeneralTactics4.
       copy_as H3 Hsf.
       eapply Safe_TransitSafe in Hsf; eauto.
       destruct Hsf as [inputs Htsf].

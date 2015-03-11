@@ -107,6 +107,44 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       | _, _ => True
     end.
 
+  Lemma zig : forall P Q R,
+    P ===> R * any
+    -> P * Q ===> R * any.
+    intros.
+    eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].
+    eapply Himp_trans; [ apply Himp_star_assoc | ].
+    apply Himp_star_frame; try apply Himp_refl.
+    apply any_easy.
+  Qed.
+
+  Lemma zag : forall P Q R,
+    Q ===> R * any
+    -> P * Q ===> R * any.
+    intros.
+    eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H ] | ].
+    eapply Himp_trans; [ apply Himp_star_assoc' | ].
+    eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+    eapply Himp_trans; [ apply Himp_star_assoc | ].
+    apply Himp_star_frame; try apply Himp_refl.
+    apply any_easy.
+  Qed.
+
+  Lemma saved_vars_irrel : forall x v args pairs vs,
+    saved_vars vs args pairs
+    -> ~In x args
+    -> saved_vars (upd vs x v) args pairs.
+    induction args; destruct pairs; simpl; intuition.
+    rewrite sel_upd_ne; auto.
+  Qed.
+
+  Lemma saved_vars_zip_vars : forall args,
+    NoDup args
+    -> forall pairs, saved_vars (zip_vals args pairs) args pairs.
+    induction 1; destruct pairs; simpl; intuition.
+    apply sel_upd_eq; auto.
+    apply saved_vars_irrel; auto.
+  Qed.
+
   Theorem is_state_out : forall sp rp e_stack args pairs,
     NoDup args
     -> ~In "rp" args
@@ -133,28 +171,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     unfold array at 1; simpl.
     apply pure_extend with (goodSize e_stack).
 
-    Lemma zig : forall P Q R,
-      P ===> R * any
-      -> P * Q ===> R * any.
-      intros.
-      eapply Himp_trans; [ apply Himp_star_frame; [ apply H | apply Himp_refl ] | ].
-      eapply Himp_trans; [ apply Himp_star_assoc | ].
-      apply Himp_star_frame; try apply Himp_refl.
-      apply any_easy.
-    Qed.
-
-    Lemma zag : forall P Q R,
-      Q ===> R * any
-      -> P * Q ===> R * any.
-      intros.
-      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply H ] | ].
-      eapply Himp_trans; [ apply Himp_star_assoc' | ].
-      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
-      eapply Himp_trans; [ apply Himp_star_assoc | ].
-      apply Himp_star_frame; try apply Himp_refl.
-      apply any_easy.
-    Qed.
-
     do 2 apply zag.
     do 3 intro.
     eapply existsR with smem_emp; apply existsR with m.
@@ -176,23 +192,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     repeat constructor; simpl; intuition.
     symmetry; apply wordToNat_natToWord_idempotent; auto.
 
-    Lemma saved_vars_irrel : forall x v args pairs vs,
-      saved_vars vs args pairs
-      -> ~In x args
-      -> saved_vars (upd vs x v) args pairs.
-      induction args; destruct pairs; simpl; intuition.
-      rewrite sel_upd_ne; auto.
-    Qed.
-
     do 2 (apply saved_vars_irrel; auto).
-
-    Lemma saved_vars_zip_vars : forall args,
-      NoDup args
-      -> forall pairs, saved_vars (zip_vals args pairs) args pairs.
-      induction 1; destruct pairs; simpl; intuition.
-      apply sel_upd_eq; auto.
-      apply saved_vars_irrel; auto.
-    Qed.
 
     eauto using saved_vars_zip_vars.
 
@@ -308,6 +308,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Coq.FSets.FMapFacts.
   Module Properties := Properties WordMap.
   Module Facts := Facts WordMap.
+  Require Import Bedrock.Platform.Cito.SemanticsFacts5.
 
   Lemma store_pair_inr_fwd : forall h w v,
     ~WordMap.In w h
@@ -316,7 +317,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     intros.
     unfold is_heap at 1.
     assert (In (w, v) (heap_elements (heap_upd h w v))).
-    Require Import Bedrock.Platform.Cito.SemanticsFacts5.
     apply InA_In.
     apply WordMap.elements_1.
     apply Properties.F.add_mapsto_iff; auto.

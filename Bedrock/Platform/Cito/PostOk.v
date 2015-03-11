@@ -42,6 +42,43 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation do_compile := (compile vars temp_size rv_postcond imports_global modName).
 
+    Require Import Bedrock.Platform.Cito.SynReqFacts.
+    Require Import Bedrock.Platform.Cito.ListFacts5.
+    Require Import Bedrock.StringSet.
+    Import StringSet.
+    Require Import Bedrock.Platform.Cito.StringSetTactics.
+    Require Import Bedrock.Platform.Cito.GeneralTactics.
+    Require Import Bedrock.Platform.Cito.WordFacts.
+    Require Import Bedrock.Platform.Cito.SynReqFacts2.
+
+    Hint Resolve Subset_syn_req_In.
+    Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
+
+    Set Printing Coercions.
+
+    Ltac auto_apply :=
+      match goal with
+          H : _ |- _ => eapply H
+      end.
+
+    Opaque mult.
+    Opaque CompileStmtImplMake.InvMake2.funcs_ok.
+    Opaque CompileStmtSpecMake.InvMake2.funcs_ok.
+    Opaque funcs_ok.
+    Opaque star.
+    Ltac inversion_Safe :=
+      repeat match goal with
+               | H : Safe _ _ _ |- _ => unfold Safe in H
+               | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
+             end.
+    Ltac auto_apply_in t :=
+      match goal with
+          H : _ |- _ => eapply t in H
+      end.
+    Transparent evalInstrs.
+    Require Import Bedrock.Platform.Cito.ConvertLabel.
+    Opaque evalInstrs.
+
     Lemma post_ok :
       forall (s k : Stmt) (pre : assert) (specs : codeSpec W (settings * state))
              (x : settings * state),
@@ -51,25 +88,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   (do_compile s k pre) x) ->
         interp specs (postcond vars temp_size k rv_postcond x).
     Proof.
-
-      Require Import Bedrock.Platform.Cito.SynReqFacts.
-      Require Import Bedrock.Platform.Cito.ListFacts5.
-      Require Import Bedrock.StringSet.
-      Import StringSet.
-      Require Import Bedrock.Platform.Cito.StringSetTactics.
-      Require Import Bedrock.Platform.Cito.GeneralTactics.
-      Require Import Bedrock.Platform.Cito.WordFacts.
-      Require Import Bedrock.Platform.Cito.SynReqFacts2.
-
-      Hint Resolve Subset_syn_req_In.
-      Hint Extern 0 (Subset _ _) => progress (simpl; subset_solver).
-
-      Set Printing Coercions.
-
-      Ltac auto_apply :=
-        match goal with
-            H : _ |- _ => eapply H
-        end.
 
       Opaque mult.
       Opaque star. (* necessary to use eapply_cancel *)
@@ -172,17 +190,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold var_slot in *.
       unfold vars_start in *.
       destruct_state.
-      Ltac inversion_Safe :=
-        repeat match goal with
-                 | H : Safe _ _ _ |- _ => unfold Safe in H
-                 | H : Semantics.Safe _ _ _ |- _ => inversion H; clear H; subst
-               end.
 
       inversion_Safe.
-      Ltac auto_apply_in t :=
-        match goal with
-            H : _ |- _ => eapply t in H
-        end.
 
       auto_apply_in ex_up.
       openhyp.
@@ -200,7 +209,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Transparent evalInstrs.
       simpl.
       repeat rewrite wplus_assoc in *.
-      Require Import Bedrock.Platform.Cito.ConvertLabel.
       unfold from_bedrock_label_map in *.
       rewrite H.
       eauto.

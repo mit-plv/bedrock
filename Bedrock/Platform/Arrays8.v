@@ -106,6 +106,9 @@ Lemma selN_oob : forall ls i,
   destruct i; simpl; intuition.
 Qed.
 
+Require Import Bedrock.Platform.Bootstrap.
+Local Hint Resolve get_put_eq get_put_ne get_emp.
+
 Lemma materialize_array8'' : forall p v,
   p =*> v ===> Ex b1, p =8> b1 * Ex b2, (p ^+ $1) =8> b2 * Ex b3, (p ^+ $2) =8> b3 * Ex b4, (p ^+ $3) =8> b4.
   intros; hnf; unfold himp; intros.
@@ -113,8 +116,6 @@ Lemma materialize_array8'' : forall p v,
   apply injL; intuition.
   propxFo.
   unfold smem_get_word, H.footprint_w in *.
-
-  Require Import Bedrock.Platform.Bootstrap.
 
   repeat match type of H0 with
            | match ?E with None => _ | _ => _ end = _ => case_eq E; intros;
@@ -124,7 +125,6 @@ Lemma materialize_array8'' : forall p v,
          end.
   do 4 esplit.
   apply split_put_clear; [ apply split_a_semp_a | apply H ].
-  Local Hint Resolve get_put_eq get_put_ne get_emp.
   intuition eauto.
   rewrite get_put_ne; auto.
   do 4 esplit.
@@ -227,6 +227,11 @@ Lemma decomission_array8'' : forall p b1 b2 b3 b4,
   repeat rewrite join_None; eauto.
 Qed.
 
+Lemma pull_out : forall P Q R S T,
+  P * (Q * (R * (S * T))) ===> (P * Q * R * S) * T.
+  sepLemma.
+Qed.
+
 Lemma decomission_array8' : forall p sz bs offset sz',
   length bs = sz' * 4
   -> (sz' < sz)%nat
@@ -241,11 +246,6 @@ Lemma decomission_array8' : forall p sz bs offset sz',
   do 3 (destruct bs; simpl in *; try discriminate).
   replace (p ^+ $ (offset) ^+ $1 ^+ $1 ^+ $1) with (p ^+ $ (offset) ^+ $3) by words.
   replace (p ^+ $ (offset) ^+ $1 ^+ $1) with (p ^+ $ (offset) ^+ $2) by words.
-
-  Lemma pull_out : forall P Q R S T,
-    P * (Q * (R * (S * T))) ===> (P * Q * R * S) * T.
-    sepLemma.
-  Qed.
 
   eapply Himp_trans; [ apply pull_out | ].
   apply Himp_star_frame.

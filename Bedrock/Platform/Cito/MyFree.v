@@ -47,6 +47,20 @@ Qed.
 Lemma plus_minus : forall a b, a + b - b = a.
   intros; intuition.
 Qed.
+Lemma buf_2_bwd : forall p len, (2 <= len)%nat -> p =?> 2 * (p ^+ $8) =?> (len - 2) ===> p =?> len.
+  destruct len; simpl; intros; try omega.
+  destruct len; simpl; intros; try omega.
+  sepLemma; eapply allocated_shift_base; [ words | intuition ].
+Qed.
+Lemma consume_the_array : forall ls p, array ls p ===> p =?> length ls.
+  intros; apply ptsto32m_allocated.
+Qed.
+Definition hints : TacPackage.
+  prepare tt buf_2_bwd.
+Defined.
+Definition hints2 : TacPackage.
+  prepare consume_the_array tt.
+Defined.
 
 Theorem ok : moduleOk m.
   vcgen; unfold array_with_size.
@@ -54,20 +68,6 @@ Theorem ok : moduleOk m.
   sep_auto.
   sep_auto.
   sep_auto.
-  Lemma buf_2_bwd : forall p len, (2 <= len)%nat -> p =?> 2 * (p ^+ $8) =?> (len - 2) ===> p =?> len.
-    destruct len; simpl; intros; try omega.
-    destruct len; simpl; intros; try omega.
-    sepLemma; eapply allocated_shift_base; [ words | intuition ].
-  Qed.
-  Lemma consume_the_array : forall ls p, array ls p ===> p =?> length ls.
-    intros; apply ptsto32m_allocated.
-  Qed.
-  Definition hints : TacPackage.
-    prepare tt buf_2_bwd.
-  Defined.
-  Definition hints2 : TacPackage.
-    prepare consume_the_array tt.
-  Defined.
   post.
   evaluate auto_ext.
   descend.

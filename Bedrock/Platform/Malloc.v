@@ -734,6 +734,8 @@ Section ok.
 
   Hint Rewrite tickle using assumption : sepFormula.
 
+  Hint Rewrite wordToNat_wminus using nomega : N.
+
   Theorem ok : moduleOk m.
     vcgen; try t.
 
@@ -837,8 +839,6 @@ Section ok.
 
 
     sep hints.
-
-    Hint Rewrite wordToNat_wminus using nomega : N.
 
     Focus 4.
     eapply Himp_trans; [ eapply allocated_split | sepLemma ].

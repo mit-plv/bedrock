@@ -68,6 +68,7 @@ Section TopSection.
   Require Import Bedrock.Platform.Cito.GeneralTactics2.
   Require Import Bedrock.Platform.Cito.SetoidListFacts.
   Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.StringSetFacts.
   Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> forall s r, NoDup (ArgVars f ++ get_local_vars s (ArgVars f) r).
     unfold GoodFunc; intuition.
     apply NoDup_app; auto.
@@ -81,7 +82,6 @@ Section TopSection.
     eapply StringSet.StringFacts.diff_iff in H4.
     openhyp.
     contradict H5.
-    Require Import Bedrock.Platform.Cito.StringSetFacts.
     eapply of_list_spec; eauto.
   Qed.
 

@@ -43,16 +43,16 @@ Section TopSection.
     econstructor.
     eapply is_good_size_sound; eauto.
   Qed.
+  Require Import Bedrock.Platform.Cito.ListFacts3.
+  Require Import Bedrock.Platform.Cito.NoUninitDecFacts.
 
   Lemma is_good_func_sound : forall f, is_good_func f = true -> GoodFunc f.
     unfold is_good_func.
     intros.
     repeat (eapply andb_true_iff in H; openhyp).
     econstructor.
-    Require Import Bedrock.Platform.Cito.ListFacts3.
     eapply is_no_dup_sound; eauto.
     split.
-    Require Import Bedrock.Platform.Cito.NoUninitDecFacts.
     eapply is_no_uninited_sound; eauto.
     split.
     eapply is_arg_len_ok_sound; eauto.
@@ -69,6 +69,7 @@ Section TopSection.
     unfold compose.
     eapply is_good_func_sound; eauto.
   Qed.
+  Require Import Bedrock.Platform.Cito.NameDecoration.
 
   Lemma is_good_module_sound : forall m, is_good_module m = true -> IsGoodModule m.
     intros.
@@ -79,7 +80,6 @@ Section TopSection.
     eapply andb_true_iff in H.
     openhyp.
     econstructor; simpl.
-    Require Import Bedrock.Platform.Cito.NameDecoration.
     eapply is_good_module_name_sound; eauto.
     split.
     eapply is_good_funcs_sound; eauto.

@@ -514,6 +514,7 @@ Section Query.
         | [ H : _ -> False |- _ ] => apply H; apply natToW_inj; auto; congruence
       end.
   Qed.
+  Require Import Coq.Arith.Arith.
 
   Lemma notSatisfies_noMatches' : forall V ws index,
     (forall (index' : nat) val, goodSize index' -> satisfies V index' val c
@@ -523,7 +524,6 @@ Section Query.
     induction ws; simpl; intuition eauto.
     eapply IHws; intros.
     eauto.
-    Require Import Coq.Arith.Arith.
     rewrite <- plus_assoc.
     auto.
   Qed.

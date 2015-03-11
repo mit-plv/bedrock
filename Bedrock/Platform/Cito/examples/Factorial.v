@@ -104,6 +104,7 @@ Definition imports := empty ForeignFuncSpec.
 Import LinkSpecMake.
 Require Import Bedrock.Platform.Cito.LinkSpecFacts.
 Import LinkSpecMake.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
 Lemma specs_good : specs_equal specs modules imports.
   split; intros.
@@ -135,7 +136,6 @@ Lemma specs_good : specs_equal specs modules imports.
 
   subst; simpl in *.
   right; descend; eauto.
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
   nintro.
   subst; simpl in *.
   compute in H0.
@@ -182,6 +182,9 @@ Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
+Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
+Require Import Bedrock.Platform.Cito.GeneralTactics3.
+Require Import Bedrock.Platform.Cito.BedrockTactics.
 
 Theorem top_ok : moduleOk top.
   vcgen.
@@ -210,11 +213,9 @@ Theorem top_ok : moduleOk top.
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
   openhyp.
-  Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
@@ -225,7 +226,6 @@ Theorem top_ok : moduleOk top.
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   rewrite H9.
   rewrite H11.

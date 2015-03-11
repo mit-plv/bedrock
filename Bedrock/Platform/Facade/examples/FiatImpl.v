@@ -29,6 +29,8 @@ Lemma is_heap_eat : forall w v,
   apply Properties.F.remove_mapsto_iff in H; intuition.
   apply Properties.F.add_mapsto_iff in H1; intuition.
 Qed.
+Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
 
 Lemma readd_FEnsemble : forall c rv rv',
   lset rv' c * is_heap heap_empty
@@ -36,8 +38,6 @@ Lemma readd_FEnsemble : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, FEnsemble rv') (heap_elements (WordMap.add c (FEnsemble rv') (heap_upd heap_empty c (FEnsemble rv))))).
-  Require Import Bedrock.Platform.Cito.SemanticsFacts5.
-  Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -57,6 +57,7 @@ Lemma readd_FEnsemble : forall c rv rv',
   apply Properties.F.add_mapsto_iff in H5; intuition.
   apply Properties.F.empty_mapsto_iff in H6; tauto.
 Qed.
+Import LayoutHintsUtil.
 
 Lemma readd_List : forall c rv rv',
   lseq rv' c * is_heap heap_empty
@@ -64,7 +65,6 @@ Lemma readd_List : forall c rv rv',
   intros.
   unfold is_heap at 2.
   assert (List.In (c, List rv') (heap_elements (WordMap.add c (List rv') (heap_upd heap_empty c (List rv))))).
-  Import LayoutHintsUtil.
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.

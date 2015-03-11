@@ -91,6 +91,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import WordMapFacts.FMapNotations.
     Local Open Scope fmap_scope.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Require Import Bedrock.Platform.Cito.Option.
 
     Lemma env_good_to_use_cenv_impls_env modules stn fs : env_good_to_use modules imports stn fs -> cenv_impls_env (from_bedrock_label_map (Labels stn), fs stn) (GLabelMap.map (@Axiomatic _) imports).
     Proof.
@@ -101,9 +103,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       split.
       {
         intros lbl spec Hflbl.
-        Require Import Bedrock.Platform.Cito.GLabelMapFacts.
         rewrite map_o in Hflbl.
-        Require Import Bedrock.Platform.Cito.Option.
         eapply option_map_some_elim in Hflbl.
         destruct Hflbl as [aspec [Hflbl' ?] ].
         subst.
@@ -159,13 +159,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Require Import Bedrock.Platform.Facade.CompileRunsTo.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
     Lemma empty_related vs : @CompileRunsTo.related ADTValue (StringMap.empty _) (vs, (WordMap.empty _)).
     Proof.
       unfold related.
       split.
       {
         intros x v Hf.
-        Require Import Bedrock.Platform.Cito.StringMapFacts.
         rewrite empty_o in Hf.
         discriminate.
       }
@@ -486,6 +486,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Arguments empty {_}.
     (* a special version of make_map_related_make_heap *)
+    Import WordMapFacts WordMap.WordMap.
+    Import StringMapFacts StringMap.StringMap.
+    Import WordMapFacts WordMap.WordMap.
+    Import StringMapFacts StringMap.StringMap.
+    Import WordMapFacts WordMap.WordMap.
+    Import StringMapFacts StringMap.StringMap.
     Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs :
       StringMapFacts.Submap (add k v empty) st ->
       (forall k', k' <> k -> @not_mapsto_adt ADTValue k' st = true ) ->
@@ -511,17 +517,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         destruct v as [w | a]; simpl in *.
         {
           intros p.
-          Import WordMapFacts WordMap.WordMap.
-          rewrite empty_o.
+          rewrite WordMapFacts.empty_o.
           simpl in *.
-          destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
+          destruct (option_dec (WordMap.find p h')) as [ [v Hv] | Hnone].
           {
             eapply Hr in Hv.
             destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
             destruct (string_dec x k) as [? | Hnex].
             {
               subst.
-              Import StringMapFacts StringMap.StringMap.
               specialize (Hst k (SCA _ w)).
               rewrite Hst in Hfx.
               discriminate.
@@ -537,23 +541,20 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         }
         unfold Make.InvMake.SemanticsMake.heap_upd.
         intros p.
-        Import WordMapFacts WordMap.WordMap.
         destruct (weq p (vs k)) as [? | Hnep].
         {
           subst.
-          rewrite add_eq_o by eauto.
+          rewrite WordMapFacts.add_eq_o by eauto.
           specialize (Hst k (ADT a)).
-          Import StringMapFacts StringMap.StringMap.
           rewrite add_eq_o in Hst by eauto.
           specialize (Hst eq_refl).
           eapply Hr in Hst.
           simpl in *.
           eauto.
         }
-        Import WordMapFacts WordMap.WordMap.
-        rewrite add_neq_o by eauto.
-        rewrite empty_o.
-        destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
+        rewrite WordMapFacts.add_neq_o by eauto.
+        rewrite WordMapFacts.empty_o.
+        destruct (option_dec (WordMap.find p h')) as [ [v Hv] | Hnone].
         {
           eapply Hr in Hv.
           destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
@@ -579,7 +580,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         econstructor; intuition.
         unfold word_scalar_match; simpl.
-        Import StringMapFacts StringMap.StringMap.
         specialize (Hst k (SCA _ w)).
         rewrite add_eq_o in Hst by eauto.
         specialize (Hst eq_refl).
@@ -753,6 +753,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     unfold natToW.
     sepLemma.
   Qed.
+  Require Import Coq.Arith.Mult.
+  Require Import Bedrock.Platform.Cito.WordFacts.
 
   Theorem is_state_out''' sp rp args pairs vs h e_stack e_stack' :
                               NoDup args
@@ -771,9 +773,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
     unfold is_state, locals, Inv.has_extra_stack; simpl.
     rewrite H2.
-    Require Import Coq.Arith.Mult.
     rewrite mult_0_r.
-    Require Import Bedrock.Platform.Cito.WordFacts.
     rewrite wplus_0.
     set (array (List.map _ _) _).
     set (is_heap _).
@@ -806,6 +806,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Transparent mult.
+    Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
 
     Theorem output_module_ok : moduleOk output_module.
       clear_all.
@@ -836,7 +837,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
       apply swap; apply injL; intro.
       openhyp.
-      Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
       match goal with
         | [ x : State |- _ ] => destruct x; simpl in *
       end.
@@ -904,11 +904,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Coq.Bool.Bool.
 
+    Import MakeWrapperMake.LinkMake.
+    Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
+
     Theorem output_module_impl_ok : moduleOk output_module_impl.
     Proof.
-
-      Import MakeWrapperMake.LinkMake.
-      Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
       match goal with
         | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>

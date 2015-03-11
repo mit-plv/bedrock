@@ -276,25 +276,25 @@ Section correctness.
     destruct H1.
     eapply smem_get_disjoint; eauto.
   Qed.
+  Require Import Coq.Arith.Arith.
+
+  Lemma natToWord_pow2_alt : forall sz tht,
+    tht = sz
+    -> natToWord sz (pow2 tht) = $ (0).
+    intros; subst; apply natToWord_pow2.
+  Qed.
 
   Lemma array_boundAlt : forall tht cs bs base stn m,
     interp cs (array8 bs base stn m)
     -> tht = 32
     -> (length bs <= pow2 tht)%nat.
     intros.
-    Require Import Coq.Arith.Arith.
     destruct (le_lt_dec (length bs) (pow2 tht)); auto.
     eapply array8_bound' in H; try tauto.
     instantiate (1 := pow2 tht); intuition.
     apply pow2_pos.
     rewrite wplus_alt.
     unfold wplusN, wordBinN.
-
-    Lemma natToWord_pow2_alt : forall sz tht,
-      tht = sz
-      -> natToWord sz (pow2 tht) = $ (0).
-      intros; subst; apply natToWord_pow2.
-    Qed.
 
     rewrite natToWord_pow2_alt by assumption.
     rewrite roundTrip_0.
@@ -306,6 +306,20 @@ Section correctness.
     interp cs (array8 bs base stn m)
     -> (length bs <= pow2 32)%nat.
     intros; eapply array_boundAlt; eauto.
+  Qed.
+
+  Lemma bounded : forall sz n m,
+    (m <= pow2 sz)%nat
+    -> (n < wordToNat (natToWord sz m))%nat
+    -> (n < m)%nat.
+    intros; destruct (eq_nat_dec m (pow2 sz)); subst.
+    rewrite natToWord_pow2 in H0.
+    rewrite roundTrip_0 in H0.
+    nomega.
+    rewrite wordToNat_natToWord_idempotent in H0; auto.
+    pre_nomega.
+    rewrite Npow2_nat.
+    omega.
   Qed.
 
   Lemma sym_read_correct' : forall specs stn bs sm p i,
@@ -321,20 +335,6 @@ Section correctness.
     unfold natToW in *.
     repeat rewrite wordToN_nat in H.
     autorewrite with N in *.
-
-    Lemma bounded : forall sz n m,
-      (m <= pow2 sz)%nat
-      -> (n < wordToNat (natToWord sz m))%nat
-      -> (n < m)%nat.
-      intros; destruct (eq_nat_dec m (pow2 sz)); subst.
-      rewrite natToWord_pow2 in H0.
-      rewrite roundTrip_0 in H0.
-      nomega.
-      rewrite wordToNat_natToWord_idempotent in H0; auto.
-      pre_nomega.
-      rewrite Npow2_nat.
-      omega.
-    Qed.
 
     eapply bounded; eauto.
     eapply array8_bound; eauto.

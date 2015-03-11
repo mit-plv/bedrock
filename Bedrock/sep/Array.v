@@ -482,12 +482,12 @@ Section correctness.
     repeat rewrite <- plus_n_O.
     apply Mult.mult_plus_distr_r.
   Qed.
+  Require Import Coq.Arith.Arith.
 
   Lemma array_bound : forall cs ws base stn m,
     interp cs (array ws base stn m)
     -> (length ws < pow2 32)%nat.
     intros.
-    Require Import Coq.Arith.Arith.
     destruct (lt_dec (length ws) (pow2 32)); auto.
     elimtype False.
     apply ptsto32m'_in in H.

@@ -131,6 +131,55 @@ Section ADTValue.
   Require Import Bedrock.Platform.Cito.GeneralTactics.
   Require Import Bedrock.Platform.Cito.GeneralTactics2.
   Require Import Bedrock.Platform.Cito.GeneralTactics4.
+  Lemma no_reachable_nil key (k : key) : not_reachable k [] [].
+  Proof.
+    unfold not_reachable; intros; rewrite nth_error_nil in *; discriminate.
+  Qed.
+
+  Lemma not_reachable_cons_sca key (k : key) ks ins k' w : not_reachable k' ks ins -> not_reachable k' (k :: ks) (SCA ADTValue w :: ins).
+  Proof.
+    unfold not_reachable; intros Hnr.
+    intros i Hk'.
+    destruct i as [|i]; simpl in *.
+    inject Hk'.
+    exists w; eauto.
+    eapply Hnr in Hk'.
+    eauto.
+  Qed.
+
+  Lemma not_reachable_cons_neq key (k : key) ks ins k' v : not_reachable k' ks ins -> k' <> k -> not_reachable k' (k :: ks) (v :: ins).
+  Proof.
+    unfold not_reachable; intros Hnr Hne.
+    intros i Hk'.
+    destruct i as [|i]; simpl in *.
+    inject Hk'.
+    intuition.
+    eapply Hnr in Hk'.
+    eauto.
+  Qed.
+
+  Lemma not_reachable_cons_elim key (k : key) ks v vs k' : not_reachable k' (k :: ks) (v :: vs) -> not_reachable k' ks vs.
+  Proof.
+    unfold not_reachable; intros Hnr.
+    intros i Hk'.
+    specialize (Hnr (S i)); simpl in *.
+    eauto.
+  Qed.
+  Lemma not_not_reachable key (k : key) ks a ins : ~ not_reachable k (k :: ks) (ADT a :: ins).
+  Proof.
+    unfold not_reachable.
+    nintro.
+    specialize (H 0); simpl in *.
+    edestruct H; eauto.
+    discriminate.
+  Qed.
+  Lemma not_in_not_reachable key (k : key) ks ins : ~ List.In k ks -> not_reachable k ks ins.
+  Proof.
+    unfold not_reachable; intros Hni.
+    intros i Hk.
+    contradict Hni.
+    eapply nth_error_In; eauto.
+  Qed.
 
   Lemma find_Some_add_remove_many ks :
     forall ins outs h k v,
@@ -150,38 +199,12 @@ Section ADTValue.
     intros Hf.
     left.
     split.
-    Lemma no_reachable_nil key (k : key) : not_reachable k [] [].
-    Proof.
-      unfold not_reachable; intros; rewrite nth_error_nil in *; discriminate.
-    Qed.
     eapply no_reachable_nil.
     eauto.
     intros H.
     openhyp.
     eauto.
     rewrite nth_error_nil in *; discriminate.
-
-    Lemma not_reachable_cons_sca key (k : key) ks ins k' w : not_reachable k' ks ins -> not_reachable k' (k :: ks) (SCA ADTValue w :: ins).
-    Proof.
-      unfold not_reachable; intros Hnr.
-      intros i Hk'.
-      destruct i as [|i]; simpl in *.
-      inject Hk'.
-      exists w; eauto.
-      eapply Hnr in Hk'.
-      eauto.
-    Qed.
-
-    Lemma not_reachable_cons_neq key (k : key) ks ins k' v : not_reachable k' ks ins -> k' <> k -> not_reachable k' (k :: ks) (v :: ins).
-    Proof.
-      unfold not_reachable; intros Hnr Hne.
-      intros i Hk'.
-      destruct i as [|i]; simpl in *.
-      inject Hk'.
-      intuition.
-      eapply Hnr in Hk'.
-      eauto.
-    Qed.
 
     rename a into k.
     intros h k' v' Hnd Hlkin Hlkout.
@@ -231,22 +254,6 @@ Section ADTValue.
     right.
     solve [exists (S i), a'; eauto].
 
-    Lemma not_reachable_cons_elim key (k : key) ks v vs k' : not_reachable k' (k :: ks) (v :: vs) -> not_reachable k' ks vs.
-    Proof.
-      unfold not_reachable; intros Hnr.
-      intros i Hk'.
-      specialize (Hnr (S i)); simpl in *.
-      eauto.
-    Qed.
-    Lemma not_not_reachable key (k : key) ks a ins : ~ not_reachable k (k :: ks) (ADT a :: ins).
-    Proof.
-      unfold not_reachable.
-      nintro.
-      specialize (H 0); simpl in *.
-      edestruct H; eauto.
-      discriminate.
-    Qed.
-
     intros Hor.
     destruct Hor as [[Hnr Hfk'] | [i [a [Hk' [Hin Hout]]]]].
     destruct v as [w | a].
@@ -283,13 +290,6 @@ Section ADTValue.
     rewrite StringMapFacts.add_eq_o in * by eauto.
     left.
     split.
-    Lemma not_in_not_reachable key (k : key) ks ins : ~ List.In k ks -> not_reachable k ks ins.
-    Proof.
-      unfold not_reachable; intros Hni.
-      intros i Hk.
-      contradict Hni.
-      eapply nth_error_In; eauto.
-    Qed.
     solve [eapply not_in_not_reachable; eauto].
     eauto.
     solve [right; exists i, a; eauto].

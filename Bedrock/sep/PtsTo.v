@@ -157,6 +157,7 @@ Module BedrockPtsToEvaluator.
       eapply expr_equal_correct in H; eauto.
       unfold ST.satisfies in *. subst. PropXTac.propxFo.
     Qed.
+    Require Import Bedrock.Nomega.
 
     Lemma sym_write_word_ptsto32_correct : forall args uvars vars cs summ pe p ve v m stn args',
       sym_write_word_ptsto32 Prover summ args pe ve = Some args' ->
@@ -199,7 +200,6 @@ Module BedrockPtsToEvaluator.
                    [ intros ? Heq | intro Heq ];
                    rewrite Heq in *; try discriminate
              end.
-      Require Import Bedrock.Nomega.
       repeat erewrite smem_set_get_neq by eauto.
       eapply expr_equal_correct in H; [ | eauto | eauto | eauto ].
       subst.

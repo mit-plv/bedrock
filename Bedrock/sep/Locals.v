@@ -442,6 +442,18 @@ Section correctness.
     erewrite H2; reflexivity.
   Qed.
 
+  Ltac t := simpl in *; try discriminate; try (deconstruct;
+    match goal with
+      | [ _ : Range (match ?E with nil => _ | _ => _ end) === _ |- _ ] =>
+        destruct E; simpl in *; try discriminate;
+          match goal with
+            | [ H : Range ?X === _ |- _ ] => destruct X; simpl in *; hnf in H; subst
+          end;
+          match goal with
+              | [ H : _ = _ |- _ ] => rewrite H; reflexivity
+            end
+      end).
+
   Lemma sym_sel_correct : forall uvars vars nm (vs : expr types0) vsv,
     exprD funcs uvars vars vs valsT = Some vsv
     -> exprD funcs uvars vars (sym_sel vs nm) wordT = Some (sel vsv nm).
@@ -453,18 +465,6 @@ Section correctness.
     rewrite H; reflexivity.
 
     rewrite H; reflexivity.
-
-    Ltac t := simpl in *; try discriminate; try (deconstruct;
-      match goal with
-        | [ _ : Range (match ?E with nil => _ | _ => _ end) === _ |- _ ] =>
-          destruct E; simpl in *; try discriminate;
-            match goal with
-              | [ H : Range ?X === _ |- _ ] => destruct X; simpl in *; hnf in H; subst
-            end;
-            match goal with
-              | [ H : _ = _ |- _ ] => rewrite H; reflexivity
-            end
-      end).
     simpl in *.
 
     do 13 (destruct f; t).
@@ -496,6 +496,52 @@ Section correctness.
     erewrite H3 by reflexivity.
     f_equal; unfold sel, upd.
     rewrite string_eq_false; auto.
+  Qed.
+  Require Import Bedrock.PropXTac.
+
+  Lemma array_selN : forall nm vs ns n,
+    nth_error ns n = Some nm
+    -> Array.selN (toArray ns vs) n = sel vs nm.
+  Proof.
+    induction ns; destruct n; simpl; intuition; try discriminate.
+    injection H; clear H; intros; subst; reflexivity.
+  Qed.
+
+  Require Import Coq.NArith.NArith Bedrock.Nomega.
+
+  Lemma length_toArray : forall ns vs,
+    length (toArray ns vs) = length ns.
+  Proof.
+    induction ns; simpl; intuition.
+  Qed.
+
+  Fixpoint variablePosition' (ns : list string) (nm : string) : nat :=
+    match ns with
+      | nil => O
+      | nm' :: ns' => if string_dec nm' nm then O
+        else S (variablePosition' ns' nm)
+    end.
+
+  Lemma variablePosition'_4 : forall nm ns,
+    variablePosition' ns nm * 4 = variablePosition ns nm.
+    induction ns; simpl; intuition.
+    destruct (string_dec a nm); intuition.
+  Qed.
+
+  Lemma nth_error_variablePosition' : forall nm ns,
+    In nm ns
+    -> nth_error ns (variablePosition' ns nm) = Some nm.
+    induction ns; simpl; intuition; subst.
+    destruct (string_dec nm nm); tauto.
+    destruct (string_dec a nm); intuition; subst; auto.
+  Qed.
+
+  Lemma variablePosition'_length : forall nm ns,
+    In nm ns
+    -> (variablePosition' ns nm < length ns)%nat.
+    induction ns; simpl; intuition; subst.
+    destruct (string_dec nm nm); intuition.
+    destruct (string_dec a nm); omega.
   Qed.
 
   Theorem sym_read_easier_correct : forall args uvars vars cs summ pe p ve m stn,
@@ -552,7 +598,6 @@ Section correctness.
     rewrite Heq'' in H4.
     rewrite H in H4.
     subst.
-    Require Import Bedrock.PropXTac.
     apply simplify_fwd in H2.
     destruct H2 as [ ? [ ? [ ? [ ] ] ] ].
     destruct H3 as [ ? [ ? [ ? [ ] ] ] ].
@@ -569,28 +614,12 @@ Section correctness.
     rewrite Hsmem.
     f_equal.
 
-    Lemma array_selN : forall nm vs ns n,
-      nth_error ns n = Some nm
-      -> Array.selN (toArray ns vs) n = sel vs nm.
-    Proof.
-      induction ns; destruct n; simpl; intuition; try discriminate.
-      injection H; clear H; intros; subst; reflexivity.
-    Qed.
-
-    Require Import Coq.NArith.NArith Bedrock.Nomega.
-
     unfold Array.sel.
     apply array_selN.
     apply array_bound in H6.
     rewrite wordToNat_natToWord_idempotent; auto.
 
     apply nth_error_Some_length in Heq.
-
-    Lemma length_toArray : forall ns vs,
-      length (toArray ns vs) = length ns.
-    Proof.
-      induction ns; simpl; intuition.
-    Qed.
 
     rewrite length_toArray in *.
     apply Nlt_in.
@@ -666,22 +695,9 @@ Section correctness.
     generalize (split_semp _ _ _ H2 H11); intro; subst.
     apply simplify_bwd in H9.
 
-    Fixpoint variablePosition' (ns : list string) (nm : string) : nat :=
-      match ns with
-        | nil => O
-        | nm' :: ns' => if string_dec nm' nm then O
-          else S (variablePosition' ns' nm)
-      end.
-
     specialize (smem_read_correct' _ _ _ _ (i := natToW (variablePosition' t x1)) H9); intro Hsmem.
     rewrite wmult_comm in Hsmem.
     rewrite <- natToW_times4 in Hsmem.
-
-    Lemma variablePosition'_4 : forall nm ns,
-      variablePosition' ns nm * 4 = variablePosition ns nm.
-      induction ns; simpl; intuition.
-      destruct (string_dec a nm); intuition.
-    Qed.
 
     rewrite variablePosition'_4 in Hsmem.
     erewrite split_smem_get_word; eauto.
@@ -694,27 +710,11 @@ Section correctness.
     apply array_bound in H9.
     rewrite wordToNat_natToWord_idempotent; auto.
 
-    Lemma nth_error_variablePosition' : forall nm ns,
-      In nm ns
-      -> nth_error ns (variablePosition' ns nm) = Some nm.
-      induction ns; simpl; intuition; subst.
-      destruct (string_dec nm nm); tauto.
-      destruct (string_dec a nm); intuition; subst; auto.
-    Qed.
-
     apply nth_error_variablePosition'; auto.
     rewrite length_toArray in *.
     apply Nlt_in.
     rewrite Nat2N.id.
     rewrite Npow2_nat.
-
-    Lemma variablePosition'_length : forall nm ns,
-      In nm ns
-      -> (variablePosition' ns nm < length ns)%nat.
-      induction ns; simpl; intuition; subst.
-      destruct (string_dec nm nm); intuition.
-      destruct (string_dec a nm); omega.
-    Qed.
 
     specialize (variablePosition'_length _ _ H4).
     omega.
@@ -798,6 +798,61 @@ Section correctness.
     eapply sym_read_easier_correct; eauto.
   Qed.
 
+  Lemma toArray_irrel : forall vs v nm ns,
+    ~In nm ns
+    -> toArray ns (upd vs nm v) = toArray ns vs.
+    induction ns; simpl; intuition.
+    f_equal; auto.
+    unfold upd.
+    rewrite string_eq_false; auto.
+  Qed.
+
+  Lemma nth_error_In : forall A (x : A) ls n,
+    nth_error ls n = Some x
+    -> In x ls.
+    induction ls; destruct n; simpl; intuition; try discriminate; eauto.
+    injection H; intros; subst; auto.
+  Qed.
+
+  Lemma array_updN : forall vs nm v ns,
+    NoDup ns
+    -> forall n, nth_error ns n = Some nm
+      -> Array.updN (toArray ns vs) n v
+      = toArray ns (upd vs nm v).
+    induction 1; destruct n; simpl; intuition.
+    injection H1; clear H1; intros; subst.
+    rewrite toArray_irrel by assumption.
+    unfold upd; rewrite string_eq_true; reflexivity.
+    rewrite IHNoDup; f_equal; auto.
+    unfold upd; rewrite string_eq_false; auto.
+    intro; subst.
+    apply H.
+    eapply nth_error_In; eauto.
+  Qed.
+  Require Import Bedrock.Arrays.
+
+  Lemma array_updN_variablePosition' : forall vs nm v ns,
+    NoDup ns
+    -> In nm ns
+    -> toArray ns (upd vs nm v) = updN (toArray ns vs) (variablePosition' ns nm) v.
+    induction 1; simpl; intuition; subst.
+    destruct (string_dec nm nm); try tauto.
+    rewrite toArray_irrel; auto.
+    unfold upd.
+    rewrite string_eq_true.
+    auto.
+
+    destruct (string_dec x nm); subst.
+    rewrite toArray_irrel; auto.
+    unfold upd.
+    rewrite string_eq_true.
+    auto.
+
+    unfold upd at 1.
+    rewrite string_eq_false by auto.
+    rewrite H1; auto.
+  Qed.
+
   Theorem sym_write_correct : forall args uvars vars cs summ pe p ve v m stn args',
     sym_write Prover summ args pe ve = Some args' ->
     Valid Prover_correct uvars vars summ ->
@@ -878,44 +933,11 @@ Section correctness.
     reflexivity.
     apply simplify_fwd.
 
-    Lemma toArray_irrel : forall vs v nm ns,
-      ~In nm ns
-      -> toArray ns (upd vs nm v) = toArray ns vs.
-      induction ns; simpl; intuition.
-      f_equal; auto.
-      unfold upd.
-      rewrite string_eq_false; auto.
-    Qed.
-
-    Lemma nth_error_In : forall A (x : A) ls n,
-      nth_error ls n = Some x
-      -> In x ls.
-      induction ls; destruct n; simpl; intuition; try discriminate; eauto.
-      injection H; intros; subst; auto.
-    Qed.
-
-    Lemma array_updN : forall vs nm v ns,
-      NoDup ns
-      -> forall n, nth_error ns n = Some nm
-        -> Array.updN (toArray ns vs) n v
-        = toArray ns (upd vs nm v).
-      induction 1; destruct n; simpl; intuition.
-      injection H1; clear H1; intros; subst.
-      rewrite toArray_irrel by assumption.
-      unfold upd; rewrite string_eq_true; reflexivity.
-      rewrite IHNoDup; f_equal; auto.
-      unfold upd; rewrite string_eq_false; auto.
-      intro; subst.
-      apply H.
-      eapply nth_error_In; eauto.
-    Qed.
-
     unfold Array.upd in H9.
     rewrite wordToNat_natToWord_idempotent in H9.
     erewrite array_updN in H9; eauto.
     apply nth_error_Some_length in Heq.
     apply array_bound in H9.
-    Require Import Bedrock.Arrays.
     rewrite updN_length in H9.
     rewrite length_toArray in H9.
     apply Nlt_in.
@@ -1015,28 +1037,6 @@ Section correctness.
     apply simplify_fwd.
     unfold Array.upd in H15.
     rewrite wordToNat_natToWord_idempotent in H15.
-
-    Lemma array_updN_variablePosition' : forall vs nm v ns,
-      NoDup ns
-      -> In nm ns
-      -> toArray ns (upd vs nm v) = updN (toArray ns vs) (variablePosition' ns nm) v.
-      induction 1; simpl; intuition; subst.
-      destruct (string_dec nm nm); try tauto.
-      rewrite toArray_irrel; auto.
-      unfold upd.
-      rewrite string_eq_true.
-      auto.
-
-      destruct (string_dec x nm); subst.
-      rewrite toArray_irrel; auto.
-      unfold upd.
-      rewrite string_eq_true.
-      auto.
-
-      unfold upd at 1.
-      rewrite string_eq_false by auto.
-      rewrite H1; auto.
-    Qed.
 
     rewrite array_updN_variablePosition'; auto.
 

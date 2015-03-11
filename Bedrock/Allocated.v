@@ -71,20 +71,20 @@ Theorem allocated_shift_base : forall base base' len len' offset offset',
   intros; subst; apply allocated_shift_base'; auto.
 Qed.
 
+Lemma disjoint'_emp : forall addrs, disjoint' addrs (smem_emp' _) (smem_emp' _).
+  induction addrs; simpl; intuition.
+Qed.
+
+Lemma join'_emp : forall addrs, smem_emp' _ = join' addrs (smem_emp' _) (smem_emp' _).
+  induction addrs; simpl; intuition.
+  congruence.
+Qed.
+
 Lemma split_empty : forall m, semp m
   -> split m m m.
   unfold semp; intros; subst.
   split.
-
-  Lemma disjoint'_emp : forall addrs, disjoint' addrs (smem_emp' _) (smem_emp' _).
-    induction addrs; simpl; intuition.
-  Qed.
   apply disjoint'_emp.
-
-  Lemma join'_emp : forall addrs, smem_emp' _ = join' addrs (smem_emp' _) (smem_emp' _).
-    induction addrs; simpl; intuition.
-    congruence.
-  Qed.
 
   apply join'_emp.
 Qed.

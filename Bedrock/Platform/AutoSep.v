@@ -317,6 +317,8 @@ reflexivity.
 Qed.
 
 Hint Rewrite substH_in2 : sepFormula.
+Opaque mult.
+Require Import Coq.Arith.Arith.
 
 Lemma create_stack : forall ns ss sp,
   NoDup ns
@@ -331,7 +333,6 @@ Lemma create_stack : forall ns ss sp,
   Opaque mult.
   sepLemma.
   apply allocated_shift_base.
-  Require Import Coq.Arith.Arith.
   unfold natToW; rewrite mult_comm; words.
   omega.
 Qed.

@@ -13,15 +13,15 @@ Section TopSection.
     end.
 
   Require Import Coq.Bool.Bool.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
   Lemma NoDup_bool_sound : forall A eqb, (forall a b : A, eqb a b = true <-> a = b) -> forall ls, NoDup_bool eqb ls = true -> NoDup ls.
     induction ls; simpl; intros.
     econstructor.
     eapply andb_true_iff in H0.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
     openhyp.
     econstructor.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
     nintro.
     eapply forallb_forall in H0; eauto.
     eapply negb_true_iff in H0.

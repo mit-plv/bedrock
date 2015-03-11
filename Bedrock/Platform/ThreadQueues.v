@@ -112,6 +112,16 @@ Qed.
 
 Definition exitize_me a b c d := locals a b c d.
 
+Lemma switchedy : forall P Q R S : HProp,
+  (P * (Q * R)) * S ===> P * (Q * (R * S)).
+  sepLemma.
+Qed.
+
+Lemma swatchedy : forall P Q R : HProp,
+  P * (Q * R) ===> P * Q * R.
+  sepLemma.
+Qed.
+
 Lemma exitize_locals : forall xx yy ns vs res sp,
   exitize_me ("rp" :: xx :: yy :: ns) vs res sp ===> Ex vs', locals ("rp" :: "sc" :: "ss" :: nil) (upd vs' "ss" (sel vs yy)) (res + length ns) sp.
   unfold exitize_me, locals; intros.
@@ -131,17 +141,7 @@ Lemma exitize_locals : forall xx yy ns vs res sp,
   simpl map in *.
   simpl length in *.
 
-  Lemma switchedy : forall P Q R S : HProp,
-    (P * (Q * R)) * S ===> P * (Q * (R * S)).
-    sepLemma.
-  Qed.
-
   eapply Himp_trans; [ apply switchedy | ].
-
-  Lemma swatchedy : forall P Q R : HProp,
-    P * (Q * R) ===> P * Q * R.
-    sepLemma.
-  Qed.
 
   eapply Himp_trans; [ | apply swatchedy ].
   apply Himp_star_frame.
@@ -352,6 +352,26 @@ Ltac words_rewr := repeat match goal with
                           end; words.
 
 Hint Extern 1 (freeable _ _) => eapply freeable_cong; [ eassumption | words_rewr ].
+Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
+Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
+
+Lemma switchy : forall P Q R S T R',
+  R ===> R'
+  -> P * Q * (R * S) * T ===> P * Q * R' * S * T.
+  sepLemma.
+Qed.
+
+Lemma swatchy : forall P Q Q' R S,
+  Q' ===> Q
+  -> P * (Q' * R * S) ===> P * (Q * R * S).
+  sepLemma.
+Qed.
+
+Lemma swotchy : forall P Q R S T U S',
+  S ===> S'
+  -> P * star Q (star R (star (S * T) U)) ===> P * Q * R * S' * T * U.
+  sepLemma.
+Qed.
 
 Theorem ok : moduleOk m.
   vcgen.
@@ -389,8 +409,6 @@ Theorem ok : moduleOk m.
                            | tqs' _ _ => idtac
                          end) H4.
   change (tqs' (x, x0) x) with (tqs'_pick_this_one (sel x2 "sc") (x, x0) x) in H4.
-  Hint Extern 1 (_ %in _) => eapply incl_mem; eassumption.
-  Local Hint Extern 1 (himp _ _ _) => apply tqs'_del_bwd.
   t.
 
   t.
@@ -419,12 +437,6 @@ Theorem ok : moduleOk m.
   eapply Imply_trans; [ | eapply (H4 _ _ b0 w) ]; clear H4.
   repeat (apply andR; [ apply injR; assumption | ]).
   repeat (apply andR; [ apply injR; auto | ]).
-
-  Lemma switchy : forall P Q R S T R',
-    R ===> R'
-    -> P * Q * (R * S) * T ===> P * Q * R' * S * T.
-    sepLemma.
-  Qed.
 
   make_Himp.
   unfold ginv, globalInv.
@@ -488,12 +500,6 @@ Theorem ok : moduleOk m.
   autorewrite with sepFormula; simpl.
   make_Himp.
 
-  Lemma swatchy : forall P Q Q' R S,
-    Q' ===> Q
-    -> P * (Q' * R * S) ===> P * (Q * R * S).
-    sepLemma.
-  Qed.
-
   eapply Himp_trans; [ | apply swatchy; apply starB_substH_bwd ].
   unfold substH; simpl.
   match goal with
@@ -515,12 +521,6 @@ Theorem ok : moduleOk m.
   instantiate (1 := snd x9).
   instantiate (1 := fst x9).
   make_Himp.
-
-  Lemma swotchy : forall P Q R S T U S',
-    S ===> S'
-    -> P * star Q (star R (star (S * T) U)) ===> P * Q * R * S' * T * U.
-    sepLemma.
-  Qed.
 
   eapply Himp_trans; [ apply swotchy; apply starB_substH_fwd | ].
   unfold substH; simpl.

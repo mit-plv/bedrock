@@ -108,17 +108,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply GoodModule_GoodName.
       eexists; eauto.
     Qed.
+    Existing Instance Compat_rel_Symmetric.
+    Existing Instance Disjoint_rel_Symmetric.
+    Existing Instance Compat_rel_Reflexive.
 
     Lemma final_imports_Compat_total_exports : Compat (final_imports modules imports) (LinkSpecMake2.impl_exports modules).
       unfold final_imports.
-      Existing Instance Compat_rel_Symmetric.
       symmetry.
       eapply Compat_update.
       eapply Disjoint_Compat.
-      Existing Instance Disjoint_rel_Symmetric.
       symmetry.
       eapply foreign_imports_Disjoint_total_impls; eauto.
-      Existing Instance Compat_rel_Reflexive.
       reflexivity.
     Qed.
 

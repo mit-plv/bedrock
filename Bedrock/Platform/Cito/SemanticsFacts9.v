@@ -55,6 +55,7 @@ Section ADTValue.
     rewrite Heq.
     intuition.
   Qed.
+  Require Import Bedrock.Word.
 
   Lemma store_pair_comm p1 p2 h : no_clash p1 p2 -> store_pair (store_pair h p1) p2 == store_pair (store_pair h p2) p1.
   Proof.
@@ -67,7 +68,6 @@ Section ADTValue.
     destruct v1 as [? | a1]; destruct v2 as [? | a2]; eauto.
     unfold no_clash in *.
     simpl in *.
-    Require Import Bedrock.Word.
     destruct (weq p w2) as [? | Hne2].
     {
       subst.
@@ -160,11 +160,11 @@ Section ADTValue.
       eapply (IHpairs (w1, ADT a1)); eauto.
     }
   Qed.
+  Require Import Bedrock.Platform.Cito.GeneralTactics.
 
   Lemma disjoint_ptrs_cons_elim pairs : forall p, disjoint_ptrs (p :: pairs) -> no_clash_ls p pairs /\ disjoint_ptrs pairs.
     intros p H.
     eapply disjoint_ptrs_cons_elim' in H.
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
     openhyp.
     split; eauto.
     eapply disjoint_ptrs_ls_no_clash_ls; eauto.

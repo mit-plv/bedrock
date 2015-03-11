@@ -488,6 +488,7 @@ Section boot.
   Qed.
 
   Global Opaque heapSize'.
+  Hint Rewrite N2Nat.inj_mul : N.
 
   Lemma buf_size_upper' : goodSize (4 * wordToNat (NToWord 32 buf_size)).
     red.
@@ -500,7 +501,6 @@ Section boot.
     rewrite N2Nat.id.
     clear; generalize (Buf_size_upper _ _ _ _ Wf).
     generalize (Npow2 32).
-    Hint Rewrite N2Nat.inj_mul : N.
     intros; nomega.
   Qed.
 

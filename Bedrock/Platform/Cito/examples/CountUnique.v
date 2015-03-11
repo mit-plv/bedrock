@@ -388,32 +388,32 @@ Fixpoint same_keys_ls elt (hs1 hs2 : list (t elt)) :=
     | nil, nil => True
     | _ , _ => False
   end.
+Require Import Bedrock.Platform.Cito.GeneralTactics3.
+Lemma same_keys_in_iff : forall elt (m1 m2 : t elt), keys m1 = keys m2 -> forall k, In k m1 <-> In k m2.
+  split; intros.
+  eapply In_In_keys; rewrite <- H; eapply In_In_keys; eauto.
+  eapply In_In_keys; rewrite H; eapply In_In_keys; eauto.
+Qed.
+Lemma same_keys_disj : forall elt (a b a' b' : t elt), Disjoint a b -> keys a = keys a' -> keys b = keys b' -> Disjoint a' b'.
+  unfold Disjoint; intros.
+  specialize (same_keys_in_iff _ _ H0); intros.
+  specialize (same_keys_in_iff _ _ H1); intros.
+  intuition.
+  eapply H; split.
+  eapply H2; eauto.
+  eapply H3; eauto.
+Qed.
+Lemma same_keys_forall_disj : forall elt hs1 hs2 h1 h2, List.Forall (@Disjoint elt h1) hs1 -> same_keys_ls hs1 hs2 -> keys h1 = keys h2 -> List.Forall (Disjoint h2) hs2.
+  induction hs1; destruct hs2; simpl; intuition.
+  inv_clear H.
+  econstructor; eauto.
+  eapply same_keys_disj; eauto.
+Qed.
 
 Lemma same_keys_all_disj : forall elt hs1 hs2, @AllDisjoint elt hs1 -> same_keys_ls hs1 hs2 -> AllDisjoint hs2.
   unfold AllDisjoint; induction hs1; destruct hs2; simpl; intuition.
-  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   inv_clear H.
   econstructor; eauto.
-  Lemma same_keys_forall_disj : forall elt hs1 hs2 h1 h2, List.Forall (@Disjoint elt h1) hs1 -> same_keys_ls hs1 hs2 -> keys h1 = keys h2 -> List.Forall (Disjoint h2) hs2.
-    induction hs1; destruct hs2; simpl; intuition.
-    inv_clear H.
-    econstructor; eauto.
-    Lemma same_keys_disj : forall elt (a b a' b' : t elt), Disjoint a b -> keys a = keys a' -> keys b = keys b' -> Disjoint a' b'.
-      unfold Disjoint; intros.
-      Lemma same_keys_in_iff : forall elt (m1 m2 : t elt), keys m1 = keys m2 -> forall k, In k m1 <-> In k m2.
-        split; intros.
-        eapply In_In_keys; rewrite <- H; eapply In_In_keys; eauto.
-        eapply In_In_keys; rewrite H; eapply In_In_keys; eauto.
-      Qed.
-      specialize (same_keys_in_iff _ _ H0); intros.
-      specialize (same_keys_in_iff _ _ H1); intros.
-      intuition.
-      eapply H; split.
-      eapply H2; eauto.
-      eapply H3; eauto.
-    Qed.
-    eapply same_keys_disj; eauto.
-  Qed.
   eapply same_keys_forall_disj; eauto.
 Qed.
 
@@ -438,6 +438,95 @@ Definition count_pre : assert ADTValue :=
       find (vs "arr") h = Some (Arr arr) /\
       vs "len" = length arr /\
       goodSize (length arr).
+Ltac destruct_state :=
+  repeat match goal with
+           | [ x : State _ |- _ ] => destruct x; simpl in *
+         end.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
+Global Add Parametric Morphism elt : (@equal_disj_update_all elt)
+    with signature @Equal elt ==> Logic.eq ==> iff as equal_disj_update_all_m.
+Proof.
+  unfold equal_disj_update_all.
+  split; intros; openhyp; split.
+  rewrite <- H; eauto.
+  eauto.
+  rewrite H; eauto.
+  eauto.
+Qed.
+Require Import Bedrock.Platform.Cito.WordFacts Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3 Bedrock.Platform.Cito.WordFacts4 Bedrock.Platform.Cito.WordFacts5.
+Import Transit.
+Lemma in_alldisj_neq : forall elt k1 k2 v2 h, @In elt k1 h -> AllDisjoint [[h, k2 --> v2]] -> k2 <> k1.
+  intuition; subst.
+  inv_clear H0.
+  inversion_Forall.
+  eapply H2.
+  split; eauto.
+  eapply singleton_in_iff; eauto.
+Qed.
+Theorem lt_true : forall (a b : string) env vs h vs' h',
+                    @is_true ADTValue (a < b)%expr env (vs, h) (vs', h')
+                    -> (sel vs' a < sel vs' b)%word.
+  intros.
+  hnf in H.
+  simpl in H.
+  unfold wltb in H.
+  destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
+Qed.
+
+Theorem lt_false : forall (a b : string) env vs h vs' h',
+                     @is_false ADTValue (a < b)%expr env (vs, h) (vs', h')
+                     -> (sel vs' a >= sel vs' b)%word.
+  intros.
+  hnf in H.
+  simpl in H.
+  unfold wltb in H.
+  destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
+  discriminate.
+Qed.
+
+Hint Resolve lt_false lt_true.
+Lemma add_swap : forall elt k1 v1 k2 v2 h, @find elt k1 h = Some v1 -> k2 <> k1 -> add k1 v1 (add k2 v2 h) == add k2 v2 h.
+  intros; unfold Equal; intros.
+  repeat rewrite add_o.
+  destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
+Qed.
+Lemma firstn_plus_1 : forall ls n, n < length ls -> firstn (1 + n) ls = firstn n ls ++ selN ls n :: nil.
+  induction ls; destruct n; simpl; intuition.
+  f_equal.
+  eapply IHls.
+  eauto.
+Qed.
+Lemma fold_firstn :
+  forall A (ls : list A) n,
+    match ls with
+      | [[]] => [[]]
+      | a :: l => a :: firstn n l
+    end = firstn (1 + n) ls.
+  eauto.
+Qed.
+Import WordSet.
+Import WordSetFacts.
+Import FM.
+Lemma union_empty_right : forall s, union s empty =s= s.
+  intros.
+  rewrite empty_union_2; eauto.
+  reflexivity.
+Qed.
+Lemma of_list_union : forall ls1 ls2, to_set (ls1 ++ ls2) =s= union (to_set ls1) (to_set ls2).
+  induction ls1; destruct ls2; simpl; intuition.
+  rewrite IHls1.
+  simpl.
+  repeat rewrite union_empty_right.
+  reflexivity.
+  rewrite IHls1.
+  simpl.
+  rewrite union_add.
+  reflexivity.
+Qed.
+Lemma firstn_whole : forall A (ls : list A) n, length ls <= n -> firstn n ls = ls.
+  induction ls; destruct n; simpl; intuition.
+  f_equal; eauto.
+Qed.
 
 Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   unfold count_pre, count_body; simpl; unfold imply_close, and_lift; simpl; split_all.
@@ -457,10 +546,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
   {
     (* vc2 *)
     intros.
-    Ltac destruct_state :=
-      repeat match goal with
-               | [ x : State _ |- _ ] => destruct x; simpl in *
-             end.
 
     destruct_state.
     openhyp.
@@ -475,19 +560,8 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     subst; simpl in *.
     destruct x1; simpl in *; try discriminate.
     destruct x3; simpl in *; try discriminate.
-    Require Import Bedrock.Platform.Cito.GeneralTactics4.
     inject H10.
     descend; eauto.
-    Global Add Parametric Morphism elt : (@equal_disj_update_all elt)
-        with signature @Equal elt ==> Logic.eq ==> iff as equal_disj_update_all_m.
-    Proof.
-      unfold equal_disj_update_all.
-      split; intros; openhyp; split.
-      rewrite <- H; eauto.
-      eauto.
-      rewrite H; eauto.
-      eauto.
-    Qed.
 
     rewrite H9.
     eapply separated_star; eauto.
@@ -520,7 +594,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     eauto.
     eauto.
     rewrite H3.
-    Require Import Bedrock.Platform.Cito.WordFacts Bedrock.Platform.Cito.WordFacts2 Bedrock.Platform.Cito.WordFacts3 Bedrock.Platform.Cito.WordFacts4 Bedrock.Platform.Cito.WordFacts5.
     unfold wnat.
     erewrite <- next; eauto.
     rewrite plus_comm.
@@ -537,7 +610,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     simpl.
     intros.
     destruct H2; unfold update_all in *; simpl in *; rewrite update_empty_1 in *; repeat rewrite update_add in *.
-    Import Transit.
     unfold TransitSafe.
     sel_upd_simpl.
     descend.
@@ -556,14 +628,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
           rewrite H4 in *; clear H4.
           split.
           {
-            Lemma in_alldisj_neq : forall elt k1 k2 v2 h, @In elt k1 h -> AllDisjoint [[h, k2 --> v2]] -> k2 <> k1.
-              intuition; subst.
-              inv_clear H0.
-              inversion_Forall.
-              eapply H2.
-              split; eauto.
-              eapply singleton_in_iff; eauto.
-            Qed.
             eapply in_alldisj_neq; eauto.
             eapply MapsTo_In; eapply find_mapsto_iff; eauto.
           }
@@ -577,28 +641,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
       NoDup.
     }
     descend; eauto.
-    Theorem lt_true : forall (a b : string) env vs h vs' h',
-                        @is_true ADTValue (a < b)%expr env (vs, h) (vs', h')
-                        -> (sel vs' a < sel vs' b)%word.
-      intros.
-      hnf in H.
-      simpl in H.
-      unfold wltb in H.
-      destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
-    Qed.
-
-    Theorem lt_false : forall (a b : string) env vs h vs' h',
-                         @is_false ADTValue (a < b)%expr env (vs, h) (vs', h')
-                         -> (sel vs' a >= sel vs' b)%word.
-      intros.
-      hnf in H.
-      simpl in H.
-      unfold wltb in H.
-      destruct (wlt_dec (vs' a) (vs' b)); try tauto; auto.
-      discriminate.
-    Qed.
-
-    Hint Resolve lt_false lt_true.
 
     rewrite <- H1; eauto.
   }
@@ -651,11 +693,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
       {
         rewrite H13.
         rewrite H3; unfold update_all; simpl; rewrite update_empty_1; rewrite update_add.
-        Lemma add_swap : forall elt k1 v1 k2 v2 h, @find elt k1 h = Some v1 -> k2 <> k1 -> add k1 v1 (add k2 v2 h) == add k2 v2 h.
-          intros; unfold Equal; intros.
-          repeat rewrite add_o.
-          destruct (eq_dec k1 y); destruct (eq_dec k2 y); subst; intuition eauto.
-        Qed.
         eapply add_swap; eauto.
       }
       eauto.
@@ -749,42 +786,9 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
       rewrite H5.
       rewrite H1 in *.
       Open Scope nat.
-      Lemma firstn_plus_1 : forall ls n, n < length ls -> firstn (1 + n) ls = firstn n ls ++ selN ls n :: nil.
-        induction ls; destruct n; simpl; intuition.
-        f_equal.
-        eapply IHls.
-        eauto.
-      Qed.
-      Lemma fold_firstn :
-        forall A (ls : list A) n,
-          match ls with
-            | [[]] => [[]]
-            | a :: l => a :: firstn n l
-          end = firstn (1 + n) ls.
-        eauto.
-      Qed.
       rewrite fold_firstn.
       rewrite firstn_plus_1.
       {
-        Import WordSet.
-        Lemma of_list_union : forall ls1 ls2, to_set (ls1 ++ ls2) =s= union (to_set ls1) (to_set ls2).
-          induction ls1; destruct ls2; simpl; intuition.
-          rewrite IHls1.
-          simpl.
-          Lemma union_empty_right : forall s, union s empty =s= s.
-            intros.
-            Import WordSetFacts.
-            Import FM.
-            rewrite empty_union_2; eauto.
-            reflexivity.
-          Qed.
-          repeat rewrite union_empty_right.
-          reflexivity.
-          rewrite IHls1.
-          simpl.
-          rewrite union_add.
-          reflexivity.
-        Qed.
         rewrite of_list_union.
         rewrite union_sym.
         rewrite add_union_singleton.
@@ -870,10 +874,6 @@ Lemma count_vcs_good : and_all (vc count_body count_pre) specs.
     unfold unique_count.
     rewrite H4.
     repeat f_equal.
-    Lemma firstn_whole : forall A (ls : list A) n, length ls <= n -> firstn n ls = ls.
-      induction ls; destruct n; simpl; intuition.
-      f_equal; eauto.
-    Qed.
     eapply firstn_whole.
     eapply lt_false in H1.
     rewrite H2 in *.
@@ -957,15 +957,35 @@ Qed.
 Local Hint Immediate count_vcs_good.
 
 Require Import SemanticsFacts4.
+Definition output_gen (h : Heap ADTValue) w (i : Value ADTValue) :=
+  match w, i with
+    | _, SCA _ => None
+    | w, ADT _ => WordMap.find w h
+  end.
+Require Import ListFacts4.
+Import Transit.
+Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
+  induction ls; simpl; intuition.
+  simpl; f_equal; eauto.
+Qed.
+Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
+  intros.
+  specialize (combine_fst_snd ls); intros.
+  rewrite H0 in H1.
+  rewrite <- H in H1.
+  eauto.
+Qed.
+Arguments uncurry {_ _ _} _ _ / .
+Import WordMap.
+Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
+  unfold Equal; intros.
+  repeat rewrite add_o.
+  destruct (eq_dec k y); subst; intuition.
+Qed.
 
 Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax count count_spec env_ax.
   intros.
   unfold strengthen_op_ax, strengthen_op_ax'.
-  Definition output_gen (h : Heap ADTValue) w (i : Value ADTValue) :=
-    match w, i with
-      | _, SCA _ => None
-      | w, ADT _ => WordMap.find w h
-    end.
 
   exists (fun words inputs h => List.map (uncurry (output_gen h)) (List.combine words inputs)).
   exists (fun _ _ => None).
@@ -974,7 +994,6 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
     unfold outputs_gen_ok.
     intros words inputs h Hpre Hlen.
     rewrite map_length.
-    Require Import ListFacts4.
     rewrite combine_length_eq by eauto.
     eauto.
   }
@@ -991,23 +1010,11 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
     {
       eauto.
     }
-    Import Transit.
     unfold TransitSafe in *.
     openhyp.
     simpl in *.
     openhyp.
     subst; simpl in *.
-    Lemma combine_fst_snd : forall A B (ls : list (A * B)), List.combine (List.map fst ls) (List.map snd ls) = ls.
-      induction ls; simpl; intuition.
-      simpl; f_equal; eauto.
-    Qed.
-    Lemma combine_fst_snd' : forall A B (ls : list (A * B)) a b, a = List.map fst ls -> List.map snd ls = b -> ls = List.combine a b.
-      intros.
-      specialize (combine_fst_snd ls); intros.
-      rewrite H0 in H1.
-      rewrite <- H in H1.
-      eauto.
-    Qed.
     unfold good_inputs, Semantics.good_inputs in *.
     openhyp.
     unfold Semantics.word_adt_match in *.
@@ -1057,15 +1064,10 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
           simpl.
           unfold store_out, Semantics.store_out in *; simpl in *.
           repeat f_equal.
-          Import WordMap.
           rewrite H2.
           eauto.
         }
-        Lemma add_no_effect : forall elt k v h, @find elt k h = Some v -> add k v h == h.
-          unfold Equal; intros.
-          repeat rewrite add_o.
-          destruct (eq_dec k y); subst; intuition.
-        Qed.
+          Arguments uncurry {_ _ _} _ _ / .
         f_equal.
         eauto.
       }
@@ -1092,6 +1094,8 @@ Lemma count_strengthen : forall env_ax, specs_env_agree specs env_ax -> strength
     descend; eauto.
   }
 Qed.
+Import Transit.
+Opaque natToWord.
 
 Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
   unfold empty_precond, main_body; simpl; unfold imply_close, and_lift; simpl; split_all.
@@ -1102,7 +1106,6 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
     unfold SafeDCall.
     simpl.
     intros.
-    Import Transit.
     unfold TransitSafe.
     descend.
     instantiate (1 := [[ _ ]]).
@@ -1512,6 +1515,7 @@ Lemma main_vcs_good : and_all (vc main_body empty_precond) specs.
 Qed.
 
 Local Hint Immediate main_vcs_good.
+Import Transit.
 
 Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthen_op_ax main main_spec env_ax.
   intros.
@@ -1538,7 +1542,6 @@ Lemma main_strengthen : forall env_ax, specs_env_agree specs env_ax -> strengthe
   {
     cito_runsto main empty_precond main_vcs_good.
     2 : eauto.
-    Import Transit.
     unfold TransitTo.
     unfold TransitSafe in *; simpl in *.
     openhyp.
@@ -1677,6 +1680,7 @@ Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
+Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
 
 Theorem top_ok : moduleOk top.
   vcgen.
@@ -1705,7 +1709,6 @@ Theorem top_ok : moduleOk top.
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
   openhyp.
-  Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.

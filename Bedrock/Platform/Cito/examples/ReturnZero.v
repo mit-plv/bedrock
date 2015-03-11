@@ -61,6 +61,7 @@ Lemma body_runsto : forall env v v', RunsTo env (Body f) v v'
   apply sel_upd_eq; auto.
   auto.
 Qed.
+Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
 
 Theorem top_ok : moduleOk top.
   vcgen.
@@ -88,7 +89,6 @@ Theorem top_ok : moduleOk top.
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
   openhyp.
-  Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.

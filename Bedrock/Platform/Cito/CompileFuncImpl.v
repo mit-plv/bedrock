@@ -126,6 +126,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
           H : _ |- _ => eapply t in H
       end.
+    Ltac gen_le :=
+      match goal with
+        | H : (natToW ?a ^+ natToW ?b <= natToW ?c)%word |- _ => assert (a + b <= c) by (eapply wle_goodSize_le; [rewrite_natToW_plus | eapply GoodFunc_GoodOptimizer_goodSize]; eauto); assert (a <= c) by omega; assert (b <= c - a) by omega
+      end.
+
+    Lemma minus_plus_two : forall a b c, a - (b + c) = a - b - c.
+      intros; omega.
+    Qed.
+    Lemma a_plus_b_minus_a : forall a b, a + b - a = b.
+      intros; omega.
+    Qed.
+    Opaque evalInstrs.
 
     Lemma verifCond_ok : forall pre : assert, vcs (verifCond func pre) -> vcs (VerifCond (body' pre)).
     Proof.
@@ -160,10 +172,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       fold (@length string) in *.
       rewrite_natToW_plus.
       repeat rewrite wplus_assoc in *.
-      Ltac gen_le :=
-        match goal with
-          | H : (natToW ?a ^+ natToW ?b <= natToW ?c)%word |- _ => assert (a + b <= c) by (eapply wle_goodSize_le; [rewrite_natToW_plus | eapply GoodFunc_GoodOptimizer_goodSize]; eauto); assert (a <= c) by omega; assert (b <= c - a) by omega
-        end.
 
       gen_le.
       set (len_args := length (ArgVars func)) in *.
@@ -218,10 +226,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       rewrite_natToW_plus.
       repeat rewrite natToW_plus.
       repeat rewrite wplus_assoc in *.
-
-      Lemma minus_plus_two : forall a b c, a - (b + c) = a - b - c.
-        intros; omega.
-      Qed.
 
       replace (natToW _ ^- _) with (natToW extra) in * by (unfold_all; rewrite <- minus_plus_two; rewrite natToW_minus; [rewrite natToW_plus | ]; eauto).
 
@@ -315,9 +319,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       match goal with
         | H : _ = temp_size |- _ => rewrite <- H in *
       end.
-      Lemma a_plus_b_minus_a : forall a b, a + b - a = b.
-        intros; omega.
-      Qed.
 
       rewrite a_plus_b_minus_a.
 

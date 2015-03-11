@@ -17,6 +17,132 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Bedrock.Platform.Cito.SemanticsFacts5.
 
+    Lemma pure_split : forall P Q R,
+      (forall specs sm m, interp specs (P sm m ---> [|Q|]))%PropX
+      -> P ===> R
+      -> P ===> [|Q|] * R.
+      intros; do 3 intro.
+      apply existsR with smem_emp.
+      apply existsR with m.
+      apply andR.
+      apply injR.
+      apply split_a_semp_a.
+      apply andR.
+      eapply Imply_trans; [ apply H | ].
+      apply injL; propxFo.
+      reflexivity.
+      apply H0.
+    Qed.
+
+    Lemma use_rep_inv_ptr' : forall addr a ls,
+      rep_inv addr a * Bags.starL (fun p : W * ADTValue => rep_inv (fst p) (snd p)) ls
+      ===> [|forall v, ~In (addr, v) ls|] * (rep_inv addr a
+        * Bags.starL (fun p : W * ADTValue => rep_inv (fst p) (snd p)) ls).
+      induction ls; simpl; intros.
+
+      apply Himp_star_pure_cc; auto.
+      apply Himp_refl.
+
+      eapply Himp_trans; [ apply Himp_star_assoc' | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply IHls ] | ].
+
+      eapply Himp_trans; [ apply Himp_star_assoc' | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      apply Himp_star_pure_c; intro.
+
+      apply pure_split.
+      Focus 2.
+      eapply Himp_trans; [ apply Himp_star_assoc' | ].
+      eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
+      eapply Himp_trans; [ apply Himp_star_assoc | ].
+      apply Himp_refl.
+
+      intros.
+      apply Imply_trans with [| addr <> fst a0 |]%PropX.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      eapply Imply_trans.
+      apply rep_inv_ptr.
+      apply Imply_trans with [| smem_get_word (implode sm) (fst a0) x <> None |]%PropX.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      apply swap.
+      apply Imply_I; apply interp_weaken.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      apply existsL; intro.
+      apply injL; intuition idtac.
+      apply andL.
+      apply injL; intuition idtac.
+      apply injL; intuition idtac.
+      apply Inj_I; intros.
+      erewrite split_smem_get_word in H7; try eassumption.
+      discriminate.
+      left.
+      erewrite split_smem_get_word; try eassumption.
+      eauto.
+      eauto.
+      apply injL; intro.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      eapply Imply_trans.
+      apply rep_inv_ptr.
+      apply Imply_trans with [| smem_get_word (implode sm) addr x1 <> None |]%PropX.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      apply swap.
+      apply Imply_I; apply interp_weaken.
+      do 2 (apply existsL; intro).
+      apply andL; apply injL; intro.
+      apply andL.
+      apply existsL; intro.
+      apply injL; intuition idtac.
+      apply andL.
+      apply injL; intuition idtac.
+      apply injL; intuition idtac.
+      apply Inj_I; intros.
+      erewrite split_smem_get_word in H9; try eassumption.
+      discriminate.
+      left.
+      erewrite split_smem_get_word; try eassumption.
+      eauto.
+      eauto.
+      apply injL; intro.
+      apply injR; intro; subst.
+      case_eq (smem_get_word (implode sm) (fst a0) x); intros; try congruence.
+      case_eq (smem_get_word (implode sm) (fst a0) x1); intros; try congruence.
+      eapply smem_get_word_disjoint in H4; eauto.
+      apply disjoint_comm.
+      eapply split_split_disjoint.
+      2: eauto.
+      apply split_comm; eauto.
+      apply injL; intro.
+      apply Inj_I; intuition subst.
+      tauto.
+      eapply H.
+      eauto.
+    Qed.
+
+    Lemma use_rep_inv_ptr : forall addr a h,
+      rep_inv addr a * is_heap h ===> [|~WordMap.In addr h|] * (rep_inv addr a * is_heap h).
+      intros; eapply Himp_trans; [ apply use_rep_inv_ptr' | ].
+      apply Himp_star_frame; try apply Himp_refl.
+      sepLemma.
+      intro.
+      destruct H0.
+      eapply H.
+      apply InA_In; apply WordMap.elements_1; eauto.
+    Qed.
+    Require Import Bedrock.Platform.Cito.WordMapFacts.
+
     Lemma is_heap_upd_option_bwd : forall h addr a, is_heap h * layout_option addr a ===> is_heap_upd_option h addr a.
       unfold is_heap_upd_option, heap_upd_option, Semantics.heap_upd_option, layout_option; intros.
       destruct a.
@@ -30,131 +156,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply Himp_trans; [ | apply H0 ]; clear H0.
       simpl.
       eapply Himp_trans; [ apply Himp_star_comm | ].
-
-      Lemma use_rep_inv_ptr' : forall addr a ls,
-        rep_inv addr a * Bags.starL (fun p : W * ADTValue => rep_inv (fst p) (snd p)) ls
-        ===> [|forall v, ~In (addr, v) ls|] * (rep_inv addr a
-          * Bags.starL (fun p : W * ADTValue => rep_inv (fst p) (snd p)) ls).
-        induction ls; simpl; intros.
-
-        apply Himp_star_pure_cc; auto.
-        apply Himp_refl.
-
-        eapply Himp_trans; [ apply Himp_star_assoc' | ].
-        eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
-        eapply Himp_trans; [ apply Himp_star_assoc | ].
-        eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_refl | apply IHls ] | ].
-
-        eapply Himp_trans; [ apply Himp_star_assoc' | ].
-        eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
-        eapply Himp_trans; [ apply Himp_star_assoc | ].
-        apply Himp_star_pure_c; intro.
-
-        Lemma pure_split : forall P Q R,
-          (forall specs sm m, interp specs (P sm m ---> [|Q|]))%PropX
-          -> P ===> R
-          -> P ===> [|Q|] * R.
-          intros; do 3 intro.
-          apply existsR with smem_emp.
-          apply existsR with m.
-          apply andR.
-          apply injR.
-          apply split_a_semp_a.
-          apply andR.
-          eapply Imply_trans; [ apply H | ].
-          apply injL; propxFo.
-          reflexivity.
-          apply H0.
-        Qed.
-
-        apply pure_split.
-        Focus 2.
-        eapply Himp_trans; [ apply Himp_star_assoc' | ].
-        eapply Himp_trans; [ apply Himp_star_frame; [ apply Himp_star_comm | apply Himp_refl ] | ].
-        eapply Himp_trans; [ apply Himp_star_assoc | ].
-        apply Himp_refl.
-
-        intros.
-        apply Imply_trans with [| addr <> fst a0 |]%PropX.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        eapply Imply_trans.
-        apply rep_inv_ptr.
-        apply Imply_trans with [| smem_get_word (implode sm) (fst a0) x <> None |]%PropX.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        apply swap.
-        apply Imply_I; apply interp_weaken.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        apply existsL; intro.
-        apply injL; intuition idtac.
-        apply andL.
-        apply injL; intuition idtac.
-        apply injL; intuition idtac.
-        apply Inj_I; intros.
-        erewrite split_smem_get_word in H7; try eassumption.
-        discriminate.
-        left.
-        erewrite split_smem_get_word; try eassumption.
-        eauto.
-        eauto.
-        apply injL; intro.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        eapply Imply_trans.
-        apply rep_inv_ptr.
-        apply Imply_trans with [| smem_get_word (implode sm) addr x1 <> None |]%PropX.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        apply swap.
-        apply Imply_I; apply interp_weaken.
-        do 2 (apply existsL; intro).
-        apply andL; apply injL; intro.
-        apply andL.
-        apply existsL; intro.
-        apply injL; intuition idtac.
-        apply andL.
-        apply injL; intuition idtac.
-        apply injL; intuition idtac.
-        apply Inj_I; intros.
-        erewrite split_smem_get_word in H9; try eassumption.
-        discriminate.
-        left.
-        erewrite split_smem_get_word; try eassumption.
-        eauto.
-        eauto.
-        apply injL; intro.
-        apply injR; intro; subst.
-        case_eq (smem_get_word (implode sm) (fst a0) x); intros; try congruence.
-        case_eq (smem_get_word (implode sm) (fst a0) x1); intros; try congruence.
-        eapply smem_get_word_disjoint in H4; eauto.
-        apply disjoint_comm.
-        eapply split_split_disjoint.
-        2: eauto.
-        apply split_comm; eauto.
-        apply injL; intro.
-        apply Inj_I; intuition subst.
-        tauto.
-        eapply H.
-        eauto.
-      Qed.
-
-      Lemma use_rep_inv_ptr : forall addr a h,
-        rep_inv addr a * is_heap h ===> [|~WordMap.In addr h|] * (rep_inv addr a * is_heap h).
-        intros; eapply Himp_trans; [ apply use_rep_inv_ptr' | ].
-        apply Himp_star_frame; try apply Himp_refl.
-        sepLemma.
-        intro.
-        destruct H0.
-        eapply H.
-        apply InA_In; apply WordMap.elements_1; eauto.
-      Qed.
 
       eapply Himp_trans; [ apply use_rep_inv_ptr | ].
       apply Himp_star_pure_c; intro.
@@ -171,7 +172,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eexists.
       injection H2; intros; subst; eauto.
       apply InA_In; apply WordMap.elements_1.
-      Require Import Bedrock.Platform.Cito.WordMapFacts.
       apply add_mapsto_iff.
       right; intuition subst.
       apply H0; eexists; eauto.
@@ -286,23 +286,23 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct x; eauto.
     Qed.
 
+    Lemma change_hyp : forall P Q specs st,
+      interp specs (![P] st)
+      -> P ===> Q
+      -> interp specs (![Q] st).
+      intros.
+      eapply Imply_sound.
+      rewrite sepFormula_eq.
+      apply H0.
+      rewrite sepFormula_eq in *; auto.
+    Qed.
+
     Lemma star_merge_separated : forall specs st other h1 h2 addr adt, interp specs (![is_heap h1 * is_heap h2 * layout_option addr adt * other] st) -> separated (heap_merge h1 h2) addr adt.
       intros.
       hnf.
       destruct adt; simpl in *; auto.
       right.
       intro.
-
-      Lemma change_hyp : forall P Q specs st,
-        interp specs (![P] st)
-        -> P ===> Q
-        -> interp specs (![Q] st).
-        intros.
-        eapply Imply_sound.
-        rewrite sepFormula_eq.
-        apply H0.
-        rewrite sepFormula_eq in *; auto.
-      Qed.
 
       assert (is_heap h1 * is_heap h2 * rep_inv addr a * other
         ===> rep_inv addr a * is_heap_merge h1 h2 * other).

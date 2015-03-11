@@ -4,11 +4,11 @@ Require Import Bedrock.Platform.Cito.CModule.
 Require Import Bedrock.Platform.Cito.GoodModuleDec.
 Require Import Bedrock.Platform.Cito.GoodModule.
 Require Import Bedrock.Platform.Cito.GoodFunction.
+Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
 
 Definition cfun_to_gfun (name : string) (f : CFun) : GoodFunction.
   refine (Build_GoodFunction (Build_Func name f) _).
   destruct f; simpl in *.
-  Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
   eapply is_good_func_sound; eauto.
 Defined.
 
@@ -32,11 +32,11 @@ Definition cmodule_to_gmodule name (H : is_good_module_name name = true) (m : CM
   eapply is_good_module_name_sound; eauto.
   eapply cfuns_to_gfuns_nodup.
 Defined.
+Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
 
 Lemma NoDup_ArgVars (f : CFun) : NoDup (ArgVars f).
 Proof.
   destruct f; simpl.
-  Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
   eapply is_good_func_sound in good_func.
   destruct good_func.
   eauto.

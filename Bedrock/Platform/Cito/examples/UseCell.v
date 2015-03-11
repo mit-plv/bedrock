@@ -117,6 +117,7 @@ Definition specs := add ("use_cell", "use_cell") (Internal spec_op) (map Foreign
 Import LinkSpecMake.
 Require Import Bedrock.Platform.Cito.LinkSpecFacts.
 Import LinkSpecMake.
+Require Import Bedrock.Platform.Cito.GeneralTactics2.
 
 Lemma specs_good : specs_equal specs modules imports.
   split; intros.
@@ -152,7 +153,6 @@ Lemma specs_good : specs_equal specs modules imports.
 
   subst; simpl in *.
   right; descend; eauto.
-  Require Import Bedrock.Platform.Cito.GeneralTactics2.
   nintro.
   subst; simpl in *.
   compute in H0.
@@ -186,6 +186,10 @@ Ltac destruct_state :=
   repeat match goal with
            | [ x : Semantics.State ADTValue |- _ ] => destruct x; simpl in *
          end.
+Import Transit.
+Require Import Bedrock.Platform.Cito.BedrockTactics.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
+Import SemanticsMake.
 
 Lemma vcs_good : and_all (vc body empty_precond) specs.
   unfold empty_precond, body; simpl; unfold imply_close, and_lift; simpl.
@@ -196,7 +200,6 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
     unfold SafeDCall.
     simpl.
     intros.
-    Import Transit.
     unfold TransitSafe.
     descend.
     instantiate (1 := nil).
@@ -222,14 +225,11 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
     subst.
     split.
     {
-      Require Import Bedrock.Platform.Cito.BedrockTactics.
       sel_upd_simpl.
       destruct x3; simpl in *; try discriminate.
-      Require Import Bedrock.Platform.Cito.GeneralTactics4.
       inject H7.
       eauto.
     }
-    Import SemanticsMake.
     unfold separated, Semantics.separated in *; simpl in *.
     openhyp; subst; simpl in *; intuition.
   }
@@ -446,6 +446,8 @@ Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
+Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
+Require Import Bedrock.Platform.Cito.GeneralTactics3.
 
 Theorem top_ok : moduleOk top.
   vcgen.
@@ -474,11 +476,9 @@ Theorem top_ok : moduleOk top.
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
   openhyp.
-  Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 20 with (wordToNat (sel (upd x2 "extra_stack" 20) "extra_stack")).

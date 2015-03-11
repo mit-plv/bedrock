@@ -216,6 +216,9 @@ Export Tq.
 Hint Immediate tq_extensional.
 
 Definition locals_expose ns vs ss sp := locals ns vs ss sp.
+Opaque mult.
+Require Import Coq.Arith.Arith.
+Transparent mult.
 
 Lemma expose_stack : forall ns vs ss sp,
   locals_expose ns vs ss sp ===> sp =?> (length ns + ss).
@@ -229,7 +232,6 @@ Lemma expose_stack : forall ns vs ss sp,
   eapply Himp_trans; [ apply ptsto32m_allocated | ].
   rewrite length_toArray; apply Himp_refl.
   apply allocated_shift_base.
-  Require Import Coq.Arith.Arith.
   unfold natToW; rewrite mult_comm; words.
   omega.
   Transparent mult.
@@ -587,6 +589,30 @@ Local Hint Immediate wordBound.
 
 Hint Rewrite <- minus_n_O : sepFormula.
 
+Transparent evalInstrs.
+
+Theorem evalInstrs_app_fwd_None : forall stn is1 is2 st,
+  evalInstrs stn st (is1 ++ is2) = None
+  -> evalInstrs stn st is1 = None
+  \/ exists st', evalInstrs stn st is1 = Some st' /\ evalInstrs stn st' is2 = None.
+  induction is1; simpl; intuition eauto.
+  destruct (evalInstr stn st a); eauto.
+Qed.
+
+Theorem evalInstrs_app_fwd_Some : forall stn is1 is2 st st',
+  evalInstrs stn st (is1 ++ is2) = Some st'
+  -> exists st'', evalInstrs stn st is1 = Some st'' /\ evalInstrs stn st'' is2 = Some st'.
+  induction is1; simpl; intuition eauto.
+  destruct (evalInstr stn st a); eauto.
+  discriminate.
+Qed.
+
+Opaque evalInstrs.
+
+Require Import Coq.Logic.Eqdep.
+
+Hint Immediate evolve_refl.
+
 Theorem ok : moduleOk m.
   vcgen.
 
@@ -692,21 +718,9 @@ Theorem ok : moduleOk m.
 
   Transparent evalInstrs.
 
-  Theorem evalInstrs_app_fwd_None : forall stn is1 is2 st,
-    evalInstrs stn st (is1 ++ is2) = None
-    -> evalInstrs stn st is1 = None
-    \/ exists st', evalInstrs stn st is1 = Some st' /\ evalInstrs stn st' is2 = None.
-    induction is1; simpl; intuition eauto.
-    destruct (evalInstr stn st a); eauto.
-  Qed.
+  Transparent evalInstrs.
 
-  Theorem evalInstrs_app_fwd_Some : forall stn is1 is2 st st',
-    evalInstrs stn st (is1 ++ is2) = Some st'
-    -> exists st'', evalInstrs stn st is1 = Some st'' /\ evalInstrs stn st'' is2 = Some st'.
-    induction is1; simpl; intuition eauto.
-    destruct (evalInstr stn st a); eauto.
-    discriminate.
-  Qed.
+  Transparent evalInstrs.
 
   Opaque evalInstrs.
 
@@ -834,12 +848,9 @@ Theorem ok : moduleOk m.
     | [ H : _ |- _ ] => eapply (Imply_sound (H _ _)); clear H; eauto
   end.
   propxFo.
-  apply evolve_refl.
   unfold labl in H7; rewrite H1 in H7; injection H7; clear H1 H7; intros; subst.
   rewrite H9 in H2; injection H2; clear H2 H9; intros; subst.
   apply (f_equal (fun f => f (stn, st))) in H.
-
-  Require Import Coq.Logic.Eqdep.
   injection H; clear H; intros; subst.
   do 2 apply inj_pair2 in H; subst; simpl.
   change (fun x y => tq x2 (sel x7 "sc") x y) with (tq x2 (sel x7 "sc")).
@@ -870,8 +881,6 @@ Theorem ok : moduleOk m.
   t.
   t.
   t.
-
-  Hint Immediate evolve_refl.
 
   t.
   t.

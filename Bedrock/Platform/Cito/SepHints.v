@@ -33,9 +33,9 @@ Lemma longer_str_not_in : forall r n, (n <= r)%nat -> ~ List.In (gen_str r) (gen
 Qed.
 
 Hint Resolve longer_str_not_in.
+Hint Constructors NoDup.
 
 Lemma gen_ns_NoDup : forall n, NoDup (gen_ns n).
-  Hint Constructors NoDup.
   induction n; simpl; intuition.
 Qed.
 

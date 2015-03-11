@@ -232,6 +232,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     auto.
     sepLemma.
   Qed.
+  Require Import Coq.Arith.Mult.
+  Require Import Bedrock.Platform.Cito.WordFacts.
 
   Theorem is_state_in'' : forall vs sp args e_stack h, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h ===> is_state sp (sel vs "rp") (wordToNat (sel vs "extra_stack")) e_stack args (vs, h) nil.
   Proof.
@@ -257,9 +259,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     inversion_clear H2.
     eauto.
     fold (@length W).
-    Require Import Coq.Arith.Mult.
     rewrite mult_0_r.
-    Require Import Bedrock.Platform.Cito.WordFacts.
     rewrite wplus_0.
     rewrite plus_0_r.
     rewrite length_toArray.
@@ -352,6 +352,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
 
   Require Import Bedrock.Platform.Cito.WordMap.
+  Lemma length_nil : forall A ls, @length A ls = 0 -> ls = nil.
+    destruct ls; simpl in *; intuition.
+  Qed.
 
   Theorem is_state_out''''' : forall vs h sp rp F e_stack e_stack' args,
                                NoDup args
@@ -375,9 +378,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     reflexivity.
     rewrite WordMap.cardinal_1 in H3.
     subst l.
-    Lemma length_nil : forall A ls, @length A ls = 0 -> ls = nil.
-      destruct ls; simpl in *; intuition.
-    Qed.
     eapply length_nil; eauto.
     subst l.
     rewrite H3.

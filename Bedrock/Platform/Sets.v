@@ -282,6 +282,13 @@ Module Make(M : S).
 
     Hint Immediate setify_In'.
 
+    Lemma add_to_del : forall b b' v,
+      ~v %in b'
+      -> b %= b' %+ v
+      -> b %- v %= b'.
+      sets.
+    Qed.
+
     Lemma setify_nuke' : forall v ls, NoDup ls
       -> forall b b', In v ls
       -> ~v %in b'
@@ -292,13 +299,6 @@ Module Make(M : S).
           | [ |- context[if ?E then _ else _] ] => destruct E; subst; intuition
         end.
       assert (b %= fold_left add l b' %+ v) by (eapply equiv_trans; [ eassumption | apply add_something ]); auto.
-
-      Lemma add_to_del : forall b b' v,
-        ~v %in b'
-        -> b %= b' %+ v
-        -> b %- v %= b'.
-        sets.
-      Qed.
 
       apply add_to_del; auto.
       intro.
@@ -337,6 +337,20 @@ Module Make(M : S).
       sepLemma.
     Qed.
 
+    Lemma del_to_add : forall b b' v,
+      v %in b
+      -> b %- v %= b'
+      -> b %= b' %+ v.
+      intros.
+      assert (b %- v %+ v %= b' %+ v) by sets.
+      clear H0.
+      apply equiv_trans with (b %- v %+ v); auto.
+      clear H1.
+      unfold mem, equiv, del, add in *.
+      intros.
+      destruct (eq_dec v x); subst; intuition.
+    Qed.
+
     Theorem starS_del_bwd : forall b v, v %in b
       -> P v * starS P (b %- v) ===> starS P b.
       unfold starS; intros.
@@ -349,20 +363,6 @@ Module Make(M : S).
       apply Himp_star_pure_cc.
       unfold setify in *; simpl.
       eapply equiv_trans; [ | apply equiv_symm; apply add_something ].
-
-      Lemma del_to_add : forall b b' v,
-        v %in b
-        -> b %- v %= b'
-        -> b %= b' %+ v.
-        intros.
-        assert (b %- v %+ v %= b' %+ v) by sets.
-        clear H0.
-        apply equiv_trans with (b %- v %+ v); auto.
-        clear H1.
-        unfold mem, equiv, del, add in *.
-        intros.
-        destruct (eq_dec v x); subst; intuition.
-      Qed.
 
       apply del_to_add; auto.
 

@@ -163,6 +163,27 @@ Section OpSem.
       /\ (LabelMap.MapsTo l pre (Imports m)
         \/ exists bl, LabelMap.MapsTo l (pre, bl) (Blocks m)).
 
+  Lemma unsplit_smem_get' : forall a v ls m m',
+    smem_get' ls a m = Some v
+    -> smem_get' ls a (join' ls m m') = Some v.
+    induction ls; simpl; intuition.
+    destruct (H.addr_dec a0 a); subst.
+    rewrite H; auto.
+    eauto.
+  Qed.
+
+  Lemma unsplit_smem_get : forall a m v m0 m1,
+    smem_get a m = Some v
+    -> split m0 m m1
+      -> smem_get a m0 = Some v.
+    unfold split; intuition subst; apply unsplit_smem_get'; auto.
+  Qed.
+
+  Lemma comeOnOut : forall P Q R,
+    P * Q * R ===> Q * (P * R).
+    clear; sepLemma.
+  Qed.
+
   Lemma locals_mapped' : forall specs stn st vs ns sp P,
     interp specs (![array (toArray ns vs) sp * P] (stn, st))
     -> mapped sp (length ns * 4) (Mem st).
@@ -184,22 +205,6 @@ Section OpSem.
                    end; try discriminate
            end.
     inversion H3; clear H3; subst.
-
-    Lemma unsplit_smem_get' : forall a v ls m m',
-      smem_get' ls a m = Some v
-      -> smem_get' ls a (join' ls m m') = Some v.
-      induction ls; simpl; intuition.
-      destruct (H.addr_dec a0 a); subst.
-      rewrite H; auto.
-      eauto.
-    Qed.
-
-    Lemma unsplit_smem_get : forall a m v m0 m1,
-      smem_get a m = Some v
-      -> split m0 m m1
-        -> smem_get a m0 = Some v.
-      unfold split; intuition subst; apply unsplit_smem_get'; auto.
-    Qed.
 
     do 2 (eapply unsplit_smem_get in H11; eauto).
     rewrite get_memoryIn in H11.
@@ -228,11 +233,6 @@ Section OpSem.
     assert (interp specs (![array (toArray ns vs) (sp ^+ $4) * ((sp ^+ $ (0)) =*> vs a * P)] (stn0, st))).
     eapply ILTacCommon.interp_interp_himp; eauto.
     clear.
-
-    Lemma comeOnOut : forall P Q R,
-      P * Q * R ===> Q * (P * R).
-      clear; sepLemma.
-    Qed.
 
     etransitivity; [ apply comeOnOut | ].
     apply Himp_star_frame; [ | apply Himp_refl ].
@@ -949,6 +949,34 @@ Section OpSem.
     auto.
   Qed.
 
+  Lemma get_minus_out' : forall p ls m1 m2,
+    smem_get' ls p m2 = None
+    -> smem_get' ls p (smem_minus' _ m1 m2) = smem_get' ls p m1.
+    clear; induction ls; simpl; intuition.
+    destruct (H.addr_dec a p); intuition.
+    rewrite H; auto.
+  Qed.
+
+  Lemma get_minus_out : forall p m1 m2,
+    smem_get p m2 = None
+    -> smem_get p (smem_minus m1 m2) = smem_get p m1.
+    intros; apply get_minus_out'; auto.
+  Qed.
+
+  Lemma get_minus_in' : forall p ls m1 m2,
+    smem_get' ls p m2 <> None
+    -> smem_get' ls p (smem_minus' _ m1 m2) = None.
+    clear; induction ls; simpl; intuition.
+    destruct (H.addr_dec a p); intuition.
+    destruct (hlist_hd m2); tauto.
+  Qed.
+
+  Lemma get_minus_in : forall p m1 m2,
+    smem_get p m2 <> None
+    -> smem_get p (smem_minus m1 m2) = None.
+    intros; apply get_minus_in'; auto.
+  Qed.
+
   Lemma tickle_bytes : forall specs p sz P stn st st',
     interp specs (![ p =?>8 sz * P] (stn, st))
     -> onlyChange p sz (Mem st) (Mem st')
@@ -981,34 +1009,6 @@ Section OpSem.
     instantiate (1 := smem_minus (memoryIn (Mem st')) x0).
     intros.
     eapply characterize_array8_bwd in H3; eauto.
-
-    Lemma get_minus_out' : forall p ls m1 m2,
-      smem_get' ls p m2 = None
-      -> smem_get' ls p (smem_minus' _ m1 m2) = smem_get' ls p m1.
-      clear; induction ls; simpl; intuition.
-      destruct (H.addr_dec a p); intuition.
-      rewrite H; auto.
-    Qed.
-
-    Lemma get_minus_out : forall p m1 m2,
-      smem_get p m2 = None
-      -> smem_get p (smem_minus m1 m2) = smem_get p m1.
-      intros; apply get_minus_out'; auto.
-    Qed.
-
-    Lemma get_minus_in' : forall p ls m1 m2,
-      smem_get' ls p m2 <> None
-      -> smem_get' ls p (smem_minus' _ m1 m2) = None.
-      clear; induction ls; simpl; intuition.
-      destruct (H.addr_dec a p); intuition.
-      destruct (hlist_hd m2); tauto.
-    Qed.
-
-    Lemma get_minus_in : forall p m1 m2,
-      smem_get p m2 <> None
-      -> smem_get p (smem_minus m1 m2) = None.
-      intros; apply get_minus_in'; auto.
-    Qed.
 
     rewrite get_minus_out.
     case_eq (smem_get (p ^+ $ (n)) x2); intros; try congruence.

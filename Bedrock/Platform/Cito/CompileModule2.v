@@ -141,6 +141,10 @@ Section ADTValue.
     eapply NoDupKey_aug_mod_name.
     intros; simpl; eauto.
   Qed.
+  Import StringMap.StringMap.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Import GLabelMap.GLabelMap.
+  Require Import Bedrock.Platform.Cito.GLabelMapFacts.
 
   Lemma map_aug_mod_name_sub_domain A B nm a b : @StringMapFacts.sub_domain A B a b -> sub_domain (map_aug_mod_name nm a) (map_aug_mod_name nm b).
   Proof.
@@ -152,14 +156,10 @@ Section ADTValue.
     eapply map_aug_mod_name_elim in H.
     destruct H as [fname [? H] ].
     subst.
-    Import StringMap.StringMap.
-    Require Import Bedrock.Platform.Cito.StringMapFacts.
-    eapply find_Some_in in H.
+    eapply StringMapFacts.find_Some_in in H.
     eapply Hsd in H.
-    eapply in_find_Some in H.
+    eapply StringMapFacts.in_find_Some in H.
     destruct H as [v' H].
-    Import GLabelMap.GLabelMap.
-    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
     eapply find_Some_in.
     eapply map_aug_mod_name_intro; eauto.
   Qed.
@@ -553,10 +553,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat rewrite map_map; simpl.
       eapply StringMapFacts.NoDup_elements.
     Qed.
+    Require Import Coq.Bool.Bool.
 
     Lemma ax_neq_op_mod_name : ax_mod_name <> op_mod_name.
     Proof.
-      Require Import Coq.Bool.Bool.
       eapply negb_true_iff in name_neq.
       unfold string_bool in *.
       unfold sumbool_to_bool in *.
@@ -807,11 +807,50 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
+    Require Import Bedrock.Platform.Cito.ListFacts4.
 
-    Lemma good_vcs ls : List.incl ls (elements content) -> vcs (makeVcs bimports stubs (List.map make_stub' ls)).
+    Import List.
+
+    Ltac hide_all_eq :=
+      repeat match goal with
+               | H : _ = _ |- _ => generalize dependent H
+             end.
+
+    Ltac clear_all_eq :=
+      repeat match goal with
+               | H : _ = _ |- _ => clear H
+             end.
+    Import CompileFuncSpecMake.InvMake2.
+    Require Import Bedrock.Platform.Cito.SepHints3.
+    Ltac gd t := generalize dependent t.
+    Import InvMake.SemanticsMake.
+    Require Import Bedrock.Platform.Cito.CompileStmtTactics.
+    Ltac hiding tac :=
+      clear_imports;
+      ((let P := fresh "P" in
+        match goal with
+          | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
+          | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
+          | H : fs_good_to_use ?a ?b ?c ?d |- _ => set (P := fs_good_to_use a b c d) in *
+        end;
+            hiding tac;
+            subst P) || tac).
+    Import CompileFuncSpecMake.InvMake.
+    Require Import Coq.Arith.Arith.
+    Require Import Bedrock.Platform.Cito.WordFacts.
+    Ltac simpl_array_nil := let h0 := fresh in set (h0 := array nil _) in *; unfold array in h0; simpl in h0; subst h0.
+    Ltac simpl_locals_nil := let h0 := fresh in set (h0 := locals nil _ _ _) in *; unfold locals in h0; unfold array in h0; simpl in h0; subst h0.
+    Import SemanticsMake.
+    Import CompileFuncSpecMake.InvMake.SemanticsMake.
+    Require Import Bedrock.Platform.Cito.GeneralTactics3.
+    Import CompileFuncSpecMake.InvMake.
+    Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+    Require Import Bedrock.Platform.Cito.ListFacts5.
+    Import WordMap.WordMap.
+
+    Lemma good_vcs ls : List.incl ls (StringMap.elements content) -> vcs (makeVcs bimports stubs (List.map make_stub' ls)).
     Proof.
       induction ls; simpl; eauto.
-      Require Import Bedrock.Platform.Cito.ListFacts4.
       intros Hincl.
       eapply cons_incl_elim in Hincl.
       destruct Hincl as [Hin Hincl].
@@ -832,18 +871,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         post.
         subst.
 
-        Import List.
-
-        Ltac hide_all_eq :=
-          repeat match goal with
-                   | H : _ = _ |- _ => generalize dependent H
-                 end.
-
-        Ltac clear_all_eq :=
-          repeat match goal with
-                   | H : _ = _ |- _ => clear H
-                 end.
-
         rename H8 into Hlong.
         rename x1 into rp.
         rename x2 into e_stack.
@@ -855,13 +882,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rename H7 into Hpre.
         rename H0 into Hgs.
         rename H4 into Hdisj.
-        Import CompileFuncSpecMake.InvMake2.
         unfold is_state, has_extra_stack in Hst.
         simpl in *.
 
-        set (arr := map fst pairs) in *.
+        set (arr := List.map fst pairs) in *.
         set (avars := ArgVars op_spec) in *.
-        Require Import Bedrock.Platform.Cito.SepHints3.
         rewrite (@replace_array_to_locals arr _ avars) in Hst.
         (* get some info from strengthen_op_ax *)
         copy_as Hegu Hstr.
@@ -882,7 +907,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             eapply NoDup_ArgVars.
           }
         }
-        Ltac gd t := generalize dependent t.
 
         gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
         gd Hstr; gd Hogok.
@@ -891,18 +915,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rename H1 into Haugment.
         clear Haugment.
         clear import_module_names_ok.
-        Import InvMake.SemanticsMake.
-        Require Import Bedrock.Platform.Cito.CompileStmtTactics.
-        Ltac hiding tac :=
-          clear_imports;
-          ((let P := fresh "P" in
-            match goal with
-              | H : Safe ?fs _ _ |- _ => set (P := Safe fs) in *
-              | H : RunsTo ?fs _ _ _ |- _ => set (P := RunsTo fs) in *
-              | H : fs_good_to_use ?a ?b ?c ?d |- _ => set (P := fs_good_to_use a b c d) in *
-            end;
-            hiding tac;
-            subst P) || tac).
 
         hiding ltac:(evaluate hints_array_to_locals).
         unfold toArray in *; simpl in *.
@@ -912,7 +924,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         rename H2 into Hst.
 
         eexists.
-        Import CompileFuncSpecMake.InvMake.
         set (h := make_heap pairs) in *.
         exists (vs_callee, h).
         exists rp, e_stack.
@@ -921,13 +932,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           unfold is_state.
           unfold has_extra_stack.
           simpl.
-          Require Import Coq.Arith.Arith.
-          Require Import Bedrock.Platform.Cito.WordFacts.
           rewrite mult_0_r in *.
           rewrite wplus_0 in *.
           rewrite plus_0_r in *.
-          Ltac simpl_array_nil := let h0 := fresh in set (h0 := array nil _) in *; unfold array in h0; simpl in h0; subst h0.
-          Ltac simpl_locals_nil := let h0 := fresh in set (h0 := locals nil _ _ _) in *; unfold locals in h0; unfold array in h0; simpl in h0; subst h0.
           simpl_array_nil.
           simpl_locals_nil.
           assert (Hleq : length arr = length avars).
@@ -951,14 +958,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         {
           (* post call *)
           set (rv := Regs x0 Rv) in *.
-          Import SemanticsMake.
 
           hiding ltac:(step auto_ext).
           hiding ltac:(step auto_ext).
           {
             instantiate (2 := rv).
             instantiate (2 := combine_ret rv (ret_a_gen rv (snd x1))).
-            instantiate (2 := outputs_gen arr (map snd pairs) (snd x1)).
+            instantiate (2 := outputs_gen arr (List.map snd pairs) (snd x1)).
             instantiate (4 := x2).
             instantiate (3 := x4).
             instantiate (1 := List.map (fst x1) avars).
@@ -1041,12 +1047,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             eapply is_heap_Equal; eauto.
           }
           {
-            Import CompileFuncSpecMake.InvMake.SemanticsMake.
             destruct H as [vs_callee' [Hrt [Hrv Hsp] ] ].
             destruct x1 as [vs_callee'' h']; simpl in *.
             split.
             {
-              Require Import Bedrock.Platform.Cito.GeneralTactics3.
               unfold_all.
               rewrite Hogok; repeat rewrite map_length; eauto.
             }
@@ -1054,22 +1058,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             {
               rewrite Hrv.
               unfold_all.
-              Import CompileFuncSpecMake.InvMake.
               eapply runsto_elim; eauto.
             }
             split.
             {
               unfold_all.
-              Require Import Bedrock.Platform.Cito.SemanticsFacts6.
               rewrite make_triples_length; repeat rewrite map_length; trivial.
-              Require Import Bedrock.Platform.Cito.ListFacts5.
               unfold toArray in *; simpl in *.
               eapply map_eq_length_eq; eauto.
               rewrite Hogok; repeat rewrite map_length; eauto.
             }
             split; trivial.
             unfold retv.
-            Import WordMap.WordMap.
             destruct (ret_a_gen rv h'); simpl; eauto.
           }
         }

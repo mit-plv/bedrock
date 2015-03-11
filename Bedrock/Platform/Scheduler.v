@@ -244,6 +244,16 @@ Export Sched.
 
 Definition exitize_me a b c d := locals a b c d.
 
+Lemma switchedy : forall P Q R S : HProp,
+  (P * (Q * R)) * S ===> P * (Q * (R * S)).
+  sepLemma.
+Qed.
+
+Lemma swatchedy : forall P Q R : HProp,
+  P * (Q * R) ===> P * Q * R.
+  sepLemma.
+Qed.
+
 Lemma exitize_locals : forall xx yy ns vs res sp,
   exitize_me ("rp" :: xx :: yy :: ns) vs res sp ===> Ex vs', locals ("rp" :: "sc" :: "ss" :: nil) (upd (upd vs' "ss" (sel vs yy)) "sc" (sel vs xx)) (res + length ns) sp.
   unfold exitize_me, locals; intros.
@@ -263,17 +273,7 @@ Lemma exitize_locals : forall xx yy ns vs res sp,
   simpl map in *.
   simpl length in *.
 
-  Lemma switchedy : forall P Q R S : HProp,
-    (P * (Q * R)) * S ===> P * (Q * (R * S)).
-    sepLemma.
-  Qed.
-
   eapply Himp_trans; [ apply switchedy | ].
-
-  Lemma swatchedy : forall P Q R : HProp,
-    P * (Q * R) ===> P * Q * R.
-    sepLemma.
-  Qed.
 
   eapply Himp_trans; [ | apply swatchedy ].
   apply Himp_star_frame.

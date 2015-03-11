@@ -104,6 +104,24 @@ Definition change_fs (fs : settings -> W -> option Callee) : settings -> W -> op
       | Some (Semantics.Internal _) => Some (Foreign fact_spec)
       | other => other
     end.
+Lemma in_specs_label_in : forall lbl, In lbl specs -> label_in modules imports lbl.
+  intros.
+  unfold specs in *.
+  eapply add_in_iff in H.
+  openhyp.
+  subst; simpl in *.
+  left.
+  unfold gm, to_good_module in *; simpl in *.
+  descend.
+  eauto.
+  simpl; eauto.
+  simpl; eauto.
+  eapply empty_in_iff in H; intuition.
+Qed.
+Require Import Bedrock.Platform.Cito.Option.
+Lemma Some_not_None : forall A o (v : A), o = Some v -> o <> None.
+  intuition.
+Qed.
 
 Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs -> specs_env_agree specs (from_bedrock_label_map (Labels stn), change_fs fs stn).
   intros.
@@ -112,20 +130,6 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold labels_in_scope.
   intros.
   eapply H.
-  Lemma in_specs_label_in : forall lbl, In lbl specs -> label_in modules imports lbl.
-    intros.
-    unfold specs in *.
-    eapply add_in_iff in H.
-    openhyp.
-    subst; simpl in *.
-    left.
-    unfold gm, to_good_module in *; simpl in *.
-    descend.
-    eauto.
-    simpl; eauto.
-    simpl; eauto.
-    eapply empty_in_iff in H; intuition.
-  Qed.
   eapply in_specs_label_in; eauto.
 
   split.
@@ -133,7 +137,6 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   unfold specs_fs_agree; simpl in *.
   unfold change_fs.
   intros.
-  Require Import Bedrock.Platform.Cito.Option.
   destruct (option_dec (fs stn p)).
   destruct s; rewrite e in *.
   destruct x; simpl in *.
@@ -185,9 +188,6 @@ Lemma change_fs_agree : forall fs stn, env_good_to_use modules imports stn fs ->
   openhyp.
   subst; simpl in *.
   contradict e.
-  Lemma Some_not_None : forall A o (v : A), o = Some v -> o <> None.
-    intuition.
-  Qed.
   eapply Some_not_None.
   eapply H.
   descend.
@@ -216,10 +216,11 @@ Ltac destruct_state :=
          end.
 
 Hint Immediate lt0_false lt0_true.
+Ltac cito_vcs body := unfold body; simpl;
+  unfold imply_close, and_lift, interp; simpl.
+Require Import Bedrock.Platform.Cito.BedrockTactics.
 
 Lemma vcs_good : and_all (vc body empty_precond) specs.
-  Ltac cito_vcs body := unfold body; simpl;
-    unfold imply_close, and_lift, interp; simpl.
 
   unfold empty_precond.
 
@@ -235,7 +236,6 @@ Lemma vcs_good : and_all (vc body empty_precond) specs.
   destruct_state.
   unfold Transit.TransitSafe.
   descend.
-  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   instantiate (1 := [[ (SCA (sel v "n" ^- $1)) ]]).
   eauto.
@@ -277,6 +277,7 @@ Qed.
 Local Hint Resolve final.
 
 Infix "==" := WordMap.WordMap.Equal.
+Require Import Bedrock.Platform.Cito.GeneralTactics4.
 
 Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (Body f) v v' -> sel (fst v') (RetVar f) = fact_w (sel (fst v) "n") /\ snd v' == snd v.
   cito_runsto f empty_precond vcs_good.
@@ -301,7 +302,6 @@ Lemma body_runsto' : forall env v v', specs_env_agree specs env -> RunsTo env (B
   destruct x0; simpl in *; try discriminate.
   destruct x0; simpl in *; try discriminate.
   destruct x2; simpl in *; try discriminate.
-  Require Import Bedrock.Platform.Cito.GeneralTactics4.
   inject H6.
   inject H9.
   subst; simpl in *.
@@ -444,6 +444,9 @@ Require Import Bedrock.Platform.Cito.Inv.
 Module Import InvMake := Make ExampleADT.
 Module Import InvMake2 := Make ExampleRepInv.
 Import Made.
+Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
+Require Import Bedrock.Platform.Cito.GeneralTactics3.
+Require Import Bedrock.Platform.Cito.BedrockTactics.
 
 Theorem top_ok : moduleOk top.
   vcgen.
@@ -472,11 +475,9 @@ Theorem top_ok : moduleOk top.
   repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
   apply swap; apply injL; intro.
   openhyp.
-  Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
   match goal with
     | [ x : State |- _ ] => destruct x; simpl in *
   end.
-  Require Import Bedrock.Platform.Cito.GeneralTactics3.
   eapply_in_any body_runsto; simpl in *; intuition subst.
   eapply replace_imp.
   change 40 with (wordToNat (sel (upd (upd x2 "extra_stack" 40) "n" 5) "extra_stack")).
@@ -488,7 +489,6 @@ Theorem top_ok : moduleOk top.
   clear H7.
   hiding ltac:(step auto_ext).
   hiding ltac:(step auto_ext).
-  Require Import Bedrock.Platform.Cito.BedrockTactics.
   sel_upd_simpl.
   rewrite H9.
   rewrite H11.

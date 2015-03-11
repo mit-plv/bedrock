@@ -881,10 +881,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply InA_eqke_In.
         eapply elements_1; eauto.
       Qed.
+      Existing Instance Disjoint_rel_Symmetric.
 
       Lemma Disjoint_many_exports_foreign_imports : forall ms, incl ms modules -> Disjoint (update_all (List.map get_module_Exports ms)) foreign_imports.
         intros.
-        Existing Instance Disjoint_rel_Symmetric.
         symmetry.
         eapply Disjoint_update_all.
         eapply Forall_forall.
