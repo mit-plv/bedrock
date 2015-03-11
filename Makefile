@@ -43,7 +43,7 @@ HASNATDYNLINK = true
 	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject
 
-FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac
+FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac Makefile.coq
 
 # pipe the output of coq_makefile through sed so that we don't have to run coqdep just to clean
 # use tr to handle the fact that BSD sed doesn't substitute \n
