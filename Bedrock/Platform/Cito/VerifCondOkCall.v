@@ -242,7 +242,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       repeat hiding ltac:(step auto_ext).
       eauto.
       fold (@firstn W) in *.
-      rewrite firstn_length; rewrite Min.min_l; omega.
+      apply firstn_length; omega.
 
       (* vc 4*)
       eapply syn_req_Call_args; eauto.
