@@ -216,7 +216,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       [Al ls,
        PRE[V] lseq' ls (V "self")
-       POST[R] [| R = V "acc" ^+ $(length ls) |] * lseq' ls (V "self") ]
+       POST[R] [| R = V "acc" ^+ $ (length ls) |] * lseq' ls (V "self") ]
       While ("self" <> 0) {
         "acc" <- "acc" + 1;;
         "self" <-* "self"+4

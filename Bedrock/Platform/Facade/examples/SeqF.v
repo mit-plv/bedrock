@@ -41,5 +41,5 @@ Section adt.
   Definition lengthS := SPEC("extra_stack", "self") reserving res
     Al ls,
     PRE[V] P ls (V "self") * mallocHeap 0
-    POST[R] [| R = $(length ls) |] * P ls (V "self") * mallocHeap 0.
+    POST[R] [| R = $ (length ls) |] * P ls (V "self") * mallocHeap 0.
 End adt.
