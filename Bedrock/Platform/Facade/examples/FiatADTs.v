@@ -149,7 +149,7 @@ Section FiniteSetADTSpec.
         PreCond := fun args =>
                      exists s w, args = [ADT (FEnsemble s); SCA _ w];
         PostCond := fun args ret =>
-                      exists s w, args = [(ADT (FEnsemble s), Some (FEnsemble (Add _ s w)));
+                      exists s w, args = [(ADT (FEnsemble s), Some (FEnsemble (Ensembles.Add _ s w)));
                                            (SCA _ w, None)]
                                   /\ ret = SCAZero
       |}; crush_types.

@@ -24,7 +24,7 @@ Export Has.
 
 Infix "%has" := has (at level 70).
 
-Definition add := Add W.
+Definition add := Ensembles.Add W.
 Infix "%+" := add (at level 50).
 
 Definition sub := Subtract W.

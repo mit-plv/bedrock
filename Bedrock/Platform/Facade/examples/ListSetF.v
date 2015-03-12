@@ -261,7 +261,7 @@ Qed.
 Local Hint Immediate Singleton_bwd.
 
 Ltac sets' := try rewrite has_eq in *;
-  unfold propToWord, IF_then_else, add, sub, Add, Subtract, Setminus,
+  unfold propToWord, IF_then_else, add, sub, Ensembles.Add, Subtract, Setminus,
   Same_set, Included, Ensembles.In in *;
   intuition eauto.
 
