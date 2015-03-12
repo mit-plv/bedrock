@@ -216,7 +216,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Qed.
 
       Lemma GoodModule_GoodName : forall m : GoodModule, IsGoodModuleName (MName m).
-        intros; destruct m0; simpl; eauto.
+        intros m0; destruct m0; simpl; eauto.
       Qed.
 
       Lemma In_bimports_base_fst : forall x, List.In x bimports_base ->  In (fst x) imports \/ exists m f, List.In m modules /\ List.In f (Functions m) /\ fst x = (MName m, FName f).
