@@ -14,4 +14,4 @@ Qed.
 Require Import Bedrock.AMD64_gas.
 
 Definition compiled := moduleS program.
-Recursive Extraction compiled.
+Unset Extraction AccessOpaque.  Recursive Extraction compiled.

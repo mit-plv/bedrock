@@ -7,4 +7,4 @@ End M.
 Module E := Make(M).
 
 Definition compiled := moduleS E.m.
-Recursive Extraction compiled.
+Unset Extraction AccessOpaque.  Recursive Extraction compiled.
