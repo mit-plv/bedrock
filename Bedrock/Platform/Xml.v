@@ -43,7 +43,7 @@ Notation "'Join' x1 'to' x2 ;;; o" :=
   (let (tab1, col1) := forJoin x1 in
     let (tab2, col2) := forJoin x2 in
       XIfEqual tab1 col1 tab2 col2 o%out)
-  (at level 95, col1 at level 0, col2 at level 0, o at level 0) : out_scope.
+  (at level 95, o at level 0) : out_scope.
 Bind Scope out_scope with xml.
 
 Definition econs (x : exp) (xs : list exp) : list exp := x :: xs.
