@@ -5,7 +5,7 @@ Local Hint Extern 1 (@eq W _ _) => words.
 
 
 Module Type S.
-  Variables globalSched globalSock : W.
+  Parameters globalSched globalSock : W.
 End S.
 
 Module Make(M : S).

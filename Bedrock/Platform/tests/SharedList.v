@@ -2,7 +2,7 @@ Require Import Bedrock.Platform.Thread Bedrock.Platform.SinglyLinkedList.
 
 
 Module Type S.
-  Variables globalList globalSched : W.
+  Parameters globalList globalSched : W.
 End S.
 
 Module Make(M : S).

@@ -2,7 +2,7 @@ Require Import Bedrock.Platform.Thread.
 Export Thread.
 
 Module Type S.
-  Variable globalSched : W.
+  Parameter globalSched : W.
 End S.
 
 Module Make(M : S).

@@ -6,13 +6,13 @@ Set Implicit Arguments.
 
 
 Module Type S.
-  Variable world : Type.
+  Parameter world : Type.
 
-  Variable evolve : world -> world -> Prop.
+  Parameter evolve : world -> world -> Prop.
   Axiom evolve_refl : forall w, evolve w w.
   Axiom evolve_trans : forall w1 w2 w3, evolve w1 w2 -> evolve w2 w3 -> evolve w1 w3.
 
-  Variable globalInv : bag -> world -> HProp.
+  Parameter globalInv : bag -> world -> HProp.
 End S.
 
 Module Make(M : S).
