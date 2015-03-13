@@ -13,13 +13,13 @@ Record tq_args (world : Type) := {
 }.
 
 Module Type S.
-  Variable world : Type.
+  Parameter world : Type.
 
-  Variable evolve : world -> world -> Prop.
+  Parameter evolve : world -> world -> Prop.
   Axiom evolve_refl : forall w, evolve w w.
   Axiom evolve_trans : forall w1 w2 w3, evolve w1 w2 -> evolve w2 w3 -> evolve w1 w3.
 
-  Variable globalInv : world -> W -> hpropB (tq_args world :: nil).
+  Parameter globalInv : world -> W -> hpropB (tq_args world :: nil).
 End S.
 
 Definition localsInvariantExit (pre : vals -> W -> qspec) (rpStashed : bool) (adjustSp : W -> W)

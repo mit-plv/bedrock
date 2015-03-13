@@ -6,8 +6,8 @@ Local Hint Extern 1 (@eq W _ _) => words.
 (** Basic token-level XML parsing *)
 
 Module Type XMLP.
-  Variable xmlp : W -> W -> HProp.
-  Variable xmlp' : W -> W -> W -> HProp.
+  Parameter xmlp : W -> W -> HProp.
+  Parameter xmlp' : W -> W -> W -> HProp.
 
   Axiom xmlp_fwd : forall len p, xmlp len p
     ===> Ex pos, Ex selStart, Ex selLen, (p ==*> len, pos, selStart, selLen)

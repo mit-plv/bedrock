@@ -2,7 +2,7 @@ Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Malloc Bedrock.Platform
 
 
 Module Type S.
-  Variable heapSize : nat.
+  Parameter heapSize : nat.
 End S.
 
 Module Make(M : S).

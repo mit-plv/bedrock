@@ -2,7 +2,7 @@ Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.BabyThread 
 
 
 Module Type S.
-  Variable heapSize : nat.
+  Parameter heapSize : nat.
 End S.
 
 Module Make(M : S).

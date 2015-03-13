@@ -2,7 +2,7 @@ Require Import Bedrock.Platform.tests.Thread0 Bedrock.Platform.tests.Echo3 Bedro
 
 
 Module Type S.
-  Variable heapSize : nat.
+  Parameter heapSize : nat.
 End S.
 
 Module Make(M : S).
