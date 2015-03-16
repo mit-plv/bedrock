@@ -986,7 +986,11 @@ Module Make (SH : SepHeap) (U : SynUnifier).
             apply andb_true_iff in H12. destruct H12. apply andb_true_iff in H12. destruct H12.
             rewrite allb_map. eapply allb_impl. eauto. intros.
             simpl in *. generalize (@liftInstantiate_typed U_or_G (typeof_env U) (typeof_env G) nil x0 tvProp sub (Foralls lem)).
-            simpl. rewrite (Subst_to_env_typeof_env _ _ _ _ _ H11) in *. intro. apply H16 in H15; auto.
+            simpl. rewrite (Subst_to_env_typeof_env _ _ _ _ _ H11) in *. intro.
+            match goal with
+              | [ H16 : ?A -> ?B, H15 : ?A |- _ ]
+                => apply H16 in H15; auto
+            end.
 
             repeat rewrite quant_nil in *. repeat rewrite typeof_env_length in *. auto.
             rewrite typeof_env_length. auto. } }
