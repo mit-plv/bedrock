@@ -898,7 +898,12 @@ Section correctness.
     injection H; clear H; intros; subst.
     unfold applyD.
     rewrite HlistIn.
-    simpl exprD.
+    match goal with
+      | [ |- context[exprD ?f ?u ?v ?x ?y] ]
+        => let k := constr:(exprD f u v x y) in
+           let k' := (eval simpl exprD in k) in
+           change k with k'
+    end.
     destruct (exprD funcs uvars vars e0 valsT); try tauto.
     unfold Provable in H6.
     simpl in H6.
