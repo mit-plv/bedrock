@@ -414,7 +414,7 @@ Section correctness.
     specialize (H0 _ (refl_equal _)); subst.
     simpl in H.
     deconstruct.
-    repeat (esplit || eassumption).
+    do 2 (esplit || eassumption); [ reflexivity | ].
     repeat f_equal.
     unfold natToW.
     f_equal.
