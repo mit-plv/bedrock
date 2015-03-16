@@ -1,3 +1,4 @@
+Require Import Coq.omega.Omega.
 Require Import Coq.Arith.Arith.
 
 Set Implicit Arguments.
