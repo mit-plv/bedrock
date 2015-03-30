@@ -96,7 +96,8 @@ FACADE_ALL_VO := \
 	Bedrock/Platform/Facade/examples/FiatADTs.vo \
 	Bedrock/Platform/Facade/examples/FiatRepInv.vo \
 	Bedrock/Platform/Facade/examples/FiatImpl.vo \
-	Bedrock/Platform/Facade/DFacadeToBedrock.vo
+	Bedrock/Platform/Facade/DFacadeToBedrock.vo \
+	Bedrock/Platform/Facade/DFacadeToBedrock2.vo \
 
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \

@@ -699,238 +699,61 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hypothesis types_conform : forall x1 x2 x1' x2', pre_cond x1 x2 -> pre_cond x1' x2' -> is_same_types (x1 :: x2 :: nil) (x1' :: x2' :: nil) = true.
 
-    Definition output_module : XCAP.module.
-      refine (CM2.make_module input_module imports _ _ _ _).
-      Definition export_spec : AxiomaticSpec ADTValue.
-        refine
-          {|
-            PreCond inputs := exists x1 x2, inputs = x1 :: x2 :: nil /\ pre_cond x1 x2;
-            PostCond inputs_outputs ret := exists x1 x2 x1' x2', inputs_outputs = (x1, x1') :: (x2, x2') :: nil /\ post_cond x1 x2 ret
-          |}.
-        unfold type_conforming; intros; openhyp; subst.
-        eapply types_conform; eauto.
-        (*here*)
-        Require Import Bedrock.Platform.Cito.AxSpec.
-        Import ConformTactic.
-        conform.
-      Definition exports : StringMap.t (AxiomaticSpec ADTValue) :=
-
-      Definition func : CFun.
-        refine (Build_CFun _ _).
-      Definition input_module : CModule :=
+    (* post-cond needs to be generalized to include outputs *)
+    Definition export_spec : AxiomaticSpec ADTValue.
+      refine
         {|
-          Funs := StringMapFacts.of_list ((fun_name, ) : nil)
-      {
-      }
-    Definition output_module := bimport [[ (module_name!fun_name, spec_op_b) ]]
-      bmodule export_module_name {{
-        bfunction fun_name(argvar1, argvar2, "R") [compileS pre_cond post_cond]
-          "R" <-- Call module_name!fun_name(extra_stack, argvar1, argvar2)
-          [PRE[_, R] Emp
-           POST[R'] [| R' = R |] ];;
-          Return "R"
-        end
-      }}.
+          PreCond inputs := exists x1 x2, inputs = x1 :: x2 :: nil /\ pre_cond x1 x2;
+          PostCond inputs_outputs ret := exists x1 x2 x1' x2', inputs_outputs = (x1, x1') :: (x2, x2') :: nil /\ post_cond x1 x2 ret
+        |}.
+      unfold type_conforming; intros; openhyp; subst.
+      eapply types_conform; eauto.
+    Defined.
 
-    Require Import Bedrock.Platform.AutoSep.
+    Notation " { } " := nil (only parsing) : listy_scope.
+    Notation " { x , .. , y } " := (cons x .. (cons y Nil) ..) (only parsing) : listy_scope.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics3.
-    Opaque mult.
-    Import LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.
-    Require Import Bedrock.sep.Locals.
+    Definition exports : StringMap.t (AxiomaticSpec ADTValue) :=
+      StringMapFacts.of_list { (fun_name, export_spec) }.
 
-    Theorem is_state_in2 : forall vs sp args e_stack h F, locals ("rp" :: "extra_stack" :: args) vs e_stack sp * is_heap h * mallocHeap 0 * F ===> is_state sp (Locals.sel vs "rp") (wordToNat (Locals.sel vs "extra_stack")) e_stack args (vs, h) nil * mallocHeap 0 * F.
-      intros; sepLemma.
-      etransitivity; [ | apply is_state_in'' ]; auto.
-      sepLemma.
+    Lemma scoping : StringMapFacts.is_sub_domain exports (Funs input_module) = true.
+      admit. 
     Qed.
 
-  Theorem is_state_out'' sp rp args pairs vs e_stack e_stack' h :
-    NoDup args
-    -> ~List.In "rp" args
-    -> ~List.In "extra_stack" args
-    -> length args = length pairs
-    -> is_state sp rp e_stack e_stack' nil
-    (vs, h) (List.map fst pairs)
-    ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
-    * is_heap h * [| sel vs' "extra_stack" = e_stack |]
-    * [| saved_vars vs' args pairs |].
-    unfold is_state, locals, Inv.has_extra_stack; simpl.
-    intros.
-    apply Himp_ex_c.
-    exists (upd (upd (zip_vals args pairs) "extra_stack" e_stack) "rp" rp).
-    selify.
-    replace (S (S (length args)) * 4)%nat with (8 + 4 * length args)%nat by omega.
-    rewrite map_length.
-    rewrite <- H2.
-    rewrite natToWord_plus.
-    eapply Himp_trans; [ | do 4 (apply Himp_star_frame; [ | apply Himp_refl ]);
-      apply Himp_star_frame; [ apply Himp_refl | apply ptsto32m'_out ] ].
-    simpl.
-    generalize (List.map fst pairs); intro.
-    unfold array at 1; simpl.
-    sepLemma.
-    do 2 (apply saved_vars_irrel; auto).
-    eauto using saved_vars_zip_vars.
-
-    etransitivity; [ apply himp_star_comm | ].
-    apply himp_star_frame.
-    etransitivity; [ | apply Arrays.ptsto32m'_in ].
-    etransitivity; [ | apply ptsto32m_shift_base ].
-    unfold array.
-    instantiate (1 := 8).
-    simpl.
-    rewrite <- wplus_assoc.
-    rewrite <- natToWord_plus.
-    reflexivity.
-    auto.
-    rewrite <- wplus_assoc.
-    rewrite <- natToWord_plus.
-    unfold natToW.
-    sepLemma.
-  Qed.
-
-  Theorem is_state_out''' sp rp args pairs vs h e_stack e_stack' :
-                              NoDup args
-                              -> ~List.In "rp" args
-                              -> ~List.In "extra_stack" args
-                              -> toArray args vs = List.map fst pairs
-                              -> is_state sp rp e_stack e_stack' args
-                                          (vs, h) nil
-                                          ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp
-                                                       * is_heap h * [| sel vs' "extra_stack" = e_stack |]
-                                                       * [| saved_vars vs' args pairs |].
-    unfold Himp; intros.
-    etransitivity.
-    2 : eapply is_state_out''; eauto.
-    2 : eapply toArray_map_length; eauto.
-    change LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_state with is_state.
-    unfold is_state, locals, Inv.has_extra_stack; simpl.
-    rewrite H2.
-    Require Import Coq.Arith.Mult.
-    rewrite mult_0_r.
-    Require Import Bedrock.Platform.Cito.WordFacts.
-    rewrite wplus_0.
-    set (array (List.map _ _) _).
-    set (is_heap _).
-    rewrite map_length.
-    replace (length args) with (length pairs).
-    rewrite plus_0_r.
-    clear_all.
-    sepLemma.
-    symmetry; eapply toArray_map_length; eauto.
-    Grab Existential Variables.
-    eauto.
-  Qed.
-
-  Theorem is_state_out''''' vs sp rp F e_stack e_stack' args h (pairs : list (W * Value ADTValue)):
-    toArray args vs = List.map fst pairs ->
-                               NoDup args
-                               -> ~List.In "rp" args
-                               -> ~List.In "extra_stack" args
-                               -> (is_state sp rp e_stack e_stack' args
-                                            (vs, h) nil * mallocHeap 0) * F
-                                                                                     ===> Ex vs', locals ("rp" :: "extra_stack" :: args) vs' e_stack' sp * is_heap h
-                                                                                                  * [| sel vs' "extra_stack" = e_stack|]
-                                                                                                  * mallocHeap 0 * F.
-    intros Hfstpairs.
-    intros.
-    eapply Himp_trans; [ do 2 (apply Himp_star_frame; [ | apply Himp_refl ]); apply is_state_out''' | ]; eauto.
-    set (_ :: _ :: _).
-    clear_all.
-    sepLemma.
-  Qed.
-
-  Transparent mult.
-
-    Theorem output_module_ok : moduleOk output_module.
-      clear_all.
-      vcgen.
-
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      sep_auto.
-
-      post.
-      call_cito (extra_stack) (argvars).
-      hiding ltac:(evaluate auto_ext).
-      unfold name_marker.
-      hiding ltac:(step auto_ext).
-      unfold spec_without_funcs_ok.
-      post.
-      descend.
-      set (vs := Locals.upd _ argvar2 _) in *.
-      eapply CompileExprs.change_hyp.
-      Focus 2.
-      apply (@is_state_in2 vs).
-      autorewrite with sepFormula.
-      clear H10.
-      hiding ltac:(step auto_ext).
-      eapply prog_safe; eauto; simpl in *; try reflexivity.
-      hiding ltac:(step auto_ext).
-      repeat ((apply existsL; intro) || (apply injL; intro) || apply andL); reduce.
-      apply swap; apply injL; intro.
-      openhyp.
-      Import LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.
-      match goal with
-        | [ x : State |- _ ] => destruct x; simpl in *
-      end.
-      rename H11 into Hrunsto.
-      eapply prog_runsto in Hrunsto; eauto.
-      simpl in *.
-      destruct Hrunsto as [vr [Hpost [Hheq [Hdisj Hgs] ] ] ].
-      eapply replace_imp.
-      set (vs := Locals.upd _ argvar2 _) in *.
-      change extra_stack with (wordToNat (Locals.sel vs "extra_stack")).
-
-      eapply is_state_out'''''.
-      {
-        instantiate (1 := {(_, _); (_, _)}).
-        simpl; eauto.
-      }
-      {
-        NoDup.
-      }
-      {
-        NoDup.
-      }
-      {
-        NoDup.
-      }
-
-      clear H10.
-      hiding ltac:(step auto_ext).
-      hiding ltac:(step auto_ext).
-
-      sep_auto.
-      sep_auto.
-      {
-        rewrite H10.
-        rewrite H13.
-        rewrite H1.
-        words.
-      }
-      {
-        eauto.
-      }
-      {
-        rewrite H7.
-        rewrite H12.
-        eauto.
-      }
-      {
-        rewrite H7.
-        rewrite H12.
-        eauto.
-      }
-      sep_auto.
-      sep_auto.
-      sep_auto.
-      Grab Existential Variables.
-      eauto.
-      eauto.
+    Lemma weakening : exports_weakens_impl input_module imports exports module_name.
+      admit.
     Qed.
+
+    Lemma H_import_module_names_ok :
+      let op_mod_name := module_name in
+      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
+      List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
+    Proof.
+      simpl.
+      destruct compile_unit; simpl in *.
+      rename import_module_names_ok into H.
+      Require Import Bool.
+      eapply andb_true_iff in H; destruct H as [H ?].
+      eapply H.
+    Qed.
+
+    Definition output_module : XCAP.module := CM2.make_module input_module imports exports export_module_name module_name eq_refl.
+
+    Arguments CM2.make_module_ok : clear implicits. 
+
+    Definition output_module_ok : moduleOk output_module.
+      refine (CM2.make_module_ok input_module imports exports _ export_module_name module_name eq_refl _ eq_refl _).
+      {
+        eapply scoping.
+      }
+      {
+        simpl.
+        eapply H_import_module_names_ok.
+      }
+      {
+        eapply weakening.
+      }
+    Defined.
 
     Notation compile_cito_to_bedrock := compile_to_bedrock.
 
@@ -940,11 +763,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Require Import Coq.Bool.Bool.
 
+    Import MakeWrapperMake.LinkMake.
+    Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
+
     Theorem output_module_impl_ok : moduleOk output_module_impl.
     Proof.
-
-      Import MakeWrapperMake.LinkMake.
-      Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
       match goal with
         | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
@@ -980,7 +803,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Definition compile : CompileOut pre_cond post_cond := Build_CompileOut output_module_ok eq_refl output_module_impl_ok.
+    Definition compile : CompileOut pre_cond post_cond. 
+      refine 
+        (Build_CompileOut output_module_ok _ output_module_impl_ok).
+      admit. (* will be removed *)
+    Defined.
 
   End TopSection.
 
