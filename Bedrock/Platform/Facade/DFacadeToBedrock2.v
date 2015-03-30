@@ -21,743 +21,119 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Bedrock.Platform.Cito.LinkFacts.
   Module Import LinkFactsMake := Make E.
 
-  Require Import Bedrock.Platform.Facade.CompileUnit Bedrock.Platform.Facade.CompileOut.
-  Module Import CompileOutMake := CompileOut.Make E M.
-  Export CompileOutMake.
-
   Require Import Bedrock.Platform.Cito.CompileModule2.
   Module CM2 := CompileModule2.Make E M.
 
   Section TopSection.
 
-    (* pre_cond arg1 arg2 *)
-    Variable pre_cond : Value ADTValue -> Value ADTValue -> Prop.
-    (* post_cond arg1 arg2 ret *)
-    Variable post_cond : Value ADTValue -> Value ADTValue -> Value ADTValue -> Prop.
-    (* input of the this compiler *)
-    Variable compile_unit : CompileUnit pre_cond post_cond.
+    Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+    Variable exports : StringMap.t AxiomaticSpec.
 
-    Notation prog := (CompileUnit.prog compile_unit).
-    Definition unit_no_assign_to_args := (CompileUnit.no_assign_to_args compile_unit).
-    Definition unit_syntax_ok := (CompileUnit.syntax_ok compile_unit).
-    Definition unit_compile_syntax_ok := (CompileUnit.compile_syntax_ok compile_unit).
-    Notation imports := (CompileUnit.imports compile_unit).
+    Require Import Bedrock.Platform.Facade.DFModule.
+    Variable module : DFModule ADTValue.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Hypothesis exports_in_domain : is_sub_domain exports (Funs module) = true.
+    (* the name of the module that contains axiomatic export specs *)
+    Variable ax_mod_name : string.
+    (* the name of the module that contains operational export specs *)
+    Variable op_mod_name : string.
+    Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
+    Require Import Bedrock.Platform.Cito.ListFacts3.
+    Notation imports := (Imports module).
+    Hypothesis op_mod_name_not_in_imports :
+      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
+      List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
+    Hypothesis name_neq : negb (string_bool ax_mod_name op_mod_name) = true.
+    Hypothesis Hewi : True.
 
     Notation Value := (@Value ADTValue).
-
-    Notation dfacade_safe := (CompileUnit.pre_safe compile_unit).
-    Notation dfacade_runsto := (CompileUnit.pre_runsto_post compile_unit).
-
     Require Import Bedrock.Platform.Facade.DFacade.
-    Require Import Bedrock.Platform.Facade.DFModule.
     Require Import Bedrock.Platform.Facade.CompileDFModule.
     Require Import Bedrock.Platform.Facade.NameDecoration.
-
-    Definition core := Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok.
-    Definition function :=Build_DFFun core unit_compile_syntax_ok.
-    Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
-
-    Require Import Bedrock.Platform.Cito.ListFacts3.
-
-    Notation specs := (GLabelMap.map (@Axiomatic _) imports).
-
     Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
     Require Import Bedrock.Platform.Cito.StringMapFacts.
     Import FMapNotations.
     Local Open Scope fmap_scope.
-
     Require Import Bedrock.Platform.Facade.Listy.
     Import Notations Instances.
     Local Open Scope listy_scope.
 
-    Definition good_module := compile_to_gmodule module module_name eq_refl.
-
-    Definition modules := good_module :: nil.
-
+    Definition good_module := compile_to_gmodule module op_mod_name op_mod_name_ok.
+    Definition gmodules := good_module :: nil.
     Require Import Bedrock.Platform.Cito.GoodModuleDec.
     Require Import Bedrock.Platform.Cito.GoodModuleDecFacts.
-
-    Definition dummy_gf : GoodFunction.
-      refine (to_good_function f _).
-      eapply is_good_func_sound.
-      reflexivity.
-    Defined.
-
-    Definition spec_op := hd dummy_gf (Functions good_module).
-
-    Notation spec_op_b := (func_spec modules imports (module_name, fun_name) spec_op).
-
     Require Import Bedrock.Platform.Cito.Semantics.
-
     Require Import Bedrock.Platform.Facade.CompileDFacadeToCito.
-
     Import WordMapFacts.FMapNotations.
     Local Open Scope fmap_scope.
 
-    Lemma env_good_to_use_cenv_impls_env modules stn fs : env_good_to_use modules imports stn fs -> cenv_impls_env (from_bedrock_label_map (Labels stn), fs stn) (GLabelMap.map (@Axiomatic _) imports).
-    Proof.
-      intros Hgu.
-      unfold env_good_to_use, cenv_impls_env in *.
-      destruct Hgu as [Hsgu [Hinj Hfsgu] ].
-      unfold stn_good_to_use, fs_good_to_use in *.
-      split.
-      {
-        intros lbl spec Hflbl.
-        Require Import Bedrock.Platform.Cito.GLabelMapFacts.
-        rewrite map_o in Hflbl.
-        Require Import Bedrock.Platform.Cito.Option.
-        eapply option_map_some_elim in Hflbl.
-        destruct Hflbl as [aspec [Hflbl' ?] ].
-        subst.
-        simpl in *.
-        assert (Hlblin : label_in modules imports lbl).
-        {
-          unfold label_in.
-          right; eauto.
-          eapply find_Some_in; eauto.
-        }
-        eapply Hsgu in Hlblin.
-        eapply ex_up in Hlblin.
-        destruct Hlblin as [w Hw].
-        assert (fs stn w = Some (Foreign aspec)).
-        {
-          eapply Hfsgu.
-          exists lbl.
-          split; eauto.
-          unfold label_mapsto.
-          right.
-          exists aspec.
-          split; eauto.
-        }
-        exists w.
-        split; eauto.
-      }
-      intros k.
-      intros k' w Hin1 Hin2 Hf1 Hf2.
-      simpl in *.
-      eapply in_find_Some in Hin1.
-      destruct Hin1 as [s1 Hs1].
-      rewrite map_o in Hs1.
-      eapply option_map_some_elim in Hs1.
-      destruct Hs1 as [as1 [Has1 ?] ].
-      subst; simpl in *.
-      eapply in_find_Some in Hin2.
-      destruct Hin2 as [s2 Hs2].
-      rewrite map_o in Hs2.
-      eapply option_map_some_elim in Hs2.
-      destruct Hs2 as [as2 [Has2 ?] ].
-      subst; simpl in *.
-      eapply Hinj; eauto.
-      {
-        unfold label_in.
-        right; eauto.
-        eapply find_Some_in; eauto.
-      }
-      {
-        unfold label_in.
-        right; eauto.
-        eapply find_Some_in; eauto.
-      }
-    Qed.
-
     Require Import Bedrock.Platform.Facade.CompileRunsTo.
-    Lemma empty_related vs : @CompileRunsTo.related ADTValue (StringMap.empty _) (vs, (WordMap.empty _)).
-    Proof.
-      unfold related.
-      split.
-      {
-        intros x v Hf.
-        Require Import Bedrock.Platform.Cito.StringMapFacts.
-        rewrite empty_o in Hf.
-        discriminate.
-      }
-      intros p a Hf.
-      simpl in *.
-      rewrite WordMapFacts.empty_o in Hf.
-      discriminate.
-    Qed.
-
     Import StringMapFacts.FMapNotations.
-
-    Lemma related_Equal st1 st2 vs1 vs2 h1 h2 : @related ADTValue st1 (vs1, h1) -> st2 == st1 -> (forall k, vs2 k = vs1 k) -> WordMap.Equal h2 h1 -> related st2 (vs2, h2).
-    Proof.
-      intros Hr Heq Hvs Hh.
-      unfold related in *; simpl in *.
-      split.
-      {
-        intros x v Hf.
-        rewrite Heq in Hf.
-        rewrite Hh.
-        rewrite Hvs.
-        eapply Hr in Hf.
-        eauto.
-      }
-      intros p a Hf.
-      rewrite Hh in Hf.
-      eapply Hr in Hf.
-      destruct Hf as [x [Hex Huni] ].
-      rewrite <- Heq in Hex.
-      rewrite <- Hvs in Hex.
-      exists x.
-      split.
-      - eauto.
-      - intros x' Hx'.
-        rewrite Heq in Hx'.
-        rewrite Hvs in Hx'.
-        eauto.
-    Qed.
-
     Require Import Coq.Setoids.Setoid.
-    Global Add Morphism (@CompileRunsTo.related ADTValue) with signature StringMap.Equal ==> Logic.eq ==> iff as related_Equal_m.
-    Proof.
-      intros st1 st2 Heq cst.
-      destruct cst as [vs h] in *.
-      split; intros.
-      eapply related_Equal; eauto.
-      symmetry; eauto.
-      reflexivity.
-      eapply related_Equal; eauto.
-      reflexivity.
-    Qed.
-
     Import WordMapFacts.FMapNotations.
-
     Require Import Bedrock.Platform.Cito.StringMapFacts.
-
     Require Import Bedrock.Platform.Cito.GeneralTactics4.
     Arguments empty {_}.
-
     Require Import Bedrock.Platform.Cito.SemanticsUtil.
     Require Import Bedrock.Platform.Cito.SemanticsFacts9.
-
     Arguments store_pair {_} _ _.
-
     Import StringMapFacts StringMap.StringMap.
-
-    Lemma related_add_adt st vs h x (a : ADTValue) w : related st (vs, h) -> w = vs x -> ~ WordMap.In w h -> not_mapsto_adt x st = true -> related (add x (ADT a) st) (vs, WordMap.add w a h).
-      intros Hr ? Hninw Hninx.
-      subst.
-
-      unfold related in *; simpl in *.
-      split.
-      {
-        intros x' v' Hf.
-        destruct (string_dec x' x) as [Heq | Hne].
-        {
-          subst.
-          rewrite add_eq_o in Hf by eauto.
-          inject Hf.
-          simpl in *.
-          rewrite WordMapFacts.add_eq_o by eauto.
-          eauto.
-        }
-        rewrite add_neq_o in Hf by eauto.
-        eapply Hr in Hf.
-        destruct v' as [w' | a']; simpl in *.
-        {
-          eauto.
-        }
-        unfold Locals.sel in *.
-        destruct (weq (vs x') (vs x)) as [Heqw | Hnew].
-        {
-          rewrite Heqw in *.
-          contradict Hninw.
-          eapply WordMapFacts.find_Some_in; eauto.
-        }
-        rewrite WordMapFacts.add_neq_o by eauto.
-        eauto.
-      }
-      intros p a' Hf.
-      destruct (weq p (vs x)) as [? | Hne].
-      {
-        subst.
-        rewrite WordMapFacts.add_eq_o in Hf by eauto.
-        inject Hf.
-        exists x.
-        split.
-        {
-          split.
-          - eauto.
-          - rewrite add_eq_o by eauto.
-            eauto.
-        }
-        intros x' [Hvsx' Hfx'].
-        destruct (string_dec x' x) as [? | Hne].
-        {
-          eauto.
-        }
-        rewrite add_neq_o in Hfx' by eauto.
-        eapply Hr in Hfx'.
-        simpl in *.
-        unfold Locals.sel in *.
-        rewrite Hvsx' in *.
-        contradict Hninw.
-        eapply WordMapFacts.find_Some_in; eauto.
-      }
-      rewrite WordMapFacts.add_neq_o in Hf by eauto.
-      eapply Hr in Hf.
-      destruct Hf as [x' [ [Hvsx' Hfx'] Huni] ].
-      exists x'.
-      split.
-      {
-        split; eauto.
-        destruct (string_dec x' x) as [? | Hnex].
-        {
-          subst.
-          eapply not_mapsto_adt_iff in Hninx.
-          contradict Hninx.
-          eexists; eauto.
-        }
-        rewrite add_neq_o by eauto.
-        eauto.
-      }
-      intros x'' [Hvsx'' Hfx''].
-      subst.
-      unfold Locals.sel in *.
-      destruct (string_dec x'' x) as [? | Hnex''].
-      {
-        subst.
-        rewrite add_eq_o in Hfx'' by eauto.
-        inject Hfx''.
-        eapply Hr in Hfx'.
-        simpl in *.
-        rewrite Hvsx'' in *.
-        contradict Hninw.
-        eapply WordMapFacts.find_Some_in; eauto.
-      }
-      rewrite add_neq_o in Hfx'' by eauto.
-      eapply Huni; eauto.
-    Qed.
-
-    Lemma related_add st vs h x v w : @related ADTValue st (vs, h) -> w = vs x -> word_scalar_match (w, v) -> not_in_heap w v h -> not_mapsto_adt x st = true  -> related (add x v st) (vs, store_pair h (w, v)).
-      intros Hr ? Hmatch Hninw Hninx.
-      subst.
-      destruct v as [w | a].
-      {
-        eapply related_Equal.
-        {
-          eapply related_add_sca; eauto.
-          reflexivity.
-        }
-        { reflexivity. }
-        {
-          unfold word_scalar_match in *; simpl in *.
-          subst.
-          intros k.
-          destruct (string_dec k x) as [? | Hne].
-          - subst.
-            symmetry; eapply Locals.sel_upd_eq; eauto.
-          - symmetry; eapply Locals.sel_upd_ne; eauto.
-        }
-        unfold store_pair; simpl.
-        reflexivity.
-      }
-      eapply related_Equal.
-      {
-        eapply related_add_adt; eauto.
-      }
-      {
-        reflexivity.
-      }
-      { eauto. }
-      {
-        reflexivity.
-      }
-    Qed.
-
-    Lemma make_map_make_heap_related' ks :
-      forall values pairs st h vs cst,
-        NoDup ks ->
-        StringMap.Equal st (make_map ks values) ->
-        WordMap.Equal h (@make_heap' ADTValue pairs) ->
-        good_scalars pairs ->
-        disjoint_ptrs pairs ->
-        List.map fst pairs = List.map vs ks ->
-        List.map snd pairs = values ->
-        vs = fst cst ->
-        h = snd cst ->
-        CompileRunsTo.related st cst.
-    Proof.
-      induction ks; destruct values; destruct pairs; simpl; try solve [intros; try discriminate]; intros st h vs cst Hnd Hst Hh Hgs Hdp Hfst Hsnd ? ?; subst; destruct cst as [vs h]; simpl in *.
-      {
-        unfold make_heap in *; simpl in *.
-        eapply related_Equal.
-        - eapply empty_related.
-        - eauto.
-        - intros; eauto.
-        - eauto.
-      }
-      rename a into k.
-      destruct p as [w v']; simpl in *.
-      inject Hsnd.
-      inject Hfst.
-      rename H into Hfst.
-      unfold make_heap' in *.
-      simpl in *.
-      unfold good_scalars in *.
-      inversion Hgs; subst; clear Hgs.
-      rename H1 into Hmatch.
-      rename H2 into Hgs.
-      inversion Hnd; subst; clear Hnd.
-      rename H1 into Hnink.
-      rename H2 into Hnd.
-      eapply disjoint_ptrs_cons_elim in Hdp.
-      destruct Hdp as [Hninw Hdisj].
-      eapply related_Equal.
-      2 : eapply Hst.
-      3 : eapply Hh.
-      2 : solve [eauto].
-      eapply related_add; trivial.
-      {
-        eapply IHks; try reflexivity; eauto.
-      }
-      {
-        eapply no_clash_ls_not_in_heap; eauto.
-      }
-      {
-        eapply find_none_not_mapsto_adt.
-        eapply not_find_in_iff.
-        eapply make_map_not_in; eauto.
-      }
-    Qed.
-
-    Lemma make_map_make_heap_related ks :
-      forall values pairs st h vs cst,
-        NoDup ks ->
-        StringMap.Equal st (make_map ks values) ->
-        WordMap.Equal h (@make_heap ADTValue pairs) ->
-        good_scalars pairs ->
-        disjoint_ptrs pairs ->
-        List.map fst pairs = List.map vs ks ->
-        List.map snd pairs = values ->
-        vs = fst cst ->
-        h = snd cst ->
-        CompileRunsTo.related st cst.
-    Proof.
-      intros; eapply make_map_make_heap_related'; eauto.
-      rewrite <- make_heap_make_heap' by eauto.
-      eauto.
-    Qed.
-
-    Lemma prog_safe cenv stmt cst stn fs v1 v2 w1 w2 :
-      env_good_to_use modules imports stn fs ->
-      fst cenv = from_bedrock_label_map (Labels stn) ->
-      snd cenv = fs stn ->
-      stmt = Compile.compile (CompileDFacade.compile prog) ->
-      pre_cond v1 v2 ->
-      disjoint_ptrs ((w1, v1) :: (w2, v2) :: nil) ->
-      good_scalars ((w1, v1) :: (w2, v2) :: nil) ->
-      w1 = Locals.sel (fst cst) argvar1 ->
-      w2 = Locals.sel (fst cst) argvar2 ->
-      snd cst == make_heap ((w1, v1) :: (w2, v2) :: nil) ->
-      Safe cenv stmt cst.
-    Proof.
-      destruct cenv as [l2w w2spec]; simpl in *.
-      destruct cst as [vs h]; simpl in *.
-      intros Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
-      subst.
-      eapply compile_safe; try reflexivity; simpl in *; trivial.
-      {
-        eapply dfacade_safe; eauto.
-        reflexivity.
-      }
-      {
-        eapply unit_syntax_ok.
-      }
-      {
-        eauto.
-      }
-      {
-        eapply WordMapFacts.submap_refl.
-      }
-      {
-        eapply make_map_make_heap_related with (ks := argvars); eauto; simpl in *.
-        reflexivity.
-        eauto.
-      }
-      {
-        eapply env_good_to_use_cenv_impls_env; eauto.
-      }
-    Qed.
-
     Import StringMapFacts.FMapNotations.
-
     Import WordMapFacts.FMapNotations.
-
     Require Import Bedrock.Platform.Cito.GeneralTactics5.
-
     Arguments empty {_}.
-    (* a special version of make_map_related_make_heap *)
-    Lemma make_map_related_make_heap_singleton k w v st h vs cst pairs :
-      StringMapFacts.Submap (add k v empty) st ->
-      (forall k', k' <> k -> @not_mapsto_adt ADTValue k' st = true ) ->
-      CompileRunsTo.related st cst ->
-      w = vs k ->
-      vs = fst cst ->
-      h == snd cst ->
-      pairs = (w, v) :: nil ->
-      WordMap.Equal h (make_heap pairs) /\
-      disjoint_ptrs pairs /\
-      good_scalars pairs.
-    Proof.
-      intros Hst Hnoleak Hr ? ? Hh ? .
-      subst.
-      destruct cst as [vs h']; simpl in *.
-      rewrite Hh.
-      split.
-      {
-        unfold make_heap.
-        unfold Make.InvMake.SemanticsMake.heap_empty.
-        simpl.
-        unfold store_pair; simpl.
-        destruct v as [w | a]; simpl in *.
-        {
-          intros p.
-          Import WordMapFacts WordMap.WordMap.
-          rewrite empty_o.
-          simpl in *.
-          destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
-          {
-            eapply Hr in Hv.
-            destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
-            destruct (string_dec x k) as [? | Hnex].
-            {
-              subst.
-              Import StringMapFacts StringMap.StringMap.
-              specialize (Hst k (SCA _ w)).
-              rewrite Hst in Hfx.
-              discriminate.
-              rewrite add_eq_o by eauto.
-              eauto.
-            }
-            eapply Hnoleak in Hnex.
-            eapply not_mapsto_adt_iff in Hnex.
-            contradict Hnex.
-            eexists; eauto.
-          }
-          eauto.
-        }
-        unfold Make.InvMake.SemanticsMake.heap_upd.
-        intros p.
-        Import WordMapFacts WordMap.WordMap.
-        destruct (weq p (vs k)) as [? | Hnep].
-        {
-          subst.
-          rewrite add_eq_o by eauto.
-          specialize (Hst k (ADT a)).
-          Import StringMapFacts StringMap.StringMap.
-          rewrite add_eq_o in Hst by eauto.
-          specialize (Hst eq_refl).
-          eapply Hr in Hst.
-          simpl in *.
-          eauto.
-        }
-        Import WordMapFacts WordMap.WordMap.
-        rewrite add_neq_o by eauto.
-        rewrite empty_o.
-        destruct (option_dec (find p h')) as [ [v Hv] | Hnone].
-        {
-          eapply Hr in Hv.
-          destruct Hv as [x [ [Hvsx Hfx] Huni] ]; simpl in *.
-          destruct (string_dec x k) as [? | Hnex].
-          {
-            subst.
-            intuition.
-          }
-          eapply Hnoleak in Hnex.
-          eapply not_mapsto_adt_iff in Hnex.
-          contradict Hnex.
-          eexists; eauto.
-        }
-        eauto.
-      }
-      split.
-      {
-        unfold disjoint_ptrs; simpl in *.
-        destruct v; simpl in *; intuition.
-      }
-      unfold good_scalars.
-      destruct v as [w | a]; simpl in *.
-      {
-        econstructor; intuition.
-        unfold word_scalar_match; simpl.
-        Import StringMapFacts StringMap.StringMap.
-        specialize (Hst k (SCA _ w)).
-        rewrite add_eq_o in Hst by eauto.
-        specialize (Hst eq_refl).
-        eapply Hr in Hst.
-        simpl in *.
-        eauto.
-      }
-      {
-        econstructor; intuition.
-        unfold word_scalar_match; simpl.
-        eauto.
-      }
-    Qed.
-
-    Lemma prog_runsto cenv stmt cst cst' stn fs v1 v2 w1 w2 :
-      RunsTo cenv stmt cst cst' ->
-      env_good_to_use modules imports stn fs ->
-      fst cenv = from_bedrock_label_map (Labels stn) ->
-      snd cenv = fs stn ->
-      stmt = Compile.compile (CompileDFacade.compile prog) ->
-      pre_cond v1 v2 ->
-      disjoint_ptrs {(w1, v1); (w2, v2)} ->
-      good_scalars {(w1, v1); (w2, v2)} ->
-      w1 = Locals.sel (fst cst) argvar1 ->
-      w2 = Locals.sel (fst cst) argvar2 ->
-      snd cst == make_heap {(w1, v1); (w2, v2)} ->
-      exists vr,
-        let wr := Locals.sel (fst cst') retvar in
-        let pairs := {(wr, vr)} in
-        post_cond v1 v2 vr /\
-        snd cst' == make_heap pairs /\
-        disjoint_ptrs pairs /\
-        good_scalars pairs.
-    Proof.
-      destruct cenv as [l2w w2spec]; simpl in *.
-      destruct cst as [vs h]; simpl in *.
-      destruct cst' as [vs' h']; simpl in *.
-      intros Hrt Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
-      subst.
-      eapply CompileDFacadeToCito.compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
-      destruct Hrt as [st' [Hrt [Hsm Hr] ] ].
-      6 : eapply env_good_to_use_cenv_impls_env; eauto.
-      2 : eapply unit_syntax_ok.
-      Focus 3.
-      {
-        eapply make_map_make_heap_related with (ks := argvars); eauto; simpl in *.
-        reflexivity.
-        eauto.
-        eauto.
-      }
-      Unfocus.
-      simpl in *.
-      {
-        eapply dfacade_runsto in Hrt; eauto.
-        2 : reflexivity.
-        destruct Hrt as [ret [Hst' [Hnoleak Hpost] ] ].
-        eapply make_map_related_make_heap_singleton in Hr.
-        {
-          destruct Hr as [Hh' [Hgs' Hdisj'] ].
-          exists ret.
-          repeat try_split.
-          - eauto.
-          - eapply Hh'.
-          - eauto.
-          - eauto.
-        }
-        {
-          instantiate (1 := ret).
-          instantiate (1 := retvar).
-          eauto.
-        }
-        {
-          intros k Hnin.
-          eauto.
-        }
-        {
-          reflexivity.
-        }
-        {
-          reflexivity.
-        }
-        {
-          simpl.
-          Require Import Bedrock.Platform.Cito.WordMapFacts.
-          rewrite diff_same.
-          rewrite diff_empty.
-          reflexivity.
-        }
-        {
-          eauto.
-        }
-      }
-      {
-        eapply submap_refl.
-      }
-      {
-        eauto.
-      }
-      {
-        eapply dfacade_safe; eauto.
-        reflexivity.
-      }
-    Qed.
 
     Import Made.
 
-    Require Import Bedrock.Platform.Cito.FuncCore.
-    Require Import Bedrock.Platform.Cito.CModule.
-    Definition gmodule_to_cmodule (m : GoodModule) : CModule.
-      admit.
-    Defined.
-
-    Definition input_module := gmodule_to_cmodule good_module.
-
-    Hypothesis types_conform : forall x1 x2 x1' x2', pre_cond x1 x2 -> pre_cond x1' x2' -> is_same_types (x1 :: x2 :: nil) (x1' :: x2' :: nil) = true.
-
-    (* post-cond needs to be generalized to include outputs *)
-    Definition export_spec : AxiomaticSpec ADTValue.
-      refine
-        {|
-          PreCond inputs := exists x1 x2, inputs = x1 :: x2 :: nil /\ pre_cond x1 x2;
-          PostCond inputs_outputs ret := exists x1 x2 x1' x2', inputs_outputs = (x1, x1') :: (x2, x2') :: nil /\ post_cond x1 x2 ret
-        |}.
-      unfold type_conforming; intros; openhyp; subst.
-      eapply types_conform; eauto.
-    Defined.
-
-    Notation " { } " := nil (only parsing) : listy_scope.
-    Notation " { x , .. , y } " := (cons x .. (cons y Nil) ..) (only parsing) : listy_scope.
-
-    Definition exports : StringMap.t (AxiomaticSpec ADTValue) :=
-      StringMapFacts.of_list { (fun_name, export_spec) }.
-
-    Lemma scoping : StringMapFacts.is_sub_domain exports (Funs input_module) = true.
-      admit. 
-    Qed.
-
-    Lemma weakening : exports_weakens_impl input_module imports exports module_name.
-      admit.
-    Qed.
-
-    Lemma H_import_module_names_ok :
+(*
+    Lemma H_op_mod_name_not_in_imports :
       let op_mod_name := module_name in
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
     Proof.
       simpl.
       destruct compile_unit; simpl in *.
-      rename import_module_names_ok into H.
+      rename op_mod_name_not_in_imports into H.
       Require Import Bool.
       eapply andb_true_iff in H; destruct H as [H ?].
       eapply H.
     Qed.
-
-    Definition output_module : XCAP.module := CM2.make_module input_module imports exports export_module_name module_name eq_refl.
+*)
 
     Arguments CM2.make_module_ok : clear implicits. 
+    Require Import CModule.
+
+    Definition compile_to_cmodule : DFModule ADTValue -> CModule.
+      admit.
+    Defined.
+
+    Definition cito_module := compile_to_cmodule module.
+
+    Lemma exports_in_domain_cmodule : is_sub_domain exports (Funs cito_module) = true.
+      admit.
+    Qed.
+
+    Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
+      admit.
+    Qed.
+
+    Definition output_module : XCAP.module := 
+      CM2.make_module cito_module imports exports ax_mod_name op_mod_name op_mod_name_ok.
 
     Definition output_module_ok : moduleOk output_module.
-      refine (CM2.make_module_ok input_module imports exports _ export_module_name module_name eq_refl _ eq_refl _).
+      refine (CM2.make_module_ok cito_module imports exports _ ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq _).
       {
-        eapply scoping.
+        eapply exports_in_domain_cmodule.
       }
       {
-        simpl.
-        eapply H_import_module_names_ok.
-      }
-      {
-        eapply weakening.
+        eapply Hewi_cmodule.
       }
     Defined.
 
     Notation compile_cito_to_bedrock := compile_to_bedrock.
 
-    Notation output_module_impl := (compile_cito_to_bedrock modules imports).
+    Definition output_module_impl := (compile_cito_to_bedrock gmodules imports).
 
     Open Scope bool_scope.
 
@@ -766,8 +142,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import MakeWrapperMake.LinkMake.
     Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
+    (* should be in DFModule *)
+    Lemma import_module_names_good : 
+      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
+      forallb Cito.NameDecoration.is_good_module_name imported_module_names = true.
+      admit.
+    Qed.
+
     Theorem output_module_impl_ok : moduleOk output_module_impl.
     Proof.
+
+      clear ax_mod_name name_neq.
+      unfold output_module_impl.
 
       match goal with
         | |- moduleOk (compile_to_bedrock ?Modules ?Imports ) =>
@@ -778,9 +164,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             ; eauto
       end.
 
-      pose (Himn := import_module_names_ok).
-      eapply andb_true_iff in Himn.
-      destruct Himn as [Himn1 Himn2].
       eapply andb_true_iff.
       split.
       eapply andb_true_iff.
@@ -791,25 +174,74 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         eapply forallb_forall.
         intros x Hin.
-        eapply forallb_forall in Himn1.
+        rename op_mod_name_not_in_imports into Himn.
+        eapply forallb_forall in Himn.
         2 : solve [eapply Hin].
-        destruct (in_dec string_dec x (List.map GName modules)); simpl in *.
-        - intuition.
-          subst; simpl in *; intuition.
-        - eauto.
+        destruct (in_dec string_dec x (List.map GName gmodules)); simpl in *; trivial.
+        intuition.
+        subst; simpl in *; intuition.
+        eapply negb_true_iff in Himn.
+        Definition is_string_eq := string_bool.
+        Lemma is_string_eq_iff a b : is_string_eq a b = true <-> a = b.
+          unfold is_string_eq, string_bool.
+          destruct (string_dec a b); intuition.
+        Qed.
+        Require Import Bedrock.Platform.Cito.StringSetFacts.
+        Lemma is_string_eq_iff_conv a b : is_string_eq a b = false <-> a <> b.
+        Proof.
+          etransitivity.
+          { symmetry; eapply not_true_iff_false. }
+          eapply iff_not_iff.
+          eapply is_string_eq_iff.
+        Qed.
+        eapply is_string_eq_iff_conv in Himn.
+        intuition.
       }
       {
-        eauto.
+        simpl in *.
+        eapply import_module_names_good.
       }
     Qed.
 
-    Definition compile : CompileOut pre_cond post_cond. 
-      refine 
-        (Build_CompileOut output_module_ok _ output_module_impl_ok).
-      admit. (* will be removed *)
-    Defined.
-
   End TopSection.
+
+  Require Import Bedrock.Platform.Facade.DFModule.
+  Require Import Bedrock.Platform.Cito.StringMapFacts.
+  Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+
+  Variable exports : StringMap.t AxiomaticSpec.
+  Variable module : DFModule ADTValue.
+  Hypothesis exports_in_domain : is_sub_domain exports (Funs module) = true.
+  (* the name of the module that contains axiomatic export specs *)
+  Variable ax_mod_name : string.
+  (* the name of the module that contains operational export specs *)
+  Variable op_mod_name : string.
+  Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
+  Hypothesis op_mod_name_not_in_imports :
+    let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements (Imports module)) in
+    List.forallb (fun x => negb (is_string_eq op_mod_name x)) imported_module_names = true.
+  Hypothesis name_neq : negb (is_string_eq ax_mod_name op_mod_name) = true.
+
+  Notation imports := (Imports module).
+  Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
+  Definition output_module_ok' : moduleOk output_module' :=
+    output_module_ok exports module ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq.
+  Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
+  Definition output_module_impl_ok' : moduleOk output_module_impl' :=
+    output_module_impl_ok module op_mod_name op_mod_name_ok op_mod_name_not_in_imports.
+
+  (* input of the this compiler *)
+  Variable compile_unit : CompileUnit pre_cond post_cond.
+
+  Require Import Bedrock.Platform.Facade.CompileUnit Bedrock.Platform.Facade.CompileOut.
+  Module Import CompileOutMake := CompileOut.Make E M.
+  Export CompileOutMake.
+
+  Definition compile : CompileOut pre_cond post_cond. 
+    refine 
+      (Build_CompileOut output_module_ok _ output_module_impl_ok).
+    admit. (* will be removed *)
+  Defined.
 
   (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
   Module LinkUnfoldHelp.
