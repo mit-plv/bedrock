@@ -163,6 +163,7 @@ Bedrock/Platform/Facade/DFModule.v
 Bedrock/Platform/Facade/DFacade.v
 Bedrock/Platform/Facade/DFacadeFacts.v
 Bedrock/Platform/Facade/DFacadeToBedrock.v
+Bedrock/Platform/Facade/DFacadeToBedrock2.v
 Bedrock/Platform/Facade/FModule.v
 Bedrock/Platform/Facade/Facade.v
 Bedrock/Platform/Facade/FacadeFacts.v
