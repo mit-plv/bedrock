@@ -86,32 +86,35 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import Made.
 
-(*
-    Lemma H_op_mod_name_not_in_imports :
-      let op_mod_name := module_name in
-      let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
-      List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
-    Proof.
-      simpl.
-      destruct compile_unit; simpl in *.
-      rename op_mod_name_not_in_imports into H.
-      Require Import Bool.
-      eapply andb_true_iff in H; destruct H as [H ?].
-      eapply H.
-    Qed.
-*)
-
     Arguments CM2.make_module_ok : clear implicits. 
-    Require Import CModule.
-
-    Definition compile_to_cmodule : DFModule ADTValue -> CModule.
-      admit.
-    Defined.
 
     Definition cito_module := compile_to_cmodule module.
 
-    Lemma exports_in_domain_cmodule : is_sub_domain exports (Funs cito_module) = true.
-      admit.
+    Import StringMapFacts.
+
+    Lemma is_sub_domain_complete : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), sub_domain m1 m2 -> is_sub_domain m1 m2 = true.
+    Proof.
+      intros.
+      unfold is_sub_domain, sub_domain in *.
+      eapply forallb_forall.
+      intros k Hin.
+      eapply mem_in_iff; eauto.
+      eapply H.
+      Require Import SetoidListFacts.
+      eapply In_InA in Hin.
+      eapply In_In_keys; eauto.     
+    Qed.
+
+    Require Import CModule.
+
+    Lemma exports_in_domain_cmodule : is_sub_domain exports (CModule.Funs cito_module) = true.
+    Proof.
+      simpl.
+      eapply is_sub_domain_complete.
+      eapply is_sub_domain_sound in exports_in_domain.
+      intros k Hin.
+      do 2 eapply StringMapFacts.map_in_iff.
+      eauto.
     Qed.
 
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
@@ -142,11 +145,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import MakeWrapperMake.LinkMake.
     Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
-    (* should be in DFModule *)
     Lemma import_module_names_good : 
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       forallb Cito.NameDecoration.is_good_module_name imported_module_names = true.
-      admit.
+    Proof.
+      generalize module; clear.
+      destruct module.
+      eapply import_module_names_good.
     Qed.
 
     Theorem output_module_impl_ok : moduleOk output_module_impl.
@@ -209,39 +214,31 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Bedrock.Platform.Cito.StringMapFacts.
   Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
 
+  Require Import CompileUnit2.
+  
   Variable exports : StringMap.t AxiomaticSpec.
-  Variable module : DFModule ADTValue.
-  Hypothesis exports_in_domain : is_sub_domain exports (Funs module) = true.
-  (* the name of the module that contains axiomatic export specs *)
-  Variable ax_mod_name : string.
-  (* the name of the module that contains operational export specs *)
-  Variable op_mod_name : string.
-  Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
-  Hypothesis op_mod_name_not_in_imports :
-    let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements (Imports module)) in
-    List.forallb (fun x => negb (is_string_eq op_mod_name x)) imported_module_names = true.
-  Hypothesis name_neq : negb (is_string_eq ax_mod_name op_mod_name) = true.
+  (* input of the this compiler *)
+  Variable compile_unit : CompileUnit exports.
+
+  Definition module := module compile_unit.
+  Definition exports_in_domain := exports_in_domain compile_unit.
+  Definition ax_mod_name := ax_mod_name compile_unit.
+  Definition op_mod_name := op_mod_name compile_unit.
+  Definition op_mod_name_ok := op_mod_name_ok compile_unit.
+  Definition op_mod_name_not_in_imports := op_mod_name_not_in_imports compile_unit.
+  Definition name_neq := name_neq compile_unit.
 
   Notation imports := (Imports module).
   Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
   Definition output_module_ok' : moduleOk output_module' :=
-    output_module_ok exports module ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq.
+    output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq.
   Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
   Definition output_module_impl_ok' : moduleOk output_module_impl' :=
     output_module_impl_ok module op_mod_name op_mod_name_ok op_mod_name_not_in_imports.
 
-  (* input of the this compiler *)
-  Variable compile_unit : CompileUnit pre_cond post_cond.
-
-  Require Import Bedrock.Platform.Facade.CompileUnit Bedrock.Platform.Facade.CompileOut.
-  Module Import CompileOutMake := CompileOut.Make E M.
-  Export CompileOutMake.
-
-  Definition compile : CompileOut pre_cond post_cond. 
-    refine 
-      (Build_CompileOut output_module_ok _ output_module_impl_ok).
-    admit. (* will be removed *)
-  Defined.
+  Require Import CompileOut2.
+  Definition compile : CompileOut exports :=
+    Build_CompileOut exports output_module_ok' output_module_impl_ok'.
 
   (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
   Module LinkUnfoldHelp.

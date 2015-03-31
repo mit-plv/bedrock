@@ -52,8 +52,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Definition core := Build_OperationalSpec argvars retvar prog eq_refl eq_refl unit_no_assign_to_args eq_refl eq_refl unit_syntax_ok.
     Definition function :=Build_DFFun core unit_compile_syntax_ok.
-    Definition module := Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)).
-
+    Definition module : DFModule ADTValue.
+      refine
+        (Build_DFModule imports (StringMap.add fun_name function (@StringMap.empty _)) _).
+      destruct compile_unit.
+      simpl in *.
+      rename import_module_names_ok into Himn.
+      eapply Bool.andb_true_iff in Himn.
+      destruct Himn as [? Himn].
+      eauto.
+    Defined.
+    
     Require Import Bedrock.Platform.Cito.ListFacts3.
 
     Notation specs := (GLabelMap.map (@Axiomatic _) imports).

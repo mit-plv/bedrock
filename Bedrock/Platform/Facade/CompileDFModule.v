@@ -28,6 +28,8 @@ Section ADTValue.
 
   Require Bedrock.Platform.Facade.CompileModule.
 
+  Definition compile_to_cmodule : CModule.CModule := CompileModule.compile_to_cmodule compile_to_fmodule.
+
   Definition compile_to_gmodule : GoodModule.GoodModule := CompileModule.compile_to_gmodule compile_to_fmodule name good_name.
 
 End ADTValue.

@@ -29,7 +29,10 @@ Section ADTValue.
     {
       Imports : GLabelMap.t AxiomaticSpec;
       (* Exports : StringMap.t AxiomaticSpec; *)
-      Funs : StringMap.t DFFun
+      Funs : StringMap.t DFFun;
+      import_module_names_good : 
+        let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements Imports) in
+        List.forallb Cito.NameDecoration.is_good_module_name imported_module_names = true
     }.
 
 End ADTValue.
