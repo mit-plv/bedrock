@@ -41,7 +41,7 @@ HASNATDYNLINK = true
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
 	selective-install selective-build \
-	clean native ltac version dist time update-_CoqProject
+	clean native ltac version dist time update-_CoqProject FORCE
 
 FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac Makefile.coq
 
@@ -172,6 +172,13 @@ SORT_COQPROJECT = sed 's,[^/]*/,~&,g' | env LC_COLLATE=C sort | sed 's,~,,g'
 
 update-_CoqProject:
 	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml" | $(SORT_COQPROJECT)) > _CoqProject
+
+$(filter-out $(VOFILES),$(call vo_closure,$(VOFILES))): FORCE
+	@ echo
+	@ echo 'error: $@ is missing from _CoqProject.'
+	@ echo 'error: Please run `make update-_CoqProject`.'
+	@ echo
+	@ false
 
 time:
 	@ rm -rf timing
