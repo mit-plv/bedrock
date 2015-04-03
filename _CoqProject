@@ -319,14 +319,17 @@ Bedrock/Platform/Facade/CompileDFacadeCorrect.v
 Bedrock/Platform/Facade/CompileDFacadeToCito.v
 Bedrock/Platform/Facade/CompileModule.v
 Bedrock/Platform/Facade/CompileOut.v
+Bedrock/Platform/Facade/CompileOut2.v
 Bedrock/Platform/Facade/CompileRunsTo.v
 Bedrock/Platform/Facade/CompileSafe.v
 Bedrock/Platform/Facade/CompileUnit.v
+Bedrock/Platform/Facade/CompileUnit2.v
 Bedrock/Platform/Facade/DFModule.v
 Bedrock/Platform/Facade/DFacade.v
 Bedrock/Platform/Facade/DFacadeFacts.v
 Bedrock/Platform/Facade/DFacadeToBedrock.v
 Bedrock/Platform/Facade/DFacadeToBedrock2.v
+Bedrock/Platform/Facade/DFacadeToBedrock2Util.v
 Bedrock/Platform/Facade/FModule.v
 Bedrock/Platform/Facade/Facade.v
 Bedrock/Platform/Facade/FacadeFacts.v
