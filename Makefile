@@ -160,7 +160,7 @@ install-src: T = $(SRC_VO)
 # dependencies, sort to remove duplicates, then make a recursive call
 # with the deduplicated newly found dependencies.  When $1 becomes
 # empty, the result is $2.
-read_deps = $(if $(wildcard $1),$(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $1)))
+read_deps = $(if $(wildcard $1),$(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $(wildcard $1))))
 vo_closure = $(if $1,$(call vo_closure,$(sort $(filter-out $1 $2,$(call read_deps,$(1:.vo=.v.d)))),$1 $2),$2)
 
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
