@@ -40,7 +40,6 @@ HASNATDYNLINK = true
 
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
-	selective-install selective-build \
 	clean native ltac version dist time update-_CoqProject FORCE
 
 FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac Makefile.coq
