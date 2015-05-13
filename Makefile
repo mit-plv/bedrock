@@ -126,7 +126,7 @@ SRC_UNMADE_VO := \
 	Bedrock/ILTacML.vo \
 	Bedrock/provers/TransitivityProver.vo
 
-PLATFORM_VO := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_VO),$(filter Bedrock/Examples/%.vo,$(VOFILES)))
+PLATFORM_VO := $(filter-out Bedrock/Platform/Facade/% Bedrock/Platform/Cito/% $(PLATFORM_UNMADE_VO),$(filter Bedrock/Platform/%.vo,$(VOFILES)))
 
 SRC_VO := $(filter-out Bedrock/Platform/% Bedrock/Examples% $(SRC_UNMADE_VO),$(VOFILES))
 
