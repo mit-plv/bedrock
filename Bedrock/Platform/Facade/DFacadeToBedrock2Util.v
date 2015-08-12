@@ -18,7 +18,7 @@ Section ADTValue.
   Require Import String.
   (* the name of the module that contains operational export specs *)
   Variable op_mod_name : string.
-  Require Import NameDecoration.
+  Require Import Bedrock.Platform.Facade.NameDecoration.
   Hypothesis op_mod_name_ok : is_good_module_name op_mod_name = true.
   Notation Value := (@Value ADTValue).
   Require Import Bedrock.Platform.Facade.DFacade.
