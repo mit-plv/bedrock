@@ -4,8 +4,6 @@ STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
 	native ltac version dist time
 
-.DEFAULT_GOAL := examples
-
 submodule-update: .gitmodules
 	git submodule update --init && \
 	touch "$@"
@@ -23,6 +21,8 @@ SUPER_FAST_TARGETS += submodule-update
 Makefile.coq: etc/coq-scripts/Makefile.coq.common
 
 -include etc/coq-scripts/Makefile.coq.common
+
+.DEFAULT_GOAL := examples
 
 clean::
 	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi
