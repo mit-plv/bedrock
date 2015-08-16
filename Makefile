@@ -27,9 +27,6 @@ Makefile.coq: etc/coq-scripts/Makefile.coq.common
 clean::
 	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi
 
-dist:
-	hg archive -t tgz /tmp/bedrock.tgz
-
 ALL_EXAMPLES_VO := $(filter Bedrock/Examples/%.vo,$(VOFILES))
 EXAMPLES_VO := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_VO))))
 CITO_VO := $(filter Bedrock/Platform/Cito/%.vo,$(VOFILES))
@@ -157,8 +154,8 @@ version:
 	@ echo "## You are running $(REIF_VERSION) reification"
 	@ echo "## "
 
-package:
-	hg archive -t tgz /tmp/bedrock.tgz
+dist package:
+	git archive --format=tgz --output=/tmp/bedrock.tgz HEAD
 
 admit:
 	$(Q) grep -n -e 'admit' -e 'Admitted' $(VFILES)
