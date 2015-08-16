@@ -1,83 +1,31 @@
-V = 0
-
-SILENCE_COQC_0 = @echo "COQC $<"; #
-SILENCE_COQC_1 =
-SILENCE_COQC = $(SILENCE_COQC_$(V))
-
-SILENCE_COQDEP_0 = @echo "COQDEP $<"; #
-SILENCE_COQDEP_1 =
-SILENCE_COQDEP = $(SILENCE_COQDEP_$(V))
-
-SILENCE_OCAMLC_0 = @echo "OCAMLC $<"; #
-SILENCE_OCAMLC_1 =
-SILENCE_OCAMLC = $(SILENCE_OCAMLC_$(V))
-
-SILENCE_OCAMLDEP_0 = @echo "OCAMLDEP $<"; #
-SILENCE_OCAMLDEP_1 =
-SILENCE_OCAMLDEP = $(SILENCE_OCAMLDEP_$(V))
-
-SILENCE_OCAMLOPT_0 = @echo "OCAMLOPT $<"; #
-SILENCE_OCAMLOPT_1 =
-SILENCE_OCAMLOPT = $(SILENCE_OCAMLOPT_$(V))
-
-Q_0 := @
-Q_1 :=
-Q = $(Q_$(V))
-
-VECHO_0 := @echo
-VECHO_1 := @true
-VECHO = $(VECHO_$(V))
-
-TIMED=
-TIMECMD=
-STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
-TIMER=$(if $(TIMED), $(STDTIME), $(TIMECMD))
-
-containing = $(foreach v,$2,$(if $(findstring $1,$v),$v))
-not-containing = $(foreach v,$2,$(if $(findstring $1,$v),,$v))
-
-HASNATDYNLINK = true
+STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
-	clean native ltac version dist time update-_CoqProject FORCE
-
-FAST_TARGETS := clean archclean printenv dist version package admit clean-old update-_CoqProject time native ltac Makefile.coq
-
-# pipe the output of coq_makefile through sed so that we don't have to run coqdep just to clean
-# use tr to handle the fact that BSD sed doesn't substitute \n
-Makefile.coq: Makefile _CoqProject
-	$(VECHO) "COQ_MAKEFILE -f _CoqProject > $@"
-	$(Q)$(COQBIN)coq_makefile COQC = "\$$(SILENCE_COQC)\$$(TIMER) \"\$$(COQBIN)coqc\"" COQDEP = "\$$(SILENCE_COQDEP)\"\$$(COQBIN)coqdep\" -c" -f _CoqProject | sed s'/^\(-include.*\)$$/ifneq ($$(filter-out $(FAST_TARGETS),$$(MAKECMDGOALS)),)~\1~else~ifeq ($$(MAKECMDGOALS),)~\1~endif~endif/g' | tr '~' '\n' | sed s'/^clean:$$/clean-old::/g' | sed s'/^clean::$$/clean-old::/g' | sed s'/^Makefile: /Makefile-old: /g' > $@
-
--include Makefile.coq
+	native ltac version dist time
 
 .DEFAULT_GOAL := examples
 
-# overwrite OCAMLC, OCAMLOPT, OCAMLDEP to make `make` quieter
-OCAMLC_OLD := $(OCAMLC)
-OCAMLC = $(SILENCE_OCAMLC)$(OCAMLC_OLD)
+submodule-update: .gitmodules
+	git submodule update --init && \
+	touch "$@"
 
-OCAMLDEP_OLD := $(OCAMLDEP)
-OCAMLDEP = $(SILENCE_OCAMLDEP)$(OCAMLDEP_OLD)
+ifneq (,$(wildcard .git)) # if we're in a git repo
+etc/coq-scripts/Makefile.coq.common: submodule-update
+	@ touch "$@"
+endif
 
-OCAMLOPT_OLD := $(OCAMLOPT)
-OCAMLOPT = $(SILENCE_OCAMLOPT)$(OCAMLOPT_OLD)
+HASNATDYNLINK = true
+
+FAST_TARGETS += dist version package admit etc/coq-scripts etc/coq-scripts/Makefile.coq.common submodule-update time native ltac
+SUPER_FAST_TARGETS += submodule-update
+
+Makefile.coq: etc/coq-scripts/Makefile.coq.common
+
+-include etc/coq-scripts/Makefile.coq.common
 
 clean::
-	$(VECHO) "RM *.CMO *.CMI *.CMA"
-	$(Q)rm -f $(ALLCMOFILES) $(CMIFILES) $(CMAFILES)
-	$(VECHO) "RM *.CMX *.CMXS *.CMXA *.O *.A"
-	$(Q)rm -f $(ALLCMOFILES:.cmo=.cmx) $(CMXAFILES) $(CMXSFILES) $(ALLCMOFILES:.cmo=.o) $(CMXAFILES:.cmxa=.a)
-	$(VECHO) "RM *.ML.D *.MLI.D *.ML4.D *.MLLIB.D"
-	$(Q)rm -f $(addsuffix .d,$(MLFILES) $(MLIFILES) $(ML4FILES) $(MLLIBFILES) $(MLPACKFILES))
-	$(VECHO) "RM *.VO *.VI *.G *.V.D *.V.BEAUTIFIED *.V.OLD"
-	$(Q)rm -f $(VOFILES) $(VIFILES) $(GFILES) $(VFILES:.v=.v.d) $(VFILES:=.beautified) $(VFILES:=.old)
-	$(VECHO) "RM *.PS *.PDF *.GLOB *.TEX *.G.TEX"
-	$(Q)rm -f all.ps all-gal.ps all.pdf all-gal.pdf all.glob $(VFILES:.v=.glob) $(VFILES:.v=.tex) $(VFILES:.v=.g.tex) all-mli.tex
-	- rm -rf html mlihtml
 	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi
-	rm -f Makefile.coq .depend
 
 dist:
 	hg archive -t tgz /tmp/bedrock.tgz
@@ -152,33 +100,16 @@ install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
-# Recursively find the transitively closed dependencies of the set $1
-# of *.vo files, using an accumulating parameter $2 of dependencies
-# previously found.  We extract the dependencies from the
-# corresponding *.v.d files using sed(1), filter out previously found
-# dependencies, sort to remove duplicates, then make a recursive call
-# with the deduplicated newly found dependencies.  When $1 becomes
-# empty, the result is $2.
-read_deps = $(if $1,$(filter %.vo,$(shell sed -n 's/^[^:]*: // p' $1)))
-vo_closure = $(if $1,$(call vo_closure,$(sort $(filter-out $1 $2,$(call read_deps,$(wildcard $(1:.vo=.v.d))))),$1 $2),$2)
-
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
-	$(Q)$(MAKE) -f Makefile.coq VFILES="$(addsuffix .v,$(basename $(call vo_closure,$(filter %.vo,$(T)))))" install
+	$(Q)$(MAKE) -f Makefile.coq VFILES="$(call vo_to_installv,$(T))" install
 
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 SORT_COQPROJECT = sed 's,[^/]*/,~&,g' | env LC_COLLATE=C sort | sed 's,~,,g'
 
-update-_CoqProject:
+$(UPDATE_COQPROJECT_TARGET):
 	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml" | $(SORT_COQPROJECT)) > _CoqProject
-
-$(filter-out $(VOFILES),$(call vo_closure,$(VOFILES))): FORCE
-	@ echo
-	@ echo 'error: $@ is missing from _CoqProject.'
-	@ echo 'error: Please run `make update-_CoqProject`.'
-	@ echo
-	@ false
 
 time:
 	@ rm -rf timing
