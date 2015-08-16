@@ -43,3 +43,5 @@ Bedrock/Examples/comparison/bedrock_server.ml
 *.gen.ml
 Bedrock/Platform/tests/echotest
 ttt.txt
+
+/submodule-update
