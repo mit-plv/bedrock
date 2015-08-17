@@ -5,6 +5,7 @@ STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 	native ltac version dist time
 
 submodule-update: .gitmodules
+	git submodule sync && \
 	git submodule update --init && \
 	touch "$@"
 
