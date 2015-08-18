@@ -21,7 +21,7 @@ SUPER_FAST_TARGETS += submodule-update
 
 Makefile.coq: etc/coq-scripts/Makefile.coq.common
 
--include etc/coq-scripts/Makefile.coq.common
+include etc/coq-scripts/Makefile.coq.common
 
 .DEFAULT_GOAL := examples
 
