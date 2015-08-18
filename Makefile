@@ -5,7 +5,6 @@ STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 	examples-vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo src-vio2vo reification-vio2vo \
 	examples-checkproofs platform-checkproofs cito-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs src-checkproofs reification-checkproofs \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
-	selective-vio2vo selective-checkproofs \
 	native ltac version dist time
 
 submodule-update: .gitmodules
@@ -141,12 +140,6 @@ install-src: T = $(SRC_VO)
 install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(call vo_to_installv,$(T))" install
-
-selective-vio2vo:
-	$(COQC) $(COQDEBUG) $(COQFLAGS) -schedule-vio2vo $(J) $(addsuffix .vio,$(basename $(call vo_closure,$(filter %.vo,$(T)))))
-
-selective-checkproofs:
-	$(COQC) $(COQDEBUG) $(COQFLAGS) -schedule-vio-checking $(J) $(addsuffix .vio,$(basename $(call vo_closure,$(filter %.vo,$(T)))))
 
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
