@@ -5,6 +5,7 @@ STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 	examples-vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo src-vio2vo reification-vio2vo \
 	examples-checkproofs platform-checkproofs cito-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs src-checkproofs reification-checkproofs \
 	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
+	clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-src clean-unmade-for-reification \
 	native ltac version dist time
 
 submodule-update: .gitmodules
@@ -102,31 +103,31 @@ src-quick: $(addsuffix .vio,$(basename $(SRC_VO)))
 # Based on http://stackoverflow.com/a/28652045/377022, aggregate .vo
 # files for the -checkproofs and -vio2vo targets
 T :=
-ifneq ($(filter-out examples-vio2vo examples-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out examples-vio2vo examples-checkproofs clean-unmade-for-examples,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(EXAMPLES_VO)
 endif
-ifneq ($(filter-out facade-vio2vo facade-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out facade-vio2vo facade-checkproofs clean-unmade-for-facade,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(FACADE_VO)
 endif
-ifneq ($(filter-out facade-all-vio2vo facade-all-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out facade-all-vio2vo facade-all-checkproofs clean-unmade-for-facade-all,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(FACADE_ALL_VO)
 endif
-ifneq ($(filter-out facade-allv-vio2vo facade-allv-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out facade-allv-vio2vo facade-allv-checkproofs clean-unmade-for-facade-allv,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(FACADE_ALLVO)
 endif
-ifneq ($(filter-out cito-vio2vo cito-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out cito-vio2vo cito-checkproofs clean-unmade-for-cito,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(CITO_VO)
 endif
-ifneq ($(filter-out platform-vio2vo platform-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out platform-vio2vo platform-checkproofs clean-unmade-for-platform,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(PLATFORM_VO)
 endif
-ifneq ($(filter-out src-vio2vo src-checkproofs,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+ifneq ($(filter-out src-vio2vo src-checkproofs clean-unmade-for-src,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(SRC_VO)
 endif
 
 examples-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo cito-vio2vo platform-vio2vo src-vio2vo: selective-vio2vo
 examples-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs cito-checkproofs platform-checkproofs src-checkproofs: selective-checkproofs
-
+clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-src clean-unmade-for-reification: selective-clean-unmade
 
 install-examples: T = $(EXAMPLES_VO)
 install-facade: T = $(FACADE_VO)
