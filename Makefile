@@ -14,7 +14,7 @@ submodule-update: .gitmodules
 	touch "$@"
 
 ifneq (,$(wildcard .git)) # if we're in a git repo
-etc/coq-scripts/Makefile.coq.common: submodule-update
+etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml: submodule-update
 	@ touch "$@"
 endif
 
@@ -25,7 +25,18 @@ SUPER_FAST_TARGETS += submodule-update
 
 Makefile.coq: etc/coq-scripts/Makefile.coq.common
 
-include etc/coq-scripts/Makefile.coq.common
+-include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml
+-include etc/coq-scripts/Makefile.coq.common
+
+IS_FAST := 1
+
+ifneq ($(filter-out $(SUPER_FAST_TARGETS) $(FAST_TARGETS),$(MAKECMDGOALS)),)
+IS_FAST := 0
+else
+ifeq ($(MAKECMDGOALS),)
+IS_FAST := 0
+endif
+endif
 
 .DEFAULT_GOAL := examples
 
@@ -145,10 +156,34 @@ install-examples install-facade install-facade-all install-facade-allv install-c
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(call vo_to_installv,$(T))" install
 
+ifeq ($(IS_FAST),0)
+# > 8.5beta2 if it exists
+NOT_EXISTS_UNSAFE_TYPE_OF := $(call test_exists_ml_function,Typing.unsafe_type_of)
+# > 8.4 if it exists
+NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL := $(call test_exists_ml_function,Universes.constr_of_global)
+
+ifeq ($(NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL),1) # <= 8.4
+EXPECTED_EXT:=.v84
+ML_DESCRIPTION := "Coq v8.4"
+else
+ifeq ($(NOT_EXISTS_UNSAFE_TYPE_OF),1) # <= 8.5beta2
+EXPECTED_EXT:=.v85beta2
+ML_DESCRIPTION := "Coq > 8.4 && <= 8.5beta2"
+else
+EXPECTED_EXT:=.v85
+ML_DESCRIPTION := "Coq > 8.5beta2"
+endif
+endif
+
+$(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/reif.ml4,$(EXPECTED_EXT)))
+$(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/extlib.ml,$(EXPECTED_EXT)))
+
+endif
+
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 $(UPDATE_COQPROJECT_TARGET):
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml" | $(SORT_COQPROJECT)) > _CoqProject
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml" -a ! -wholename "Bedrock/reification/extlib.ml" -a ! -wholename "Bedrock/reification/reif.ml4"; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject
 
 time:
 	@ rm -rf timing
@@ -158,7 +193,7 @@ time:
 	@ cp Bedrock/Examples/Makefile Bedrock/Examples/Makefile.coq timing/Bedrock/Examples
 	@ (cd timing; $(MAKE) all)
 
-REIF_VERSION = $(patsubst ILTac%.v,%,$(shell readlink Bedrock/ILTac.v))
+REIF_VERSION := $(patsubst ILTac%.v,%,$(shell readlink Bedrock/ILTac.v))
 
 ifeq ($(REIF_VERSION),ML)
 native: reification

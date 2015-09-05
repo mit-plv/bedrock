@@ -30,7 +30,7 @@ let cps_mk_letin
   fun goal ->
     let name = (Names.id_of_string name) in
     let name =  Tactics.fresh_id [] name goal in
-    let letin = Proofview.V82.of_tactic (Tactics.letin_tac None  (Name name) c None nowhere) in
+    let letin = (Tactics.letin_tac None  (Name name) c None nowhere) in
       Tacticals.tclTHEN letin (k (mkVar name)) goal
 
 (** {2 General functions}  *)
@@ -45,7 +45,7 @@ let fresh_evar goal ty : constr * goal_sigma =
   let evar_map = Tacmach.project goal in
   let (em,x) = Evarutil.new_evar env evar_map ty in
     x,( goal_update goal em)
-     
+
 let resolve_one_typeclass goal ty : constr*goal_sigma=
   let env = Tacmach.pf_env goal in
   let evar_map = Tacmach.project goal in
@@ -57,7 +57,7 @@ let general_error =
 
 let cps_resolve_one_typeclass ?error : Term.types -> (Term.constr  -> Proof_type.tactic) -> Proof_type.tactic = fun t k  goal  ->
   Tacmach.pf_apply
-    (fun env em -> let em ,c =  
+    (fun env em -> let em ,c =
 		  try Typeclasses.resolve_one_typeclass env em t
 		  with Not_found ->
 		    begin match error with
@@ -78,7 +78,7 @@ let evar_unit (gl : goal_sigma) (x : constr) : constr * goal_sigma =
   let evar_map = Tacmach.project gl in
   let (em,x) = Evarutil.new_evar env evar_map x in
     x,(goal_update gl em)
-     
+
 let evar_binary (gl: goal_sigma) (x : constr) =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
@@ -93,25 +93,25 @@ let evar_relation (gl: goal_sigma) (x: constr) =
   let (em,r) = Evarutil.new_evar env evar_map ty in
     r,( goal_update gl em)
 
-let cps_evar_relation (x: constr) k = fun goal -> 
+let cps_evar_relation (x: constr) k = fun goal ->
   Tacmach.pf_apply
     (fun env em ->
       let ty = mkArrow x (mkArrow x (mkSort prop_sort)) in
-      let (em,r) = Evarutil.new_evar env em ty in 	
+      let (em,r) = Evarutil.new_evar env em ty in
       Tacticals.tclTHENLIST [Refiner.tclEVARS em; k r] goal
     )	goal
 
 (* decomp_term :  constr -> (constr, types) kind_of_term *)
 let decomp_term c = kind_of_term (strip_outer_cast c)
-   
+
 let lapp c v  = mkApp (Lazy.force c, v)
 
-type t = { body : Term.constr; 
+type t = { body : Term.constr;
 	   ty : Term.types
 	 }
 
 (** {2 Bindings with Coq' Standard Library}  *)
-module Std = struct  		
+module Std = struct
 (* Here we package the module to be able to use List, later *)
 
 
@@ -119,8 +119,8 @@ module Pair = struct
   let path = ["Coq"; "Init"; "Datatypes"]
   let prod = lazy (init_constant path "prod")
   let pair = lazy (init_constant path "pair")
-  let of_pair' (x,y) = 
-    {body = mkApp (Lazy.force pair, [| x.ty ; y.ty ; x.body; y.body |]); 
+  let of_pair' (x,y) =
+    {body = mkApp (Lazy.force pair, [| x.ty ; y.ty ; x.body; y.body |]);
      ty = mkApp (Lazy.force prod,  [|x.ty ; y.ty |])}
 
 
@@ -134,16 +134,16 @@ end
 
 
 
-module Tuple = struct 
+module Tuple = struct
 
   let path = ["Coq"; "Init"; "Datatypes"]
   let tt = lazy (init_constant path "tt")
   let unit =  lazy (init_constant path "unit")
 
-  let rec of_list = function 
+  let rec of_list = function
     | [] -> Lazy.force tt, Lazy.force unit
-    | (e,t) :: q -> 
-      let (q,t') = of_list q in 
+    | (e,t) :: q ->
+      let (q,t') = of_list q in
       Pair.of_pair t t' (e,q), Pair.type_of_pair t t'
 end
 
@@ -166,16 +166,16 @@ end
 
 module Sum = struct
   let path = ["Coq"; "Init"; "Datatypes"]
-  let init x = init_constant path x   
+  let init x = init_constant path x
   let (@@) x l = Term.mkApp (x, Array.of_list l)
   let sum a b = (init "sum") @@ [a;b]
-  let inl a b x = (init "inl") @@ [a ; b ; x] 
-  let inr a b x = (init "inr") @@ [a ; b ; x]    
+  let inl a b x = (init "inl") @@ [a ; b ; x]
+  let inr a b x = (init "inr") @@ [a ; b ; x]
 end
 
 module Pair2 = struct
   let path = ["Coq"; "Init"; "Datatypes"]
-  let init x = init_constant path x   
+  let init x = init_constant path x
   let (@@) x l = Term.mkApp (x, Array.of_list l)
   let pair a b (x,y) = (init "pair") @@ [a;b;x;y]
   let prod a b = (init "prod") @@ [a;b]
@@ -187,7 +187,7 @@ module Leibniz = struct
   let eq_refl ty x = lapp _eq_refl [| ty;x|]
   let _eq = lazy (init_constant path "eq")
   let match_eq (t : Term.constr) =
-    begin  match decomp_term t with 
+    begin  match decomp_term t with
       | Term.App (hd, args) when (hd = Lazy.force _eq) -> Some (args.(1),args.(2))
       | _ -> None
     end
@@ -195,26 +195,26 @@ module Leibniz = struct
 end
 
 
-module Logic = struct  
+module Logic = struct
   let path = ["Coq"; "Init"; "Logic"]
   let _not = lazy (init_constant path "not")
   let _false = lazy (init_constant path "False")
 
-  let conj () = (init_constant path "conj") 
-  let and_ () = (init_constant path "and") 
+  let conj () = (init_constant path "conj")
+  let and_ () = (init_constant path "and")
 
   let exists () = (init_constant path "ex")
-  let is_not t = match decomp_term t with 
-    | Term.App (hd, args) -> 
-      Term.eq_constr hd (Lazy.force _not) 
-    | Term.Prod (_,arg,body) -> 
-      Term.eq_constr body (Lazy.force _false) 
+  let is_not t = match decomp_term t with
+    | Term.App (hd, args) ->
+      Term.eq_constr hd (Lazy.force _not)
+    | Term.Prod (_,arg,body) ->
+      Term.eq_constr body (Lazy.force _false)
     | _ -> false
 
-  let get_body_not t = match decomp_term t with 
-    | Term.App (hd, args) -> 
+  let get_body_not t = match decomp_term t with
+    | Term.App (hd, args) ->
       args.(0)
-    | Term.Prod (_,arg,body) -> 
+    | Term.Prod (_,arg,body) ->
       arg
     | _ -> assert false
 
@@ -234,10 +234,10 @@ module Option = struct
     | Some x -> {body = some t x ; ty = lapp typ [| t |]}
     | None -> {body = none t ; ty = lapp typ [| t |]}
 
-end   
+end
 
 module Pos = struct
-   
+
     let path = ["Coq" ; "NArith"; "BinPos"]
     let typ = lazy (init_constant path "positive")
     let xI =      lazy (init_constant path "xI")
@@ -261,7 +261,7 @@ module Pos = struct
       in
 	aux n
 end
-   
+
 module Nat = struct
   let path = ["Coq" ; "Init"; "Datatypes"]
   let typ = lazy (init_constant path "nat")
@@ -282,7 +282,7 @@ module Nat = struct
     in
       aux n
 end
-   
+
 (** Lists from the standard library*)
 module List = struct
   let path = ["Coq"; "Init" ; "Datatypes";]
@@ -298,22 +298,22 @@ module List = struct
     | t::q -> cons ty t (of_list  ty q)
   let type_of_list ty =
     mkApp (Lazy.force typ, [|ty|])
-  let of_constr e = 
-    let rec aux e = 
-      match decomp_term e with 
-	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _cons) -> 
+  let of_constr e =
+    let rec aux e =
+      match decomp_term e with
+	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _cons) ->
 	  args.(1) :: aux args.(2)
-	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _nil) -> 
+	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _nil) ->
 	  []
 	| _ -> Errors.anomaly (Pp.str "parsing an ill-formed list ")
-    in 
-    let ty = match decomp_term e with 
+    in
+    let ty = match decomp_term e with
 	Term.App (_, args) -> args.(0)
       | _ -> Errors.anomaly (Pp.str "parsing an ill-formed list ")
     in
-    aux e, ty	
+    aux e, ty
 end
-   
+
 (** Morphisms *)
 module Classes =
 struct
@@ -347,11 +347,11 @@ module Relation = struct
 	carrier : constr;
 	r : constr;
       }
-	
+
   let make ty r = {carrier = ty; r = r }
   let split t = t.carrier, t.r
 end
-   
+
 module Transitive = struct
   type t =
       {
@@ -376,19 +376,19 @@ module Transitive = struct
     {Relation.carrier = t.carrier; Relation.r = t.leq}
 
 end
-	
+
 module Equivalence = struct
   type t =
       {
 	carrier : constr;
 	eq : constr;
-	equivalence : constr;	
+	equivalence : constr;
       }
   let make ty eq equivalence = {carrier = ty; eq = eq; equivalence = equivalence}
   let infer goal ty eq  =
     let ask = Classes.mk_equivalence ty eq in
     let equivalence , goal = resolve_one_typeclass goal ask in
-      make ty eq equivalence, goal 	 
+      make ty eq equivalence, goal
   let from_relation goal rlt =
     infer goal (rlt.Relation.carrier) (rlt.Relation.r)
   let cps_from_relation rlt k =
