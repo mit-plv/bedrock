@@ -1,4 +1,4 @@
-STDTIME?=time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
+STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
 	examples-quick platform-quick cito-quick facade-quick facade-all-quick facade-allv-quick src-quick reification-quick \
