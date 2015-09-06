@@ -2,10 +2,14 @@ Set Implicit Arguments.
 
 Require Import Coq.Structures.DecidableTypeEx.
 Require Import Coq.FSets.FSetInterface.
+Require Coq.FSets.FSetProperties.
+Require Bedrock.Platform.Cito.GeneralTactics.
+Require Bedrock.Platform.Cito.SetoidListFacts.
+Require Bedrock.Platform.Cito.ListFacts1.
 
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
-  Require Import Coq.FSets.FSetProperties.
+  Import Coq.FSets.FSetProperties.
   Module Import P := WProperties_fun E M.
   Import FM.
 
@@ -24,9 +28,9 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
   Definition Disjoint a b := forall x, ~ (In x a /\ In x b).
 
   Import ListNotations.
-  Require Import Bedrock.Platform.Cito.GeneralTactics.
+  Import Bedrock.Platform.Cito.GeneralTactics.
 
-  Require Import Bedrock.Platform.Cito.SetoidListFacts.
+  Import Bedrock.Platform.Cito.SetoidListFacts.
 
   Lemma NoDup_elements : forall s, List.NoDup (elements s).
     intros.
@@ -147,8 +151,6 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     eapply iff_not_iff.
     eapply of_list_spec.
   Qed.
-
-  Require Bedrock.Platform.Cito.ListFacts1.
 
   Lemma set_disjoint_list_disjoint ls1 ls2 : Disjoint (of_list ls1) (of_list ls2) -> ListFacts1.Disjoint ls1 ls2.
     unfold ListFacts1.Disjoint, Disjoint.
