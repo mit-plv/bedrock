@@ -119,7 +119,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
     Proof.
-(*
       unfold exports_weakens_impl.
       intros env_ax Henv_ax.
       Import ChangeSpec.
@@ -245,7 +244,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         
       }
-*)
       admit.
     Qed.
 
