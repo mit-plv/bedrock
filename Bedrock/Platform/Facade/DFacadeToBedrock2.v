@@ -118,6 +118,132 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
+    Proof.
+      unfold exports_weakens_impl.
+      intros env_ax Henv_ax.
+      Import ChangeSpec.
+      Import ProgramLogic2.
+      Import SemanticsFacts4.
+      Notation Internal := (@Internal ADTValue).
+      Require Import Bedrock.Platform.Cito.GLabel.
+      Require Import Bedrock.Platform.Cito.GLabelMap.
+      Import GLabelMap.
+      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+      Lemma strengthen_diff_intro : forall specs_diff env_ax specs, (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> strengthen_diff specs specs_diff env_ax.
+      Proof.
+        do 3 intro.
+        (* intros Hforall. *)
+        (* unfold strengthen_diff. *)
+        eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> H); simpl.
+        intros m m' a Heqm Ha Hforall.
+        { 
+          eapply Ha.
+          intros lbl ax Hfind.
+          rewrite Heqm in Hfind.
+          eauto.
+        }
+        { eauto. }
+        intros k e a m' Hmapsto Hnin Ha Hforall.
+        unfold strengthen_diff_f.
+        split.
+        {
+          eapply Ha.
+          intros lbl ax Hfind.
+          eapply Hforall.
+          eapply find_mapsto_iff.
+          eapply add_mapsto_iff.
+          right.
+          split.
+          {
+            intro Heq; subst.
+            contradict Hnin.
+            eapply MapsTo_In.
+            eapply find_mapsto_iff.
+            eauto.
+          }
+          eapply find_mapsto_iff.
+          eauto.
+        }
+        eapply Hforall.
+        eapply find_mapsto_iff.
+        eapply add_mapsto_iff.
+        left.
+        eauto.
+      Qed.
+      eapply strengthen_diff_intro.
+      intros lbl ax Hfind.
+      right.
+      eapply map_aug_mod_name_elim in Hfind.
+      destruct Hfind as [k [? Hfind] ].
+      subst; simpl in *.
+      Require Import Bedrock.Platform.Cito.StringMap.
+      Import StringMap.
+      Require Import Bedrock.Platform.Cito.StringMapFacts.
+      eapply is_sub_domain_sound in exports_in_domain.
+      unfold sub_domain in *.
+      copy_as Hfind Hin.
+      eapply find_Some_in in Hin.
+      eapply exports_in_domain in Hin.
+      eapply in_find_Some in Hin.
+      destruct Hin as [f Hf].
+      eexists.
+      split.
+      {
+        eapply specs_op_intro.
+        unfold cito_module.
+        Lemma find_DFModule_find_CModule k m f :
+          find k (DFModule.Funs (ADTValue := ADTValue) m) = Some f ->
+          find k (Funs (compile_to_cmodule m)) = Some (CompileModule.compile_func (compile_func f)).
+        Proof.
+          intros Hfind.
+          simpl.
+          eapply find_mapsto_iff.
+          rewrite map_mapsto_iff.
+          eexists.
+          split; eauto.
+          rewrite map_mapsto_iff.
+          eexists.
+          split; eauto.
+          eapply find_mapsto_iff.
+          eauto.
+        Qed.
+        eapply find_DFModule_find_CModule.
+        eauto.
+      }
+      simpl.
+      destruct f; simpl in *.
+      destruct Core; simpl in *.
+      unfold compile_func; simpl.
+      unfold CompileModule.compile_func; simpl.
+      unfold strengthen_op_ax; simpl.
+      unfold strengthen_op_ax'; simpl.
+      destruct ax; simpl in *.
+      Import List.
+      Definition outputs_gen words inputs h :=
+        map (fun (w_input : W * Value ADTValue) =>
+               let (w, input) := w_input in
+               match input with
+                   SCA _ => None
+                 | ADT _ => heap_sel h w
+               end
+            ) (combine words inputs).
+      Definition ret_a_gen w h := heap_sel h w.
+      exists outputs_gen; simpl in *.
+      exists ret_a_gen; simpl in *.
+      repeat try_split.
+      {
+        unfold outputs_gen_ok.
+        simpl.
+        intros words inputs h Hpre Hlen.
+        unfold outputs_gen.
+        rewrite map_length.
+        rewrite combine_length.
+        rewrite Hlen.
+        intuition.
+      }
+      {
+        
+      }
       admit.
     Qed.
 
