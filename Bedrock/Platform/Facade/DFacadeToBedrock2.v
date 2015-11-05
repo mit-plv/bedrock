@@ -44,7 +44,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       List.forallb (fun x => negb (string_bool op_mod_name x)) imported_module_names = true.
     Hypothesis name_neq : negb (string_bool ax_mod_name op_mod_name) = true.
-    Hypothesis Hewi : True.
 
     Notation Value := (@Value ADTValue).
     Require Import Bedrock.Platform.Facade.DFacade.
@@ -117,68 +116,168 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
+    Import ChangeSpec.
+    Import ProgramLogic2.
+    Import SemanticsFacts4.
+    Notation Internal := (@Internal ADTValue).
+    Require Import Bedrock.Platform.Cito.GLabel.
+    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Import FMapNotations.
+    Lemma strengthen_diff_intro : forall specs_diff env_ax specs, (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> strengthen_diff specs specs_diff env_ax.
     Proof.
-      unfold exports_weakens_impl.
-      intros env_ax Henv_ax.
-      Import ChangeSpec.
-      Import ProgramLogic2.
-      Import SemanticsFacts4.
-      Notation Internal := (@Internal ADTValue).
-      Require Import Bedrock.Platform.Cito.GLabel.
-      Require Import Bedrock.Platform.Cito.GLabelMap.
-      Import GLabelMap.
-      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
-      Lemma strengthen_diff_intro : forall specs_diff env_ax specs, (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> strengthen_diff specs specs_diff env_ax.
-      Proof.
-        do 3 intro.
-        (* intros Hforall. *)
-        (* unfold strengthen_diff. *)
-        eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> H); simpl.
-        intros m m' a Heqm Ha Hforall.
-        { 
-          eapply Ha.
-          intros lbl ax Hfind.
-          rewrite Heqm in Hfind.
-          eauto.
-        }
-        { eauto. }
-        intros k e a m' Hmapsto Hnin Ha Hforall.
-        unfold strengthen_diff_f.
-        split.
-        {
-          eapply Ha.
-          intros lbl ax Hfind.
-          eapply Hforall.
-          eapply find_mapsto_iff.
-          eapply add_mapsto_iff.
-          right.
-          split.
-          {
-            intro Heq; subst.
-            contradict Hnin.
-            eapply MapsTo_In.
-            eapply find_mapsto_iff.
-            eauto.
-          }
-          eapply find_mapsto_iff.
-          eauto.
-        }
+      do 3 intro.
+      (* intros Hforall. *)
+      (* unfold strengthen_diff. *)
+      eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> H); simpl.
+      intros m m' a Heqm Ha Hforall.
+      { 
+        eapply Ha.
+        intros lbl ax Hfind.
+        rewrite Heqm in Hfind.
+        eauto.
+      }
+      { eauto. }
+      intros k e a m' Hmapsto Hnin Ha Hforall.
+      unfold strengthen_diff_f.
+      split.
+      {
+        eapply Ha.
+        intros lbl ax Hfind.
         eapply Hforall.
         eapply find_mapsto_iff.
         eapply add_mapsto_iff.
-        left.
+        right.
+        split.
+        {
+          intro Heq; subst.
+          contradict Hnin.
+          eapply MapsTo_In.
+          eapply find_mapsto_iff.
+          eauto.
+        }
+        eapply find_mapsto_iff.
         eauto.
-      Qed.
+      }
+      eapply Hforall.
+      eapply find_mapsto_iff.
+      eapply add_mapsto_iff.
+      left.
+      eauto.
+    Qed.
+
+    Require Import Bedrock.Platform.Cito.StringMap.
+    Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Import FMapNotations.
+
+    Lemma find_DFModule_find_CModule k m f :
+      find k (DFModule.Funs (ADTValue := ADTValue) m) = Some f ->
+      find k (Funs (compile_to_cmodule m)) = Some (CompileModule.compile_func (compile_func f)).
+    Proof.
+      intros Hfind.
+      simpl.
+      eapply find_mapsto_iff.
+      rewrite map_mapsto_iff.
+      eexists.
+      split; eauto.
+      rewrite map_mapsto_iff.
+      eexists.
+      split; eauto.
+      eapply find_mapsto_iff.
+      eauto.
+    Qed.
+
+    Import Transit.
+    Import DFacade.
+    Notation CEnv := ((glabel -> option W) * (W -> option (Callee _)))%type.
+    Import ListFacts4.
+
+    Definition AxSafe spec args rvar (st : State ADTValue) :=
+      exists input,
+        mapM (sel st) args = Some input /\
+        not_mapsto_adt rvar st = true /\
+        PreCond spec input.
+
+    Import List.
+
+    (* st1 : pre-call state *)
+    (* st2 : post-call state *)
+    Definition AxRunsTo spec args rvar (st1 st2 : State ADTValue) :=
+      exists input output ret,
+        mapM (sel st1) args = Some input /\
+        length input = length output /\
+        PostCond spec (combine input output) ret /\
+        (* st1' : the state after the axiomatic call *)
+        let st1' := add_remove_many args input (wrap_output output) st1 in
+        let st1' := add rvar ret st1' in
+        (* st2 can have some more scalar mappings than st1' *)
+        st1' <= st2 /\
+        no_adt_leak input args rvar st2.
+
+    Definition op_refines_ax (ax_env : Env _) (op_spec : OperationalSpec) (ax_spec : AxiomaticSpec _) :=
+      let args := ArgVars op_spec in
+      let rvar := RetVar op_spec in
+      let s := Body op_spec in
+      (forall ins,
+         PreCond ax_spec ins ->
+         length args = length ins) /\
+      (forall st,
+         AxSafe ax_spec args rvar st ->
+         Safe ax_env s st) /\
+      forall st st',
+        AxSafe ax_spec args rvar st ->
+        RunsTo ax_env s st st' ->
+        AxRunsTo ax_spec args rvar st st'.
+
+    Import StringMap.
+
+    Definition ops_refines_axs ax_env (op_specs : StringMap.t OperationalSpec) (ax_specs : StringMap.t (AxiomaticSpec _)) :=
+      forall x ax_spec,
+        find x ax_specs = Some ax_spec ->
+        exists op_spec,
+          find x op_specs = Some op_spec /\
+          op_refines_ax ax_env op_spec ax_spec.
+    
+    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Import FMapNotations.
+
+    Import DFModule.
+
+    Arguments Operational {_} _ .
+    Arguments Axiomatic {_} _ .
+
+    (* the whole environment of callable functions with their specs, including 
+         (1) functions defined in 'module' with op. specs
+         (2) functions defined in 'module' with ax. specs given by 'exports'
+         (3) imports of 'module'
+     *)
+    Definition get_env op_mod_name exports module := 
+      map (fun (f : DFFun) => Operational f) (map_aug_mod_name op_mod_name (Funs (ADTValue := ADTValue) module)) + 
+      map Axiomatic (map_aug_mod_name op_mod_name exports + 
+                     Imports module).
+
+    Require Import Bedrock.Platform.Cito.StringMap.
+    Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Import FMapNotations.
+
+    Definition whole_env := get_env op_mod_name exports module.
+    Hypothesis Hrefine : ops_refines_axs whole_env (map Core (Funs module)) exports.
+
+    Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
+    Proof.
+      unfold exports_weakens_impl.
+      intros ax_cenv Hax_cenv.
       eapply strengthen_diff_intro.
       intros lbl ax Hfind.
       right.
       eapply map_aug_mod_name_elim in Hfind.
       destruct Hfind as [k [? Hfind] ].
       subst; simpl in *.
-      Require Import Bedrock.Platform.Cito.StringMap.
-      Import StringMap.
-      Require Import Bedrock.Platform.Cito.StringMapFacts.
       eapply is_sub_domain_sound in exports_in_domain.
       unfold sub_domain in *.
       copy_as Hfind Hin.
@@ -191,33 +290,29 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       {
         eapply specs_op_intro.
         unfold cito_module.
-        Lemma find_DFModule_find_CModule k m f :
-          find k (DFModule.Funs (ADTValue := ADTValue) m) = Some f ->
-          find k (Funs (compile_to_cmodule m)) = Some (CompileModule.compile_func (compile_func f)).
-        Proof.
-          intros Hfind.
-          simpl.
-          eapply find_mapsto_iff.
-          rewrite map_mapsto_iff.
-          eexists.
-          split; eauto.
-          rewrite map_mapsto_iff.
-          eexists.
-          split; eauto.
-          eapply find_mapsto_iff.
-          eauto.
-        Qed.
         eapply find_DFModule_find_CModule.
         eauto.
       }
       simpl.
       destruct f; simpl in *.
+      assert (Hrefines : op_refines_ax whole_env Core ax).
+      {
+        unfold ops_refines_axs in *.
+        eapply Hrefine in Hfind.
+        destruct Hfind as [op_spec [Hfind Hrefines] ].
+        rewrite map_o in Hfind.
+        rewrite Hf in Hfind.
+        simpl in *.
+        inject Hfind.
+        eauto.
+      }
       destruct Core; simpl in *.
       unfold compile_func; simpl.
       unfold CompileModule.compile_func; simpl.
       unfold strengthen_op_ax; simpl.
       unfold strengthen_op_ax'; simpl.
       destruct ax; simpl in *.
+      unfold op_refines_ax in Hrefines; simpl in *.
       Import List.
       Definition outputs_gen words inputs h :=
         map (fun (w_input : W * Value ADTValue) =>
@@ -242,7 +337,22 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intuition.
       }
       {
-        
+        intros ins Hpre.
+        eapply Hrefines.
+        eauto.
+      }
+      {
+        intros v inputs Htsafe.
+        destruct v as [vs h]; simpl in *.
+        unfold TransitSafe in *; simpl in *.
+        set (st := make_map ArgVars inputs).
+        eapply compile_safe.
+        {
+          eapply Hrefines.
+          instantiate (1 := st).
+          unfold AxSafe.
+          subst st.
+        }
       }
       admit.
     Qed.
