@@ -194,10 +194,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation CEnv := ((glabel -> option W) * (W -> option (Callee _)))%type.
     Import ListFacts4.
 
-    Definition AxSafe spec args rvar (st : State ADTValue) :=
+    Definition AxSafe spec args (st : State ADTValue) :=
       exists input,
-        mapM (sel st) args = Some input /\
-        not_mapsto_adt rvar st = true /\
+        length input = length args /\
+        st == make_map args input /\
         PreCond spec input.
 
     Import List.
@@ -205,16 +205,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     (* st1 : pre-call state *)
     (* st2 : post-call state *)
     Definition AxRunsTo spec args rvar (st1 st2 : State ADTValue) :=
-      exists input output ret,
-        mapM (sel st1) args = Some input /\
-        length input = length output /\
-        PostCond spec (combine input output) ret /\
+      exists inputs outputs ret,
+        length inputs = length args /\
+        length outputs = length args /\
+        st1 == make_map args inputs /\
+        PostCond spec (combine inputs outputs) ret /\
         (* st1' : the state after the axiomatic call *)
-        let st1' := add_remove_many args input (wrap_output output) st1 in
+        let st1' := add_remove_many args inputs (wrap_output outputs) st1 in
         let st1' := add rvar ret st1' in
         (* st2 can have some more scalar mappings than st1' *)
         st1' <= st2 /\
-        no_adt_leak input args rvar st2.
+        no_adt_leak inputs args rvar st2.
 
     Definition op_refines_ax (ax_env : Env _) (op_spec : OperationalSpec) (ax_spec : AxiomaticSpec _) :=
       let args := ArgVars op_spec in
@@ -224,10 +225,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
          PreCond ax_spec ins ->
          length args = length ins) /\
       (forall st,
-         AxSafe ax_spec args rvar st ->
+         AxSafe ax_spec args st ->
          Safe ax_env s st) /\
       forall st st',
-        AxSafe ax_spec args rvar st ->
+        AxSafe ax_spec args st ->
         RunsTo ax_env s st st' ->
         AxRunsTo ax_spec args rvar st st'.
 
@@ -345,13 +346,43 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros v inputs Htsafe.
         destruct v as [vs h]; simpl in *.
         unfold TransitSafe in *; simpl in *.
-        set (st := make_map ArgVars inputs).
+        destruct Htsafe as [Hlen [Hgi Hpre] ].
+        set (words_inputs := combine (map (Locals.sel vs) ArgVars) inputs) in *.
+        set (h1 := make_heap words_inputs).
         eapply compile_safe.
         {
           eapply Hrefines.
-          instantiate (1 := st).
           unfold AxSafe.
-          subst st.
+          exists inputs.
+          repeat try_split.
+          {
+            rewrite map_length in *.
+            eauto.
+          }
+          {
+            reflexivity.
+          }
+          simpl.
+          eauto.
+        }
+        {
+          eauto.
+        }
+        {
+          eapply not_find_in_iff.
+          eapply make_map_not_in.
+          intros Hin.
+          copy_as args_name_ok Hgn.
+          eapply forallb_forall in Hgn; eauto.
+          intuition.
+        }
+        {
+          instantiate (1 := h).
+          instantiate (1 := h1).
+          unfold good_inputs in *.
+          intros k1 v Hk1.
+          subst h1.
+          Require Import DFacadeToBedrock2Util.
         }
       }
       admit.
