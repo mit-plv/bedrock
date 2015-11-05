@@ -194,6 +194,122 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Notation CEnv := ((glabel -> option W) * (W -> option (Callee _)))%type.
     Import ListFacts4.
 
+    Require Import Bedrock.Platform.Cito.WordMap.
+    Import WordMap.
+    Require Import Bedrock.Platform.Cito.WordMapFacts.
+    Import FMapNotations.
+
+    Hint Extern 0 (_ == _) => reflexivity.
+
+    Lemma good_inputs_make_heap_submap h pairs :
+      good_inputs (ADTValue := ADTValue) h pairs ->
+      make_heap pairs <= h.
+    Proof.
+      Require Import DFacadeToBedrock2Util.
+      intros Hgi.
+      destruct Hgi as [Hforall Hdisj].
+      unfold good_inputs in *.
+      intros k1 v Hk1.
+      rewrite make_heap_make_heap' in * by eauto.
+      Lemma mapsto_make_heap'_elim pairs :
+        disjoint_ptrs pairs ->
+        forall k (v : ADTValue),
+          find k (make_heap' pairs) = Some v ->
+          List.In (k, ADT v) pairs.
+      Proof.
+        induction pairs; intros Hdisj k v Hk; simpl in *.
+        {
+          rewrite empty_o in *.
+          intuition.
+        }
+        eapply disjoint_ptrs_cons_elim in Hdisj.
+        destruct Hdisj as [Hnc Hdisj].
+        destruct a as [k' v']; simpl in *.
+        unfold store_pair in *; simpl in *.
+        destruct v' as [w | v']; simpl in *.
+        {
+          unfold store_pair in *; simpl in *.
+          right.
+          eapply IHpairs; eauto.
+        }
+        destruct (weq k k') as [? | Hne]; subst.
+        {
+          rewrite add_eq_o in * by eauto.
+          inject Hk.
+          left; eauto.
+        }
+        rewrite add_neq_o in * by eauto.
+        eapply IHpairs in Hk; eauto.
+      Qed.
+      Lemma mapsto_make_heap'_intro pairs :
+        disjoint_ptrs pairs ->
+        forall k (v : ADTValue),
+          List.In (k, ADT v) pairs ->
+          find k (make_heap' pairs) = Some v.
+      Proof.
+        induction pairs; intros Hdisj k v Hk; simpl in *.
+        {
+          intuition.
+        }
+        eapply disjoint_ptrs_cons_elim in Hdisj.
+        destruct Hdisj as [Hnc Hdisj].
+        destruct a as [k' v']; simpl in *.
+        unfold store_pair in *; simpl in *.
+        destruct Hk as [Hk | Hk].
+        {
+          inject Hk.
+          rewrite add_eq_o in * by eauto.
+          eauto.
+        }
+        destruct v' as [w | v']; simpl in *.
+        {
+          eapply IHpairs; eauto.
+        }
+        destruct (weq k k') as [? | Hne]; subst.
+        {
+          eapply no_clash_ls_not_in_heap in Hnc.
+          unfold not_in_heap in *.
+          eapply IHpairs in Hk; eauto.
+          contradict Hnc.
+          eapply find_Some_in; eauto.
+        }
+        rewrite add_neq_o in * by eauto.
+        eapply IHpairs in Hk; eauto.
+      Qed.
+      Lemma mapsto_make_heap'_iff pairs :
+        disjoint_ptrs pairs ->
+        forall k (v : ADTValue),
+          List.In (k, ADT v) pairs <->
+          find k (make_heap' pairs) = Some v.
+      Proof.
+        intros Hdisj k v; split; intros H.
+        - eapply mapsto_make_heap'_intro; eauto.
+        - eapply mapsto_make_heap'_elim; eauto.
+      Qed.
+      eapply mapsto_make_heap'_iff in Hk1; eauto.
+      eapply Forall_forall in Hforall; eauto.
+      unfold word_adt_match in *.
+      simpl in *.
+      eauto.
+    Qed.
+
+    Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
+      intros.
+      eapply Forall_weaken.
+      2 : eassumption.
+      intros.
+      destruct x.
+      unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
+      destruct v; simpl in *; intuition.
+    Qed.
+
+    Require Import Bedrock.Platform.Cito.StringMap.
+    Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Import FMapNotations.
+
+    Hint Extern 0 (_ == _) => reflexivity.
+
     Definition AxSafe spec args (st : State ADTValue) :=
       exists input,
         length input = length args /\
@@ -269,6 +385,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Definition whole_env := get_env op_mod_name exports module.
     Hypothesis Hrefine : ops_refines_axs whole_env (map Core (Funs module)) exports.
 
+    Import CompileDFacadeToCito.
+    Lemma env_ok ax_cenv : 
+      specs_env_agree (specs cito_module imports exports op_mod_name) ax_cenv ->
+      cenv_impls_env ax_cenv whole_env.
+    Proof.
+      admit.
+    Qed.
+
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
     Proof.
       unfold exports_weakens_impl.
@@ -308,6 +432,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eauto.
       }
       destruct Core; simpl in *.
+      assert (Hnd : NoDup ArgVars) by (eapply is_no_dup_sound; eauto).
       unfold compile_func; simpl.
       unfold CompileModule.compile_func; simpl.
       unfold strengthen_op_ax; simpl.
@@ -342,28 +467,39 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply Hrefines.
         eauto.
       }
+      Lemma TransitSafe_AxSafe vs h args inputs ax_spec :
+        TransitSafe ax_spec (map (Locals.sel vs) args) inputs h ->
+        AxSafe ax_spec args (make_map args inputs).
+      Proof.
+        intros Htsafe.
+        unfold TransitSafe in Htsafe; simpl in *.
+        destruct Htsafe as [Hlen [Hgi Hpre] ].
+        unfold AxSafe.
+        exists inputs.
+        repeat try_split.
+        {
+          rewrite map_length in *.
+          eauto.
+        }
+        {
+          eauto.
+        }
+        eauto.
+      Qed.
       {
         intros v inputs Htsafe.
         destruct v as [vs h]; simpl in *.
-        unfold TransitSafe in *; simpl in *.
+        copy_as Htsafe Haxsafe.
+        eapply TransitSafe_AxSafe in Haxsafe.
+        unfold TransitSafe in Htsafe; simpl in *.
         destruct Htsafe as [Hlen [Hgi Hpre] ].
         set (words_inputs := combine (map (Locals.sel vs) ArgVars) inputs) in *.
         set (h1 := make_heap words_inputs).
+        copy_as Hgi Hgi'.
+        destruct Hgi' as [Hforall Hdisj].
         eapply compile_safe.
         {
-          eapply Hrefines.
-          unfold AxSafe.
-          exists inputs.
-          repeat try_split.
-          {
-            rewrite map_length in *.
-            eauto.
-          }
-          {
-            reflexivity.
-          }
-          simpl.
-          eauto.
+          eapply Hrefines; eauto.
         }
         {
           eauto.
@@ -379,13 +515,114 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         {
           instantiate (1 := h).
           instantiate (1 := h1).
-          unfold good_inputs in *.
-          intros k1 v Hk1.
           subst h1.
-          Require Import DFacadeToBedrock2Util.
+          eapply good_inputs_make_heap_submap; eauto.
+        }
+        {
+          subst h1.
+          instantiate (1 := vs).
+          eapply make_map_make_heap_related with (ks := ArgVars) (pairs := words_inputs); simpl; eauto.
+          {
+            eapply forall_word_adt_match_good_scalars; eauto.
+          }
+          {
+            subst words_inputs.
+            rewrite map_fst_combine; eauto.
+          }            
+          {
+            subst words_inputs.
+            rewrite map_snd_combine; eauto.
+          }            
+        }
+        {
+          eapply env_ok; eauto.
+        }
+        { 
+          eauto.
+        }
+        { 
+          eauto.
         }
       }
-      admit.
+      {
+        intros [vs h] [vs' h'] Hrt inputs Htsafe.
+        copy_as Htsafe Haxsafe.
+        eapply TransitSafe_AxSafe in Haxsafe.
+        unfold TransitSafe in *; simpl in *.
+        destruct Htsafe as [Hlen [Hgi Hpre] ].
+        set (words_inputs := combine (map (Locals.sel vs) ArgVars) inputs) in *.
+        set (h1 := make_heap words_inputs).
+        copy_as Hgi Hgi'.
+        destruct Hgi' as [Hforall Hdisj].
+        eapply compile_runsto in Hrt.
+        {
+          simpl in *.
+          destruct Hrt as [s_st'[Hrt [Hhle Hr] ] ].
+          eapply Hrefines in Hrt; eauto.
+          unfold TransitTo.
+          unfold AxRunsTo in Hrt.
+          subst h1.
+          subst words_inputs.
+          destruct Hrt as [inputs' [outputs' [ret [Hlen' [Hlen'' [Hinputs' [Hpost [Hs_st' Hnl] ] ] ] ] ] ] ].
+          Lemma make_map_Equal_elim A :
+            forall ks (vs vs' : list A),
+              NoDup ks ->
+              length vs = length ks ->
+              length vs' = length ks ->
+              make_map ks vs == make_map ks vs' ->
+              vs = vs'.
+          Proof.
+            induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
+            intros Hnd Hlen Hlen' Heqv.
+            inversion Hnd; subst.
+            inject Hlen.
+            inject Hlen'.
+            rename a into k.
+            f_equal.
+            {
+              unfold Equal in *.
+              specialize (Heqv k).
+              repeat rewrite add_eq_o in * by eauto.
+              inject Heqv.
+              eauto.
+            }
+            eapply IHks; eauto.
+            unfold Equal in *.
+            intros k'.
+            destruct (string_dec k' k) as [? | Hne]; subst.
+            {
+              Import StringMap.
+              Lemma make_map_find_None A k ks (vs : list A) :
+                ~ List.In k ks ->
+                find k (make_map ks vs) = None.
+              Proof.
+                intros H.
+                eapply make_map_not_in in H.
+                eapply not_find_in_iff; eauto.
+              Qed.
+              repeat rewrite make_map_find_None by eauto.
+              eauto.
+            }
+            specialize (Heqv k').
+            repeat rewrite add_neq_o in * by eauto.
+            eauto.
+          Qed.
+          rewrite map_length in *.
+          eapply make_map_Equal_elim in Hinputs'; eauto.
+          symmetry in Hinputs'.
+          subst.
+          simpl in *.
+          repeat try_split; eauto.
+          {
+            unfold outputs_gen.
+            rewrite map_length in *.
+            rewrite combine_length_eq; rewrite map_length in *; eauto.
+          }
+          {
+            unfold outputs_gen.
+          }
+        }
+      }
     Qed.
 
     Definition output_module : XCAP.module := 
