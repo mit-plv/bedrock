@@ -337,6 +337,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       let args := ArgVars op_spec in
       let rvar := RetVar op_spec in
       let s := Body op_spec in
+      (exists (is_ret_scalar : bool), 
+         if is_ret_scalar then
+           (forall in_out (a : ADTValue), ~ PostCond ax_spec in_out (ADT a))
+         else
+           (forall in_out w, ~ PostCond ax_spec in_out (SCA ADTValue w))) /\
       (forall ins,
          PreCond ax_spec ins ->
          length args = length ins) /\
@@ -439,7 +444,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold strengthen_op_ax'; simpl.
       destruct ax; simpl in *.
       unfold op_refines_ax in Hrefines; simpl in *.
+      destruct Hrefines as [ [is_ret_scalar Hirs] Hrefines].
       Import List.
+      unfold TransitTo; simpl.
       Definition outputs_gen words inputs h :=
         map (fun (w_input : W * Value ADTValue) =>
                let (w, input) := w_input in
@@ -448,9 +455,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                  | ADT _ => heap_sel h w
                end
             ) (combine words inputs).
-      Definition ret_a_gen w h := heap_sel h w.
+      Definition ret_a_gen (is_ret_scalar : bool) w h := if is_ret_scalar then None else heap_sel h w.
       exists outputs_gen; simpl in *.
-      exists ret_a_gen; simpl in *.
+      exists (ret_a_gen is_ret_scalar); simpl in *.
       repeat try_split.
       {
         unfold outputs_gen_ok.
@@ -544,70 +551,69 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           eauto.
         }
       }
+      Lemma make_map_Equal_elim A :
+        forall ks (vs vs' : list A),
+          NoDup ks ->
+          length vs = length ks ->
+          length vs' = length ks ->
+          make_map ks vs == make_map ks vs' ->
+          vs = vs'.
+      Proof.
+        induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
+        intros Hnd Hlen Hlen' Heqv.
+        inversion Hnd; subst.
+        inject Hlen.
+        inject Hlen'.
+        rename a into k.
+        f_equal.
+        {
+          unfold Equal in *.
+          specialize (Heqv k).
+          repeat rewrite add_eq_o in * by eauto.
+          inject Heqv.
+          eauto.
+        }
+        eapply IHks; eauto.
+        unfold Equal in *.
+        intros k'.
+        destruct (string_dec k' k) as [? | Hne]; subst.
+        {
+          Import StringMap.
+          Lemma make_map_find_None A k ks (vs : list A) :
+            ~ List.In k ks ->
+            find k (make_map ks vs) = None.
+          Proof.
+            intros H.
+            eapply make_map_not_in in H.
+            eapply not_find_in_iff; eauto.
+          Qed.
+          repeat rewrite make_map_find_None by eauto.
+          eauto.
+        }
+        specialize (Heqv k').
+        repeat rewrite add_neq_o in * by eauto.
+        eauto.
+      Qed.
       {
         intros [vs h] [vs' h'] Hrt inputs Htsafe.
         copy_as Htsafe Haxsafe.
         eapply TransitSafe_AxSafe in Haxsafe.
         unfold TransitSafe in *; simpl in *.
         destruct Htsafe as [Hlen [Hgi Hpre] ].
-        set (words_inputs := combine (map (Locals.sel vs) ArgVars) inputs) in *.
+        set (words_inputs := combine (List.map (Locals.sel vs) ArgVars) inputs) in *.
         set (h1 := make_heap words_inputs).
+        set (st := make_map ArgVars inputs) in *.
         copy_as Hgi Hgi'.
         destruct Hgi' as [Hforall Hdisj].
-        eapply compile_runsto in Hrt.
+        unfold TransitTo; simpl in *.
+        rewrite map_length in *.
+        eapply compile_runsto with (h1 := h1) (s_st := st) in Hrt; simpl in *.
         {
           simpl in *.
           destruct Hrt as [s_st'[Hrt [Hhle Hr] ] ].
           eapply Hrefines in Hrt; eauto.
-          unfold TransitTo.
           unfold AxRunsTo in Hrt.
-          subst h1.
-          subst words_inputs.
           destruct Hrt as [inputs' [outputs' [ret [Hlen' [Hlen'' [Hinputs' [Hpost [Hs_st' Hnl] ] ] ] ] ] ] ].
-          Lemma make_map_Equal_elim A :
-            forall ks (vs vs' : list A),
-              NoDup ks ->
-              length vs = length ks ->
-              length vs' = length ks ->
-              make_map ks vs == make_map ks vs' ->
-              vs = vs'.
-          Proof.
-            induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
-            intros Hnd Hlen Hlen' Heqv.
-            inversion Hnd; subst.
-            inject Hlen.
-            inject Hlen'.
-            rename a into k.
-            f_equal.
-            {
-              unfold Equal in *.
-              specialize (Heqv k).
-              repeat rewrite add_eq_o in * by eauto.
-              inject Heqv.
-              eauto.
-            }
-            eapply IHks; eauto.
-            unfold Equal in *.
-            intros k'.
-            destruct (string_dec k' k) as [? | Hne]; subst.
-            {
-              Import StringMap.
-              Lemma make_map_find_None A k ks (vs : list A) :
-                ~ List.In k ks ->
-                find k (make_map ks vs) = None.
-              Proof.
-                intros H.
-                eapply make_map_not_in in H.
-                eapply not_find_in_iff; eauto.
-              Qed.
-              repeat rewrite make_map_find_None by eauto.
-              eauto.
-            }
-            specialize (Heqv k').
-            repeat rewrite add_neq_o in * by eauto.
-            eauto.
-          Qed.
-          rewrite map_length in *.
           eapply make_map_Equal_elim in Hinputs'; eauto.
           symmetry in Hinputs'.
           subst.
@@ -619,7 +625,85 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             rewrite combine_length_eq; rewrite map_length in *; eauto.
           }
           {
-            unfold outputs_gen.
+            set (retw := Locals.sel vs' RetVar) in *.
+            assert (Hret : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
+            {
+              unfold related in Hr.
+              assert (Hret : find RetVar s_st' = Some ret).
+              {
+                unfold Submap in Hs_st'.
+                eapply Hs_st'.
+                rewrite add_eq_o by eauto.
+                eauto.
+              }
+              unfold outputs_gen.
+              unfold combine_ret.
+              simpl in *.
+              copy_as Hret Hret'.
+              eapply Hr in Hret.
+              unfold represent in Hret.
+              destruct ret as [w | a]; simpl in *.
+              {
+                subst.
+                unfold ret_a_gen; simpl.
+                destruct is_ret_scalar; eauto.
+                contradict Hirs; eauto.
+              }
+              destruct is_ret_scalar; simpl in *.
+              {
+                contradict Hirs; eauto.
+              }
+              Require Import Bedrock.Platform.Cito.WordMap.
+              Import WordMap.
+              Require Import Bedrock.Platform.Cito.WordMapFacts.
+              Import FMapNotations.
+              eapply find_mapsto_iff in Hret.
+              eapply diff_mapsto_iff in Hret.
+              destruct Hret as [Hret Hni].
+              eapply find_mapsto_iff in Hret.
+              unfold heap_sel.
+              subst retw.
+              rewrite Hret.
+              eauto.
+            }
+            rewrite Hret.
+            rename outputs' into outputs.
+            set (words := List.map (Locals.sel vs) ArgVars) in *.
+            assert (Hrnia : ~ List.In RetVar ArgVars).
+            {
+              eapply negb_is_in_iff; eauto.
+            }
+            assert (Houtputs : outputs_gen words inputs h' = outputs).
+            {
+              rewrite <- add_remove_many_add_comm in Hs_st' by eauto.
+              Require Import Bedrock.Platform.Cito.StringMap.
+              Import StringMap.
+              Require Import Bedrock.Platform.Cito.StringMapFacts.
+              Import FMapNotations.
+              Lemma outputs_gen_outputs :
+                forall args inputs outputs vs h st st',
+                  let words := List.map (Locals.sel vs) args in
+                  length inputs = length args ->
+                  length outputs = length args ->
+                  add_remove_many args inputs (wrap_output outputs) st <= st' ->
+                  outputs_gen words inputs h = outputs.
+              Proof.
+                simpl.
+                induction args; destruct inputs; destruct outputs; simpl; intros vs h st st'; try solve [intuition].
+                unfold outputs_gen.
+                simpl.
+                intros Hlen Hlen' Hle.
+                rename a into k.
+                inject Hlen.
+                inject Hlen'.
+                f_equal.
+                {
+                  destruct v as [w | a].
+                  {
+                  }
+                }
+              Qed.
+            }
           }
         }
       }
