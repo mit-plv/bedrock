@@ -319,24 +319,28 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         PreCond spec input.
 
     Arguments ADT {_} _ .
+    Arguments SCA {_} _ .
 
-    Definition good_output st2 x (io : Value ADTValue * option ADTValue) := 
-      let (i, o) := io in
+    Definition get_output st2 (arg_input : string * Value ADTValue) : option ADTValue :=
+      let (x, i) := arg_input in
       match i with 
-          ADT _ => find x st2 = option_map ADT o 
-        | SCA _ => o = None 
+          ADT _ =>
+          match find x st2 with
+              Some (ADT a) => Some a
+            | _ => None
+          end
+        | SCA _ => None 
       end.
-
+      
     (* st1 : pre-call state *)
     (* st2 : post-call state *)
     Definition AxRunsTo spec args rvar (st st' : State ADTValue) :=
-      exists inputs outputs ret,
+      exists inputs ret,
         length inputs = length args /\
-        length outputs = length args /\
         st == make_map args inputs /\
+        let outputs := List.map (get_output st') (combine args inputs) in
         let inputs_outputs := combine inputs outputs in
         PostCond spec inputs_outputs ret /\
-        Forall2 (good_output st') args inputs_outputs /\
         find rvar st' = Some ret /\
         no_adt_leak inputs args rvar st'.
 
@@ -349,7 +353,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
          if is_ret_scalar then
            (forall in_out (a : ADTValue), ~ PostCond ax_spec in_out (ADT a))
          else
-           (forall in_out w, ~ PostCond ax_spec in_out (SCA ADTValue w))) /\
+           (forall in_out w, ~ PostCond ax_spec in_out (SCA w))) /\
       (forall ins,
          PreCond ax_spec ins ->
          length args = length ins) /\
@@ -621,7 +625,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           destruct Hrt as [s_st'[Hrt [Hhle Hr] ] ].
           eapply Hrefines in Hrt; eauto.
           unfold AxRunsTo in Hrt.
-          destruct Hrt as [inputs' [outputs' [ret [Hlen' [Hlen'' [Hinputs' [Hpost [Hs_st' [Hret Hnl] ] ] ] ] ] ] ] ].
+          destruct Hrt as [inputs' [ret [Hlen' [Hinputs' [Hpost [Hret Hnl] ] ] ] ] ].
           eapply make_map_Equal_elim in Hinputs'; eauto.
           symmetry in Hinputs'.
           subst.
@@ -668,7 +672,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               eauto.
             }
             rewrite Hreteq.
-            rename outputs' into outputs.
+            set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
             set (words := List.map (Locals.sel vs) ArgVars) in *.
             assert (Hrnia : ~ List.In RetVar ArgVars).
             {
@@ -676,63 +680,204 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             }
             assert (Houtputs : outputs_gen words inputs h' = outputs).
             {
+              Definition no_adt_leak' input argvars retvar st vs :=
+                forall var (a : ADTValue),
+                  sel st var = Some (ADT a) ->
+                  (~ exists i x' ai, nth_error argvars i = Some x' /\ nth_error input i = Some (ADT ai) /\ Locals.sel vs x' = Locals.sel  vs var) \/
+                  var = retvar \/
+                  exists i (ai : ADTValue), nth_error argvars i = Some var /\
+                                            nth_error input i = Some (ADT ai).
+
               Lemma outputs_gen_outputs :
-                forall args inputs outputs vs h h' st,
-                  let words := List.map (Locals.sel vs) args in
-                  Forall2 (good_output st) args (combine inputs outputs) ->
+                forall args inputs vs h h' st rvar,
                   length inputs = length args ->
-                  length outputs = length args ->
+                  let words := List.map (Locals.sel vs) args in
+                  let args_inputs := combine args inputs in
+                  let outputs := List.map (get_output st) args_inputs in
                   related st (vs, h) ->
                   h <= h' ->
-                  (forall k a, List.In (k, ADT a) (combine args inputs) ->
+                  (forall k a, List.In (k, ADT a) args_inputs ->
                                find (Locals.sel vs k) h = None -> 
                                find (Locals.sel vs k) h' = None) ->
                   disjoint_ptrs (combine words inputs) ->
+                  no_adt_leak' inputs args rvar st vs ->
                   outputs_gen words inputs h' = outputs.
               Proof.
                 simpl.
-                induction args; destruct inputs; destruct outputs; simpl; try solve [intros; intuition].
-                intros vs h h' st.
-                intros Hgos Hlen Hlen' Hr Hle Hhh' Hdisj.
-                unfold outputs_gen.
+                induction args; destruct inputs; simpl; try solve [intros; intuition].
+                intros vs h h' st rvar.
+                intros Hlen Hr Hle Hhh' Hdisj Hnl.
                 simpl.
                 rename a into k.
                 inject Hlen.
-                inject Hlen'.
-                inversion Hgos; subst.
                 eapply disjoint_ptrs_cons_elim in Hdisj.
                 destruct Hdisj as [Hnc Hdisj].
-                rename H4 into Hgo.
-                rename H6 into Hgos'.
-                unfold good_output in Hgo.
+                unfold outputs_gen; simpl in *.
                 f_equal.
                 {
                   destruct v as [w | a]; eauto.
-                  destruct o as [ o | ]; simpl in *.
+                  Import Option.
+                  Definition dec_Some_ADT (x : option (Value ADTValue)) : (exists a, x = Some (ADT a)) \/ ((exists w, x = Some (SCA w)) \/ x = None).
+                    destruct x as [v | ].
+                    {
+                      destruct v; eauto.
+                    }
+                    eauto.
+                  Defined.
+                  destruct (dec_Some_ADT (StringMap.find (elt:=TopSection.Value) k st)) as [ [a' Hfindk] | Hfindk].
                   {
-                    eapply Hr in Hgo; simpl in *.
-                    eapply Hle in Hgo.
+                    rewrite Hfindk.
+                    eapply Hr in Hfindk; simpl in *.
+                    eapply Hle in Hfindk.
                     eauto.
                   }
+                  assert (Hfindk' : match StringMap.find (elt:=TopSection.Value) k st with
+                                      | Some (SCA _) => None
+                                      | Some (ADT a0) => Some a0
+                                      | None => None
+                                    end = None).
+                  {
+                    destruct Hfindk as [ [w Hfindk] | Hfindk ]; rewrite Hfindk; eauto.
+                  }
+                  rewrite Hfindk'; clear Hfindk'.
                   eapply Hhh'; eauto.
-                  Import Option.
                   destruct (option_dec (find (elt:=ADTValue) (Locals.sel vs k) h)) as [ [a' Heq] | Hne]; eauto.
                   copy_as Heq Heq'.
                   eapply Hr in Heq; simpl in *.
                   destruct Heq as [x [ [Hsel Hx] Hu] ].
                   destruct (string_dec x k) as [? | Hnex]; subst.
                   {
-                    rewrite Hgo in Hx.
+                    rewrite Hx in Hfindk.
+                    openhyp; intuition.
+                  }
+                  copy_as Hx Hx'.
+                  eapply Hnl in Hx.
+                  destruct Hx as [Hx | [? | [i [ai [Hki Hai] ] ] ] ]; subst.
+                  {
+                    contradict Hx.
+                    exists 0; simpl in *.
+                    exists k; eexists; eauto.
+                  }
+                  {
+                    admit.
+                  }
+                  destruct i as [ | i]; simpl in *.
+                  {
+                    inject Hki.
                     intuition.
                   }
-
+                  unfold no_clash_ls, no_clash in Hnc; simpl in *.
+                  Lemma Forall_forall_1 A P (ls : list A) : Forall P ls -> (forall x, List.In x ls -> P x).
+                    intros; eapply Forall_forall; eauto.
+                  Qed.
+                  eapply Forall_forall_1 with (x := (Locals.sel vs x, ADT ai)) in Hnc; simpl in *.
+                  {
+                    intuition.
+                  }
+                  eapply nth_error_In.
+                  eapply nth_error_combine; eauto.
+                  erewrite map_nth_error; eauto.
                 }
-                Require Import Bedrock.Platform.Cito.StringMap.
-                Import StringMap.
-                Require Import Bedrock.Platform.Cito.StringMapFacts.
-                Import FMapNotations.
+                unfold outputs_gen in *.
+                eapply IHargs; eauto.
+                intros x a Hx.
+                eapply Hnl in Hx.
+                destruct Hx as [Hx | [Hx | Hx ] ].
+                {
+                  left.
+                  intros Hex.
+                  contradict Hx.
+                  destruct Hex as [i Hex].
+                  openhyp.
+                  exists (S i); simpl.
+                  repeat try_eexists; repeat try_split; eauto.
+                }
+                {
+                  subst.
+                  right; left; eauto.
+                }
+                destruct Hx as [i [ai [Hki Hvi] ] ].
+                destruct i as [ | i ]; simpl in *.
+                {
+                  inject Hki.
+                  inject Hvi.
+                  left.
+                  intros Hex.
+                  destruct Hex as [i [x' [ai' [Hix' [Hiai' Heq] ] ] ] ].
+                  unfold no_clash_ls, no_clash in Hnc; simpl in *.
+                  eapply Forall_forall_1 with (x := (Locals.sel vs x', ADT ai')) in Hnc; simpl in *.
+                  {
+                    intuition.
+                  }                    
+                  eapply nth_error_In.
+                  eapply nth_error_combine; eauto.
+                  erewrite map_nth_error; eauto.
+                }
+                right; right.
+                repeat try_eexists; repeat try_split; eauto.
               Qed.
+              set (words' := List.map (Locals.sel vs') ArgVars).
+              assert (Hwords' : words' = words).
+              {
+                admit.
+              }
+              rewrite <- Hwords'.
+              eapply outputs_gen_outputs; auto; eauto.
+              {
+                intros x v Hx.
+                eapply find_mapsto_iff in Hx.
+                eapply find_mapsto_iff.
+                eapply diff_mapsto_iff in Hx.
+                openhyp; eauto.
+              }
+              {
+                intros x v Hin Hx.
+                eapply None_not_Some in Hx.
+                eapply None_not_Some.
+                intros Hx'.
+                contradict Hx.
+                destruct Hx' as [v' Hx].
+                exists v'.
+                eapply find_mapsto_iff in Hx.
+                eapply find_mapsto_iff.
+                eapply diff_mapsto_iff.
+                split; eauto.
+                intro Hindiff.
+                eapply In_MapsTo in Hindiff.
+                destruct Hindiff as [v'' Hindiff].
+                eapply diff_mapsto_iff in Hindiff.
+                destruct Hindiff as [? Hnin].
+                contradict Hnin.
+                subst h1.
+                rewrite make_heap_make_heap'; eauto.
+                eapply find_Some_in.
+                eapply mapsto_make_heap'_intro; eauto.
+                eapply in_nth_error in Hin.
+                destruct Hin as [i Hin].
+                eapply nth_error_combine_elim in Hin.
+                destruct Hin as [Hin1 Hin2].
+                eapply nth_error_In with (n := i).
+                eapply nth_error_combine; eauto.
+                rewrite <- Hwords'.
+                subst words'.
+                erewrite map_nth_error; eauto.
+              }
+              {
+                subst words'.
+                rewrite Hwords'.
+                eauto.
+              }
+              intros x a Hx.
+              eapply Hnl in Hx.
+              destruct Hx as [? | [i [ai [Hxi Hai] ] ] ]; subst.
+              {
+                right; left; eauto.
+              }
+              right; right.
+              repeat try_eexists; repeat try_split; eauto.
             }
+            rewrite Houtputs.
+            eauto.
           }
         }
       }
