@@ -303,6 +303,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct v; simpl in *; intuition.
     Qed.
 
+    Import List.
+
     Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
     Require Import Bedrock.Platform.Cito.StringMapFacts.
@@ -316,28 +318,34 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         st == make_map args input /\
         PreCond spec input.
 
-    Import List.
+    Arguments ADT {_} _ .
+
+    Definition good_output st2 x (io : Value ADTValue * option ADTValue) := 
+      let (i, o) := io in
+      match i with 
+          ADT _ => find x st2 = option_map ADT o 
+        | SCA _ => o = None 
+      end.
 
     (* st1 : pre-call state *)
     (* st2 : post-call state *)
-    Definition AxRunsTo spec args rvar (st1 st2 : State ADTValue) :=
+    Definition AxRunsTo spec args rvar (st st' : State ADTValue) :=
       exists inputs outputs ret,
         length inputs = length args /\
         length outputs = length args /\
-        st1 == make_map args inputs /\
-        PostCond spec (combine inputs outputs) ret /\
-        (* st1' : the state after the axiomatic call *)
-        let st1' := add_remove_many args inputs (wrap_output outputs) st1 in
-        let st1' := add rvar ret st1' in
-        (* st2 can have some more scalar mappings than st1' *)
-        st1' <= st2 /\
-        no_adt_leak inputs args rvar st2.
+        st == make_map args inputs /\
+        let inputs_outputs := combine inputs outputs in
+        PostCond spec inputs_outputs ret /\
+        Forall2 (good_output st') args inputs_outputs /\
+        find rvar st' = Some ret /\
+        no_adt_leak inputs args rvar st'.
 
     Definition op_refines_ax (ax_env : Env _) (op_spec : OperationalSpec) (ax_spec : AxiomaticSpec _) :=
       let args := ArgVars op_spec in
       let rvar := RetVar op_spec in
       let s := Body op_spec in
       (exists (is_ret_scalar : bool), 
+
          if is_ret_scalar then
            (forall in_out (a : ADTValue), ~ PostCond ax_spec in_out (ADT a))
          else
@@ -613,7 +621,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           destruct Hrt as [s_st'[Hrt [Hhle Hr] ] ].
           eapply Hrefines in Hrt; eauto.
           unfold AxRunsTo in Hrt.
-          destruct Hrt as [inputs' [outputs' [ret [Hlen' [Hlen'' [Hinputs' [Hpost [Hs_st' Hnl] ] ] ] ] ] ] ].
+          destruct Hrt as [inputs' [outputs' [ret [Hlen' [Hlen'' [Hinputs' [Hpost [Hs_st' [Hret Hnl] ] ] ] ] ] ] ] ].
           eapply make_map_Equal_elim in Hinputs'; eauto.
           symmetry in Hinputs'.
           subst.
@@ -626,16 +634,9 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
           {
             set (retw := Locals.sel vs' RetVar) in *.
-            assert (Hret : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
+            assert (Hreteq : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
             {
               unfold related in Hr.
-              assert (Hret : find RetVar s_st' = Some ret).
-              {
-                unfold Submap in Hs_st'.
-                eapply Hs_st'.
-                rewrite add_eq_o by eauto.
-                eauto.
-              }
               unfold outputs_gen.
               unfold combine_ret.
               simpl in *.
@@ -666,7 +667,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               rewrite Hret.
               eauto.
             }
-            rewrite Hret.
+            rewrite Hreteq.
             rename outputs' into outputs.
             set (words := List.map (Locals.sel vs) ArgVars) in *.
             assert (Hrnia : ~ List.In RetVar ArgVars).
@@ -675,33 +676,61 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             }
             assert (Houtputs : outputs_gen words inputs h' = outputs).
             {
-              rewrite <- add_remove_many_add_comm in Hs_st' by eauto.
-              Require Import Bedrock.Platform.Cito.StringMap.
-              Import StringMap.
-              Require Import Bedrock.Platform.Cito.StringMapFacts.
-              Import FMapNotations.
               Lemma outputs_gen_outputs :
-                forall args inputs outputs vs h st st',
+                forall args inputs outputs vs h h' st,
                   let words := List.map (Locals.sel vs) args in
+                  Forall2 (good_output st) args (combine inputs outputs) ->
                   length inputs = length args ->
                   length outputs = length args ->
-                  add_remove_many args inputs (wrap_output outputs) st <= st' ->
-                  outputs_gen words inputs h = outputs.
+                  related st (vs, h) ->
+                  h <= h' ->
+                  (forall k a, List.In (k, ADT a) (combine args inputs) ->
+                               find (Locals.sel vs k) h = None -> 
+                               find (Locals.sel vs k) h' = None) ->
+                  disjoint_ptrs (combine words inputs) ->
+                  outputs_gen words inputs h' = outputs.
               Proof.
                 simpl.
-                induction args; destruct inputs; destruct outputs; simpl; intros vs h st st'; try solve [intuition].
+                induction args; destruct inputs; destruct outputs; simpl; try solve [intros; intuition].
+                intros vs h h' st.
+                intros Hgos Hlen Hlen' Hr Hle Hhh' Hdisj.
                 unfold outputs_gen.
                 simpl.
-                intros Hlen Hlen' Hle.
                 rename a into k.
                 inject Hlen.
                 inject Hlen'.
+                inversion Hgos; subst.
+                eapply disjoint_ptrs_cons_elim in Hdisj.
+                destruct Hdisj as [Hnc Hdisj].
+                rename H4 into Hgo.
+                rename H6 into Hgos'.
+                unfold good_output in Hgo.
                 f_equal.
                 {
-                  destruct v as [w | a].
+                  destruct v as [w | a]; eauto.
+                  destruct o as [ o | ]; simpl in *.
                   {
+                    eapply Hr in Hgo; simpl in *.
+                    eapply Hle in Hgo.
+                    eauto.
                   }
+                  eapply Hhh'; eauto.
+                  Import Option.
+                  destruct (option_dec (find (elt:=ADTValue) (Locals.sel vs k) h)) as [ [a' Heq] | Hne]; eauto.
+                  copy_as Heq Heq'.
+                  eapply Hr in Heq; simpl in *.
+                  destruct Heq as [x [ [Hsel Hx] Hu] ].
+                  destruct (string_dec x k) as [? | Hnex]; subst.
+                  {
+                    rewrite Hgo in Hx.
+                    intuition.
+                  }
+
                 }
+                Require Import Bedrock.Platform.Cito.StringMap.
+                Import StringMap.
+                Require Import Bedrock.Platform.Cito.StringMapFacts.
+                Import FMapNotations.
               Qed.
             }
           }
