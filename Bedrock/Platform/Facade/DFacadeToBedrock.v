@@ -630,7 +630,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intros Hrt Hegtu ? ? ? Hpre Hdisj Hgs ? ? Hheq.
       subst.
       eapply CompileDFacadeToCito.compile_runsto in Hrt; try reflexivity; simpl in *; trivial.
-      destruct Hrt as [st' [Hrt [Hsm Hr] ] ].
+      destruct Hrt as [st' [Hrt [Hsm [Hseleq Hr] ] ] ].
       6 : eapply env_good_to_use_cenv_impls_env; eauto.
       2 : eapply unit_syntax_ok.
       Focus 3.

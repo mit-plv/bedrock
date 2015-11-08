@@ -190,6 +190,8 @@ Section ADTValue.
               let h2 := snd t_st - h1 in
               (* the frame heap will be intacked in the final state *)
               h2 <= snd t_st' /\
+              (* variables not appearing as LHS won't change value in Cito state *)
+              (forall x, ~ StringSet.In x (assigned s) -> is_good_varname x = true -> Locals.sel (fst t_st) x = Locals.sel (fst t_st') x) /\
               (* main result: final source-level and target level states are related *)
               related s_st' (fst t_st', snd t_st' - h2).
   Proof.
@@ -205,6 +207,11 @@ Section ADTValue.
         repeat try_split.
         * eauto.
         * eauto.
+        * intros x Hnin Hgvar.
+          eapply Hnoass.
+          intros Hin.
+          contradict Hnin.
+          eapply compile_assigned in Hin; trivial.
         * eapply equiv_related; eauto.
           eapply not_free_vars_no_change in Hdrt; eauto.
           erewrite Hdrt; eauto.

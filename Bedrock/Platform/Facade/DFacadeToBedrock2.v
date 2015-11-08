@@ -622,7 +622,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply compile_runsto with (h1 := h1) (s_st := st) in Hrt; simpl in *.
         {
           simpl in *.
-          destruct Hrt as [s_st'[Hrt [Hhle Hr] ] ].
+          destruct Hrt as [s_st'[Hrt [Hhle [ Hselqv Hr] ] ] ].
           eapply Hrefines in Hrt; eauto.
           unfold AxRunsTo in Hrt.
           destruct Hrt as [inputs' [ret [Hlen' [Hinputs' [Hpost [Hret Hnl] ] ] ] ] ].
@@ -819,7 +819,33 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               set (words' := List.map (Locals.sel vs') ArgVars).
               assert (Hwords' : words' = words).
               {
-                admit.
+                Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
+                Proof.
+                  induction ls; simpl; intros Hfg; trivial.
+                  f_equal.
+                  {
+                    eapply Hfg.
+                    eauto.
+                  }
+                  eapply IHls.
+                  intuition.
+                Qed.
+                eapply In_map_ext.
+                intros x Hin.
+                symmetry.
+                eapply Hselqv.
+                {
+                  copy_as no_assign_to_args Hnata.
+                  eapply is_disjoint_iff in Hnata.
+                  intros Hin2.
+                  eapply Hnata; split; eauto.
+                  Import StringSetFacts.
+                  eapply of_list_spec; eauto.
+                }
+                {
+                  copy_as args_name_ok Hargsok.
+                  eapply forallb_forall in Hargsok; eauto.
+                }
               }
               rewrite <- Hwords'.
               eapply outputs_gen_outputs; auto; eauto.
