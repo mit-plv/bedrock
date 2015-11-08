@@ -459,22 +459,28 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct Hrefines as [ [is_ret_scalar Hirs] Hrefines].
       Import List.
       unfold TransitTo; simpl.
-      Definition outputs_gen words inputs h :=
-        map (fun (w_input : W * Value ADTValue) =>
-               let (w, input) := w_input in
-               match input with
-                   SCA _ => None
-                 | ADT _ => heap_sel h w
-               end
-            ) (combine words inputs).
-      Definition ret_a_gen (is_ret_scalar : bool) w h := if is_ret_scalar then None else heap_sel h w.
-      exists outputs_gen; simpl in *.
+      Import Bool.
+      Definition output_gen (is_ret_scalar : bool) h ret_w (w_input : W * Value ADTValue) :=
+        let (w, input) := w_input in
+        match input with
+            SCA _ => None
+          | ADT _ =>
+            if negb is_ret_scalar && weqb w ret_w then
+              None
+            else                                      
+              heap_sel h w
+        end.
+      Definition outputs_gen is_ret_scalar ret_w words inputs h :=
+        map (output_gen is_ret_scalar h ret_w) (combine words inputs).
+      Definition ret_a_gen (is_ret_scalar : bool) w h :=
+        if is_ret_scalar then None else heap_sel h w.
+      exists (outputs_gen is_ret_scalar); simpl in *.
       exists (ret_a_gen is_ret_scalar); simpl in *.
       repeat try_split.
       {
         unfold outputs_gen_ok.
         simpl.
-        intros words inputs h Hpre Hlen.
+        intros ret_w words inputs h Hpre Hlen.
         unfold outputs_gen.
         rewrite map_length.
         rewrite combine_length.
@@ -678,7 +684,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             {
               eapply negb_is_in_iff; eauto.
             }
-            assert (Houtputs : outputs_gen words inputs h' = outputs).
+            assert (Houtputs : outputs_gen is_ret_scalar retw words inputs h' = outputs).
             {
               Definition no_adt_leak' input argvars retvar st vs :=
                 forall var (a : ADTValue),
@@ -689,7 +695,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                                             nth_error input i = Some (ADT ai).
 
               Lemma outputs_gen_outputs :
-                forall args inputs vs h h' st rvar,
+                forall args inputs vs h h' st (is_ret_scalar : bool) rvar ret,
                   length inputs = length args ->
                   let words := List.map (Locals.sel vs) args in
                   let args_inputs := combine args inputs in
@@ -701,12 +707,18 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                                find (Locals.sel vs k) h' = None) ->
                   disjoint_ptrs (combine words inputs) ->
                   no_adt_leak' inputs args rvar st vs ->
-                  outputs_gen words inputs h' = outputs.
+                  StringMap.find rvar st = Some ret ->
+                  (if is_ret_scalar then
+                     (exists w, ret = SCA w)
+                   else
+                     (exists a, ret = ADT a)) ->
+                  negb (is_in rvar args) = true ->
+                  outputs_gen is_ret_scalar (Locals.sel vs rvar) words inputs h' = outputs.
               Proof.
                 simpl.
                 induction args; destruct inputs; simpl; try solve [intros; intuition].
-                intros vs h h' st rvar.
-                intros Hlen Hr Hle Hhh' Hdisj Hnl.
+                intros vs h h' st is_ret_scalar rvar ret.
+                intros Hlen Hr Hle Hhh' Hdisj Hnl Hret Hirs Hrnin.
                 simpl.
                 rename a into k.
                 inject Hlen.
@@ -727,9 +739,27 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   destruct (dec_Some_ADT (StringMap.find (elt:=TopSection.Value) k st)) as [ [a' Hfindk] | Hfindk].
                   {
                     rewrite Hfindk.
+                    copy_as Hfindk Hfindk'.
                     eapply Hr in Hfindk; simpl in *.
                     eapply Hle in Hfindk.
-                    eauto.
+                    unfold heap_sel.
+                    rewrite Hfindk.
+                    Notation boolcase := Sumbool.sumbool_of_bool.
+                    destruct (boolcase (negb is_ret_scalar && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Heq | Heq]; rewrite Heq in *; trivial.
+                    eapply andb_true_iff in Heq.
+                    destruct Heq as [Hirseq Hkr].
+                    eapply negb_true_iff in Hirseq; subst.
+                    unfold weqb in *.
+                    eapply weqb_true_iff in Hkr.
+                    destruct Hirs as [a'' Hirs]; subst.
+                    assert (Hkreq : k = rvar).
+                    {
+                      eapply related_no_alias; eauto.
+                    }
+                    subst.
+                    eapply negb_is_in_iff in Hrnin.
+                    contradict Hrnin.
+                    simpl; eauto.
                   }
                   assert (Hfindk' : match StringMap.find (elt:=TopSection.Value) k st with
                                       | Some (SCA _) => None
@@ -740,6 +770,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     destruct Hfindk as [ [w Hfindk] | Hfindk ]; rewrite Hfindk; eauto.
                   }
                   rewrite Hfindk'; clear Hfindk'.
+                  destruct (boolcase (negb is_ret_scalar && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Hcond | Hcond]; rewrite Hcond in *; trivial.
+                  eapply andb_false_iff in Hcond.
                   eapply Hhh'; eauto.
                   destruct (option_dec (find (elt:=ADTValue) (Locals.sel vs k) h)) as [ [a' Heq] | Hne]; eauto.
                   copy_as Heq Heq'.
@@ -759,7 +791,15 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     exists k; eexists; eauto.
                   }
                   {
-                    admit.
+                    rewrite Hret in Hx'.
+                    inject Hx'.
+                    destruct Hcond as [Hcond | Hcond].
+                    {
+                      eapply negb_false_iff in Hcond; subst.
+                      openhyp; intuition.
+                    }
+                    eapply eq_true_false_abs in Hcond; try contradiction.
+                    eapply weqb_true_iff; eauto.
                   }
                   destruct i as [ | i]; simpl in *.
                   {
@@ -813,8 +853,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   eapply nth_error_combine; eauto.
                   erewrite map_nth_error; eauto.
                 }
-                right; right.
-                repeat try_eexists; repeat try_split; eauto.
+                {
+                  right; right.
+                  repeat try_eexists; repeat try_split; eauto.
+                }
+                eapply negb_is_in_iff.
+                eapply negb_is_in_iff in Hrnin.
+                intuition.
               Qed.
               set (words' := List.map (Locals.sel vs') ArgVars).
               assert (Hwords' : words' = words).
@@ -893,14 +938,21 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 rewrite Hwords'.
                 eauto.
               }
-              intros x a Hx.
-              eapply Hnl in Hx.
-              destruct Hx as [? | [i [ai [Hxi Hai] ] ] ]; subst.
               {
-                right; left; eauto.
+                intros x a Hx.
+                eapply Hnl in Hx.
+                destruct Hx as [? | [i [ai [Hxi Hai] ] ] ]; subst.
+                {
+                  right; left; eauto.
+                }
+                right; right.
+                repeat try_eexists; repeat try_split; eauto.
               }
-              right; right.
-              repeat try_eexists; repeat try_split; eauto.
+              {
+                destruct is_ret_scalar; destruct ret as [a | w]; simpl in *; try solve [eexists; eauto].
+                eapply Hirs in Hpost.
+                contradiction.
+              }
             }
             rewrite Houtputs.
             eauto.

@@ -741,7 +741,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      let outputs := outputs_gen words inputs h' in
+      let outputs := outputs_gen ret_w words inputs h' in
       let ret_a := ret_a_gen ret_w h' in
       TransitTo ax_spec words inputs outputs ret_w ret_a (make_heap pairs) h'.
     Proof.
@@ -788,7 +788,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       PreCond ax_spec inputs ->
       disjoint_ptrs pairs ->
       good_scalars pairs ->
-      let outputs := outputs_gen words inputs h' in
+      let outputs := outputs_gen ret_w words inputs h' in
       let ret_a := ret_a_gen ret_w h' in
       let ret := combine_ret ret_w ret_a in
       PostCond ax_spec (List.map (fun x1 => (ADTIn x1, ADTOut x1)) (make_triples pairs outputs)) ret.
@@ -964,7 +964,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           {
             instantiate (2 := rv).
             instantiate (2 := combine_ret rv (ret_a_gen rv (snd x1))).
-            instantiate (2 := outputs_gen arr (List.map snd pairs) (snd x1)).
+            instantiate (2 := outputs_gen (Regs x0 Rv) arr (List.map snd pairs) (snd x1)).
             instantiate (4 := x2).
             instantiate (3 := x4).
             instantiate (1 := List.map (fst x1) avars).
@@ -1058,6 +1058,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             {
               rewrite Hrv.
               unfold_all.
+              rewrite Hrv.
               eapply runsto_elim; eauto.
             }
             split.

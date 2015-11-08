@@ -43,15 +43,15 @@ Section ADTValue.
         let words := List.map (sel vs) args in
         TransitSafe spec_ax words inputs h ->
         let ret_w := sel vs' rvar in
-        let outputs := outputs_gen words inputs h' in
+        let outputs := outputs_gen ret_w words inputs h' in
         let ret_a := ret_a_gen ret_w h' in
         TransitTo spec_ax words inputs outputs ret_w ret_a h h'.
 
   Definition outputs_gen_ok spec_ax outputs_gen :=
-    forall (words : list W) (inputs : list (Value ADTValue)) (h : Heap ADTValue),
+    forall (ret_w : W) (words : list W) (inputs : list (Value ADTValue)) (h : Heap ADTValue),
       PreCond spec_ax inputs ->
       length words = length inputs ->
-      @length (option ADTValue) (outputs_gen words inputs h) = length words.
+      @length (option ADTValue) (outputs_gen ret_w words inputs h) = length words.
 
   Definition strengthen_op_ax (spec_op : InternalFuncSpec) spec_ax (env_ax : Env) :=
     exists outputs_gen ret_a_gen,
