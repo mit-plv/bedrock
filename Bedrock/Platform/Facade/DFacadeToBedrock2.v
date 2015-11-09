@@ -398,6 +398,92 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.StringMapFacts.
     Import FMapNotations.
 
+    Lemma make_map_Equal_elim A :
+      forall ks (vs vs' : list A),
+        NoDup ks ->
+        length vs = length ks ->
+        length vs' = length ks ->
+        make_map ks vs == make_map ks vs' ->
+        vs = vs'.
+    Proof.
+      induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
+      intros Hnd Hlen Hlen' Heqv.
+      inversion Hnd; subst.
+      inject Hlen.
+      inject Hlen'.
+      rename a into k.
+      f_equal.
+      {
+        unfold Equal in *.
+        specialize (Heqv k).
+        repeat rewrite add_eq_o in * by eauto.
+        inject Heqv.
+        eauto.
+      }
+      eapply IHks; eauto.
+      unfold Equal in *.
+      intros k'.
+      destruct (string_dec k' k) as [? | Hne]; subst.
+      {
+        Import StringMap.
+        Lemma make_map_find_None A k ks (vs : list A) :
+          ~ List.In k ks ->
+          find k (make_map ks vs) = None.
+        Proof.
+          intros H.
+          eapply make_map_not_in in H.
+          eapply not_find_in_iff; eauto.
+        Qed.
+        repeat rewrite make_map_find_None by eauto.
+        eauto.
+      }
+      specialize (Heqv k').
+      repeat rewrite add_neq_o in * by eauto.
+      eauto.
+    Qed.
+    Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
+    Proof.
+      induction ls; simpl; intros Hfg; trivial.
+      f_equal.
+      {
+        eapply Hfg.
+        eauto.
+      }
+      eapply IHls.
+      intuition.
+    Qed.
+    Notation boolcase := Sumbool.sumbool_of_bool.
+    Lemma Forall_forall_1 A P (ls : list A) : Forall P ls -> (forall x, List.In x ls -> P x).
+      intros; eapply Forall_forall; eauto.
+    Qed.
+    Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
+      let '((w, i), o) := w_input_output in
+      {| Word := w; ADTIn := i; ADTOut := o |}.
+    Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
+    Lemma make_triples_make_triples' :
+      forall words_inputs outputs,
+        length words_inputs = length outputs ->
+        make_triples words_inputs outputs = make_triples' words_inputs outputs.
+    Proof.
+      induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
+      unfold make_triples'.
+      simpl.
+      destruct a as [w i]; simpl in *.
+      f_equal; eauto.
+    Qed.
+    Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
+    Proof.
+      intros; subst.
+      eapply weqb_true_iff; eauto.
+    Qed.
+    Lemma weqb_false_intro (x y : W) : x <> y -> weqb x y = false.
+    Proof.
+      intros H.
+      destruct (boolcase (weqb x y)) as [Heq | Heq]; trivial.
+      eapply weqb_true_iff in Heq; subst.
+      intuition.
+    Qed.
+
     Definition whole_env := get_env op_mod_name exports module.
     Hypothesis Hrefine : ops_refines_axs whole_env (map Core (Funs module)) exports.
 
@@ -406,7 +492,72 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       specs_env_agree (specs cito_module imports exports op_mod_name) ax_cenv ->
       cenv_impls_env ax_cenv whole_env.
     Proof.
-      admit.
+      intros H.
+      unfold cenv_impls_env.
+      unfold specs_env_agree in H.
+
+    intros Hgu.
+    unfold env_good_to_use, cenv_impls_env in *.
+    destruct Hgu as [Hsgu [Hinj Hfsgu] ].
+    unfold stn_good_to_use, fs_good_to_use in *.
+    split.
+    {
+      intros lbl spec Hflbl.
+      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+      rewrite map_o in Hflbl.
+      Require Import Bedrock.Platform.Cito.Option.
+      eapply option_map_some_elim in Hflbl.
+      destruct Hflbl as [aspec [Hflbl' ?] ].
+      subst.
+      simpl in *.
+      assert (Hlblin : label_in gmodules imports lbl).
+      {
+        unfold label_in.
+        right; eauto.
+        eapply find_Some_in; eauto.
+      }
+      eapply Hsgu in Hlblin.
+      eapply ex_up in Hlblin.
+      destruct Hlblin as [w Hw].
+      assert (fs stn w = Some (Foreign aspec)).
+      {
+        eapply Hfsgu.
+        exists lbl.
+        split; eauto.
+        unfold label_mapsto.
+        right.
+        exists aspec.
+        split; eauto.
+      }
+      exists w.
+      split; eauto.
+    }
+    intros k.
+    intros k' w Hin1 Hin2 Hf1 Hf2.
+    simpl in *.
+    eapply in_find_Some in Hin1.
+    destruct Hin1 as [s1 Hs1].
+    rewrite map_o in Hs1.
+    eapply option_map_some_elim in Hs1.
+    destruct Hs1 as [as1 [Has1 ?] ].
+    subst; simpl in *.
+    eapply in_find_Some in Hin2.
+    destruct Hin2 as [s2 Hs2].
+    rewrite map_o in Hs2.
+    eapply option_map_some_elim in Hs2.
+    destruct Hs2 as [as2 [Has2 ?] ].
+    subst; simpl in *.
+    eapply Hinj; eauto.
+    {
+      unfold label_in.
+      right; eauto.
+      eapply find_Some_in; eauto.
+    }
+    {
+      unfold label_in.
+      right; eauto.
+      eapply find_Some_in; eauto.
+    }
     Qed.
 
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
@@ -568,49 +719,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           eauto.
         }
       }
-      Lemma make_map_Equal_elim A :
-        forall ks (vs vs' : list A),
-          NoDup ks ->
-          length vs = length ks ->
-          length vs' = length ks ->
-          make_map ks vs == make_map ks vs' ->
-          vs = vs'.
-      Proof.
-        induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
-        intros Hnd Hlen Hlen' Heqv.
-        inversion Hnd; subst.
-        inject Hlen.
-        inject Hlen'.
-        rename a into k.
-        f_equal.
-        {
-          unfold Equal in *.
-          specialize (Heqv k).
-          repeat rewrite add_eq_o in * by eauto.
-          inject Heqv.
-          eauto.
-        }
-        eapply IHks; eauto.
-        unfold Equal in *.
-        intros k'.
-        destruct (string_dec k' k) as [? | Hne]; subst.
-        {
-          Import StringMap.
-          Lemma make_map_find_None A k ks (vs : list A) :
-            ~ List.In k ks ->
-            find k (make_map ks vs) = None.
-          Proof.
-            intros H.
-            eapply make_map_not_in in H.
-            eapply not_find_in_iff; eauto.
-          Qed.
-          repeat rewrite make_map_find_None by eauto.
-          eauto.
-        }
-        specialize (Heqv k').
-        repeat rewrite add_neq_o in * by eauto.
-        eauto.
-      Qed.
       {
         intros [vs h] [vs' h'] Hrt inputs Htsafe.
         copy_as Htsafe Haxsafe.
@@ -682,17 +790,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           set (words' := List.map (Locals.sel vs') ArgVars).
           assert (Hwords' : words' = words).
           {
-            Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
-            Proof.
-              induction ls; simpl; intros Hfg; trivial.
-              f_equal.
-              {
-                eapply Hfg.
-                eauto.
-              }
-              eapply IHls.
-              intuition.
-            Qed.
             eapply In_map_ext.
             intros x Hin.
             symmetry.
@@ -770,7 +867,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     eapply Hle in Hfindk.
                     unfold heap_sel.
                     rewrite Hfindk.
-                    Notation boolcase := Sumbool.sumbool_of_bool.
                     destruct (boolcase (is_ret_adt && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Heq | Heq]; rewrite Heq in *; trivial.
                     eapply andb_true_iff in Heq.
                     destruct Heq as [Hiraeq Hkr].
@@ -833,9 +929,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     intuition.
                   }
                   unfold no_clash_ls, no_clash in Hnc; simpl in *.
-                  Lemma Forall_forall_1 A P (ls : list A) : Forall P ls -> (forall x, List.In x ls -> P x).
-                    intros; eapply Forall_forall; eauto.
-                  Qed.
                   eapply Forall_forall_1 with (x := (Locals.sel vs x, ADT ai)) in Hnc; simpl in *.
                   {
                     intuition.
@@ -951,26 +1044,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 eapply Hira; eauto.
               }
           }
-          Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
-            let '((w, i), o) := w_input_output in
-            {| Word := w; ADTIn := i; ADTOut := o |}.
-          Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
-          Lemma make_triples_make_triples' :
-            forall words_inputs outputs,
-              length words_inputs = length outputs ->
-              make_triples words_inputs outputs = make_triples' words_inputs outputs.
-          Proof.
-            induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
-            unfold make_triples'.
-            simpl.
-            destruct a as [w i]; simpl in *.
-            f_equal; eauto.
-          Qed.
-          Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
-          Proof.
-            intros; subst.
-            eapply weqb_true_iff; eauto.
-          Qed.
           subst retw.
           set (retw := Locals.sel vs' RetVar) in *.
           subst outputs.
@@ -1131,13 +1204,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 {
                   eapply andb_false_iff.
                   right.
-                  Lemma weqb_false_intro (x y : W) : x <> y -> weqb x y = false.
-                  Proof.
-                    intros H.
-                    destruct (boolcase (weqb x y)) as [Heq | Heq]; trivial.
-                    eapply weqb_true_iff in Heq; subst.
-                    intuition.
-                  Qed.
                   rewrite weqb_false_intro by eauto.
                   eauto.
                 }
