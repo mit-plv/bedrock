@@ -304,82 +304,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Qed.
 
     Import List.
-
-    Require Import Bedrock.Platform.Cito.StringMap.
-    Import StringMap.
-    Require Import Bedrock.Platform.Cito.StringMapFacts.
-    Import FMapNotations.
+    Import DFModule.
 
     Hint Extern 0 (_ == _) => reflexivity.
 
-    Definition AxSafe spec args (st : State ADTValue) :=
-      exists input,
-        length input = length args /\
-        st == make_map args input /\
-        PreCond spec input.
-
     Arguments ADT {_} _ .
     Arguments SCA {_} _ .
-
-    Definition get_output st2 (arg_input : string * Value ADTValue) : option ADTValue :=
-      let (x, i) := arg_input in
-      match i with 
-          ADT _ =>
-          match find x st2 with
-              Some (ADT a) => Some a
-            | _ => None
-          end
-        | SCA _ => None 
-      end.
-      
-    (* st1 : pre-call state *)
-    (* st2 : post-call state *)
-    Definition AxRunsTo spec args rvar (st st' : State ADTValue) :=
-      exists inputs ret,
-        length inputs = length args /\
-        st == make_map args inputs /\
-        let outputs := List.map (get_output st') (combine args inputs) in
-        let inputs_outputs := combine inputs outputs in
-        PostCond spec inputs_outputs ret /\
-        find rvar st' = Some ret /\
-        no_adt_leak inputs args rvar st'.
-
-    Definition op_refines_ax (ax_env : Env _) (op_spec : OperationalSpec) (ax_spec : AxiomaticSpec _) :=
-      let args := ArgVars op_spec in
-      let rvar := RetVar op_spec in
-      let s := Body op_spec in
-      (exists (is_ret_adt : bool),
-         forall in_out ret,
-           PostCond ax_spec in_out ret -> 
-           if is_ret_adt then exists a : ADTValue, ret = ADT a
-           else exists w, ret = SCA w) /\
-      (forall ins,
-         PreCond ax_spec ins ->
-         length args = length ins) /\
-      (forall st,
-         AxSafe ax_spec args st ->
-         Safe ax_env s st) /\
-      forall st st',
-        AxSafe ax_spec args st ->
-        RunsTo ax_env s st st' ->
-        AxRunsTo ax_spec args rvar st st'.
-
-    Import StringMap.
-
-    Definition ops_refines_axs ax_env (op_specs : StringMap.t OperationalSpec) (ax_specs : StringMap.t (AxiomaticSpec _)) :=
-      forall x ax_spec,
-        find x ax_specs = Some ax_spec ->
-        exists op_spec,
-          find x op_specs = Some op_spec /\
-          op_refines_ax ax_env op_spec ax_spec.
-    
-    Require Import Bedrock.Platform.Cito.GLabelMap.
-    Import GLabelMap.
-    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
-    Import FMapNotations.
-
-    Import DFModule.
-
     Arguments Operational {_} _ .
     Arguments Axiomatic {_} _ .
 
@@ -494,16 +424,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.GLabelMapFacts.
     Import FMapNotations.
 
-    (* the whole environment of callable functions with their specs, including 
-         (1) functions defined in 'module' with op. specs
-         (2) functions defined in 'module' with ax. specs given by 'exports'
-         (3) imports of 'module'
-     *)
-    Definition get_env op_mod_name (exports : StringMap.t (AxiomaticSpec ADTValue)) module := 
-      (* map (fun (f : DFFun) => Operational f) (map_aug_mod_name op_mod_name (Funs module)) +  *)
-      map Axiomatic (map_aug_mod_name op_mod_name exports + 
-                     Imports module).
-
+    Require Import CompileUnit2.
+  
     Definition whole_env := get_env op_mod_name exports module.
     Hypothesis Hrefine : ops_refines_axs whole_env (StringMap.map Core (Funs module)) exports.
 
@@ -593,12 +515,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       (* eapply update_mapsto_iff in H. *)
       (* destruct H as [H | H]. *)
       {
-        eapply map_mapsto_iff in H.
-        destruct H as [ax [? H] ].
-        subst.
         eapply update_mapsto_iff in H.
         destruct H as [H | H].
         {
+          eapply map_mapsto_iff in H.
+          destruct H as [ax [? H] ].
+          subst.
           assert (Hin : In k imports).
           {
             eapply MapsTo_In; eauto.
@@ -619,63 +541,70 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
           intros HH; eapply map_4 in HH; eapply Hdisj'; eauto.
         }
-        destruct H as [H Hnin].
-        assert (Hin : In k exs).
         {
+          destruct H as [H Hnin].
+          eapply map_mapsto_iff in H.
+          destruct H as [ax [? H] ].
+          subst.
+          assert (Hin : In k exs).
+          {
+            eapply MapsTo_In; eauto.
+          }
+          eapply update_mapsto_iff.
+          left.
+          eapply map_mapsto_iff.
+          exists ax.
+          split; trivial.
+        }
+      }
+(*
+      {
+        destruct H as [H Hnin].
+        eapply map_mapsto_iff in H.
+        destruct H as [op [? H] ].
+        subst.
+        eapply find_mapsto_iff in H.
+        eapply map_aug_mod_name_elim in H.
+        destruct H as [x [? H] ].
+        subst.
+        set (k := (op_mod_name, x)) in *.
+        copy_as H H'.
+        eapply find_DFModule_find_CModule in H'.
+        assert (Hkops : MapsTo k (CompileModule.compile_func (compile_func op)) ops).
+        {
+          subst ops.
+          subst k.
+          eapply find_mapsto_iff.
+          eapply map_aug_mod_name_intro; eauto.
+        }
+        assert (Hin : In k ops).
+        {
+          subst ops.
+          subst k.
           eapply MapsTo_In; eauto.
         }
         eapply update_mapsto_iff.
-        left.
-        eapply map_mapsto_iff.
-        exists ax.
-        split; trivial.
-      }
-(*
-      destruct H as [H Hnin].
-      eapply map_mapsto_iff in H.
-      destruct H as [op [? H] ].
-      subst.
-      eapply find_mapsto_iff in H.
-      eapply map_aug_mod_name_elim in H.
-      destruct H as [x [? H] ].
-      subst.
-      set (k := (op_mod_name, x)) in *.
-      copy_as H H'.
-      eapply find_DFModule_find_CModule in H'.
-      assert (Hkops : MapsTo k (CompileModule.compile_func (compile_func op)) ops).
-      {
-        subst ops.
-        subst k.
-        eapply find_mapsto_iff.
-        eapply map_aug_mod_name_intro; eauto.
-      }
-      assert (Hin : In k ops).
-      {
-        subst ops.
-        subst k.
-        eapply MapsTo_In; eauto.
-      }
-      eapply update_mapsto_iff.
-      right.
-      split.
-      {
-        eapply update_mapsto_iff.
-        left.
-        eapply map_mapsto_iff.
-        eexists.
-        split; eauto.
-        simpl.
-        destruct op; simpl in *.
-        unfold compile_op; simpl in *.
-        unfold Compile.compile_op; simpl in *.
-        unfold compile_func; simpl in *.
-        unfold CompileModule.compile_func; simpl in *.
-        Set Printing Coercions.
-        unfold to_internal_func_spec; simpl in *.
-        unfold is_good_func_sound.
-        simpl.
-        reflexivity.
-        eauto.
+        right.
+        split.
+        {
+          eapply update_mapsto_iff.
+          left.
+          eapply map_mapsto_iff.
+          eexists.
+          split; eauto.
+          simpl.
+          destruct op; simpl in *.
+          unfold compile_op; simpl in *.
+          unfold Compile.compile_op; simpl in *.
+          unfold compile_func; simpl in *.
+          unfold CompileModule.compile_func; simpl in *.
+          Set Printing Coercions.
+          unfold to_internal_func_spec; simpl in *.
+          unfold is_good_func_sound.
+          simpl.
+          reflexivity.
+          eauto.
+        }
       }
 *)
     Qed.
@@ -812,7 +741,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply Hrefines.
         eauto.
       }
-      Lemma TransitSafe_AxSafe vs h args inputs ax_spec :
+      Lemma TransitSafe_AxSafe vs h args (inputs : list (Value ADTValue)) ax_spec :
         TransitSafe ax_spec (map (Locals.sel vs) args) inputs h ->
         AxSafe ax_spec args (make_map args inputs).
       Proof.
@@ -827,6 +756,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           eauto.
         }
         {
+          Hint Extern 0 (_ == _) => reflexivity.
           eauto.
         }
         eauto.
@@ -1739,9 +1669,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Require Import Bedrock.Platform.Facade.DFModule.
   Require Import Bedrock.Platform.Cito.StringMapFacts.
   Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
-
   Require Import CompileUnit2.
-  
+
   Variable exports : StringMap.t AxiomaticSpec.
   (* input of the this compiler *)
   Variable compile_unit : CompileUnit exports.
@@ -1757,7 +1686,12 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Notation imports := (Imports module).
   Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
   Lemma refines : ops_refines_axs (whole_env exports module op_mod_name) (StringMap.map Core (Funs module)) exports.
-    admit.
+  Proof.
+    unfold module.
+    unfold whole_env.
+    unfold op_mod_name.
+    destruct compile_unit; simpl in *.
+    eapply proof; eauto.
   Qed.
   Definition output_module_ok' : moduleOk output_module' :=
     @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
