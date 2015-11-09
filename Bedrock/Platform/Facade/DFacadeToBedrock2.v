@@ -205,7 +205,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       good_inputs (ADTValue := ADTValue) h pairs ->
       make_heap pairs <= h.
     Proof.
-      Require Import DFacadeToBedrock2Util.
+      Require DFacadeToBedrock2Util.
       intros Hgi.
       destruct Hgi as [Hforall Hdisj].
       unfold good_inputs in *.
@@ -348,11 +348,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       let args := ArgVars op_spec in
       let rvar := RetVar op_spec in
       let s := Body op_spec in
-      (exists (is_ret_scalar : bool),
+      (exists (is_ret_adt : bool),
          forall in_out ret,
            PostCond ax_spec in_out ret -> 
-           if is_ret_scalar then exists w, ret = SCA w
-           else exists a : ADTValue, ret = ADT a) /\
+           if is_ret_adt then exists a : ADTValue, ret = ADT a
+           else exists w, ret = SCA w) /\
       (forall ins,
          PreCond ax_spec ins ->
          length args = length ins) /\
@@ -455,26 +455,26 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold strengthen_op_ax'; simpl.
       destruct ax; simpl in *.
       unfold op_refines_ax in Hrefines; simpl in *.
-      destruct Hrefines as [ [is_ret_scalar Hirs] Hrefines].
+      destruct Hrefines as [ [is_ret_adt Hira] Hrefines].
       Import List.
       unfold TransitTo; simpl.
       Import Bool.
-      Definition output_gen (is_ret_scalar : bool) h ret_w (w_input : W * Value ADTValue) :=
+      Definition output_gen (is_ret_adt : bool) h ret_w (w_input : W * Value ADTValue) :=
         let (w, input) := w_input in
         match input with
             SCA _ => None
           | ADT _ =>
-            if negb is_ret_scalar && weqb w ret_w then
+            if is_ret_adt && weqb w ret_w then
               None
             else                                      
               heap_sel h w
         end.
-      Definition outputs_gen is_ret_scalar ret_w words inputs h :=
-        map (output_gen is_ret_scalar h ret_w) (combine words inputs).
-      Definition ret_a_gen (is_ret_scalar : bool) w h :=
-        if is_ret_scalar then None else heap_sel h w.
-      exists (outputs_gen is_ret_scalar); simpl in *.
-      exists (ret_a_gen is_ret_scalar); simpl in *.
+      Definition outputs_gen is_ret_adt ret_w words inputs h :=
+        map (output_gen is_ret_adt h ret_w) (combine words inputs).
+      Definition ret_a_gen (is_ret_adt : bool) w h :=
+        if is_ret_adt then heap_sel h w else None.
+      exists (outputs_gen is_ret_adt); simpl in *.
+      exists (ret_a_gen is_ret_adt); simpl in *.
       repeat try_split.
       {
         unfold outputs_gen_ok.
@@ -545,7 +545,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         {
           subst h1.
           instantiate (1 := vs).
-          eapply make_map_make_heap_related with (ks := ArgVars) (pairs := words_inputs); simpl; eauto.
+          eapply DFacadeToBedrock2Util.make_map_make_heap_related with (ks := ArgVars) (pairs := words_inputs); simpl; eauto.
           {
             eapply forall_word_adt_match_good_scalars; eauto.
           }
@@ -636,7 +636,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           subst.
           simpl in *.
           set (retw := Locals.sel vs' RetVar) in *.
-          assert (Hreteq : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
+          assert (Hreteq : combine_ret retw (ret_a_gen is_ret_adt retw h') = ret).
           {
             unfold related in Hr.
             unfold outputs_gen.
@@ -649,15 +649,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             {
               subst.
               unfold ret_a_gen; simpl.
-              destruct is_ret_scalar; eauto.
-              eapply Hirs in Hpost.
+              destruct is_ret_adt; eauto.
+              eapply Hira in Hpost.
               openhyp; intuition.
             }
-            destruct is_ret_scalar; simpl in *.
+            destruct is_ret_adt; simpl in *.
+            Focus 2.
             {
-              eapply Hirs in Hpost.
+              eapply Hira in Hpost.
               openhyp; intuition.
             }
+            Unfocus.
             Require Import Bedrock.Platform.Cito.WordMap.
             Import WordMap.
             Require Import Bedrock.Platform.Cito.WordMapFacts.
@@ -708,7 +710,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               eapply forallb_forall in Hargsok; eauto.
             }
           }
-          assert (Houtputs : outputs_gen is_ret_scalar retw words inputs h' = outputs).
+          assert (Houtputs : outputs_gen is_ret_adt retw words inputs h' = outputs).
           {
             Definition no_adt_leak' input argvars retvar st vs :=
               forall var (a : ADTValue),
@@ -719,7 +721,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                                           nth_error input i = Some (ADT ai).
 
               Lemma outputs_gen_outputs :
-                forall args inputs vs h h' st (is_ret_scalar : bool) rvar ret,
+                forall args inputs vs h h' st (is_ret_adt : bool) rvar ret,
                   length inputs = length args ->
                   let words := List.map (Locals.sel vs) args in
                   let args_inputs := combine args inputs in
@@ -732,17 +734,17 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   disjoint_ptrs (combine words inputs) ->
                   no_adt_leak' inputs args rvar st vs ->
                   StringMap.find rvar st = Some ret ->
-                  (if is_ret_scalar then
-                     (exists w, ret = SCA w)
+                  (if is_ret_adt then
+                     (exists a, ret = ADT a)
                    else
-                     (exists a, ret = ADT a)) ->
+                     (exists w, ret = SCA w)) ->
                   negb (is_in rvar args) = true ->
-                  outputs_gen is_ret_scalar (Locals.sel vs rvar) words inputs h' = outputs.
+                  outputs_gen is_ret_adt (Locals.sel vs rvar) words inputs h' = outputs.
               Proof.
                 simpl.
                 induction args; destruct inputs; simpl; try solve [intros; intuition].
-                intros vs h h' st is_ret_scalar rvar ret.
-                intros Hlen Hr Hle Hhh' Hdisj Hnl Hret Hirs Hrnin.
+                intros vs h h' st is_ret_adt rvar ret.
+                intros Hlen Hr Hle Hhh' Hdisj Hnl Hret Hira Hrnin.
                 simpl.
                 rename a into k.
                 inject Hlen.
@@ -769,13 +771,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     unfold heap_sel.
                     rewrite Hfindk.
                     Notation boolcase := Sumbool.sumbool_of_bool.
-                    destruct (boolcase (negb is_ret_scalar && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Heq | Heq]; rewrite Heq in *; trivial.
+                    destruct (boolcase (is_ret_adt && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Heq | Heq]; rewrite Heq in *; trivial.
                     eapply andb_true_iff in Heq.
-                    destruct Heq as [Hirseq Hkr].
-                    eapply negb_true_iff in Hirseq; subst.
+                    destruct Heq as [Hiraeq Hkr].
+                    subst.
                     unfold weqb in *.
                     eapply weqb_true_iff in Hkr.
-                    destruct Hirs as [a'' Hirs]; subst.
+                    destruct Hira as [a'' Hira]; subst.
                     assert (Hkreq : k = rvar).
                     {
                       eapply related_no_alias; eauto.
@@ -794,7 +796,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     destruct Hfindk as [ [w Hfindk] | Hfindk ]; rewrite Hfindk; eauto.
                   }
                   rewrite Hfindk'; clear Hfindk'.
-                  destruct (boolcase (negb is_ret_scalar && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Hcond | Hcond]; rewrite Hcond in *; trivial.
+                  destruct (boolcase (is_ret_adt && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Hcond | Hcond]; rewrite Hcond in *; trivial.
                   eapply andb_false_iff in Hcond.
                   eapply Hhh'; eauto.
                   destruct (option_dec (find (elt:=ADTValue) (Locals.sel vs k) h)) as [ [a' Heq] | Hne]; eauto.
@@ -819,7 +821,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     inject Hx'.
                     destruct Hcond as [Hcond | Hcond].
                     {
-                      eapply negb_false_iff in Hcond; subst.
+                      subst.
                       openhyp; intuition.
                     }
                     eapply eq_true_false_abs in Hcond; try contradiction.
@@ -946,7 +948,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 repeat try_eexists; repeat try_split; eauto.
               }
               {
-                eapply Hirs; eauto.
+                eapply Hira; eauto.
               }
           }
           Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
@@ -973,7 +975,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           set (retw := Locals.sel vs' RetVar) in *.
           subst outputs.
           set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
-          set (outputs' := outputs_gen is_ret_scalar retw words inputs h') in *.
+          set (outputs' := outputs_gen is_ret_adt retw words inputs h') in *.
           assert (Hlen1 : length words_inputs = length outputs).
           {
             subst words_inputs.
@@ -1005,16 +1007,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           }
           {
             unfold separated.
-            destruct (option_dec (ret_a_gen is_ret_scalar retw h')) as [ [a Heq] | ]; try solve [left; trivial].
+            destruct (option_dec (ret_a_gen is_ret_adt retw h')) as [ [a Heq] | ]; try solve [left; trivial].
             rewrite Heq in *.
             unfold combine_ret in *.
             subst.
             right.
             intros Hin.
-            copy_as Hpost Hirs'.
-            eapply Hirs in Hirs'.
-            destruct is_ret_scalar; destruct Hirs' as [a' Hirs']; try discriminate.
-            symmetry in Hirs'; inject Hirs'.
+            copy_as Hpost Hira'.
+            eapply Hira in Hira'.
+            destruct is_ret_adt; destruct Hira' as [a' Hira']; try discriminate.
+            symmetry in Hira'; inject Hira'.
             eapply In_MapsTo in Hin.
             destruct Hin as [a' Hretw].
             eapply SemanticsFacts5.fold_fwd' in Hretw.
@@ -1036,7 +1038,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 destruct Hh1 as [i Hh1].
                 copy_as Hh1 Hh1'.
                 set (words := List.map (Locals.sel vs) ArgVars) in *.
-                set (outputs' := outputs_gen false retw words inputs h') in *.
+                set (outputs' := outputs_gen true retw words inputs h') in *.
                 eapply length_eq_nth_error with (ls2 := outputs') in Hh1'; eauto.
                 destruct Hh1' as [o Hh1'].
                 eapply (Hnin' a'' o).
@@ -1091,7 +1093,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             intuition.
           }
           {
-            set (ret_a := ret_a_gen is_ret_scalar retw h') in *.
+            set (ret_a := ret_a_gen is_ret_adt retw h') in *.
             intros w.
             eapply option_univalence.
             intros a.
@@ -1111,7 +1113,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 rewrite add_eq_o by eauto.
                 subst.
                 unfold ret_a_gen in Hreta.
-                destruct is_ret_scalar; try discriminate.
+                destruct is_ret_adt; try discriminate.
                 unfold heap_sel in *.
                 rewrite Hreta in Hx; inject Hx; eauto.
               }
@@ -1123,7 +1125,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               }
               rewrite Heq; clear Heq.
               subst h''.
-              assert (Hcond : negb is_ret_scalar && weqb w retw = false).
+              assert (Hcond : is_ret_adt && weqb w retw = false).
               {
                 destruct Hreta as [ [ [a' Hreta] Hne] | Hreta].
                 {
@@ -1141,8 +1143,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 }
                 rewrite Hreta in *; simpl in *.
                 subst.
-                destruct is_ret_scalar; simpl in *; trivial.
-                eapply Hirs in Hpost.
+                destruct is_ret_adt; simpl in *; trivial.
+                eapply Hira in Hpost.
                 openhyp; discriminate.
               }
               Definition is_input_addr addr (w_input : W * Value ADTValue) :=
@@ -1276,8 +1278,148 @@ Module Make (Import E : ADT) (Import M : RepInv E).
               eapply map_nth_error; eauto.
             }
             {
+              destruct (dec_w_retw_reta w retw ret_a) as [ [ [a' Hreta] ?] | Hreta].
+              {
+                rewrite Hreta in *; simpl in *.
+                subst.
+                rewrite add_eq_o in Hx by eauto.
+                inject Hx.
+                unfold ret_a_gen in Hreta.
+                destruct is_ret_adt; try discriminate.
+                unfold heap_sel in *.
+                eauto.
+              }
+              set (h'' := fold_left (store_out (ADTValue:=ADTValue)) (make_triples words_inputs outputs') h) in *.
+              assert (Heq : find w (heap_upd_option h'' retw ret_a) = find w h'').
+              {
+                destruct Hreta as [ [ [a' Hreta] Hne] | Hreta]; rewrite Hreta; simpl; trivial.
+                rewrite add_neq_o by eauto; eauto.
+              }
+              rewrite Heq in Hx; clear Heq.
+              subst h''.
+              assert (Hcond : is_ret_adt && weqb w retw = false).
+              {
+                destruct Hreta as [ [ [a' Hreta] Hne] | Hreta].
+                {
+                  eapply andb_false_iff.
+                  right.
+                  rewrite weqb_false_intro by eauto.
+                  eauto.
+                }
+                rewrite Hreta in *; simpl in *.
+                subst.
+                destruct is_ret_adt; simpl in *; trivial.
+                eapply Hira in Hpost.
+                openhyp; discriminate.
+              }
+              eapply find_mapsto_iff in Hx.
+              eapply SemanticsFacts5.fold_fwd' in Hx.
+              destruct Hx as [ [Hw Hnint] | Hx].
+              {
+                eapply find_mapsto_iff in Hw.
+                assert (Hnin : ~ exists a, List.In (w, ADT a) words_inputs).
+                {
+                  intros Hin.
+                  destruct Hin as [a'' Hin].
+                  eapply in_nth_error in Hin.
+                  destruct Hin as [n Hin].
+                  copy_as Hin Hin'.
+                  eapply length_eq_nth_error with (ls2 := outputs') in Hin'; eauto.
+                  destruct Hin' as [o Hin'].
+                  specialize (Hnint a'' o).
+                  contradict Hnint.
+                  rewrite make_triples_make_triples' by eauto.
+                  eapply in_map_iff.
+                  exists (w, ADT a'', o); simpl; split; trivial.
+                  eapply nth_error_In with (n := n).
+                  eapply nth_error_combine; eauto.
+                }
+                assert (Hnin' : ~ In w h1).
+                {
+                  intros Hin.
+                  subst h1.
+                  eapply in_find_Some in Hin.
+                  destruct Hin as [a'' Hin].
+                  rewrite make_heap_make_heap' in Hin by eauto.
+                  eapply mapsto_make_heap'_iff in Hin; trivial.
+                  contradict Hnin.
+                  exists a''; eauto.
+                }
+                assert (Hhh1 : find w (h - h1) = find w h).
+                {
+                  rewrite diff_o by eauto.
+                  eauto.
+                }
+                rewrite <- Hhh1 in Hw.
+                eapply Hhle in Hw.
+                eauto.
+              }
+              destruct Hx as [a' Hin].
+              rewrite make_triples_make_triples' in Hin by eauto.
+              unfold make_triples' in Hin.
+              eapply in_map_iff in Hin.
+              destruct Hin as [ [ [w1 a1'] a1] [Hinj Hin] ].
+              inject Hinj.
+              eapply in_nth_error in Hin.
+              destruct Hin as [n Hin].
+              eapply nth_error_combine_elim in Hin.
+              destruct Hin as [Hin Ho].
+              unfold outputs_gen in Ho.
+              eapply nth_error_map_elim in Ho.
+              destruct Ho as [ [w1 a1'] [Hinj Ho] ].
+              subst words_inputs.
+              rewrite Hin in Hinj.
+              symmetry in Hinj.
+              inject Hinj.
+              unfold output_gen in Ho.
+              rewrite Hcond in Ho.
+              eauto.
             }
           }
+        }
+        { 
+          eauto.
+        }
+        {
+          eauto.
+        }
+        {
+          subst h1.
+          eapply good_inputs_make_heap_submap; eauto.
+        }
+        {
+          subst h1.
+          subst st.
+          eapply DFacadeToBedrock2Util.make_map_make_heap_related with (ks := ArgVars) (pairs := words_inputs); simpl; eauto.
+          {
+            eapply forall_word_adt_match_good_scalars; eauto.
+          }
+          {
+            subst words_inputs.
+            rewrite map_fst_combine; try rewrite map_length in *; eauto.
+          }            
+          {
+            subst words_inputs.
+            rewrite map_snd_combine; try rewrite map_length in *; eauto.
+          }            
+        }
+        {
+          Require Import Bedrock.Platform.Cito.StringMap.
+          Import StringMap.
+          Require Import Bedrock.Platform.Cito.StringMapFacts.
+          Import FMapNotations.
+          eapply not_find_in_iff.
+          eapply make_map_not_in.
+          intros Hin.
+          copy_as args_name_ok Hgn.
+          eapply forallb_forall in Hgn; eauto.
+          intuition.
+        }
+        {
+          eapply env_ok; eauto.
+        }
+        {
+          eapply Hrefines; eauto.
         }
       }
     Qed.
@@ -1391,11 +1533,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   Notation imports := (Imports module).
   Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
+  Lemma refines : ops_refines_axs (whole_env exports module op_mod_name) (StringMap.map Core (Funs module)) exports.
+    admit.
+  Qed.
   Definition output_module_ok' : moduleOk output_module' :=
-    output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq.
+    @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
   Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
   Definition output_module_impl_ok' : moduleOk output_module_impl' :=
-    output_module_impl_ok module op_mod_name op_mod_name_ok op_mod_name_not_in_imports.
+    output_module_impl_ok module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
 
   Require Import CompileOut2.
   Definition compile : CompileOut exports :=
