@@ -39,7 +39,8 @@ FACADE_ALLVO := $(filter Bedrock/Platform/Facade/%.vo,$(VOFILES))
 FACADE_VO := \
 	Bedrock/Platform/Facade/Facade.vo \
 	Bedrock/Platform/Facade/DFacade.vo \
-	Bedrock/Platform/Facade/CompileUnit.vo
+	Bedrock/Platform/Facade/CompileUnit.vo \
+	Bedrock/Platform/Facade/CompileUnit2.vo
 
 FACADE_ALL_VO := \
 	Bedrock/Platform/Facade/examples/FiatADTs.vo \
