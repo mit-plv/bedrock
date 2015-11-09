@@ -949,12 +949,54 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 eapply Hirs; eauto.
               }
           }
+          Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
+            let '((w, i), o) := w_input_output in
+            {| Word := w; ADTIn := i; ADTOut := o |}.
+          Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
+          Lemma make_triples_make_triples' :
+            forall words_inputs outputs,
+              length words_inputs = length outputs ->
+              make_triples words_inputs outputs = make_triples' words_inputs outputs.
+          Proof.
+            induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
+            unfold make_triples'.
+            simpl.
+            destruct a as [w i]; simpl in *.
+            f_equal; eauto.
+          Qed.
+          Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
+          Proof.
+            intros; subst.
+            eapply weqb_true_iff; eauto.
+          Qed.
+          subst retw.
+          set (retw := Locals.sel vs' RetVar) in *.
+          subst outputs.
+          set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
+          set (outputs' := outputs_gen is_ret_scalar retw words inputs h') in *.
+          assert (Hlen1 : length words_inputs = length outputs).
+          {
+            subst words_inputs.
+            subst words.
+            subst outputs.
+            rewrite combine_length_eq; repeat rewrite map_length; eauto.
+            rewrite combine_length_eq; repeat rewrite map_length; eauto.
+          }
+          assert (Hlen2 : length words_inputs = length outputs').
+          {
+            rewrite Houtputs; eauto.
+          }
+          assert (Hlen3 : length words_inputs = length ArgVars).
+          {
+            subst words_inputs.
+            subst words.
+            subst outputs'.
+            unfold outputs_gen.
+            rewrite combine_length_eq; rewrite map_length in *; eauto.
+          }
           repeat try_split; eauto.
           {
-            unfold outputs_gen.
-            rewrite map_length in *.
-            subst words.
-            rewrite combine_length_eq; rewrite map_length in *; eauto.
+            congruence.
           }
           {
             rewrite Hreteq.
@@ -983,21 +1025,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             eapply find_mapsto_iff in Hrvar.
             eapply diff_mapsto_iff in Hrvar.
             destruct Hrvar as [Hrvar Hnin].
-            subst retw.
-            set (retw := Locals.sel vs' RetVar) in *.
-            set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
-            set (outputs' := outputs_gen false retw (List.map (Locals.sel vs) ArgVars) inputs h') in *.
-            assert (Hlen1 : length words_inputs = length outputs).
-            {
-              subst words_inputs.
-              subst outputs.
-              rewrite combine_length_eq; repeat rewrite map_length; eauto.
-              rewrite combine_length_eq; repeat rewrite map_length; eauto.
-            }
-            assert (Hlen2 : length words_inputs = length outputs').
-            {
-              rewrite Houtputs; eauto.
-            }
             destruct Hretw as [ [Hretw Hnin'] | Hretw ].
             {
               destruct (option_dec (find retw h1)) as [ [a'' Hh1] | Hh1 ].
@@ -1008,25 +1035,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 eapply in_nth_error in Hh1.
                 destruct Hh1 as [i Hh1].
                 copy_as Hh1 Hh1'.
-                eapply length_eq_nth_error with (ls2 := outputs) in Hh1'; eauto.
+                set (words := List.map (Locals.sel vs) ArgVars) in *.
+                set (outputs' := outputs_gen false retw words inputs h') in *.
+                eapply length_eq_nth_error with (ls2 := outputs') in Hh1'; eauto.
                 destruct Hh1' as [o Hh1'].
                 eapply (Hnin' a'' o).
-                Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
-                  let '((w, i), o) := w_input_output in
-                  {| Word := w; ADTIn := i; ADTOut := o |}.
-                Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
-                Lemma make_triples_make_triples' :
-                  forall words_inputs outputs,
-                    length words_inputs = length outputs ->
-                    make_triples words_inputs outputs = make_triples' words_inputs outputs.
-                Proof.
-                  induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
-                  unfold make_triples'.
-                  simpl.
-                  destruct a as [w i]; simpl in *.
-                  f_equal; eauto.
-                Qed.
-                rewrite Houtputs.
                 rewrite make_triples_make_triples'; eauto.
                 eapply nth_error_In with (n := i).
                 unfold make_triples'.
@@ -1074,13 +1087,196 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             inject HH1.
             unfold output_gen in HH4; simpl in *.
             unfold weqb in *.
-            Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
-            Proof.
-              intros; subst.
-              eapply weqb_true_iff; eauto.
-            Qed.
             rewrite weqb_complete in HH4; eauto.
             intuition.
+          }
+          {
+            set (ret_a := ret_a_gen is_ret_scalar retw h') in *.
+            intros w.
+            eapply option_univalence.
+            intros a.
+            split; intros Hx.
+            {
+              Import SemanticsFacts8.
+              Definition dec_w_retw_reta (w ret_w : W) (ret_a : option ADTValue) : ((exists a, ret_a = Some a) /\ w = ret_w) \/ (((exists a, ret_a = Some a) /\ w <> ret_w) \/ ret_a = None).
+                destruct ret_a; destruct (weq w ret_w).
+                - left; split; try eexists; eauto.
+                - right; left; split; try eexists; eauto.
+                - right; right; eauto.
+                - right; right; eauto.
+              Defined.
+              destruct (dec_w_retw_reta w retw ret_a) as [ [ [a' Hreta] ?] | Hreta].
+              {
+                rewrite Hreta in *; simpl in *.
+                rewrite add_eq_o by eauto.
+                subst.
+                unfold ret_a_gen in Hreta.
+                destruct is_ret_scalar; try discriminate.
+                unfold heap_sel in *.
+                rewrite Hreta in Hx; inject Hx; eauto.
+              }
+              set (h'' := fold_left (store_out (ADTValue:=ADTValue)) (make_triples words_inputs outputs') h) in *.
+              assert (Heq : find w (heap_upd_option h'' retw ret_a) = find w h'').
+              {
+                destruct Hreta as [ [ [a' Hreta] Hne] | Hreta]; rewrite Hreta; simpl; trivial.
+                rewrite add_neq_o by eauto; eauto.
+              }
+              rewrite Heq; clear Heq.
+              subst h''.
+              assert (Hcond : negb is_ret_scalar && weqb w retw = false).
+              {
+                destruct Hreta as [ [ [a' Hreta] Hne] | Hreta].
+                {
+                  eapply andb_false_iff.
+                  right.
+                  Lemma weqb_false_intro (x y : W) : x <> y -> weqb x y = false.
+                  Proof.
+                    intros H.
+                    destruct (boolcase (weqb x y)) as [Heq | Heq]; trivial.
+                    eapply weqb_true_iff in Heq; subst.
+                    intuition.
+                  Qed.
+                  rewrite weqb_false_intro by eauto.
+                  eauto.
+                }
+                rewrite Hreta in *; simpl in *.
+                subst.
+                destruct is_ret_scalar; simpl in *; trivial.
+                eapply Hirs in Hpost.
+                openhyp; discriminate.
+              }
+              Definition is_input_addr addr (w_input : W * Value ADTValue) :=
+                let (w, i) := w_input in
+                weqb addr w && is_adt i.
+              destruct (boolcase (existsb (is_input_addr w) words_inputs)) as [Hw | Hw].
+              {
+                eapply existsb_exists in Hw.
+                destruct Hw as [ [w' v] [Hin Hw] ].
+                eapply andb_true_iff in Hw.
+                destruct Hw as [Heqb Hadt].
+                eapply weqb_sound in Heqb; subst.
+                rename w' into w.
+                eapply is_adt_iff in Hadt.
+                destruct Hadt as [a'' ?].
+                subst.
+                eapply find_mapsto_iff.
+                eapply SemanticsFacts5.get_pair; trivial.
+                instantiate (1 := a'').
+                rewrite make_triples_make_triples'; eauto.
+                eapply in_nth_error in Hin.
+                destruct Hin as [n Hn]; eauto.
+                eapply nth_error_In with (n := n).
+                unfold make_triples'.
+                erewrite map_nth_error.
+                {
+                  unfold make_triple.
+                  instantiate (1 := ((w, ADT a''), _)).
+                  eauto.
+                }
+                eapply nth_error_combine; eauto.
+                unfold outputs_gen.
+                erewrite map_nth_error.
+                {
+                  unfold output_gen.
+                  instantiate (1 := (w, ADT a'')).
+                  simpl.
+                  unfold heap_sel.
+                  rewrite Hx.
+                  rewrite Hcond.
+                  eauto.
+                }
+                eapply nth_error_combine_elim in Hn.
+                destruct Hn as [Hn Hni].
+                eapply nth_error_combine; eauto.
+              }
+              eapply iff_false_iff in Hw.
+              2 : eapply existsb_exists; eauto.
+              assert (Hnin : ~ exists a, List.In (w, ADT a) words_inputs).
+              {
+                intros Hin.
+                destruct Hin as [a'' Hin].
+                contradict Hw.
+                exists (w, ADT a''); simpl; split; trivial.
+                eapply andb_true_iff; split; trivial.
+                eapply weqb_true_iff; eauto.
+              }
+              assert (Hnin' : ~ In w h1).
+              {
+                intros Hin.
+                subst h1.
+                eapply in_find_Some in Hin.
+                destruct Hin as [a'' Hin].
+                rewrite make_heap_make_heap' in Hin by eauto.
+                eapply mapsto_make_heap'_iff in Hin; trivial.
+                contradict Hnin.
+                exists a''; eauto.
+              }
+              assert (Hhh1 : find w (h - h1) = find w h).
+              {
+                rewrite diff_o by eauto.
+                eauto.
+              }
+              eapply find_mapsto_iff.
+              eapply SemanticsFacts5.get_pair'; trivial.
+              Focus 2.
+              {
+                intros a'' o Hin.
+                rewrite make_triples_make_triples' in Hin by eauto.
+                unfold make_triples' in Hin.
+                eapply in_map_iff in Hin.
+                destruct Hin as [ [ [w' v] o'] [Hinj Hin] ].
+                simpl in *.
+                inject Hinj.
+                eapply in_combine_l in Hin.
+                contradict Hnin.
+                eexists; eauto.
+              }
+              Unfocus.
+              eapply find_mapsto_iff.
+              destruct (option_dec (find w h)) as [ [a'' Hw'] | Hw'].
+              {
+                copy_as Hw' Hw''.
+                rewrite <- Hhh1 in Hw'.
+                eapply Hhle in Hw'.
+                rewrite Hx in Hw'.
+                inject Hw'; eauto.
+              }
+              copy_as Hw' Hw''.
+              rewrite <- Hhh1 in Hw''.
+              assert (Hw3 : find w (h' - (h - h1)) = Some a).
+              {
+                rewrite diff_o; trivial.
+                eapply not_find_in_iff; eauto.
+              }
+              eapply Hr in Hw3.
+              destruct Hw3 as [x [ [Hxw Hw3] Hu] ]; simpl in *.
+              copy_as Hw3 Hw3'.
+              eapply Hnl in Hw3.
+              destruct Hw3 as [Hw3 | Hw3].
+              {
+                subst.
+                subst retw.
+                destruct Hreta as [ [ [a' Hreta] Hne] | Hreta].
+                {
+                  intuition.
+                }
+                rewrite Hreta in *.
+                simpl in *.
+                rewrite Hw3' in Hret.
+                discriminate.
+              }
+              destruct Hw3 as [n [a'' [Hnx Hna] ] ].
+              contradict Hnin.
+              exists a''.
+              subst words_inputs.
+              rewrite <- Hwords'.
+              eapply nth_error_In with (n := n).
+              subst.
+              eapply nth_error_combine; eauto.
+              eapply map_nth_error; eauto.
+            }
+            {
+            }
           }
         }
       }
