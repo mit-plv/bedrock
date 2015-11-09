@@ -348,12 +348,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       let args := ArgVars op_spec in
       let rvar := RetVar op_spec in
       let s := Body op_spec in
-      (exists (is_ret_scalar : bool), 
-
-         if is_ret_scalar then
-           (forall in_out (a : ADTValue), ~ PostCond ax_spec in_out (ADT a))
-         else
-           (forall in_out w, ~ PostCond ax_spec in_out (SCA w))) /\
+      (exists (is_ret_scalar : bool),
+         forall in_out ret,
+           PostCond ax_spec in_out ret -> 
+           if is_ret_scalar then exists w, ret = SCA w
+           else exists a : ADTValue, ret = ADT a) /\
       (forall ins,
          PreCond ax_spec ins ->
          length args = length ins) /\
@@ -636,63 +635,88 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           symmetry in Hinputs'.
           subst.
           simpl in *.
-          repeat try_split; eauto.
+          set (retw := Locals.sel vs' RetVar) in *.
+          assert (Hreteq : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
           {
+            unfold related in Hr.
             unfold outputs_gen.
-            rewrite map_length in *.
-            rewrite combine_length_eq; rewrite map_length in *; eauto.
+            unfold combine_ret.
+            simpl in *.
+            copy_as Hret Hret'.
+            eapply Hr in Hret.
+            unfold represent in Hret.
+            destruct ret as [w | a]; simpl in *.
+            {
+              subst.
+              unfold ret_a_gen; simpl.
+              destruct is_ret_scalar; eauto.
+              eapply Hirs in Hpost.
+              openhyp; intuition.
+            }
+            destruct is_ret_scalar; simpl in *.
+            {
+              eapply Hirs in Hpost.
+              openhyp; intuition.
+            }
+            Require Import Bedrock.Platform.Cito.WordMap.
+            Import WordMap.
+            Require Import Bedrock.Platform.Cito.WordMapFacts.
+            Import FMapNotations.
+            eapply find_mapsto_iff in Hret.
+            eapply diff_mapsto_iff in Hret.
+            destruct Hret as [Hret Hni].
+            eapply find_mapsto_iff in Hret.
+            unfold heap_sel.
+            subst retw.
+            rewrite Hret.
+            eauto.
           }
+          assert (Hrnia : ~ List.In RetVar ArgVars).
           {
-            set (retw := Locals.sel vs' RetVar) in *.
-            assert (Hreteq : combine_ret retw (ret_a_gen is_ret_scalar retw h') = ret).
-            {
-              unfold related in Hr.
-              unfold outputs_gen.
-              unfold combine_ret.
-              simpl in *.
-              copy_as Hret Hret'.
-              eapply Hr in Hret.
-              unfold represent in Hret.
-              destruct ret as [w | a]; simpl in *.
+            eapply negb_is_in_iff; eauto.
+          }
+          set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
+          set (words := List.map (Locals.sel vs) ArgVars) in *.
+          set (words' := List.map (Locals.sel vs') ArgVars).
+          assert (Hwords' : words' = words).
+          {
+            Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
+            Proof.
+              induction ls; simpl; intros Hfg; trivial.
+              f_equal.
               {
-                subst.
-                unfold ret_a_gen; simpl.
-                destruct is_ret_scalar; eauto.
-                contradict Hirs; eauto.
+                eapply Hfg.
+                eauto.
               }
-              destruct is_ret_scalar; simpl in *.
-              {
-                contradict Hirs; eauto.
-              }
-              Require Import Bedrock.Platform.Cito.WordMap.
-              Import WordMap.
-              Require Import Bedrock.Platform.Cito.WordMapFacts.
-              Import FMapNotations.
-              eapply find_mapsto_iff in Hret.
-              eapply diff_mapsto_iff in Hret.
-              destruct Hret as [Hret Hni].
-              eapply find_mapsto_iff in Hret.
-              unfold heap_sel.
-              subst retw.
-              rewrite Hret.
-              eauto.
-            }
-            rewrite Hreteq.
-            set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
-            set (words := List.map (Locals.sel vs) ArgVars) in *.
-            assert (Hrnia : ~ List.In RetVar ArgVars).
+              eapply IHls.
+              intuition.
+            Qed.
+            eapply In_map_ext.
+            intros x Hin.
+            symmetry.
+            eapply Hselqv.
             {
-              eapply negb_is_in_iff; eauto.
+              copy_as no_assign_to_args Hnata.
+              eapply is_disjoint_iff in Hnata.
+              intros Hin2.
+              eapply Hnata; split; eauto.
+              Import StringSetFacts.
+              eapply of_list_spec; eauto.
             }
-            assert (Houtputs : outputs_gen is_ret_scalar retw words inputs h' = outputs).
             {
-              Definition no_adt_leak' input argvars retvar st vs :=
-                forall var (a : ADTValue),
-                  sel st var = Some (ADT a) ->
-                  (~ exists i x' ai, nth_error argvars i = Some x' /\ nth_error input i = Some (ADT ai) /\ Locals.sel vs x' = Locals.sel  vs var) \/
-                  var = retvar \/
-                  exists i (ai : ADTValue), nth_error argvars i = Some var /\
-                                            nth_error input i = Some (ADT ai).
+              copy_as args_name_ok Hargsok.
+              eapply forallb_forall in Hargsok; eauto.
+            }
+          }
+          assert (Houtputs : outputs_gen is_ret_scalar retw words inputs h' = outputs).
+          {
+            Definition no_adt_leak' input argvars retvar st vs :=
+              forall var (a : ADTValue),
+                sel st var = Some (ADT a) ->
+                (~ exists i x' ai, nth_error argvars i = Some x' /\ nth_error input i = Some (ADT ai) /\ Locals.sel vs x' = Locals.sel  vs var) \/
+                var = retvar \/
+                exists i (ai : ADTValue), nth_error argvars i = Some var /\
+                                          nth_error input i = Some (ADT ai).
 
               Lemma outputs_gen_outputs :
                 forall args inputs vs h h' st (is_ret_scalar : bool) rvar ret,
@@ -820,6 +844,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 }
                 unfold outputs_gen in *.
                 eapply IHargs; eauto.
+                Focus 2.
+                {
+                  eapply negb_is_in_iff.
+                  eapply negb_is_in_iff in Hrnin.
+                  intuition.
+                }
+                Unfocus.
                 intros x a Hx.
                 eapply Hnl in Hx.
                 destruct Hx as [Hx | [Hx | Hx ] ].
@@ -857,41 +888,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   right; right.
                   repeat try_eexists; repeat try_split; eauto.
                 }
-                eapply negb_is_in_iff.
-                eapply negb_is_in_iff in Hrnin.
-                intuition.
               Qed.
-              set (words' := List.map (Locals.sel vs') ArgVars).
-              assert (Hwords' : words' = words).
-              {
-                Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
-                Proof.
-                  induction ls; simpl; intros Hfg; trivial.
-                  f_equal.
-                  {
-                    eapply Hfg.
-                    eauto.
-                  }
-                  eapply IHls.
-                  intuition.
-                Qed.
-                eapply In_map_ext.
-                intros x Hin.
-                symmetry.
-                eapply Hselqv.
-                {
-                  copy_as no_assign_to_args Hnata.
-                  eapply is_disjoint_iff in Hnata.
-                  intros Hin2.
-                  eapply Hnata; split; eauto.
-                  Import StringSetFacts.
-                  eapply of_list_spec; eauto.
-                }
-                {
-                  copy_as args_name_ok Hargsok.
-                  eapply forallb_forall in Hargsok; eauto.
-                }
-              }
               rewrite <- Hwords'.
               eapply outputs_gen_outputs; auto; eauto.
               {
@@ -949,13 +946,141 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 repeat try_eexists; repeat try_split; eauto.
               }
               {
-                destruct is_ret_scalar; destruct ret as [a | w]; simpl in *; try solve [eexists; eauto].
-                eapply Hirs in Hpost.
-                contradiction.
+                eapply Hirs; eauto.
               }
-            }
+          }
+          repeat try_split; eauto.
+          {
+            unfold outputs_gen.
+            rewrite map_length in *.
+            subst words.
+            rewrite combine_length_eq; rewrite map_length in *; eauto.
+          }
+          {
+            rewrite Hreteq.
             rewrite Houtputs.
             eauto.
+          }
+          {
+            unfold separated.
+            destruct (option_dec (ret_a_gen is_ret_scalar retw h')) as [ [a Heq] | ]; try solve [left; trivial].
+            rewrite Heq in *.
+            unfold combine_ret in *.
+            subst.
+            right.
+            intros Hin.
+            copy_as Hpost Hirs'.
+            eapply Hirs in Hirs'.
+            destruct is_ret_scalar; destruct Hirs' as [a' Hirs']; try discriminate.
+            symmetry in Hirs'; inject Hirs'.
+            eapply In_MapsTo in Hin.
+            destruct Hin as [a' Hretw].
+            eapply SemanticsFacts5.fold_fwd' in Hretw.
+            copy_as Hret Hrvar.
+            eapply Hr in Hrvar.
+            unfold represent in *; simpl in *.
+            copy_as Hrvar Hrvar'.
+            eapply find_mapsto_iff in Hrvar.
+            eapply diff_mapsto_iff in Hrvar.
+            destruct Hrvar as [Hrvar Hnin].
+            subst retw.
+            set (retw := Locals.sel vs' RetVar) in *.
+            set (outputs := List.map (get_output s_st') (combine ArgVars inputs)) in *.
+            set (outputs' := outputs_gen false retw (List.map (Locals.sel vs) ArgVars) inputs h') in *.
+            assert (Hlen1 : length words_inputs = length outputs).
+            {
+              subst words_inputs.
+              subst outputs.
+              rewrite combine_length_eq; repeat rewrite map_length; eauto.
+              rewrite combine_length_eq; repeat rewrite map_length; eauto.
+            }
+            assert (Hlen2 : length words_inputs = length outputs').
+            {
+              rewrite Houtputs; eauto.
+            }
+            destruct Hretw as [ [Hretw Hnin'] | Hretw ].
+            {
+              destruct (option_dec (find retw h1)) as [ [a'' Hh1] | Hh1 ].
+              {
+                subst h1.
+                rewrite make_heap_make_heap' in Hh1 by eauto.
+                eapply mapsto_make_heap'_iff in Hh1; eauto.
+                eapply in_nth_error in Hh1.
+                destruct Hh1 as [i Hh1].
+                copy_as Hh1 Hh1'.
+                eapply length_eq_nth_error with (ls2 := outputs) in Hh1'; eauto.
+                destruct Hh1' as [o Hh1'].
+                eapply (Hnin' a'' o).
+                Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
+                  let '((w, i), o) := w_input_output in
+                  {| Word := w; ADTIn := i; ADTOut := o |}.
+                Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
+                Lemma make_triples_make_triples' :
+                  forall words_inputs outputs,
+                    length words_inputs = length outputs ->
+                    make_triples words_inputs outputs = make_triples' words_inputs outputs.
+                Proof.
+                  induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
+                  unfold make_triples'.
+                  simpl.
+                  destruct a as [w i]; simpl in *.
+                  f_equal; eauto.
+                Qed.
+                rewrite Houtputs.
+                rewrite make_triples_make_triples'; eauto.
+                eapply nth_error_In with (n := i).
+                unfold make_triples'.
+                erewrite map_nth_error.
+                {
+                  instantiate (1 := ((retw, ADT a''), o)).
+                  eauto.
+                }
+                eapply nth_error_combine; eauto.
+              }
+              contradict Hnin.
+              eapply diff_in_iff.
+              split.
+              {
+                eapply MapsTo_In; eauto.
+              }
+              eapply not_find_in_iff; eauto.
+            }
+            destruct Hretw as [a'' HH].
+            rewrite make_triples_make_triples' in HH by eauto.
+            unfold make_triples' in HH.
+            eapply in_nth_error in HH.
+            destruct HH as [i HH].
+            eapply nth_error_map_elim in HH.
+            destruct HH as [ [ [w' a'''] o' ] [HH Hinj] ].
+            inject Hinj.
+            eapply nth_error_combine_elim in HH.
+            destruct HH as [HH1 HH].
+            eapply nth_error_combine_elim in HH1.
+            destruct HH1 as [HH1 HH2].
+            eapply nth_error_map_elim in HH1.
+            destruct HH1 as [x HH1].
+            destruct HH1 as [HH1 HH3].
+            rewrite <- HH3 in *.
+            unfold outputs_gen in HH.
+            eapply nth_error_map_elim in HH.
+            destruct HH as [ [w v] [HH HH4] ].
+            eapply nth_error_combine_elim in HH.
+            destruct HH as [HH HH5].
+            rewrite HH2 in HH5.
+            inject HH5.
+            eapply nth_error_map_elim in HH.
+            destruct HH as [ x' [HH HH5] ].
+            rewrite HH in HH1.
+            inject HH1.
+            unfold output_gen in HH4; simpl in *.
+            unfold weqb in *.
+            Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
+            Proof.
+              intros; subst.
+              eapply weqb_true_iff; eauto.
+            Qed.
+            rewrite weqb_complete in HH4; eauto.
+            intuition.
           }
         }
       }
