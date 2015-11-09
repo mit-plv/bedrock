@@ -383,16 +383,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Arguments Operational {_} _ .
     Arguments Axiomatic {_} _ .
 
-    (* the whole environment of callable functions with their specs, including 
-         (1) functions defined in 'module' with op. specs
-         (2) functions defined in 'module' with ax. specs given by 'exports'
-         (3) imports of 'module'
-     *)
-    Definition get_env op_mod_name exports module := 
-      map (fun (f : DFFun) => Operational f) (map_aug_mod_name op_mod_name (Funs (ADTValue := ADTValue) module)) + 
-      map Axiomatic (map_aug_mod_name op_mod_name exports + 
-                     Imports module).
-
     Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
     Require Import Bedrock.Platform.Cito.StringMapFacts.
@@ -484,81 +474,262 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       intuition.
     Qed.
 
+    Import Bool.
+    Definition is_string_eq := string_bool.
+    Lemma is_string_eq_iff a b : is_string_eq a b = true <-> a = b.
+      unfold is_string_eq, string_bool.
+      destruct (string_dec a b); intuition.
+    Qed.
+    Require Import Bedrock.Platform.Cito.StringSetFacts.
+    Lemma is_string_eq_iff_conv a b : is_string_eq a b = false <-> a <> b.
+    Proof.
+      etransitivity.
+      { symmetry; eapply not_true_iff_false. }
+      eapply iff_not_iff.
+      eapply is_string_eq_iff.
+    Qed.
+
+    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Import FMapNotations.
+
+    (* the whole environment of callable functions with their specs, including 
+         (1) functions defined in 'module' with op. specs
+         (2) functions defined in 'module' with ax. specs given by 'exports'
+         (3) imports of 'module'
+     *)
+    Definition get_env op_mod_name (exports : StringMap.t (AxiomaticSpec ADTValue)) module := 
+      (* map (fun (f : DFFun) => Operational f) (map_aug_mod_name op_mod_name (Funs module)) +  *)
+      map Axiomatic (map_aug_mod_name op_mod_name exports + 
+                     Imports module).
+
     Definition whole_env := get_env op_mod_name exports module.
-    Hypothesis Hrefine : ops_refines_axs whole_env (map Core (Funs module)) exports.
+    Hypothesis Hrefine : ops_refines_axs whole_env (StringMap.map Core (Funs module)) exports.
 
     Import CompileDFacadeToCito.
+    Definition whole_specs := specs cito_module imports exports op_mod_name.
+
+    Notation compile_spec s := (CompileRunsTo.compile_spec (@CompileDFacadeCorrect.compile_spec ADTValue s)).
+
+    Lemma whole_env_whole_specs k v : 
+      find k whole_env = Some v -> find k whole_specs = Some (compile_spec v).
+    Proof.
+      intros H.
+      unfold whole_specs in *.
+      unfold specs in *.
+      unfold apply_specs_diff in *.
+      unfold specs_op in *.
+      unfold whole_env in *.
+      unfold get_env in *.
+      unfold exports_with_glabel in *.
+      eapply find_mapsto_iff in H.
+      eapply find_mapsto_iff.
+      Definition Disjoint2 {A B} (m1 : t A) (m2 : t B) := forall k, In k m1 -> ~ In k m2.
+      Arguments Foreign {_} _.
+      set (ops := map_aug_mod_name op_mod_name (CModule.Funs cito_module)) in *.
+      set (exs := map_aug_mod_name op_mod_name exports) in *.
+      assert (Hsd : sub_domain exs ops).
+      {
+        intros k' Hin.
+        subst exs.
+        eapply In_MapsTo in Hin.
+        destruct Hin as [ax Hmt].
+        eapply find_mapsto_iff in Hmt.
+        eapply map_aug_mod_name_elim in Hmt.
+        destruct Hmt as [x [? Hmt] ].
+        subst.
+        copy_as Hmt Hin.
+        Require Import Bedrock.Platform.Cito.StringMap.
+        Import StringMap.
+        Require Import Bedrock.Platform.Cito.StringMapFacts.
+        Import FMapNotations.
+        eapply find_Some_in in Hin.
+        copy_as exports_in_domain Hsd.
+        eapply is_sub_domain_sound in Hsd.
+        eapply Hsd in Hin.
+        eapply in_find_Some in Hin.
+        destruct Hin as [f Hmt'].
+        eapply find_DFModule_find_CModule in Hmt'.
+        Require Import Bedrock.Platform.Cito.GLabelMap.
+        Import GLabelMap.
+        Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+        Import FMapNotations.
+        eapply find_Some_in.
+        eapply map_aug_mod_name_intro; eauto.
+      }
+      assert (Hdisj : Disjoint2 imports ops).
+      {
+        intros k' Hin1 Hin2.
+        eapply in_find_Some in Hin2.
+        destruct Hin2 as [f Hf2].
+        eapply map_aug_mod_name_elim in Hf2.
+        destruct Hf2 as [x [? Hf2] ].
+        subst.
+        copy_as Hin1 Hf1.
+        eapply in_find_Some in Hf1.
+        destruct Hf1 as [ax Hf1].
+        rename op_mod_name_not_in_imports into Himn.
+        eapply forallb_forall in Himn.
+        Focus 2.
+        {
+          eapply in_map_iff.
+          exists (op_mod_name, x, ax).
+          simpl.
+          split; trivial.
+          eapply find_in_elements.
+          eauto.
+        }
+        Unfocus.
+        eapply negb_true_iff in Himn.
+        eapply is_string_eq_iff_conv in Himn.
+        intuition.
+      }
+      assert (Hdisj' : Disjoint2 imports exs).
+      {
+        intros k' Hin1 Hin2.
+        eapply Hdisj; eauto.
+      }
+      (* eapply update_mapsto_iff in H. *)
+      (* destruct H as [H | H]. *)
+      {
+        eapply map_mapsto_iff in H.
+        destruct H as [ax [? H] ].
+        subst.
+        eapply update_mapsto_iff in H.
+        destruct H as [H | H].
+        {
+          assert (Hin : In k imports).
+          {
+            eapply MapsTo_In; eauto.
+          }
+          eapply update_mapsto_iff.
+          right.
+          split.
+          {
+            eapply update_mapsto_iff.
+            right.
+            split.
+            {
+              eapply map_mapsto_iff.
+              exists ax.
+              split; trivial.
+            }
+            intros HH; eapply map_4 in HH; eapply Hdisj; eauto.
+          }
+          intros HH; eapply map_4 in HH; eapply Hdisj'; eauto.
+        }
+        destruct H as [H Hnin].
+        assert (Hin : In k exs).
+        {
+          eapply MapsTo_In; eauto.
+        }
+        eapply update_mapsto_iff.
+        left.
+        eapply map_mapsto_iff.
+        exists ax.
+        split; trivial.
+      }
+(*
+      destruct H as [H Hnin].
+      eapply map_mapsto_iff in H.
+      destruct H as [op [? H] ].
+      subst.
+      eapply find_mapsto_iff in H.
+      eapply map_aug_mod_name_elim in H.
+      destruct H as [x [? H] ].
+      subst.
+      set (k := (op_mod_name, x)) in *.
+      copy_as H H'.
+      eapply find_DFModule_find_CModule in H'.
+      assert (Hkops : MapsTo k (CompileModule.compile_func (compile_func op)) ops).
+      {
+        subst ops.
+        subst k.
+        eapply find_mapsto_iff.
+        eapply map_aug_mod_name_intro; eauto.
+      }
+      assert (Hin : In k ops).
+      {
+        subst ops.
+        subst k.
+        eapply MapsTo_In; eauto.
+      }
+      eapply update_mapsto_iff.
+      right.
+      split.
+      {
+        eapply update_mapsto_iff.
+        left.
+        eapply map_mapsto_iff.
+        eexists.
+        split; eauto.
+        simpl.
+        destruct op; simpl in *.
+        unfold compile_op; simpl in *.
+        unfold Compile.compile_op; simpl in *.
+        unfold compile_func; simpl in *.
+        unfold CompileModule.compile_func; simpl in *.
+        Set Printing Coercions.
+        unfold to_internal_func_spec; simpl in *.
+        unfold is_good_func_sound.
+        simpl.
+        reflexivity.
+        eauto.
+      }
+*)
+    Qed.
+
+    Lemma in_whole_env_in_whole_specs k : 
+      In k whole_env -> In k whole_specs.
+    Proof.
+      intros H.
+      eapply in_find_Some in H.
+      destruct H as [v H].
+      eapply find_Some_in.
+      eapply whole_env_whole_specs; eauto.
+    Qed.
+
     Lemma env_ok ax_cenv : 
-      specs_env_agree (specs cito_module imports exports op_mod_name) ax_cenv ->
+      specs_env_agree whole_specs ax_cenv ->
       cenv_impls_env ax_cenv whole_env.
     Proof.
       intros H.
       unfold cenv_impls_env.
       unfold specs_env_agree in H.
-
-    intros Hgu.
-    unfold env_good_to_use, cenv_impls_env in *.
-    destruct Hgu as [Hsgu [Hinj Hfsgu] ].
-    unfold stn_good_to_use, fs_good_to_use in *.
-    split.
-    {
-      intros lbl spec Hflbl.
-      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
-      rewrite map_o in Hflbl.
-      Require Import Bedrock.Platform.Cito.Option.
-      eapply option_map_some_elim in Hflbl.
-      destruct Hflbl as [aspec [Hflbl' ?] ].
-      subst.
-      simpl in *.
-      assert (Hlblin : label_in gmodules imports lbl).
+      unfold labels_in_scope in H.
+      unfold specs_fs_agree in H.
+      destruct H as [ H1 [H2 H3] ].
+      split.
       {
-        unfold label_in.
-        right; eauto.
-        eapply find_Some_in; eauto.
+        intros k v Hk.
+        copy_as Hk Hk'.
+        eapply whole_env_whole_specs in Hk'.
+        assert (Hin : In k whole_specs).
+        {
+          eapply find_Some_in; eauto.
+        }
+        eapply H1 in Hin.
+        eapply ex_up in Hin.
+        destruct Hin as [w Hfst].
+        exists w.
+        split; trivial.
+        eapply H3.
+        exists k.
+        split; trivial.
       }
-      eapply Hsgu in Hlblin.
-      eapply ex_up in Hlblin.
-      destruct Hlblin as [w Hw].
-      assert (fs stn w = Some (Foreign aspec)).
       {
-        eapply Hfsgu.
-        exists lbl.
-        split; eauto.
-        unfold label_mapsto.
-        right.
-        exists aspec.
-        split; eauto.
+        unfold stn_injective.
+        unfold specs_stn_injective in H2.
+        intros k1 k2 w Hin1 Hin2 Hfst1 Hfst2.
+        eapply H2; eauto; eapply in_whole_env_in_whole_specs; eauto.
       }
-      exists w.
-      split; eauto.
-    }
-    intros k.
-    intros k' w Hin1 Hin2 Hf1 Hf2.
-    simpl in *.
-    eapply in_find_Some in Hin1.
-    destruct Hin1 as [s1 Hs1].
-    rewrite map_o in Hs1.
-    eapply option_map_some_elim in Hs1.
-    destruct Hs1 as [as1 [Has1 ?] ].
-    subst; simpl in *.
-    eapply in_find_Some in Hin2.
-    destruct Hin2 as [s2 Hs2].
-    rewrite map_o in Hs2.
-    eapply option_map_some_elim in Hs2.
-    destruct Hs2 as [as2 [Has2 ?] ].
-    subst; simpl in *.
-    eapply Hinj; eauto.
-    {
-      unfold label_in.
-      right; eauto.
-      eapply find_Some_in; eauto.
-    }
-    {
-      unfold label_in.
-      right; eauto.
-      eapply find_Some_in; eauto.
-    }
     Qed.
+
+    Require Import Bedrock.Platform.Cito.StringMap.
+    Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Import FMapNotations.
 
     Lemma Hewi_cmodule : exports_weakens_impl cito_module imports exports op_mod_name.
     Proof.
@@ -609,7 +780,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct Hrefines as [ [is_ret_adt Hira] Hrefines].
       Import List.
       unfold TransitTo; simpl.
-      Import Bool.
       Definition output_gen (is_ret_adt : bool) h ret_w (w_input : W * Value ADTValue) :=
         let (w, input) := w_input in
         match input with
@@ -1555,19 +1725,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intuition.
         subst; simpl in *; intuition.
         eapply negb_true_iff in Himn.
-        Definition is_string_eq := string_bool.
-        Lemma is_string_eq_iff a b : is_string_eq a b = true <-> a = b.
-          unfold is_string_eq, string_bool.
-          destruct (string_dec a b); intuition.
-        Qed.
-        Require Import Bedrock.Platform.Cito.StringSetFacts.
-        Lemma is_string_eq_iff_conv a b : is_string_eq a b = false <-> a <> b.
-        Proof.
-          etransitivity.
-          { symmetry; eapply not_true_iff_false. }
-          eapply iff_not_iff.
-          eapply is_string_eq_iff.
-        Qed.
         eapply is_string_eq_iff_conv in Himn.
         intuition.
       }
@@ -1606,7 +1763,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
   Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
   Definition output_module_impl_ok' : moduleOk output_module_impl' :=
-    output_module_impl_ok module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
+    @output_module_impl_ok exports module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
 
   Require Import CompileOut2.
   Definition compile : CompileOut exports :=
