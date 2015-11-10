@@ -124,7 +124,10 @@ Section ADTSection.
     Variable env : Env.
 
     Inductive RunsTo : Stmt -> State -> State -> Prop :=
-    | RunsToSkip : forall st, RunsTo Skip st st
+    | RunsToSkip :
+        forall st st',
+          st' == st ->
+          RunsTo Skip st st'
     | RunsToSeq :
         forall a b st st' st'',
           RunsTo a st st' ->
