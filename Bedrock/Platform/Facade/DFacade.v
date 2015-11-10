@@ -151,10 +151,11 @@ Section ADTSection.
           RunsTo loop st' st'' ->
           RunsTo loop st st''
     | RunsToWhileFalse :
-        forall cond body st,
+        forall cond body st st',
           let loop := While cond body in
           is_false st cond ->
-          RunsTo loop st st
+          st' == st ->
+          RunsTo loop st st'
     | RunsToAssign :
         forall x e st st' w,
           (* rhs can't be an ADT object, to prevent aliasing *)
