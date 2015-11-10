@@ -277,7 +277,6 @@ Section ADTSection.
       Hypothesis CallCase :
         forall x f args st,
           R (Call x f args) st ->
-          NoDup args /\
           not_mapsto_adt x st = true /\
           exists input,
             mapM (sel st) args = Some input /\

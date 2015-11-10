@@ -46,6 +46,7 @@ FACADE_ALL_VO := \
 	Bedrock/Platform/Facade/examples/FiatADTs.vo \
 	Bedrock/Platform/Facade/examples/FiatRepInv.vo \
 	Bedrock/Platform/Facade/examples/FiatImpl.vo \
+	Bedrock/Platform/Facade/DFacadeFacts2.vo \
 	Bedrock/Platform/Facade/DFacadeToBedrock.vo \
 	Bedrock/Platform/Facade/DFacadeToBedrock2.vo \
 

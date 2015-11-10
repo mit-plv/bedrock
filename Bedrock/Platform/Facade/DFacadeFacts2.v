@@ -264,11 +264,95 @@ Section ADTValue.
       Unfocus.
       eauto.
     }
+    {
+      intros H t f st1 Hst.
+      destruct Hst as [st1' [Heq1 Hst] ].
+      inversion Hst; subst.
+      {
+        left.
+        rewrite Heq1 in *.
+        split; trivial.
+        eexists; split; eauto.
+      }
+      {
+        right.
+        rewrite Heq1 in *.
+        split; trivial.
+        eexists; split; eauto.
+      }
+    }
+    {
+      simpl.
+      intros cond  body st1 H.
+      destruct H as [st1' [Heq1 Hst] ].
+      inversion Hst; unfold_all; subst.
+      {
+        left.
+        rewrite Heq1 in *.
+        split; trivial.
+        split.
+        {
+          eexists; split; eauto.
+        }
+        intros st2 Hrt.
+        exists st2.
+        split; trivial.
+        rename H4 into Hrtsf.
+        eapply Hrtsf; eauto.
+        rewrite Heq1.
+        eauto.
+      }
+      {
+        right.
+        rewrite Heq1 in *.
+        eauto.
+      }
+    }
+    {
+      simpl.
+      intros x e st1 H.
+      destruct H as [st1' [Heq1 Hst] ].
+      inversion Hst; unfold_all; subst.
+      rewrite Heq1 in *.
+      split; trivial.
+      eexists; eauto.
+    }
+    {
+      simpl.
+      intros x f args st1 H.
+      destruct H as [st1' [Heq1 Hst] ].
+      inversion Hst; unfold_all; subst.
+      {
+        rewrite Heq1 in *.
+        split; trivial.
+        exists input.
+        split; trivial.
+        left.
+        eexists; split; eauto.
+      }
+      {
+        rewrite Heq1 in *.
+        split; trivial.
+        exists input.
+        split; trivial.
+        right.
+        exists spec.
+        split; trivial.
+        split; trivial.
+        split; trivial.
+        eexists; split; eauto.
+      }
+    }
+    {
+      eexists; split; eauto.
+    }
   Qed.
 
-    Global Add Parametric Morphism {av} {env} {prog} : (@Safe av env prog)
+  Global Add Parametric Morphism {env} {prog} : (@Safe av env prog)
       with signature (StringMap.Equal ==> iff)
         as Safe_Morphism.
-    Proof.
-
+  Proof.
+    intros; split; intros; eapply equal_safe; try eassumption; congruence.
+  Qed.
+  
 End ADTValue.
