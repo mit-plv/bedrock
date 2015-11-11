@@ -1148,15 +1148,10 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.GLabel.
     Require Import Bedrock.Platform.Cito.GLabelMap.
     Import GLabelMap.
     Require Import Bedrock.Platform.Cito.GLabelMapFacts.
     Import FMapNotations.
-
-    (* Import LabelMap. *)
-    (* Import LabelMapFacts. *)
-    (* Import FMapNotations. *)
 
     Require Import ConvertLabelMap.
 
@@ -1220,24 +1215,105 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply find_inter_intro; eauto.
     Qed.
 
-    Theorem make_module_exports x ax : 
-      find x exports = Some ax ->
-      LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
+    Import LabelMap.
+    Import LabelMapFacts.
+    Import FMapNotations.
+    Lemma Submap_Equal elt (m1 m2 : t elt) : m1 <= m2 -> m2 <= m1 -> m1 == m2.
     Proof.
-      intros.
-      eapply make_module_exports_submap.
-      replace ((ax_mod_name, Labels.Global x)) with (to_bedrock_label (ax_mod_name, x)) by eauto.
-      rewrite to_blm_spec.
+      intros H1 H2.
+      intros k.
+      eapply option_univalence.
+      intros v; split; eauto.
+    Qed.
+
+    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Import FMapNotations.
+
+    Theorem make_module_exports_submap2 : LabelMapFacts.Submap (Exports make_module) (to_blm (mapi (foreign_func_spec) (map_aug_mod_name ax_mod_name exports))).
+    Proof.
+      simpl.
+      rewrite exps_spec.
+      eapply to_blm_Submap.
+      intros k v Hk.
+      unfold func_to_import in *; simpl in *.
+      unfold stubs in *.
+      rewrite map_map in Hk.
+      simpl in *.
+      eapply find_mapsto_iff in Hk.
+      eapply MapsTo_to_map_elim in Hk.
+      Focus 2.
+      {
+        eapply NoDupKey_aug_mod_name.
+        intros; simpl; eauto.
+      }
+      Unfocus.
+      eapply in_map_iff in Hk.
+      unfold stub_spec in *; simpl in *.
+      Require Import Bedrock.Platform.Cito.StringMap.
+      Import StringMap.
+      Require Import Bedrock.Platform.Cito.StringMapFacts.
+      Import FMapNotations.
+      destruct Hk as [ [x [f ax] ] [Hinj Hx] ].
+      simpl in *.
+      inject Hinj.
+      eapply in_elements_find in Hx.
+      eapply find_inter_elim in Hx; eauto.
+      destruct Hx as [H1 H2].
       Require Import Bedrock.Platform.Cito.GLabelMap.
       Import GLabelMap.
       Require Import Bedrock.Platform.Cito.GLabelMapFacts.
       Import FMapNotations.
       eapply find_mapsto_iff.
       eapply mapi_mapsto_iff; [ intros; subst; eauto | ].
+      exists ax; split; eauto.
+      eapply find_mapsto_iff.
+      eapply map_aug_mod_name_intro; eauto.
+    Qed.
+
+    Theorem make_module_exports_equal : LabelMap.Equal (Exports make_module) (to_blm (mapi (foreign_func_spec) (map_aug_mod_name ax_mod_name exports))).
+    Proof.
+      eapply Submap_Equal.
+      - eapply make_module_exports_submap2.
+      - eapply make_module_exports_submap.
+    Qed.
+
+    Theorem make_module_exports x ax : 
+      StringMap.find x exports = Some ax ->
+      LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
+    Proof.
+      replace ((ax_mod_name, Labels.Global x)) with (to_bedrock_label (ax_mod_name, x)) by eauto.
+      intros H.
+      eapply make_module_exports_submap.
+      rewrite to_blm_spec.
+      eapply find_mapsto_iff.
+      eapply mapi_mapsto_iff; [ intros; subst; eauto | ].
       exists ax.
       split; eauto.
       eapply find_mapsto_iff.
       eapply map_aug_mod_name_intro; eauto.
+    Qed.
+
+    Theorem make_module_exports2 x spec : 
+      LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some spec ->
+      exists ax,
+        StringMap.find x exports = Some ax /\
+        spec = foreign_func_spec (ax_mod_name, x) ax.
+    Proof.
+      replace ((ax_mod_name, Labels.Global x)) with (to_bedrock_label (ax_mod_name, x)) by eauto.
+      intros H.
+      eapply make_module_exports_submap2 in H.
+      rewrite to_blm_spec in H.
+      eapply find_mapsto_iff in H.
+      eapply mapi_mapsto_iff in H; [ | intros; subst; eauto].
+      destruct H as [ax' [Hinj H] ].
+      subst.
+      eapply find_mapsto_iff in H.
+      eapply map_aug_mod_name_elim in H; eauto.
+      destruct H as [x' [Hinj H] ].
+      inject Hinj.
+      eexists; split; eauto.
     Qed.
 
   End M.
