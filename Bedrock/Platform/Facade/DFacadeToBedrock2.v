@@ -1674,102 +1674,107 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   End TopSection.
 
-  Require Import Bedrock.Platform.Facade.DFModule.
-  Require Import Bedrock.Platform.Cito.StringMapFacts.
-  Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
-  Require Import CompileUnit2.
-
-  Variable exports : StringMap.t AxiomaticSpec.
-  (* input of the this compiler *)
-  Variable compile_unit : CompileUnit exports.
-
-  Definition module := module compile_unit.
-  Definition exports_in_domain := exports_in_domain compile_unit.
-  Definition ax_mod_name := ax_mod_name compile_unit.
-  Definition op_mod_name := op_mod_name compile_unit.
-  Definition op_mod_name_ok := op_mod_name_ok compile_unit.
-  Definition op_mod_name_not_in_imports := op_mod_name_not_in_imports compile_unit.
-  Definition name_neq := name_neq compile_unit.
-
-  Notation imports := (Imports module).
-  Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
-  Lemma refines : ops_refines_axs (whole_env exports module op_mod_name) (StringMap.map Core (Funs module)) exports.
-  Proof.
-    unfold module.
-    unfold whole_env.
-    unfold op_mod_name.
-    destruct compile_unit; simpl in *.
-    eapply proof; eauto.
-  Qed.
-  Definition output_module_ok' : moduleOk output_module' :=
-    @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
-  Definition output_module_exports' :=
-    @output_module_exports exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok.
-  Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
-  Definition output_module_impl_ok' : moduleOk output_module_impl' :=
-    @output_module_impl_ok exports module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
-
   Require Import CompileOut2.
   Module Import CompileOut2Make := CompileOut2.Make E M.
-  Definition compile : CompileOut exports ax_mod_name :=
-    Build_CompileOut exports output_module_ok' output_module_exports' output_module_impl_ok'.
+
+  Section TopSection2.
+
+    Require Import Bedrock.Platform.Facade.DFModule.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Notation AxiomaticSpec := (@AxiomaticSpec ADTValue).
+    Require Import CompileUnit2.
+
+    Variable exports : StringMap.t AxiomaticSpec.
+    (* input of the this compiler *)
+    Variable compile_unit : CompileUnit exports.
+
+    Definition module := module compile_unit.
+    Definition exports_in_domain := exports_in_domain compile_unit.
+    Definition ax_mod_name := ax_mod_name compile_unit.
+    Definition op_mod_name := op_mod_name compile_unit.
+    Definition op_mod_name_ok := op_mod_name_ok compile_unit.
+    Definition op_mod_name_not_in_imports := op_mod_name_not_in_imports compile_unit.
+    Definition name_neq := name_neq compile_unit.
+
+    Notation imports := (Imports module).
+    Definition output_module' := output_module exports module ax_mod_name op_mod_name op_mod_name_ok.
+    Lemma refines : ops_refines_axs (whole_env exports module op_mod_name) (StringMap.map Core (Funs module)) exports.
+    Proof.
+      unfold module.
+      unfold whole_env.
+      unfold op_mod_name.
+      destruct compile_unit; simpl in *.
+      eapply proof; eauto.
+    Qed.
+    Definition output_module_ok' : moduleOk output_module' :=
+      @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
+    Definition output_module_exports' :=
+      @output_module_exports exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok.
+    Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
+    Definition output_module_impl_ok' : moduleOk output_module_impl' :=
+      @output_module_impl_ok exports module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
+
+    Definition compile : CompileOut exports ax_mod_name :=
+      Build_CompileOut exports output_module_ok' output_module_exports' output_module_impl_ok'.
+
+  End TopSection2.
 
   (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
   Module LinkUnfoldHelp.
 
     Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
-    Arguments Imports /.
-              Arguments Exports /.
-              Arguments CompileModuleMake.mod_name /.
-              Arguments impl_module_name /.
-              Arguments GName /.
-              Arguments append /.
-              Arguments CompileModuleMake.imports /.
-              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
-              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
-              Arguments diff_map /.
-              Arguments GLabelMapFacts.diff_map /.
-              Arguments List.filter /.
-              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
-              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
-              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
-              Arguments GName /.
-              Arguments impl_module_name /.
-              Arguments append /.
-              Arguments IsGoodModule.FName /.
-              Arguments CompileModuleMake.mod_name /.
-              Arguments impl_module_name /.
-              Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports /.
-              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export /.
-              Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label /.
-              Arguments impl_module_name /.
-              Arguments CompileModuleMake.imports /.
+    Arguments Imports / .
+    Arguments Exports / .
+    Arguments CompileModuleMake.mod_name / .
+    Arguments impl_module_name / .
+    Arguments GName / .
+    Arguments append / .
+    Arguments CompileModuleMake.imports / .
+    Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports / .
+    Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports / .
+    Arguments diff_map / .
+    Arguments GLabelMapFacts.diff_map / .
+    Arguments List.filter / .
+    Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export / .
+    Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label / .
+    Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label / .
+    Arguments GName / .
+    Arguments impl_module_name / .
+    Arguments append / .
+    Arguments IsGoodModule.FName / .
+    Arguments CompileModuleMake.mod_name / .
+    Arguments impl_module_name / .
+    Arguments LinkMake.StubsMake.StubMake.bimports_diff_bexports / .
+    Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export / .
+    Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label / .
+    Arguments impl_module_name / .
+    Arguments CompileModuleMake.imports / .
 
-              Ltac link_simp2 :=
-                simpl Imports;
-                simpl Exports;
-                unfold CompileModuleMake.mod_name;
-                unfold impl_module_name;
-                simpl GName;
-                simpl append;
-                unfold CompileModuleMake.imports;
-                unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports, LinkMake.StubsMake.StubMake.bimports_diff_bexports;
-                unfold diff_map, GLabelMapFacts.diff_map;
-                simpl List.filter;
-                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export, LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label, LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
-                simpl GName;
-                unfold impl_module_name;
-                simpl append;
-                simpl IsGoodModule.FName;
-                unfold CompileModuleMake.mod_name;
-                unfold impl_module_name;
-                unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
-                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
-                unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
-                unfold impl_module_name;
-                unfold CompileModuleMake.imports.
+    Ltac link_simp2 :=
+      simpl Imports;
+      simpl Exports;
+      unfold CompileModuleMake.mod_name;
+      unfold impl_module_name;
+      simpl GName;
+      simpl append;
+      unfold CompileModuleMake.imports;
+      unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports, LinkMake.StubsMake.StubMake.bimports_diff_bexports;
+      unfold diff_map, GLabelMapFacts.diff_map;
+      simpl List.filter;
+      unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export, LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+      unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label, LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
+      simpl GName;
+      unfold impl_module_name;
+      simpl append;
+      simpl IsGoodModule.FName;
+      unfold CompileModuleMake.mod_name;
+      unfold impl_module_name;
+      unfold LinkMake.StubsMake.StubMake.bimports_diff_bexports;
+      unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_impl_export;
+      unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.impl_label;
+      unfold impl_module_name;
+      unfold CompileModuleMake.imports.
 
     Ltac link2 ok1 ok2 :=
       eapply linkOk; [ eapply ok1 | eapply ok2
