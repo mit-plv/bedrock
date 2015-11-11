@@ -1603,6 +1603,14 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Defined.
 
+    Theorem output_module_exports x ax : 
+      find x exports = Some ax ->
+      LabelMap.find (ax_mod_name, Global x) (Exports output_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
+    Proof.
+      eapply CM2.make_module_exports; eauto.
+      eapply exports_in_domain_cmodule.
+    Qed.
+
     Notation compile_cito_to_bedrock := compile_to_bedrock.
 
     Definition output_module_impl := (compile_cito_to_bedrock gmodules imports).
@@ -1695,13 +1703,16 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Qed.
   Definition output_module_ok' : moduleOk output_module' :=
     @output_module_ok exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok op_mod_name_not_in_imports name_neq refines.
+  Definition output_module_exports' :=
+    @output_module_exports exports module exports_in_domain ax_mod_name op_mod_name op_mod_name_ok.
   Definition output_module_impl' := output_module_impl module op_mod_name op_mod_name_ok.
   Definition output_module_impl_ok' : moduleOk output_module_impl' :=
     @output_module_impl_ok exports module op_mod_name op_mod_name_ok op_mod_name_not_in_imports refines.
 
   Require Import CompileOut2.
-  Definition compile : CompileOut exports :=
-    Build_CompileOut exports output_module_ok' output_module_impl_ok'.
+  Module Import CompileOut2Make := CompileOut2.Make E M.
+  Definition compile : CompileOut exports ax_mod_name :=
+    Build_CompileOut exports output_module_ok' output_module_exports' output_module_impl_ok'.
 
   (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
   Module LinkUnfoldHelp.

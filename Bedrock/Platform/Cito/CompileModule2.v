@@ -1086,6 +1086,160 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         eapply incl_refl.
     Qed.
 
+    Require Import Bedrock.Platform.Cito.StringMap.
+    Import StringMap.
+    Require Import Bedrock.Platform.Cito.StringMapFacts.
+    Import FMapNotations.
+
+    Lemma filterM_intro' A B f k (b : B) d : (exists (a : A), find k d = Some a /\ f k a = Some b) -> find k (filterM f d) = Some b.
+    Proof.
+      unfold filterM.
+      eapply fold_rec_bis.
+      {
+        intros m1 m2 a' Heq H1 H.
+        eapply H1.
+        openhyp.
+        rewrite <- Heq in *.
+        eexists; split; eauto.
+      }
+      {
+        intros H.
+        destruct H as [? [H ?] ].
+        rewrite empty_o in H.
+        discriminate.
+      }
+      {
+        intros k' e a d'.
+        intros Hk' Hnin H1 H.
+        unfold filterM_f in *.
+        destruct H as [a' [H Hf] ].
+        destruct (eq_dec k k') as [? | Hneq].
+        {
+          subst.
+          rewrite add_eq_o in H by eauto.
+          inject H.
+          rewrite Hf.
+          rewrite add_eq_o by eauto.
+          eauto.
+        }
+        rewrite add_neq_o in H by eauto.
+        destruct (option_dec (f k' e)) as [ [v Heq] | Heq ]; rewrite Heq in *.
+        {
+          rewrite add_neq_o by eauto.
+          eapply H1.
+          eexists; split; eauto.
+        }
+        {
+          eapply H1.
+          eexists; split; eauto.
+        }
+      }
+    Qed.
+    Lemma filterM_intro A B f k (b : B) d (a : A) : find k d = Some a -> f k a = Some b -> find k (filterM f d) = Some b.
+    Proof.
+      intros; eapply filterM_intro'; eauto.
+    Qed.
+    Lemma find_inter_intro A B k d1 d2 (v1 : A) (v2 : B) : find k d1 = Some v1 -> find k d2 = Some v2 -> find k (inter d1 d2) = Some (v1, v2).
+    Proof.
+      intros H1 H2.
+      unfold inter in *.
+      eapply filterM_intro; eauto.
+      rewrite H2.
+      eauto.
+    Qed.
+
+    Require Import Bedrock.Platform.Cito.GLabel.
+    Require Import Bedrock.Platform.Cito.GLabelMap.
+    Import GLabelMap.
+    Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+    Import FMapNotations.
+
+    (* Import LabelMap. *)
+    (* Import LabelMapFacts. *)
+    (* Import FMapNotations. *)
+
+    Require Import ConvertLabelMap.
+
+    Lemma to_blm_Submap : forall elt m1 m2, @LabelMapFacts.Submap elt (to_blm m1) (to_blm m2) <-> m1 <= m2.
+    Proof.
+      unfold Submap, LabelMapFacts.Submap.
+      intros; split; intros.
+      {
+        repeat erewrite <- to_blm_spec in *; eauto.
+      }
+      destruct k.
+      destruct l; simpl in *.
+      {
+        replace ((s, Labels.Global s0)) with (to_bedrock_label (s, s0)) in * by eauto.
+        repeat erewrite to_blm_spec in *.
+        eauto.
+      }
+      repeat rewrite to_blm_no_local in *.
+      discriminate.
+    Qed.
+
+    Theorem make_module_exports_submap : LabelMapFacts.Submap (to_blm (mapi (foreign_func_spec) (map_aug_mod_name ax_mod_name exports))) (Exports make_module).
+    Proof.
+      simpl.
+      rewrite exps_spec.
+      eapply to_blm_Submap.
+      intros k v Hk.
+      eapply find_mapsto_iff in Hk.
+      eapply mapi_mapsto_iff in Hk; [ | intros; subst; eauto].
+      destruct Hk as [ax [? Hk] ].
+      subst.
+      eapply find_mapsto_iff in Hk.
+      eapply map_aug_mod_name_elim in Hk.
+      destruct Hk as [x [? Hx] ].
+      subst.
+      unfold func_to_import; simpl in *.
+      unfold stubs.
+      rewrite map_map.
+      simpl.
+      eapply find_mapsto_iff.
+      eapply MapsTo_to_map.
+      {
+        eapply NoDupKey_aug_mod_name.
+        intros; simpl; eauto.
+      }
+      eapply in_map_iff.
+      unfold stub_spec; simpl.
+      Require Import Bedrock.Platform.Cito.StringMap.
+      Import StringMap.
+      Require Import Bedrock.Platform.Cito.StringMapFacts.
+      Import FMapNotations.
+      assert (Hx' : In x (Funs m)).
+      {
+        eapply exports_sub_domain; eauto.
+        eapply find_Some_in; eauto.
+      }
+      eapply in_find_Some in Hx'.
+      destruct Hx' as [f Hx'].
+      exists (x, (f, ax)); split; eauto.
+      eapply find_in_elements.
+      eapply find_inter_intro; eauto.
+    Qed.
+
+    Theorem make_module_exports x ax : 
+      find x exports = Some ax ->
+      LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
+    Proof.
+      intros.
+      eapply make_module_exports_submap.
+      replace ((ax_mod_name, Labels.Global x)) with (to_bedrock_label (ax_mod_name, x)) by eauto.
+      rewrite to_blm_spec.
+      Require Import Bedrock.Platform.Cito.GLabelMap.
+      Import GLabelMap.
+      Require Import Bedrock.Platform.Cito.GLabelMapFacts.
+      Import FMapNotations.
+      eapply find_mapsto_iff.
+      eapply mapi_mapsto_iff; [ intros; subst; eauto | ].
+      exists ax.
+      split; eauto.
+      eapply find_mapsto_iff.
+      eapply map_aug_mod_name_intro; eauto.
+    Qed.
+
   End M.
 
 End Make.
