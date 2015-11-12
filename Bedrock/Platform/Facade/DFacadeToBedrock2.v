@@ -1719,6 +1719,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
   End TopSection2.
 
+  Arguments CM2.bimports / .
+  Arguments CM2.tgt_spec_as_import / .
+  Arguments CM2.tgt_label / .
+  Arguments CompileModule2.aug_mod_name / .
+
   (* In case Bedrock's tactic 'link' doesn't work well with simpl and unfold. Isn't needed in my test case *)
   Module LinkUnfoldHelp.
 

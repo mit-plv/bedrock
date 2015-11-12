@@ -23,8 +23,6 @@ Definition exports := StringMapFacts.of_list (("foo", export) :: nil).
 
 Require Import DFModule.
 Require Import DFacade.
-Require Import List.
-Import ListNotations.
 
 Definition foo : DFFun :=
   {|
@@ -125,25 +123,6 @@ Definition m2_ok := bedrock_module_impl_ok output.
 Definition all1 := link m1 m2.
 
 Lemma all1_ok : moduleOk all1.
-  Import LinkUnfoldHelp.
-  Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.func_spec / .
-  Arguments LinkMake.LinkModuleImplsMake.CompileModuleMake.CompileFuncMake.CompileFuncImplMake.CompileFuncSpecMake.spec / .
-  Arguments LinkMake.StubsMake.StubMake.LinkSpecMake2.foreign_func_spec / .
-  Arguments CM2.bimports / .
-  Arguments cito_module / .
-
-  link2 m1_ok m2_ok.
-
-  Arguments CM2.tgt_spec_as_import / .
-  Arguments CompileDFModule.compile_to_cmodule / .
-  Arguments CompileModule.compile_func / .
-  Arguments CompileDFModule.compile_func / .
-
-  unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.func_spec.
-  unfold LinkMake.LinkModuleImplsMake.CompileModuleMake.CompileFuncMake.CompileFuncImplMake.CompileFuncSpecMake.spec.
-  unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.foreign_func_spec.
-  unfold CM2.bimports.
-  unfold cito_module.
   link m1_ok m2_ok.
 Qed.
 

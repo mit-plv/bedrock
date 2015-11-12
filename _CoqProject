@@ -347,6 +347,7 @@ Bedrock/Platform/Facade/examples/ListSetF.v
 Bedrock/Platform/Facade/examples/NotationExample.v
 Bedrock/Platform/Facade/examples/SeqF.v
 Bedrock/Platform/Facade/examples/TestLinking.v
+Bedrock/Platform/Facade/examples/TestLinking2.v
 Bedrock/Platform/tests/Abort.v
 Bedrock/Platform/tests/AbortAMD64.v
 Bedrock/Platform/tests/AbortDriver.v
