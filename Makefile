@@ -177,6 +177,7 @@ endif
 
 $(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/reif.ml4,$(EXPECTED_EXT)))
 $(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/extlib.ml,$(EXPECTED_EXT)))
+$(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/extlib.mli,$(EXPECTED_EXT)))
 
 endif
 
