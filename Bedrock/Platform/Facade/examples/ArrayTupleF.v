@@ -43,7 +43,7 @@ Definition agreeUpto (ls1 ls2 : list W) (pos : nat) :=
   forall i, (i < pos)%nat -> Array.selN ls1 i = Array.selN ls2 i.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
-  bmodule "ListSeq" {{
+  bmodule "ArrayTuple" {{
     bfunction "new"("extra_stack", "len") [newS]
       "len" <-- Call "malloc"!"malloc"(0, "len")
       [PRE[V, R] R =?> wordToNat (V "len") * [| R <> 0 |] * [| freeable R (wordToNat (V "len")) |]

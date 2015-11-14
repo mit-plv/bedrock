@@ -1,5 +1,11 @@
 Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
 
+Fixpoint allTuplesLen (len : nat) (ts : list (list W)) :=
+  match ts with
+  | nil => True
+  | t :: ts' => length t = len /\ allTuplesLen len ts'
+  end.
+
 Section adt.
   Variable tuple : list W -> W -> HProp.
   Variable P : list (list W) -> W -> HProp.
@@ -8,6 +14,17 @@ Section adt.
   Definition newS := SPEC("extra_stack") reserving res
     PRE[_] mallocHeap 0
     POST[R] P nil R * mallocHeap 0.
+
+  Definition copyS := SPEC("extra_stack", "self", "len") reserving res
+    Al ls,
+    PRE[V] P ls (V "self") * [| allTuplesLen (wordToNat (V "len")) ls |] * [| $2 <= V "len" |] * mallocHeap 0
+    POST[R] P ls (V "self") * P ls R * mallocHeap 0.
+
+  Definition copyAppendS := SPEC("extra_stack", "self", "other", "len") reserving res
+    Al ls1, Al ls2,
+    PRE[V] P ls1 (V "self") * P ls2 (V "other") * [| $2 <= V "len" |] * mallocHeap 0
+      * [| allTuplesLen (wordToNat (V "len")) ls1 |]
+    POST[R] [| R = $0 |] * P ls1 (V "self") * P (ls1 ++ ls2) (V "other") * mallocHeap 0.
 
   Definition popS := SPEC("extra_stack", "self") reserving res
     Al x, Al ls,
@@ -34,3 +51,19 @@ Section adt.
     PRE[V] P ls (V "self") * mallocHeap 0
     POST[R] [| R = $ (length ls) |] * P ls (V "self") * mallocHeap 0.
 End adt.
+
+Lemma allTuplesLen_first : forall len t ts,
+  allTuplesLen len (t :: ts)
+  -> length t = len.
+Proof.
+  simpl; tauto.
+Qed.
+
+Lemma allTuplesLen_rest : forall len t ts,
+  allTuplesLen len (t :: ts)
+  -> allTuplesLen len ts.
+Proof.
+  simpl; tauto.
+Qed.
+
+Hint Immediate allTuplesLen_first allTuplesLen_rest.

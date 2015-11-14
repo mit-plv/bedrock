@@ -107,14 +107,17 @@ Definition hints : TacPackage.
 Defined.
 
 Definition newS := newS lseq 8.
+Definition copyS := copyS lseq 18.
+Definition copyAppendS := copyAppendS lseq 18.
 Definition popS := popS tuple lseq 8.
 Definition emptyS := emptyS lseq 0.
 Definition pushS := pushS tuple lseq 8.
 Definition revS := revS lseq 2.
 Definition lengthS := lengthS lseq 1.
 
-Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
-  bmodule "ListSeq" {{
+Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
+                           "ArrayTuple"!"copy" @ [ArrayTupleF.copyS] ]]
+  bmodule "TupleList" {{
     bfunction "new"("extra_stack", "x") [newS]
       "x" <-- Call "malloc"!"malloc"(0, 2)
       [PRE[_, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |] * mallocHeap 0
@@ -122,6 +125,90 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       "x" *<- 0;;
       Return "x"
+    end
+
+    with bfunction "copy"("extra_stack", "self", "len", "new", "acc", "tmp") [copyS]
+      "self" <-* "self";;
+
+      "new" <-- Call "malloc"!"malloc"(0, 2)
+      [Al ls,
+       PRE[V, R] lseq' ls (V "self") * [| allTuplesLen (wordToNat (V "len")) ls |] * [| ($2 <= V "len")%word |] * R =?> 1 * mallocHeap 0
+       POST[R'] [| R' = R |] * lseq' ls (V "self") * Ex p, R =*> p * lseq' ls p * mallocHeap 0];;
+      "acc" <- "new";;
+
+      [Al ls,
+       PRE[V] lseq' ls (V "self") * [| allTuplesLen (wordToNat (V "len")) ls |] * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * mallocHeap 0
+       POST[R] [| R = V "new" |] * lseq' ls (V "self") * Ex p, V "acc" =*> p * lseq' ls p * mallocHeap 0]
+      While ("self" <> 0) {
+        "tmp" <-* "self";;
+        "self" <-* "self"+4;;
+
+        "extra_stack" <-- Call "malloc"!"malloc"(0, 2)
+        [Al xt, Al ls,
+         PRE[V, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
+                 * lseq' ls (V "self") * tuple xt (V "tmp")
+                 * [| length xt = wordToNat (V "len") |] * [| allTuplesLen (wordToNat (V "len")) ls |]
+                 * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * mallocHeap 0
+         POST[R'] [| R' = V "new" |] * lseq' ls (V "self") * Ex p, V "acc" =*> p
+                * lseq' (xt :: ls) p * tuple xt (V "tmp") * mallocHeap 0];;
+
+        "tmp" <-- Call "ArrayTuple"!"copy"("extra_stack", "tmp", "len")
+        [Al xt, Al ls,
+         PRE[V, R] tuple xt R
+                 * V "extra_stack" =?> 2 * [| V "extra_stack" <> 0 |] * [| freeable (V "extra_stack") 2 |]
+                 * lseq' ls (V "self")
+                 * [| length xt = wordToNat (V "len") |] * [| allTuplesLen (wordToNat (V "len")) ls |]
+                 * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * mallocHeap 0
+         POST[R'] [| R' = V "new" |] * lseq' ls (V "self") * Ex p, V "acc" =*> p
+                * lseq' (xt :: ls) p * mallocHeap 0];;
+
+        "acc" *<- "extra_stack";;
+        "extra_stack" *<- "tmp";;
+        "acc" <- "extra_stack"+4
+      };;
+
+      "acc" *<- 0;;
+      Return "new"
+    end
+
+    with bfunction "copyAppend"("extra_stack", "self", "other", "len", "new", "acc", "tmp") [copyAppendS]
+      "self" <-* "self";;
+      "acc" <- "other";;
+      "other" <-* "other";;
+
+      [Al ls1, Al ls2,
+       PRE[V] lseq' ls1 (V "self") * [| allTuplesLen (wordToNat (V "len")) ls1 |] * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * lseq' ls2 (V "other") * mallocHeap 0
+       POST[R] [| R = $0 |] * lseq' ls1 (V "self") * Ex p, V "acc" =*> p * lseq' (ls1 ++ ls2) p * mallocHeap 0]
+      While ("self" <> 0) {
+        "tmp" <-* "self";;
+        "self" <-* "self"+4;;
+
+        "extra_stack" <-- Call "malloc"!"malloc"(0, 2)
+        [Al xt, Al ls1, Al ls2,
+         PRE[V, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |]
+                 * lseq' ls1 (V "self") * tuple xt (V "tmp")
+                 * [| length xt = wordToNat (V "len") |] * [| allTuplesLen (wordToNat (V "len")) ls1 |]
+                 * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * lseq' ls2 (V "other") * mallocHeap 0
+         POST[R'] [| R' = $0 |] * lseq' ls1 (V "self") * Ex p, V "acc" =*> p
+                * lseq' (xt :: ls1 ++ ls2) p * tuple xt (V "tmp") * mallocHeap 0];;
+
+        "tmp" <-- Call "ArrayTuple"!"copy"("extra_stack", "tmp", "len")
+        [Al xt, Al ls1, Al ls2,
+         PRE[V, R] tuple xt R
+                 * V "extra_stack" =?> 2 * [| V "extra_stack" <> 0 |] * [| freeable (V "extra_stack") 2 |]
+                 * lseq' ls1 (V "self")
+                 * [| length xt = wordToNat (V "len") |] * [| allTuplesLen (wordToNat (V "len")) ls1 |]
+                 * [| ($2 <= V "len")%word |] * V "acc" =?> 1 * lseq' ls2 (V "other") * mallocHeap 0
+         POST[R'] [| R' = $0 |] * lseq' ls1 (V "self") * Ex p, V "acc" =*> p
+                * lseq' (xt :: ls1 ++ ls2) p * mallocHeap 0];;
+
+        "acc" *<- "extra_stack";;
+        "extra_stack" *<- "tmp";;
+        "acc" <- "extra_stack"+4
+      };;
+
+      "acc" *<- "other";;
+      Return 0
     end
 
     with bfunction "pop"("extra_stack", "self", "tmp", "r") [popS]
