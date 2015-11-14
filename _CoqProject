@@ -338,6 +338,7 @@ Bedrock/Platform/Facade/Listy.v
 Bedrock/Platform/Facade/NameDecoration.v
 Bedrock/Platform/Facade/Notations.v
 Bedrock/Platform/Facade/SafeCoind.v
+Bedrock/Platform/Facade/examples/ArrayTupleF.v
 Bedrock/Platform/Facade/examples/FiatADTs.v
 Bedrock/Platform/Facade/examples/FiatImpl.v
 Bedrock/Platform/Facade/examples/FiatRepInv.v
@@ -345,9 +346,13 @@ Bedrock/Platform/Facade/examples/FiniteSetF.v
 Bedrock/Platform/Facade/examples/ListSeqF.v
 Bedrock/Platform/Facade/examples/ListSetF.v
 Bedrock/Platform/Facade/examples/NotationExample.v
+Bedrock/Platform/Facade/examples/QsADTs.v
 Bedrock/Platform/Facade/examples/SeqF.v
 Bedrock/Platform/Facade/examples/TestLinking.v
 Bedrock/Platform/Facade/examples/TestLinking2.v
+Bedrock/Platform/Facade/examples/TupleF.v
+Bedrock/Platform/Facade/examples/TupleListF.v
+Bedrock/Platform/Facade/examples/TupleSeqF.v
 Bedrock/Platform/tests/Abort.v
 Bedrock/Platform/tests/AbortAMD64.v
 Bedrock/Platform/tests/AbortDriver.v
@@ -419,4 +424,5 @@ Bedrock/sep/PtsTo.v
 Bedrock/ILTac.v
 Bedrock/reification/extlib.ml
 Bedrock/reification/extlib.mli
+Bedrock/reification/reif.ml4
 Bedrock/reification/reif.ml4

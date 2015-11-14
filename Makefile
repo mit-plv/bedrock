@@ -62,6 +62,11 @@ FACADE_ALL_VO := \
 	Bedrock/Platform/Facade/DFacadeToBedrock.vo \
 	Bedrock/Platform/Facade/DFacadeToBedrock2.vo \
 
+QSFACADE_VO := \
+	Bedrock/Platform/Facade/examples/QsADTs.vo \
+	Bedrock/Platform/Facade/examples/ArrayTupleF.vo \
+	Bedrock/Platform/Facade/examples/TupleListF.vo
+
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \
 	Bedrock/Platform/tests/AbortAMD64.vo \
@@ -102,6 +107,7 @@ examples-quick facade-quick facade-all-quick facade-allv-quick cito-quick platfo
 examples: $(EXAMPLES_VO)
 facade: $(FACADE_VO)
 facade-all: $(FACADE_ALL_VO)
+qsfacade: $(QSFACADE_VO)
 facade-allv: $(FACADE_ALLVO)
 cito: $(CITO_VO)
 platform: $(PLATFORM_VO)
