@@ -58,33 +58,23 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       Return 0
     end
+
+    with bfunction "get"("extra_stack", "self", "pos") [getS]
+      "pos" <- 4 * "pos";;
+      "pos" <-* "self" + "pos";;
+      Return "pos"
+    end
+
+    with bfunction "set"("extra_stack", "self", "pos", "val") [setS]
+      "pos" <- 4 * "pos";;
+      "self" + "pos" *<- "val";;
+      Return 0
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
 
 Theorem ok : moduleOk m.
 Proof.
-  vcgen.
-
-  Ltac t := sep hints; eauto.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract (sep hints; eauto).
 Qed.
