@@ -66,7 +66,7 @@ QSFACADE_VO := \
 	Bedrock/Platform/Facade/examples/QsADTs.vo \
 	Bedrock/Platform/Facade/examples/ArrayTupleF.vo \
 	Bedrock/Platform/Facade/examples/TupleListF.vo \
-	Bedrock/Platform/Facade/examples/Tuples0F.vo \
+	Bedrock/Platform/Facade/examples/Tuples0F.vo
 
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \
