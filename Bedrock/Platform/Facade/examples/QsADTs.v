@@ -39,8 +39,8 @@ Section TupleADTSpec.
 
   Definition Tuple_delete : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => exists ls, args = [ADT (Tuple ls)];
-        PostCond := fun args ret => exists ls, args = [(ADT (Tuple ls), None)] /\ ret = SCAZero
+        PreCond := fun args => exists ls, args = [ADT (Tuple ls); SCA _ (length ls)];
+        PostCond := fun args ret => exists ls, args = [(ADT (Tuple ls), None); (SCA _ (length ls), None)] /\ ret = SCAZero
       |}; crush_types.
   Defined.
 

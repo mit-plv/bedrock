@@ -33,20 +33,30 @@ Definition hints : TacPackage.
   prepare (tuple_fwd, allocate_array) (tuple_bwd, free_array).
 Defined.
 
-Definition newS := newS tuple 8.
-Definition deleteS := deleteS tuple 7.
-Definition getS := getS tuple 8.
+Definition newS := newS tuple 7.
+Definition deleteS := deleteS tuple 6.
+Definition getS := getS tuple 0.
 Definition setS := setS tuple 0.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "ListSeq" {{
-    bfunction "new"("extra_stack", "len", "x") [newS]
-      "x" <-- Call "malloc"!"malloc"(0, "len")
-      [PRE[V, R] R =?> wordToNat (V "len") * [| R <> 0 |] * [| freeable R (wordToNat (V "len")) |] * mallocHeap 0
-       POST[R'] Ex ls, tuple ls R' * [| length ls = wordToNat (V "len") |] * mallocHeap 0];;
+    bfunction "new"("extra_stack", "len") [newS]
+      "len" <-- Call "malloc"!"malloc"(0, "len")
+      [PRE[V, R] R =?> wordToNat (V "len") * [| R <> 0 |] * [| freeable R (wordToNat (V "len")) |]
+       POST[R'] Ex ls, tuple ls R' * [| length ls = wordToNat (V "len") |]];;
 
       Note [make_array];;
-      Return "x"
+      Return "len"
+    end
+
+    with bfunction "delete"("extra_stack", "self", "len") [deleteS]
+      Note [dissolve_array];;
+
+      Call "malloc"!"free"(0, "self", "len")
+      [PRE[_] Emp
+       POST[R] [| R = $0 |] ];;
+
+      Return 0
     end
   }}.
 
@@ -57,6 +67,16 @@ Proof.
   vcgen.
 
   Ltac t := sep hints; eauto.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
   t.
   t.

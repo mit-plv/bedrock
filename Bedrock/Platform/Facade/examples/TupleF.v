@@ -8,9 +8,9 @@ Section adt.
     PRE[V] [| V "len" >= $2 |] * mallocHeap 0
     POST[R] Ex ls, P ls R * [| length ls = wordToNat (V "len") |] * mallocHeap 0.
 
-  Definition deleteS := SPEC("extra_stack", "self") reserving res
+  Definition deleteS := SPEC("extra_stack", "self", "len") reserving res
     Al ls,
-    PRE[V] P ls (V "self") * mallocHeap 0
+    PRE[V] P ls (V "self") * [| length ls = wordToNat (V "len") |] * mallocHeap 0
     POST[R] [| R = $0 |] * mallocHeap 0.
 
   Definition getS := SPEC("extra_stack", "self", "pos") reserving res
