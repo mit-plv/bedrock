@@ -9,11 +9,19 @@ Section tuples0.
   Open Scope Sep_scope.
 
   Definition tuples0 (len : W) (ts : tuples) (p : W) :=
-    Ex ls, Ex lsp, Ex bound, (p ==*> len, lsp) * lseq ls lsp * [| EnsembleIndexedListEquivalence ts ls |]
+    Ex ls, Ex lsp, (p ==*> len, lsp) * lseq ls lsp * [| EnsembleIndexedListEquivalence ts ls |]
       * [| $2 <= len |]
-      * [| forall t, IndexedEnsemble_In ts t -> length t = wordToNat len |]
-      * [| UnConstrFreshIdx ts bound |].
+      * [| forall t, IndexedEnsemble_In ts t -> length t = wordToNat len |].
 End tuples0.
+
+Theorem tuples0_Equiv : forall len ts1 ts2 p,
+  Equiv ts1 ts2
+  -> tuples0 len ts1 p ===> tuples0 len ts2 p.
+Proof.
+  unfold tuples0; sepLemma.
+  firstorder idtac.
+  firstorder idtac.
+Qed.
 
 Definition Empty : tuples := fun _ => False.
 
@@ -22,9 +30,10 @@ Definition newS := SPEC("extra_stack", "len") reserving 11
   POST[R] tuples0 (wordToNat (V "len")) Empty R * mallocHeap 0.
 
 Definition insertS := SPEC("extra_stack", "self", "tup") reserving 12
-  Al len, Al ts, Al t,
+  Al len, Al ts, Al t, Al ts',
   PRE[V] tuples0 len ts (V "self") * tuple t (V "tup") * [| length t = wordToNat len |] * mallocHeap 0
-  POST[R] [| R = $0 |] * Ex ts', [| insert ts t ts' |] * tuples0 len ts' (V "self") * mallocHeap 0.
+         * [| insert ts t ts' |]
+  POST[R] [| R = $0 |] * tuples0 len ts' (V "self") * mallocHeap 0.
 
 Definition enumerateS := SPEC("extra_stack", "self") reserving 22
   Al len, Al ts,
@@ -121,62 +130,52 @@ Qed.
 
 Hint Resolve fresh_Empty.
 
-Definition insertAt (ts : tuples) (idx : nat) (t : tupl) : tuples :=
-  EnsembleInsert {| elementIndex := idx;
-                    indexedElement:= t |} ts.
-
-Theorem insert_insertAt : forall ts idx t,
-  UnConstrFreshIdx ts idx
-  -> insert ts t (insertAt ts idx t).
+Theorem EnsembleIndexedListEquivalence_insert : forall ts t ls ts',
+  EnsembleIndexedListEquivalence ts ls
+  -> insert ts t ts'
+  -> EnsembleIndexedListEquivalence ts' (t :: ls).
 Proof.
-  unfold insert, insertAt, UnConstrFreshIdx, Ensembles.In; simpl; intros.
-  exists idx; intuition subst.
-  apply H in H0; omega.
-Qed.
+  unfold insert, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence, UnConstrFreshIdx, EnsembleInsert, Ensembles.In; simpl; firstorder subst.
 
-Hint Immediate insert_insertAt.
-
-Theorem EnsembleIndexedListEquivalence_insertAt : forall ts idx t ls,
-  UnConstrFreshIdx ts idx
-  -> EnsembleIndexedListEquivalence ts ls
-  -> EnsembleIndexedListEquivalence (insertAt ts idx t) (t :: ls).
-Proof.
-  unfold insertAt, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence, UnConstrFreshIdx, EnsembleInsert, Ensembles.In; simpl; firstorder idtac.
-  exists (S idx); intuition subst; simpl; intuition.
-  exists ({| elementIndex := idx; indexedElement := t |} :: x0); simpl; intuition.
+  exists (S (max x x1)); unfold EnsembleInsert; intuition (subst; simpl in * ).
+  apply H2 in H1; intuition (subst; simpl in * ).
+  generalize (Max.max_spec x x1); intuition.
+  apply H in H5.
+  generalize (Max.max_spec x x1); intuition.
+  exists ({| elementIndex := x; indexedElement := t |} :: x0); simpl; intuition.
+  apply H2 in H1; intuition (subst; simpl in * ).
+  tauto.
   firstorder idtac.
   firstorder idtac.
-  constructor; auto.
-  intro.
-  apply in_map_iff in H4; destruct H4; intuition subst.
-  apply H2 in H6.
-  apply H in H6.
+  subst.
+  apply H2; tauto.
+  apply H2.
+  apply H3 in H5; tauto.
+  constructor; intuition.
+  apply in_map_iff in H1; destruct H1; intuition subst.
+  apply H3 in H6.
+  apply H0 in H6.
   omega.
 Qed.
 
-Hint Immediate EnsembleIndexedListEquivalence_insertAt.
+Hint Immediate EnsembleIndexedListEquivalence_insert.
 
-Theorem bounded_insertAt : forall ts idx t t' n,
-  (forall t'', IndexedEnsemble_In ts t'' -> length t'' = n)
-  -> IndexedEnsemble_In (insertAt ts idx t) t'
+Theorem bounded_insert : forall ts t t' n ts',
+  insert ts t ts'
+  -> (forall t'', IndexedEnsemble_In ts t'' -> length t'' = n)
   -> length t = n
+  -> IndexedEnsemble_In ts' t'
   -> length t' = n.
 Proof.
-  unfold insertAt, IndexedEnsemble_In, EnsembleInsert, Ensembles.In; simpl; firstorder congruence.
+  unfold insert, IndexedEnsemble_In, EnsembleInsert, Ensembles.In; simpl; intuition.
+  destruct H; intuition subst.
+  destruct H2; intuition.
+  eauto.
+  apply H4 in H; intuition.
+  eauto.
 Qed.
 
-Hint Immediate bounded_insertAt.
-
-Theorem fresh_insertAt : forall ts idx t,
-  UnConstrFreshIdx ts idx
-  -> UnConstrFreshIdx (insertAt ts idx t) (S idx).
-Proof.
-  unfold insertAt, UnConstrFreshIdx, EnsembleInsert, Ensembles.In; simpl; firstorder idtac.
-  subst; simpl; omega.
-  firstorder omega.
-Qed.
-
-Hint Immediate fresh_insertAt.
+Hint Immediate bounded_insert.
 
 Lemma allTuplesLen_In : forall len ls,
   (forall x, In x ls -> length x = len)

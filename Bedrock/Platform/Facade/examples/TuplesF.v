@@ -77,8 +77,17 @@ Proof.
   firstorder.
 Qed.
 
+Definition Equiv (ts1 ts2 : tuples) := forall t, ts1 t <-> ts2 t.
+
+Theorem Equiv_refl : forall ts1 ts2, ts1 = ts2 -> Equiv ts1 ts2.
+Proof.
+  unfold Equiv; firstorder congruence.
+Qed.
+
+Hint Resolve Equiv_refl.
+
 Definition insert (ts : tuples) (t : tupl) (ts' : tuples) : Prop :=
   exists idx,
-    (forall t', In _ ts t' -> elementIndex t' <> idx)
-    /\ ts' = EnsembleInsert {| elementIndex := idx;
-                               indexedElement:= t |} ts.
+    UnConstrFreshIdx ts idx
+    /\ Equiv ts' (EnsembleInsert {| elementIndex := idx;
+                                    indexedElement:= t |} ts).
