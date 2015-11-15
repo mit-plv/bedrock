@@ -354,6 +354,7 @@ Bedrock/Platform/Facade/examples/TupleF.v
 Bedrock/Platform/Facade/examples/TupleListF.v
 Bedrock/Platform/Facade/examples/TupleSeqF.v
 Bedrock/Platform/Facade/examples/Tuples0F.v
+Bedrock/Platform/Facade/examples/Tuples1F.v
 Bedrock/Platform/Facade/examples/TuplesF.v
 Bedrock/Platform/tests/Abort.v
 Bedrock/Platform/tests/AbortAMD64.v
