@@ -8,10 +8,10 @@ Require Import Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Faca
 Section tuples0.
   Open Scope Sep_scope.
 
-  Definition tuples0 (len : nat) (ts : tuples) (p : W) :=
-    Ex ls, Ex lsp, Ex bound, (p ==*> natToW len, lsp) * lseq ls lsp * [| EnsembleIndexedListEquivalence ts ls |]
-      * [| $2 <= natToW len |]
-      * [| forall t, IndexedEnsemble_In ts t -> length t = len |]
+  Definition tuples0 (len : W) (ts : tuples) (p : W) :=
+    Ex ls, Ex lsp, Ex bound, (p ==*> len, lsp) * lseq ls lsp * [| EnsembleIndexedListEquivalence ts ls |]
+      * [| $2 <= len |]
+      * [| forall t, IndexedEnsemble_In ts t -> length t = wordToNat len |]
       * [| UnConstrFreshIdx ts bound |].
 End tuples0.
 
@@ -21,13 +21,24 @@ Definition newS := SPEC("extra_stack", "len") reserving 11
   PRE[V] [| V "len" >= $2 |] * mallocHeap 0
   POST[R] tuples0 (wordToNat (V "len")) Empty R * mallocHeap 0.
 
-Definition pushS := SPEC("extra_stack", "self", "tup") reserving 12
+Definition insertS := SPEC("extra_stack", "self", "tup") reserving 12
   Al len, Al ts, Al t,
-  PRE[V] tuples0 len ts (V "self") * tuple t (V "tup") * [| length t = len |] * mallocHeap 0
+  PRE[V] tuples0 len ts (V "self") * tuple t (V "tup") * [| length t = wordToNat len |] * mallocHeap 0
   POST[R] [| R = $0 |] * Ex ts', [| insert ts t ts' |] * tuples0 len ts' (V "self") * mallocHeap 0.
 
+Definition enumerateS := SPEC("extra_stack", "self") reserving 22
+  Al len, Al ts,
+  PRE[V] tuples0 len ts (V "self") * mallocHeap 0
+  POST[R] tuples0 len ts (V "self") * Ex ls, lseq ls R * [| EnsembleIndexedListEquivalence ts ls |] * mallocHeap 0.
+
+Definition enumerateIntoS := SPEC("extra_stack", "self", "ls") reserving 23
+  Al len, Al ts, Al ls,
+  PRE[V] tuples0 len ts (V "self") * lseq ls (V "ls") * mallocHeap 0
+  POST[R] [| R = $0 |] * tuples0 len ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * [| EnsembleIndexedListEquivalence ts ls' |] * mallocHeap 0.
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
-                           "TupleList"!"new" @ [TupleListF.newS], "TupleList"!"push" @ [TupleListF.pushS] ]]
+                           "TupleList"!"new" @ [TupleListF.newS], "TupleList"!"push" @ [TupleListF.pushS],
+                           "TupleList"!"copy" @ [TupleListF.copyS], "TupleList"!"copyAppend" @ [TupleListF.copyAppendS] ]]
   bmodule "Tuples0" {{
     bfunction "new"("extra_stack", "len", "x") [newS]
       "x" <-- Call "malloc"!"malloc"(0, 2)
@@ -44,9 +55,29 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "x"
     end
 
-    with bfunction "push"("extra_stack", "self", "tup") [pushS]
+    with bfunction "insert"("extra_stack", "self", "tup") [insertS]
       "self" <-* "self" + 4;;
       "self" <-- Call "TupleList"!"push"("extra_stack", "self", "tup")
+      [PRE[_] Emp
+       POST[R] [| R = $0 |] ];;
+
+      Return 0
+    end
+
+    with bfunction "enumerate"("extra_stack", "self") [enumerateS]
+      "extra_stack" <-* "self";;
+      "self" <-* "self" + 4;;
+      "self" <-- Call "TupleList"!"copy"("extra_stack", "self", "extra_stack")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+
+      Return "self"
+    end
+
+    with bfunction "enumerateInto"("extra_stack", "self", "ls") [enumerateIntoS]
+      "extra_stack" <-* "self";;
+      "self" <-* "self" + 4;;
+      "self" <-- Call "TupleList"!"copyAppend"("extra_stack", "self", "ls", "extra_stack")
       [PRE[_] Emp
        POST[R] [| R = $0 |] ];;
 
@@ -125,10 +156,11 @@ Qed.
 
 Hint Immediate EnsembleIndexedListEquivalence_insertAt.
 
-Theorem bounded_insertAt : forall ts idx t t',
-  (forall t'', IndexedEnsemble_In ts t'' -> length t'' = length t)
+Theorem bounded_insertAt : forall ts idx t t' n,
+  (forall t'', IndexedEnsemble_In ts t'' -> length t'' = n)
   -> IndexedEnsemble_In (insertAt ts idx t) t'
-  -> length t' = length t.
+  -> length t = n
+  -> length t' = n.
 Proof.
   unfold insertAt, IndexedEnsemble_In, EnsembleInsert, Ensembles.In; simpl; firstorder congruence.
 Qed.
@@ -146,30 +178,31 @@ Qed.
 
 Hint Immediate fresh_insertAt.
 
+Lemma allTuplesLen_In : forall len ls,
+  (forall x, In x ls -> length x = len)
+  -> allTuplesLen len ls.
+Proof.
+  induction ls; simpl; intuition.
+Qed.
+
+Lemma allTuplesLen_setwise : forall len ts ls,
+  EnsembleIndexedListEquivalence ts ls
+  -> (forall t, IndexedEnsemble_In ts t
+                -> length t = len)
+  -> allTuplesLen len ls.
+Proof.
+  unfold EnsembleIndexedListEquivalence, IndexedEnsemble_In; firstorder idtac.
+  eapply allTuplesLen_In; intros.
+  subst.
+  apply in_map_iff in H4; destruct H4; intuition subst.
+  apply H2 in H5.
+  destruct x2; simpl in *.
+  eauto.
+Qed.
+
+Hint Immediate allTuplesLen_setwise.
+
 Theorem ok : moduleOk m.
 Proof.
-  vcgen.
-
-  Ltac t := solve [ unfold tuples0; sep_auto; eauto ].
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract (unfold tuples0; sep_auto; eauto).
 Qed.
