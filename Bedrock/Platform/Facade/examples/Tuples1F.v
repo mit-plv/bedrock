@@ -17,12 +17,7 @@ Definition keepGt (ts : tuples) (key k : W) : tuples :=
   fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key > k.
 Definition empty (ts : tuples) := forall t, ~Ensembles.In _ ts t.
 
-Definition replaceKey (ts ts' : tuples) (key k : W) : tuples :=
-  fun t => IF Array.sel (indexedElement t) key = k then ts' t else ts t.
-
-Definition bounded (ts : tuples) := exists bound, UnConstrFreshIdx ts bound.
-
-Ltac Equiv' := unfold bounded, insert, EnsembleInsert, Equiv, replaceKey, IF_then_else,
+Ltac Equiv' := unfold insert, EnsembleInsert, Equiv,
                keepEq, keepLt, keepGt, empty, Ensembles.In, UnConstrFreshIdx in *.
 Ltac Equiv := Equiv'; firstorder idtac.
 
@@ -49,99 +44,6 @@ Qed.
 
 Hint Immediate keepEq_Equiv keepLt_Equiv keepGt_Equiv.
 
-Lemma Equiv_keepEq_replaceKey : forall k1 k ts key ts',
-  k1 < k
-  -> Equiv (keepEq ts key k) (keepEq (replaceKey ts ts' key k1) key k).
-Proof.
-  Equiv.
-  subst; right; intuition.
-  subst; nomega.
-  subst; nomega.
-Qed.
-
-Hint Immediate Equiv_keepEq_replaceKey.
-
-Lemma Equiv_keepGt_replaceKey_lt : forall k1 k ts key ts',
-  k1 < k
-  -> Equiv (keepGt ts' key k) (keepGt (replaceKey ts' ts key k1) key k).
-Proof.
-  Equiv.
-  right; intuition.
-  subst; nomega.
-  subst; nomega.
-Qed.
-
-Hint Immediate Equiv_keepGt_replaceKey_lt.
-
-(*Lemma Equiv_keepLt_replaceKey_lt : forall k1 k ts key ts' t,
-  k1 < k
-  -> insert (keepLt ts' key k) t ts
-  -> k1 = Array.sel t key
-  -> Equiv ts (keepLt (replaceKey ts' ts key k1) key k).
-Proof.
-  Equiv'.
-  intuition subst.
-
-  destruct H0; intuition subst.
-  specialize (proj1 (H3 _) H2).
-  intuition (subst; simpl in * ).
-  tauto.  
-  destruct (weq (Array.sel (indexedElement t0) key) (Array.sel t key)); tauto.
-
-  destruct H0; intuition subst.
-  specialize (proj1 (H3 _) H2).
-  intuition (subst; simpl in * ).
-  tauto.
-
-  destruct H0; intuition subst.
-  apply H2; tauto.
-Qed.
-
-Hint Immediate Equiv_keepLt_replaceKey_lt.
-
-Lemma bounded_insert : forall ts t ts',
-  insert ts t ts'
-  -> bounded ts
-  -> bounded ts'.
-Proof.
-  Equiv.
-  exists (S (max x x0)).
-  intros.
-  apply H1 in H2; intuition (subst; simpl).
-  specialize (Max.max_spec x x0); intuition.
-  apply H in H3.
-  specialize (Max.max_spec x x0); intuition.
-Qed.
-
-Hint Immediate bounded_insert.*)
-
-(*Lemma insert_replaceKey_lt : forall k1 k ts key ts' t,
-  k1 < k
-  -> insert (keepLt ts key k) t ts'
-  -> k1 = Array.sel t key
-  -> bounded ts
-  -> insert ts t (replaceKey ts ts' key k1).
-Proof.
-  Equiv'; intuition subst.
-  destruct H0, H2; intuition.
-  exists (max x x0); intuition (subst; simpl in * ).
-  apply H1 in H0; specialize (Max.max_spec x x0); intuition.
-  apply H3 in H5; intuition (subst; simpl in * ).
-
-  unfold EnsembleInsert in *; intuition subst.
-
-  unfold insert.
-  unfold EnsembleInsert.
-
-  intuition (subst; simpl in * ).
-  tauto.
-  destruct (weq (Array.sel (indexedElement t0) key) (Array.sel t key)); tauto.
-
-  intuition (subst; simpl in * ); auto.
-
-  tauto.
-Qed.*)
-
 
 Module Type ADT.
   Parameter tuples1 : W -> W -> tuples -> W -> HProp.
@@ -154,6 +56,11 @@ Module Type ADT.
     ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
     * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |])
     ===> tuples1 len key ts c.
+
+  (* Sometimes this version is necessary to integrate well with the automation. *)
+  Axiom tuples1_eq : forall len key ts c, tuples1 len key ts c
+    = ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
+        * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |])%Sep.
 
   Axiom tree_Equiv : forall len key sk ts1 ts2 p,
     Equiv ts1 ts2
@@ -210,6 +117,13 @@ Module Adt : ADT.
     ===> tuples1 len key ts c.
   Proof.
     unfold tuples1; sepLemma; eauto.
+  Qed.
+
+  Theorem tuples1_eq : forall len key ts c, tuples1 len key ts c
+    = ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
+        * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |])%Sep.
+  Proof.
+    auto.
   Qed.
 
   Theorem tree_Equiv : forall len key sk ts1 ts2 p,
@@ -276,12 +190,22 @@ Definition insertS := SPEC("extra_stack", "self", "tup") reserving 21
          * [| insert ts t ts' |]
   POST[R] [| R = $0 |] * tuples1 len key ts' (V "self") * mallocHeap 0.
 
-Definition grabInserted (ts ts' : tuples) : tuples :=
-  fun t => Ensembles.In _ ts' t /\ ~Ensembles.In _ ts t.
+Definition findS := SPEC("extra_stack", "self", "k") reserving 34
+  Al len, Al key, Al ts,
+  PRE[V] tuples1 len key ts (V "self") * mallocHeap 0
+  POST[R] tuples1 len key ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+        * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls |].
+
+Definition findIntoS := SPEC("extra_stack", "self", "k", "ls") reserving 28
+  Al len, Al key, Al ts, Al ls,
+  PRE[V] tuples1 len key ts (V "self") * lseq ls (V "ls") * mallocHeap 0
+  POST[R] [| R = $0 |] * tuples1 len key ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+          * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls' |].
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
-                           "ArrayTuple"!"get" @ [ArrayTupleF.getS],
-                           "Tuples0"!"new" @ [Tuples0F.newS], "Tuples0"!"insert" @ [Tuples0F.insertS] ]]
+                           "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
+                           "Tuples0"!"new" @ [Tuples0F.newS], "Tuples0"!"insert" @ [Tuples0F.insertS],
+                           "Tuples0"!"enumerateInto" @ [Tuples0F.enumerateIntoS] ]]
   bmodule "Tuples1" {{
     bfunction "new"("extra_stack", "len", "key") [newS]
       "extra_stack" <-- Call "malloc"!"malloc"(0, 3)
@@ -295,7 +219,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "extra_stack"
     end
 
-    (*with bfunction "insert"("extra_stack", "self", "tup", "len", "key", "p", "k1", "k2") [insertS]
+    with bfunction "insert"("extra_stack", "self", "tup", "len", "key", "p", "k1", "k2") [insertS]
       "len" <-* "self";;
       "key" <-* "self" + 4;;
       "self" <- "self" + 8;;
@@ -370,7 +294,50 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "p" + 12 *<- 0;;
       "self" *<- "p";;
       Return 0
-    end*)
+    end
+
+    with bfunction "find"("extra_stack", "self", "k", "ls") [findS]
+      "ls" <-- Call "TupleList"!"new"("extra_stack")
+      [Al len, Al key, Al ts,
+       PRE[V, R] lseq nil R * tuples1 len key ts (V "self") * mallocHeap 0
+       POST[R'] tuples1 len key ts (V "self")
+             * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls |] ];;
+
+      Call "Tuples1"!"findInto"("extra_stack", "self", "k", "ls")
+      [PRE[V] Emp
+       POST[R] [| R = V "ls" |] ];;
+      Return "ls"
+    end with bfunction "findInto"("extra_stack", "self", "k", "ls", "k2") [findIntoS]
+      "self" <-* "self" + 8;;
+
+      [Al len, Al key, Al sk, Al ts, Al ls,
+       PRE[V] tree len key sk ts (V "self") * lseq ls (V "ls") * mallocHeap 0
+       POST[R] [| R = $0 |] * tree len key sk ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls' |] ]
+      While ("self" <> 0) {
+        "k2" <-* "self" + 4;;
+
+        If ("k2" = "k") {
+          (* Found existing node for this key.  Duplicate its collection. *)
+          "k2" <-* "self" + 8;;
+          Call "Tuples0"!"enumerateInto"("extra_stack", "k2", "ls")
+          [PRE[_] Emp
+           POST[R] [| R = $0 |] ];;
+          Return 0
+        } else {
+          (* No match.  Proceed to appropriate subtree. *)
+          If ("k" < "k2") {
+            "self" <-* "self"
+          } else {
+            "self" <-* "self" + 12
+          }
+        }
+      };;
+
+      (* In this delightful imperative version, we just do nada if we don't find a match. *)
+      Return 0
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -381,15 +348,6 @@ Proof.
 Qed.
 
 Hint Resolve empty_Empty.
-
-Lemma bounded_keepLt : forall ts key k,
-  bounded ts
-  -> bounded (keepLt ts key k).
-Proof.
-  Equiv.
-Qed.
-
-Hint Immediate bounded_keepLt.
 
 Lemma insert_keepLt : forall ts t ts' key k1 k,
   insert ts t ts'
@@ -573,6 +531,51 @@ Qed.
 
 Hint Immediate empty_keepLt empty_keepGt.
 
+Lemma EnsembleIndexedListEquivalence_keepEq_keepLt : forall ts k1 key k v,
+  EnsembleIndexedListEquivalence (keepEq (keepLt ts key k1) key k) v
+  -> k < k1
+  -> EnsembleIndexedListEquivalence (keepEq ts key k) v.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+
+  destruct H1; intuition (subst; simpl in * ).
+  firstorder.
+  firstorder.
+Qed.
+
+Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepLt.
+
+Lemma EnsembleIndexedListEquivalence_keepEq_keepGt : forall ts k1 key k v,
+  EnsembleIndexedListEquivalence (keepEq (keepGt ts key k1) key k) v
+  -> k1 <= k
+  -> k <> k1
+  -> EnsembleIndexedListEquivalence (keepEq ts key k) v.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+
+  destruct H2; intuition (subst; simpl in * ).
+  exists x; intuition (subst; simpl in * ).
+  firstorder.
+  firstorder.
+Qed.
+
+Hint Resolve EnsembleIndexedListEquivalence_keepEq_keepGt.
+
+Lemma EnsembleIndexedListEquivalence_keepEq_empty : forall ts key k,
+  empty ts
+  -> EnsembleIndexedListEquivalence (keepEq ts key k) nil.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+  exists 0; firstorder.
+  hnf.
+  exists nil; firstorder.
+  constructor.
+Qed.
+
+Hint Immediate EnsembleIndexedListEquivalence_keepEq_empty.
+
+Hint Rewrite <- app_nil_end : sepFormula.
+
 Theorem ok : moduleOk m.
 Proof.
   vcgen.
@@ -595,7 +598,7 @@ Proof.
       end
     end.
 
-  Ltac descend' := descend;
+  Ltac descend' := try rewrite tuples1_eq; descend;
                   try match goal with
                       | [ H : insert _ ?b _ |- context[insert _ ?b' _] ] =>
                         unify b b'
@@ -609,7 +612,6 @@ Proof.
               || (post; evaluate hints; descend; try unifyLocals; repeat (step hints; descend'); eauto;
                   try tree_cong) ].
 
-
   t.
   t.
   t.
@@ -632,6 +634,38 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
