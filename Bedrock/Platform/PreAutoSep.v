@@ -1392,7 +1392,7 @@ Ltac step ext :=
                                      | exB _ => idtac
                                    end) P
            ltac:(fun it P' =>
-             apply Imply_trans with (![ it * P'] x)%PropX; [ cancel auto_ext | ])
+             apply Imply_trans with (![ it * P'] x)%PropX; [ cancel auto_ext; solve [ eassumption ] | ])
        end
    end; repeat match goal with
                  | [ |- interp _ (![ exB _ * _] _ ---> _)%PropX ] => apply breakout; intro

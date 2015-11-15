@@ -60,8 +60,8 @@ Section IndexedEnsembles.
     /\ UnIndexedEnsembleListEquivalence ensemble l.
 End IndexedEnsembles.
 
-Definition tuple := list W.
-Definition tuples := @IndexedEnsemble tuple.
+Definition tupl := list W.
+Definition tuples := @IndexedEnsemble tupl.
 
 Definition EnsembleInsert {A : Type}
            (a : A)
@@ -77,7 +77,7 @@ Proof.
   firstorder.
 Qed.
 
-Definition insert (ts : tuples) (t : tuple) (ts' : tuples) : Prop :=
+Definition insert (ts : tuples) (t : tupl) (ts' : tuples) : Prop :=
   exists idx,
     (forall t', In _ ts t' -> elementIndex t' <> idx)
     /\ ts' = EnsembleInsert {| elementIndex := idx;
