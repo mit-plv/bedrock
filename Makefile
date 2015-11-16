@@ -64,7 +64,7 @@ FACADE_ALL_VO := \
 
 QSFACADE_VO := Bedrock/Platform/Facade/examples/QsADTs.vo
 
-QSFACADE_IMPL_VO := Bedrock/Platform/Facade/examples/QsRepInv.vo
+QSFACADE_IMPL_VO := Bedrock/Platform/Facade/examples/QsImpl.vo
 
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \

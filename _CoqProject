@@ -347,6 +347,7 @@ Bedrock/Platform/Facade/examples/ListSeqF.v
 Bedrock/Platform/Facade/examples/ListSetF.v
 Bedrock/Platform/Facade/examples/NotationExample.v
 Bedrock/Platform/Facade/examples/QsADTs.v
+Bedrock/Platform/Facade/examples/QsImpl.v
 Bedrock/Platform/Facade/examples/QsRepInv.v
 Bedrock/Platform/Facade/examples/SeqF.v
 Bedrock/Platform/Facade/examples/TestLinking.v

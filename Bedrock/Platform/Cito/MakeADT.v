@@ -438,7 +438,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac add_side_conditions' E :=
     match E with
       | store_pair ?h (?k, ?v) =>
-        assert (~WordMap.In k h) by prove_not_in; add_side_conditions' h
+        match v with
+        | ADT _ =>
+          assert (~WordMap.In k h) by prove_not_in
+        | _ => idtac
+        end; add_side_conditions' h
       | _ => idtac
     end.
 

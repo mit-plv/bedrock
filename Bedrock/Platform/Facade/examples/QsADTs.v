@@ -45,17 +45,19 @@ Section TupleADTSpec.
 
   Definition Tuple_delete : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => exists ls, args = [ADT (Tuple ls); SCA _ (length ls)];
-        PostCond := fun args ret => exists ls, args = [(ADT (Tuple ls), None); (SCA _ (length ls), None)]
-                                               /\ ret = SCAZero
+        PreCond := fun args => exists ls len, args = [ADT (Tuple ls); SCA _ len]
+                                              /\ length ls = wordToNat len;
+        PostCond := fun args ret => exists ls len, args = [(ADT (Tuple ls), None); (SCA _ len, None)]
+                                                   /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
   Definition Tuple_copy : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => exists ls, args = [ADT (Tuple ls); SCA _ (length ls)]
-                                          /\ natToW (length ls) >= $2;
-        PostCond := fun args ret => exists ls, args = [(ADT (Tuple ls), Some (Tuple ls)); (SCA _ (length ls), None)]
+        PreCond := fun args => exists ls len, args = [ADT (Tuple ls); SCA _ len]
+                                              /\ length ls = wordToNat len
+                                              /\ natToW (length ls) >= $2;
+        PostCond := fun args ret => exists ls len, args = [(ADT (Tuple ls), Some (Tuple ls)); (SCA _ len, None)]
                                                /\ ret = ADT (Tuple ls)
       |}; crush_types.
   Defined.
