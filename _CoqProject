@@ -347,6 +347,7 @@ Bedrock/Platform/Facade/examples/ListSeqF.v
 Bedrock/Platform/Facade/examples/ListSetF.v
 Bedrock/Platform/Facade/examples/NotationExample.v
 Bedrock/Platform/Facade/examples/QsADTs.v
+Bedrock/Platform/Facade/examples/QsRepInv.v
 Bedrock/Platform/Facade/examples/SeqF.v
 Bedrock/Platform/Facade/examples/TestLinking.v
 Bedrock/Platform/Facade/examples/TestLinking2.v
@@ -426,6 +427,4 @@ Bedrock/sep/Locals.v
 Bedrock/sep/PtsTo.v
 Bedrock/ILTac.v
 Bedrock/reification/extlib.ml
-Bedrock/reification/extlib.mli
-Bedrock/reification/reif.ml4
 Bedrock/reification/reif.ml4
