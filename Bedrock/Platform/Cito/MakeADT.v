@@ -408,7 +408,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     apply Facts.add_in_iff in H1; intuition idtac.
   Qed.
 
-  Ltac prove_not_in := repeat (congruence || apply not_in_empty || apply not_in_heap_upd).
+  Ltac prove_not_in := repeat (simpl; congruence || apply not_in_empty || apply not_in_heap_upd).
 
   Hint Extern 1 (~In _ _) => simpl; intuition congruence.
 
