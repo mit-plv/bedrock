@@ -27,7 +27,7 @@ Definition Empty : tuples := fun _ => False.
 
 Definition newS := SPEC("extra_stack", "len") reserving 11
   PRE[V] [| V "len" >= $2 |] * mallocHeap 0
-  POST[R] tuples0 (wordToNat (V "len")) Empty R * mallocHeap 0.
+  POST[R] tuples0 (V "len") Empty R * mallocHeap 0.
 
 Definition insertS := SPEC("extra_stack", "self", "tup") reserving 12
   Al len, Al ts, Al t, Al ts',
@@ -52,12 +52,12 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
     bfunction "new"("extra_stack", "len", "x") [newS]
       "x" <-- Call "malloc"!"malloc"(0, 2)
       [PRE[V, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |] * mallocHeap 0 * [| (V "len" >= $2)%word |]
-       POST[R'] tuples0 (wordToNat (V "len")) Empty R' * mallocHeap 0];;
+       POST[R'] tuples0 (V "len") Empty R' * mallocHeap 0];;
 
       "extra_stack" <-- Call "TupleList"!"new"("extra_stack")
       [PRE[V, R] V "x" =?> 2 * [| V "x" <> 0 |] * [| freeable (V "x") 2 |] * mallocHeap 0 * [| (V "len" >= $2)%word |]
          * lseq nil R
-       POST[R'] tuples0 (wordToNat (V "len")) Empty R' * mallocHeap 0];;
+       POST[R'] tuples0 (V "len") Empty R' * mallocHeap 0];;
 
       "x" *<- "len";;
       "x" + 4 *<- "extra_stack";;

@@ -91,3 +91,23 @@ Definition insert (ts : tuples) (t : tupl) (ts' : tuples) : Prop :=
     UnConstrFreshIdx ts idx
     /\ Equiv ts' (EnsembleInsert {| elementIndex := idx;
                                     indexedElement:= t |} ts).
+
+Fixpoint allTuplesLen (len : nat) (ts : list (list W)) :=
+  match ts with
+  | nil => True
+  | t :: ts' => length t = len /\ allTuplesLen len ts'
+  end.
+
+Definition Empty : tuples := fun _ => False.
+Definition bounded (ts : tuples) := exists idx, UnConstrFreshIdx ts idx.
+Definition minFreshIndex (ts : tuples) (idx : nat) :=
+  UnConstrFreshIdx ts idx
+  /\ forall idx', (idx' < idx)%nat -> ~UnConstrFreshIdx ts idx'. 
+Definition insertAt (ts : tuples) (idx : nat) (t : tupl) : tuples :=
+  EnsembleInsert {| elementIndex := idx;
+                    indexedElement:= t |} ts.
+Definition keepEq (ts : tuples) (key k : W) : tuples :=
+  fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key = k.
+Definition functional (ts : tuples) :=
+  forall t1 t2, Ensembles.In _ ts t1 -> Ensembles.In _ ts t2
+                -> elementIndex t1 = elementIndex t2 -> t1 = t2.

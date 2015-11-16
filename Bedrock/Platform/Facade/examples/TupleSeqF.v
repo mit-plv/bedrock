@@ -1,10 +1,6 @@
 Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep Bedrock.Platform.Malloc.
 
-Fixpoint allTuplesLen (len : nat) (ts : list (list W)) :=
-  match ts with
-  | nil => True
-  | t :: ts' => length t = len /\ allTuplesLen len ts'
-  end.
+Require Import Bedrock.Platform.Facade.examples.TuplesF.
 
 Section adt.
   Variable tuple : list W -> W -> HProp.
@@ -14,6 +10,10 @@ Section adt.
   Definition newS := SPEC("extra_stack") reserving res
     PRE[_] mallocHeap 0
     POST[R] P nil R * mallocHeap 0.
+
+  Definition deleteS := SPEC("extra_stack", "self") reserving res
+    PRE[V] P nil (V "self") * mallocHeap 0
+    POST[R] [| R = $0 |] * mallocHeap 0.
 
   Definition copyS := SPEC("extra_stack", "self", "len") reserving res
     Al ls,

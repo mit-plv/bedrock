@@ -9,8 +9,6 @@ Inductive skel :=
 | Leaf
 | Node (sk1 sk2 : skel).
 
-Definition keepEq (ts : tuples) (key k : W) : tuples :=
-  fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key = k.
 Definition keepLt (ts : tuples) (key k : W) : tuples :=
   fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key < k.
 Definition keepGt (ts : tuples) (key k : W) : tuples :=
@@ -44,10 +42,6 @@ Qed.
 
 Hint Immediate keepEq_Equiv keepLt_Equiv keepGt_Equiv.
 
-
-Definition functional (ts : tuples) :=
-  forall t1 t2, Ensembles.In _ ts t1 -> Ensembles.In _ ts t2
-                -> elementIndex t1 = elementIndex t2 -> t1 = t2.
 
 Module Type ADT.
   Parameter tuples1 : W -> W -> tuples -> W -> HProp.

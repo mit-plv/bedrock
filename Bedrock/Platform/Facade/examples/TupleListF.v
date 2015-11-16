@@ -2,6 +2,7 @@ Require Import Coq.Sets.Ensembles Bedrock.Platform.AutoSep.
 
 Require Import Bedrock.Platform.Facade.examples.TupleF Bedrock.Platform.Facade.examples.ArrayTupleF.
 Require Import Bedrock.Platform.Malloc Bedrock.Platform.Facade.examples.TupleSeqF.
+Require Import Bedrock.Platform.Facade.examples.TuplesF.
 
 
 Module Type ADT.
@@ -28,6 +29,10 @@ Module Type ADT.
   Axiom lseq'_nonempty_bwd : forall ls (c : W), c <> 0
     -> (Ex xt, Ex ls', [| ls = xt :: ls' |] * [| freeable c 2 |] * Ex x, Ex p', (c ==*> x, p')
         * lseq' ls' p' * tuple xt x) ===> lseq' ls c.
+
+  Axiom lseq'_nil_fwd : forall (c : W),
+    lseq' nil c
+    ===> [| c = 0 |].
 
   Axiom lseq'_cons_fwd : forall xt ls (c : W),
     lseq' (xt :: ls) c
@@ -90,6 +95,13 @@ Module Adt : ADT.
     injection H0; sepLemma.
   Qed.
 
+  Theorem lseq'_nil_fwd : forall (c : W),
+    lseq' nil c
+    ===> [| c = 0 |].
+  Proof.
+    sepLemma.
+  Qed.
+
   Theorem lseq'_cons_fwd : forall xt ls (c : W),
     lseq' (xt :: ls) c
     ===> [| c <> 0 |] * [| freeable c 2 |] * Ex x, Ex p', (c ==*> x, p') * lseq' ls p' * tuple xt x.
@@ -102,11 +114,12 @@ Import Adt.
 Export Adt.
 
 Definition hints : TacPackage.
-  prepare (lseq_fwd, lseq'_empty_fwd, lseq'_nonempty_fwd, lseq'_cons_fwd)
+  prepare (lseq_fwd, lseq'_empty_fwd, lseq'_nonempty_fwd, lseq'_nil_fwd, lseq'_cons_fwd)
   (lseq_bwd, lseq'_empty_bwd, lseq'_nonempty_bwd).
 Defined.
 
 Definition newS := newS lseq 8.
+Definition deleteS := deleteS lseq 6.
 Definition copyS := copyS lseq 18.
 Definition copyAppendS := copyAppendS lseq 18.
 Definition popS := popS tuple lseq 8.
@@ -125,6 +138,13 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       "x" *<- 0;;
       Return "x"
+    end
+
+    with bfunction "delete"("extra_stack", "self") [deleteS]
+      Call "malloc"!"free"(0, "self", 2)
+      [PRE[_] Emp
+       POST[R] [| R = $0 |] ];;
+      Return 0
     end
 
     with bfunction "copy"("extra_stack", "self", "len", "new", "acc", "tmp") [copyS]
