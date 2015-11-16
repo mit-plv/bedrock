@@ -45,6 +45,10 @@ Qed.
 Hint Immediate keepEq_Equiv keepLt_Equiv keepGt_Equiv.
 
 
+Definition functional (ts : tuples) :=
+  forall t1 t2, Ensembles.In _ ts t1 -> Ensembles.In _ ts t2
+                -> elementIndex t1 = elementIndex t2 -> t1 = t2.
+
 Module Type ADT.
   Parameter tuples1 : W -> W -> tuples -> W -> HProp.
   Parameter tree : W -> W -> skel -> tuples -> W -> HProp.
@@ -85,6 +89,26 @@ Module Type ADT.
         * tree len key sk1 (keepLt ts key k) p1
         * tuples0 len (keepEq ts key k) t0
         * tree len key sk2 (keepGt ts key k) p2) ===> tree len key sk ts p.
+
+
+  Parameter stack : W -> W -> list (tuples * W) -> W -> HProp.
+  (* This last one is used as we walk a tree in full to enumerate. *)
+
+  Axiom stack_nil_fwd : forall len key tss (p : W), p = 0
+    -> stack len key tss p ===> [| tss = nil |].
+
+  Axiom stack_nil_bwd : forall len key tss (p : W), p = 0
+    -> [| tss = nil |] ===> stack len key tss p.
+
+  Axiom stack_cons_fwd : forall len key tss (p : W), p <> 0
+    -> stack len key tss p ===> Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |]
+      * [| functional ts |]
+      * Ex sk, Ex p', (p ==*> tp, p') * tree len key sk ts tp * stack len key tss' p'.
+
+  Axiom stack_cons_bwd : forall len key tss (p : W), p <> 0
+    -> (Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |] * [| functional ts |]
+      * Ex sk, Ex p', (p ==*> tp, p') * tree len key sk ts tp * stack len key tss' p')
+      ===> stack len key tss p.
 End ADT.
 
 Module Adt : ADT.
@@ -100,9 +124,46 @@ Module Adt : ADT.
         * tree len key sk2 (keepGt ts key k) p2
     end.
 
+  Fixpoint stack (len key : W) (tss : list (tuples * W)) (p : W) : HProp :=
+    match tss with
+    | nil => [| p = 0 |]
+    | (ts, tp) :: tss' => [| p <> 0 |] * [| freeable p 2 |] * [| functional ts |] * Ex sk, Ex p', (p ==*> tp, p')
+                    * tree len key sk ts tp * stack len key tss' p'
+    end.
+
   Definition tuples1 (len key : W) (ts : tuples) (c : W) : HProp :=
     [| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
     * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |].
+
+  Theorem stack_nil_fwd : forall len key tss (p : W), p = 0
+    -> stack len key tss p ===> [| tss = nil |].
+  Proof.
+    destruct tss as [ ? | [ ] ]; sepLemma.
+  Qed.
+
+  Theorem stack_nil_bwd : forall len key tss (p : W), p = 0
+    -> [| tss = nil |] ===> stack len key tss p.
+  Proof.
+    destruct tss as [ ? | [ ] ]; sepLemma.
+  Qed.
+
+  Theorem stack_cons_fwd : forall len key tss (p : W), p <> 0
+    -> stack len key tss p ===> Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |]
+      * [| functional ts |]
+      * Ex sk, Ex p', (p ==*> tp, p') * tree len key sk ts tp * stack len key tss' p'.
+  Proof.
+    destruct tss as [ ? | [ ] ]; sepLemma.
+  Qed.
+
+  Theorem stack_cons_bwd : forall len key tss (p : W), p <> 0
+    -> (Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |] * [| functional ts |]
+      * Ex sk, Ex p', (p ==*> tp, p') * tree len key sk ts tp * stack len key tss' p')
+      ===> stack len key tss p.
+  Proof.
+    destruct tss as [ ? | [ ] ]; sepLemma.
+    injection H0; sepLemma; auto.
+    injection H0; sepLemma.
+  Qed.
 
   Theorem tuples1_fwd : forall len key ts c, tuples1 len key ts c
     ===> [| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
@@ -176,9 +237,16 @@ Import Adt.
 Export Adt.
 
 Definition hints : TacPackage.
-  prepare (tuples1_fwd, tree_leaf_fwd, tree_node_fwd)
-          (tuples1_bwd, tree_leaf_bwd, tree_node_bwd).
+  prepare (tuples1_fwd, tree_leaf_fwd, tree_node_fwd, stack_nil_fwd, stack_cons_fwd)
+          (tuples1_bwd, tree_leaf_bwd, tree_node_bwd, stack_nil_bwd, stack_cons_bwd).
 Defined.
+
+(* Also, we want a way to indicate that the trees in a stack are intact, even though the stack has been freed. *)
+Fixpoint stacktrees (len key : W) (tss : list (tuples * W)) : HProp :=
+  match tss with
+  | nil => Emp
+  | (ts, tp) :: tss' => (Ex sk, tree len key sk ts tp) * stacktrees len key tss'
+  end%Sep.
 
 Definition newS := SPEC("extra_stack", "len", "key") reserving 7
   PRE[V] [| V "len" >= $2 |] * [| V "key" < V "len" |] * mallocHeap 0
@@ -201,6 +269,20 @@ Definition findIntoS := SPEC("extra_stack", "self", "k", "ls") reserving 28
   PRE[V] tuples1 len key ts (V "self") * lseq ls (V "ls") * mallocHeap 0
   POST[R] [| R = $0 |] * tuples1 len key ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
           * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls' |].
+
+Definition enumerateIntoS := SPEC("extra_stack", "self", "ls") reserving 29
+  Al len, Al key, Al ts, Al ls,
+  PRE[V] tuples1 len key ts (V "self") * lseq ls (V "ls") * [| functional ts |] * mallocHeap 0
+  POST[R] [| R = $0 |] * tuples1 len key ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+          * [| EnsembleIndexedListEquivalence ts ls' |].
+
+Fixpoint multiEquivalence (tss : list (tuples * W)) (ls : list tupl) : Prop :=
+  match tss with
+  | nil => ls = nil
+  | (ts, _) :: tss' => exists ls1 ls2, EnsembleIndexedListEquivalence ts ls1
+                                       /\ multiEquivalence tss' ls2
+                                       /\ ls = ls2 ++ ls1
+  end.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
@@ -336,6 +418,93 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       };;
 
       (* In this delightful imperative version, we just do nada if we don't find a match. *)
+      Return 0
+    end
+
+    with bfunction "enumerateInto"("extra_stack", "self", "ls", "stack", "tmp") [enumerateIntoS]
+      "self" <-* "self" + 8;;
+      "stack" <-- Call "malloc"!"malloc"(0, 2)
+      [Al len, Al key, Al sk, Al ts, Al ls,
+       PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |] * [| functional ts |]
+               * tree len key sk ts (V "self") * lseq ls (V "ls") * mallocHeap 0
+       POST[R'] Ex sk', [| R' = $0 |] * tree len key sk' ts (V "self")
+             * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence ts ls' |]];;
+
+      "stack" *<- "self";;
+      "stack" + 4 *<- 0;;
+
+      [Al len, Al key, Al tss, Al ls,
+       PRE[V, R] stack len key tss (V "stack") * lseq ls (V "ls") * mallocHeap 0
+       POST[R'] [| R' = $0 |] * stacktrees len key tss
+             * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| multiEquivalence tss ls' |] ]
+      While ("stack" <> 0) {
+        "self" <-* "stack";;
+        "tmp" <-* "stack" + 4;;
+
+        Call "malloc"!"free"(0, "stack", 2)
+        [Al len, Al key, Al tss, Al ls, Al sk, Al tp, Al ts,
+         PRE[V, R] stack len key tss (V "tmp") * tree len key sk ts (V "self")
+                 * lseq ls (V "ls") * mallocHeap 0 * [| functional ts |]
+         POST[R'] Ex sk', [| R' = $0 |] * stacktrees len key tss * tree len key sk' ts (V "self")
+                * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+                * [| multiEquivalence ((ts, tp) :: tss) ls' |]];;
+
+        "stack" <- "tmp";;
+
+        If ("self" = 0) {
+          Skip
+        } else {
+          "tmp" <-* "self" + 8;;
+          Call "Tuples0"!"enumerateInto"("extra_stack", "tmp", "ls")
+          [Al len, Al key, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V] stack len key tss (V "stack")
+             * V "self" =*> p1 * tree len key sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R] [| R = $0 |] * stacktrees len key tss
+             * Ex sk1', V "self" =*> p1 * tree len key sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| multiEquivalence ((ts2, p1) :: (ts1, p2) :: tss) ls' |]];;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key tss (V "stack")
+             * V "self" =*> p1 * tree len key sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] [| R' = $0 |] * stacktrees len key tss
+             * Ex sk1', V "self" =*> p1 * tree len key sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| multiEquivalence ((ts2, p2) :: (ts1, p1) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self";;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp";;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key, Al tss, Al ls, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key tss (V "stack")
+             * (V "self" ^+ $12) =*> p2 * tree len key sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] [| R' = $0 |] * stacktrees len key tss
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
+             * [| multiEquivalence ((ts2, p2) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self" + 12;;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp"
+        }
+      };;
+
       Return 0
     end
   }}.
@@ -576,6 +745,168 @@ Hint Immediate EnsembleIndexedListEquivalence_keepEq_empty.
 
 Hint Rewrite <- app_nil_end : sepFormula.
 
+Lemma multi_init : forall ts tp ls,
+  multiEquivalence ((ts, tp) :: nil) ls
+  -> EnsembleIndexedListEquivalence ts ls.
+Proof.
+  simpl.
+  destruct 2 as [ ? [ ] ]; intuition subst.
+  assumption.
+Qed.
+
+Hint Immediate multi_init.
+
+Lemma multi_empty : forall tss ls ts tp,
+  multiEquivalence tss ls
+  -> empty ts
+  -> multiEquivalence ((ts, tp) :: tss) ls.
+Proof.
+  simpl.
+  intros.
+  exists nil, ls; intuition.
+  hnf.
+  intuition.
+  exists 0; hnf; intros.
+  apply H0 in H1; tauto.
+  exists nil.
+  intuition.
+  apply H0 in H1; tauto.
+  constructor.
+Qed.
+
+Hint Immediate multi_empty.
+
+Theorem NoDup_app : forall A (ls1 ls2 : list A),
+  NoDup ls1
+  -> NoDup ls2
+  -> (forall x, In x ls1 -> In x ls2 -> False)
+  -> NoDup (ls1 ++ ls2).
+Proof.
+  induction 1; simpl; intuition.
+  constructor.
+  intro.
+  apply in_app_or in H4; intuition eauto.
+  eauto.
+Qed.
+
+Theorem multi_step1 : forall ts tp key k tp1 tp2 tss ls1 ls2,
+  multiEquivalence ((keepGt ts key k, tp2) :: (keepLt ts key k, tp1) :: tss) ls1
+  -> EnsembleIndexedListEquivalence (keepEq ts key k) ls2
+  -> functional ts
+  -> multiEquivalence ((ts, tp) :: tss) (ls1 ++ ls2).
+Proof.
+  unfold functional, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence; Equiv'; intuition;
+  repeat match goal with
+         | [ H : Logic.ex _ |- _ ] => destruct H; intuition (subst; simpl in * )
+         end.
+
+  exists (x3 ++ x1 ++ map indexedElement x).
+  exists x4; intuition.
+  2: repeat rewrite app_assoc; reflexivity.
+  unfold EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence in *; Equiv'; intuition;
+  repeat match goal with
+         | [ H : Logic.ex _ |- _ ] => destruct H; intuition (subst; simpl in * )
+         end.
+
+  exists (max x0 (max x1 x3)); intros.
+  destruct (weq (Array.sel (indexedElement element) key) k); subst.
+  assert (elementIndex element < x0)%nat by auto.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  destruct (wlt_dec (Array.sel (indexedElement element) key) k).
+  assert (elementIndex element < x3)%nat by auto.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  assert (elementIndex element < x1)%nat by intuition.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  exists (x2 ++ x5 ++ x).
+  repeat rewrite map_app; intuition.
+  destruct (weq (Array.sel (indexedElement x6) key) k); subst.
+  assert (In x6 x)%nat by (apply H0; tauto).
+  eauto using in_or_app.
+
+  destruct (wlt_dec (Array.sel (indexedElement x6) key) k).
+  assert (In x6 x2)%nat by (apply H4; tauto).
+  eauto using in_or_app.
+
+  assert (In x6 x5)%nat by (apply H7; intuition).
+  eauto using in_or_app.
+
+  apply in_app_or in H8; intuition.
+  firstorder.
+  apply in_app_or in H9; intuition; firstorder.
+
+  repeat apply NoDup_app; auto.
+
+  intros.
+  apply in_map_iff in H8.
+  apply in_map_iff in H9.
+  destruct H8, H9; intuition subst.
+  apply H7 in H13.
+  apply H0 in H14.
+  intuition subst.
+  specialize (H1 _ _ H13 H9 H8); subst.
+  nomega.
+
+  intros.
+  apply in_app_or in H9; intuition.
+
+  apply in_map_iff in H8.
+  apply in_map_iff in H12.
+  destruct H8, H12; intuition subst.
+  apply H4 in H13.
+  apply H7 in H14.
+  intuition subst.
+  specialize (H1 _ _ H13 H9 H8); subst.
+  nomega.
+
+  apply in_map_iff in H8.
+  apply in_map_iff in H12.
+  destruct H8, H12; intuition subst.
+  apply H4 in H13.
+  apply H0 in H14.
+  intuition subst.
+  specialize (H1 _ _ H13 H9 H8); subst.
+  nomega.
+Qed.
+
+Hint Immediate multi_step1.
+
+Opaque multiEquivalence.
+
+Lemma functional_keepLt : forall ts key k,
+  functional ts
+  -> functional (keepLt ts key k).
+Proof.
+  unfold functional, keepLt, Ensembles.In; firstorder.
+Qed.
+
+Lemma functional_keepGt : forall ts key k,
+  functional ts
+  -> functional (keepGt ts key k).
+Proof.
+  unfold functional, keepLt, Ensembles.In; firstorder.
+Qed.
+
+Lemma functional_keepEq : forall ts key k,
+  functional ts
+  -> functional (keepEq ts key k).
+Proof.
+  unfold functional, keepEq, Ensembles.In; firstorder.
+Qed.
+
+Hint Immediate functional_keepLt functional_keepGt functional_keepEq.
+
+Lemma multi_nil : multiEquivalence nil nil.
+Proof.
+  Transparent multiEquivalence.
+  reflexivity.
+  Opaque multiEquivalence.
+Qed.
+
+Hint Immediate multi_nil.
+
 Theorem ok : moduleOk m.
 Proof.
   vcgen.
@@ -605,6 +936,7 @@ Proof.
                       end.
 
   Ltac tree_cong :=
+    try rewrite app_assoc;
     repeat apply himp_star_frame; try ((apply tuples0_Equiv || apply tree_Equiv); solve [ eauto ]);
     descend'; step hints; eauto.
 
@@ -620,69 +952,95 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  Grab Existential Variables.
+  exact 0.
 Qed.
