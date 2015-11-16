@@ -270,6 +270,12 @@ Definition findIntoS := SPEC("extra_stack", "self", "k", "ls") reserving 28
   POST[R] [| R = $0 |] * tuples1 len key ts (V "self") * Ex ls', lseq (ls' ++ ls) (V "ls") * mallocHeap 0
           * [| EnsembleIndexedListEquivalence (keepEq ts key (V "k")) ls' |].
 
+Definition enumerateS := SPEC("extra_stack", "self") reserving 34
+  Al len, Al key, Al ts,
+  PRE[V] tuples1 len key ts (V "self") * [| functional ts |] * mallocHeap 0
+  POST[R] tuples1 len key ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+          * [| EnsembleIndexedListEquivalence ts ls |].
+
 Definition enumerateIntoS := SPEC("extra_stack", "self", "ls") reserving 29
   Al len, Al key, Al ts, Al ls,
   PRE[V] tuples1 len key ts (V "self") * lseq ls (V "ls") * [| functional ts |] * mallocHeap 0
@@ -390,7 +396,8 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       [PRE[V] Emp
        POST[R] [| R = V "ls" |] ];;
       Return "ls"
-    end with bfunction "findInto"("extra_stack", "self", "k", "ls", "k2") [findIntoS]
+    end
+    with bfunction "findInto"("extra_stack", "self", "k", "ls", "k2") [findIntoS]
       "self" <-* "self" + 8;;
 
       [Al len, Al key, Al sk, Al ts, Al ls,
@@ -419,6 +426,20 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       (* In this delightful imperative version, we just do nada if we don't find a match. *)
       Return 0
+    end
+
+    with bfunction "enumerate"("extra_stack", "self", "ls") [enumerateS]
+      "ls" <-- Call "TupleList"!"new"("extra_stack")
+      [Al len, Al key, Al ts,
+       PRE[V, R] lseq nil R * tuples1 len key ts (V "self") * [| functional ts |] * mallocHeap 0
+       POST[R'] tuples1 len key ts (V "self")
+             * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence ts ls |] ];;
+
+      Call "Tuples1"!"enumerateInto"("extra_stack", "self", "ls")
+      [PRE[V] Emp
+       POST[R] [| R = V "ls" |] ];;
+      Return "ls"
     end
 
     with bfunction "enumerateInto"("extra_stack", "self", "ls", "stack", "tmp") [enumerateIntoS]
@@ -907,139 +928,42 @@ Qed.
 
 Hint Immediate multi_nil.
 
+Ltac unifyLocals :=
+  match goal with
+  | [ _ : interp _ (![?P1] ?x) |- interp _ (![?P2] ?x) ] =>
+    match P1 with
+    | context[locals _ ?vs1 ?y _] =>
+      match P2 with
+      | context[locals _ ?vs2 y _] => unify vs1 vs2; descend
+      end
+    end
+  | [ |- interp _ (![?P1] ?x ---> ![?P2] ?x)%PropX ] =>
+    match P1 with
+    | context[locals ?y ?vs1 _ _] =>
+      match P2 with
+      | context[locals y ?vs2 _ _] => unify vs1 vs2; descend
+      end
+    end
+  end.
+
+Ltac descend' := try rewrite tuples1_eq; descend;
+                try match goal with
+                    | [ H : insert _ ?b _ |- context[insert _ ?b' _] ] =>
+                      unify b b'
+                    end.
+
+Ltac tree_cong :=
+  try rewrite app_assoc;
+  repeat apply himp_star_frame; try ((apply tuples0_Equiv || apply tree_Equiv); solve [ eauto ]);
+  descend'; step hints; eauto.
+
+Ltac t := solve [ enterFunction
+            || (post; evaluate hints; descend; try unifyLocals; repeat (step hints; descend'); eauto;
+                try tree_cong) ].
+
 Theorem ok : moduleOk m.
 Proof.
-  vcgen.
-
-  Ltac unifyLocals :=
-    match goal with
-    | [ _ : interp _ (![?P1] ?x) |- interp _ (![?P2] ?x) ] =>
-      match P1 with
-      | context[locals _ ?vs1 ?y _] =>
-        match P2 with
-        | context[locals _ ?vs2 y _] => unify vs1 vs2; descend
-        end
-      end
-    | [ |- interp _ (![?P1] ?x ---> ![?P2] ?x)%PropX ] =>
-      match P1 with
-      | context[locals ?y ?vs1 _ _] =>
-        match P2 with
-        | context[locals y ?vs2 _ _] => unify vs1 vs2; descend
-        end
-      end
-    end.
-
-  Ltac descend' := try rewrite tuples1_eq; descend;
-                  try match goal with
-                      | [ H : insert _ ?b _ |- context[insert _ ?b' _] ] =>
-                        unify b b'
-                      end.
-
-  Ltac tree_cong :=
-    try rewrite app_assoc;
-    repeat apply himp_star_frame; try ((apply tuples0_Equiv || apply tree_Equiv); solve [ eauto ]);
-    descend'; step hints; eauto.
-
-  Ltac t := solve [ enterFunction
-              || (post; evaluate hints; descend; try unifyLocals; repeat (step hints; descend'); eauto;
-                  try tree_cong) ].
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; try abstract t; t.
 
   Grab Existential Variables.
   exact 0.
