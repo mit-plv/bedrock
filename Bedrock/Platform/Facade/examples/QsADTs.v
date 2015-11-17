@@ -241,9 +241,9 @@ Section Tuples1ADTSpec.
   Definition Tuples1_insert : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key ts t,
+                     exists len key ts t idx,
                        args = [ADT (Tuples1 len key ts); ADT (Tuple t)]
-                       /\ bounded ts
+                       /\ minFreshIndex ts idx
                        /\ length t = wordToNat len;
         PostCond := fun args ret =>
                       exists len key ts t idx,
