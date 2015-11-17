@@ -920,3 +920,34 @@ Proof.
   exact 0.
   exact 0.
 Qed.
+
+Definition m1 := link ArrayTupleF.m m0.
+Definition m2 := link TupleListF.m m1.
+Definition m3 := link Tuples0F.m m2.
+Definition m4 := link Tuples1F.m m3.
+Definition m := link Malloc.m m4.
+
+Theorem ok1 : moduleOk m1.
+Proof.
+  link ArrayTupleF.ok ok0.
+Qed.
+
+Theorem ok2 : moduleOk m2.
+Proof.
+  link TupleListF.ok ok1.
+Qed.
+
+Theorem ok3 : moduleOk m3.
+Proof.
+  link Tuples0F.ok ok2.
+Qed.
+
+Theorem ok4 : moduleOk m4.
+Proof.
+  link Tuples1F.ok ok3.
+Qed.
+
+Theorem ok : moduleOk m.
+Proof.
+  link Malloc.ok ok4.
+Qed.
