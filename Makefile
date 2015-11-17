@@ -67,6 +67,8 @@ QSFACADE_VO := Bedrock/Platform/Facade/examples/QsADTs.vo
 QSFACADE_IMPL_VO := Bedrock/Platform/Facade/examples/QsImpl.vo \
 	Bedrock/Platform/Facade/examples/Tuples2F.vo
 
+QSFACADE_COMPILER_VO := Bedrock/Platform/Facade/examples/ExtractCompiler.vo
+
 # Not sure why we have these files if no target refers to them...
 PLATFORM_UNMADE_VO := \
 	Bedrock/Platform/tests/AbortAMD64.vo \
@@ -109,6 +111,7 @@ facade: $(FACADE_VO)
 facade-all: $(FACADE_ALL_VO)
 qsfacade: $(QSFACADE_VO)
 qsfacade-impl: $(QSFACADE_IMPL_VO)
+qsfacade-compiler: $(QSFACADE_COMPILER_VO)
 facade-allv: $(FACADE_ALLVO)
 cito: $(CITO_VO)
 platform: $(PLATFORM_VO)

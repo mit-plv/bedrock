@@ -223,7 +223,7 @@ Definition newS := SPEC("extra_stack", "len", "key1", "key2") reserving 7
   PRE[V] [| V "len" >= $2 |] * [| V "key1" < V "len" |]  * [| V "key2" < V "len" |] * mallocHeap 0
   POST[R] tuples2 (V "len") (V "key1") (V "key2") Empty R * mallocHeap 0.
 
-Definition insertS := SPEC("extra_stack", "self", "tup") reserving 21
+Definition insertS := SPEC("extra_stack", "self", "tup") reserving 31
   Al len, Al key1, Al key2, Al ts, Al t, Al ts',
   PRE[V] tuples2 len key1 key2 ts (V "self") * tuple t (V "tup") * [| length t = wordToNat len |] * mallocHeap 0
          * [| insert ts t ts' |]
@@ -246,32 +246,35 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "extra_stack"
     end
 
-    (*with bfunction "insert"("extra_stack", "self", "tup", "len", "key", "p", "k1", "k2") [insertS]
+    with bfunction "insert"("extra_stack", "self", "tup", "len", "key1", "key2", "p", "k1", "k2") [insertS]
       "len" <-* "self";;
-      "key" <-* "self" + 4;;
-      "self" <- "self" + 8;;
+      "key1" <-* "self" + 4;;
+      "key2" <-* "self" + 8;;
+      "self" <- "self" + 12;;
       "p" <-* "self";;
-      "k1" <-- Call "ArrayTuple"!"get"("extra_stack", "tup", "key")
+      "k1" <-- Call "ArrayTuple"!"get"("extra_stack", "tup", "key1")
       [Al ts, Al t, Al ts', Al sk,
-       PRE[V, R] V "self" =*> V "p" * tree (V "len") (V "key") sk ts (V "p") * tuple t (V "tup")
-         * [| length t = wordToNat (V "len") |] * [| (V "key" < V "len")%word |] * mallocHeap 0
-         * [| R = Array.sel t (V "key") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
+       PRE[V, R] V "self" =*> V "p" * tree (V "len") (V "key1") (V "key2") sk ts (V "p") * tuple t (V "tup")
+         * [| length t = wordToNat (V "len") |] * [| (V "key1" < V "len")%word |]
+         * [| (V "key2" < V "len")%word |] * mallocHeap 0
+         * [| R = Array.sel t (V "key1") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
        POST[R'] [| R' = $0 |] * Ex p, Ex sk',
-         V "self" =*> p * tree (V "len") (V "key") sk' ts' p * mallocHeap 0];;
+         V "self" =*> p * tree (V "len") (V "key1") (V "key2") sk' ts' p * mallocHeap 0];;
 
       [Al ts, Al t, Al ts', Al sk,
-       PRE[V] V "self" =*> V "p" * tree (V "len") (V "key") sk ts (V "p") * tuple t (V "tup")
-         * [| length t = wordToNat (V "len") |] * [| (V "key" < V "len")%word |] * mallocHeap 0
-         * [| V "k1" = Array.sel t (V "key") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
+       PRE[V] V "self" =*> V "p" * tree (V "len") (V "key1") (V "key2") sk ts (V "p") * tuple t (V "tup")
+         * [| length t = wordToNat (V "len") |] * [| (V "key1" < V "len")%word |]
+         * [| (V "key2" < V "len")%word |] * mallocHeap 0
+         * [| V "k1" = Array.sel t (V "key1") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
        POST[R] [| R = $0 |] * Ex p, Ex sk',
-         V "self" =*> p * tree (V "len") (V "key") sk' ts' p * mallocHeap 0]
+         V "self" =*> p * tree (V "len") (V "key1") (V "key2") sk' ts' p * mallocHeap 0]
       While ("p" <> 0) {
         "k2" <-* "p" + 4;;
 
         If ("k1" = "k2") {
           (* Found existing node for this key.  Add to its collection. *)
           "k2" <-* "p" + 8;;
-          Call "Tuples0"!"insert"("extra_stack", "k2", "tup")
+          Call "Tuples1"!"insert"("extra_stack", "k2", "tup")
           [PRE[_] Emp
            POST[R] [| R = $0 |] ];;
           Return 0
@@ -287,33 +290,36 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       };;
 
       (* This key hasn't been added yet.  Create a new tree node for it. *)
-      "k2" <-- Call "Tuples0"!"new"("extra_stack", "len")
+      "k2" <-- Call "Tuples1"!"new"("extra_stack", "len", "key2")
       [Al ts, Al t, Al ts',
-       PRE[V, R] tuples0 (V "len") Empty R * [| empty ts |]
+       PRE[V, R] tuples1 (V "len") (V "key2") Empty R * [| empty ts |]
          * V "self" =*> V "p" * tuple t (V "tup")
-         * [| length t = wordToNat (V "len") |] * [| (V "key" < V "len")%word |] * mallocHeap 0
-         * [| V "k1" = Array.sel t (V "key") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
+         * [| length t = wordToNat (V "len") |] * [| (V "key1" < V "len")%word |]
+         * [| (V "key2" < V "len")%word |] * mallocHeap 0
+         * [| V "k1" = Array.sel t (V "key1") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
        POST[R'] [| R' = $0 |] * Ex p, Ex sk',
-         V "self" =*> p * tree (V "len") (V "key") sk' ts' p * mallocHeap 0];;
+         V "self" =*> p * tree (V "len") (V "key1") (V "key2") sk' ts' p * mallocHeap 0];;
 
-      Call "Tuples0"!"insert"("extra_stack", "k2", "tup")
+      Call "Tuples1"!"insert"("extra_stack", "k2", "tup")
       [Al ts, Al t, Al ts',
-       PRE[V] tuples0 (V "len") ts' (V "k2") * [| empty ts |]
+       PRE[V] tuples1 (V "len") (V "key2") ts' (V "k2") * [| empty ts |]
          * V "self" =*> V "p"
-         * [| length t = wordToNat (V "len") |] * [| (V "key" < V "len")%word |] * mallocHeap 0
-         * [| V "k1" = Array.sel t (V "key") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
+         * [| length t = wordToNat (V "len") |] * [| (V "key1" < V "len")%word |]
+         * [| (V "key2" < V "len")%word |] * mallocHeap 0
+         * [| V "k1" = Array.sel t (V "key1") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
        POST[R] [| R = $0 |] * Ex p, Ex sk',
-         V "self" =*> p * tree (V "len") (V "key") sk' ts' p * mallocHeap 0];;
+         V "self" =*> p * tree (V "len") (V "key1") (V "key2") sk' ts' p * mallocHeap 0];;
 
       "p" <-- Call "malloc"!"malloc"(0, 4)
       [Al ts, Al t, Al ts',
        PRE[V, R] R =?> 4 * [| R <> 0 |] * [| empty ts |]
-         * tuples0 (V "len") ts' (V "k2")
+         * tuples1 (V "len") (V "key2") ts' (V "k2")
          * V "self" =*> V "p"
-         * [| length t = wordToNat (V "len") |] * [| (V "key" < V "len")%word |] * mallocHeap 0
-         * [| V "k1" = Array.sel t (V "key") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
+         * [| length t = wordToNat (V "len") |] * [| (V "key1" < V "len")%word |]
+         * [| (V "key2" < V "len")%word |] * mallocHeap 0
+         * [| V "k1" = Array.sel t (V "key1") |] * [| ($2 <= V "len")%word |] * [| insert ts t ts' |]
        POST[R] [| R = $0 |] * Ex p, Ex sk',
-         V "self" =*> p * tree (V "len") (V "key") sk' ts' p * mallocHeap 0];;
+         V "self" =*> p * tree (V "len") (V "key1") (V "key2") sk' ts' p * mallocHeap 0];;
 
       "p" *<- 0;;
       "p" + 4 *<- "k1";;
@@ -321,7 +327,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "p" + 12 *<- 0;;
       "self" *<- "p";;
       Return 0
-    end*)
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -345,6 +351,38 @@ Theorem ok : moduleOk m.
 Proof.
   vcgen.
 
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.

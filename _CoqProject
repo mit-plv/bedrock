@@ -339,6 +339,7 @@ Bedrock/Platform/Facade/NameDecoration.v
 Bedrock/Platform/Facade/Notations.v
 Bedrock/Platform/Facade/SafeCoind.v
 Bedrock/Platform/Facade/examples/ArrayTupleF.v
+Bedrock/Platform/Facade/examples/ExtractCompiler.v
 Bedrock/Platform/Facade/examples/FiatADTs.v
 Bedrock/Platform/Facade/examples/FiatImpl.v
 Bedrock/Platform/Facade/examples/FiatRepInv.v
@@ -357,6 +358,7 @@ Bedrock/Platform/Facade/examples/TupleListF.v
 Bedrock/Platform/Facade/examples/TupleSeqF.v
 Bedrock/Platform/Facade/examples/Tuples0F.v
 Bedrock/Platform/Facade/examples/Tuples1F.v
+Bedrock/Platform/Facade/examples/Tuples2F.v
 Bedrock/Platform/Facade/examples/TuplesF.v
 Bedrock/Platform/tests/Abort.v
 Bedrock/Platform/tests/AbortAMD64.v
