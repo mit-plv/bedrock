@@ -47,16 +47,20 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "TupleList"!"empty" @ [TupleListF.emptyS],
                             "TupleList"!"push" @ [TupleListF.pushS],
                             "TupleList"!"rev" @ [TupleListF.revS],
-                            "TupleList"!"length" @ [TupleListF.lengthS]
+                            "TupleList"!"length" @ [TupleListF.lengthS],
+
+                            "Tuples0"!"new" @ [Tuples0F.newS],
+                            "Tuples0"!"insert" @ [Tuples0F.insertS],
+                            "Tuples0"!"enumerate" @ [Tuples0F.enumerateS]
  ]]
   fmodule "ADT" {{
-    (*ffunction "Tuple_new" reserving 7 [Tuple_new] := "ArrayTuple"!"new"
+    ffunction "Tuple_new" reserving 7 [Tuple_new] := "ArrayTuple"!"new"
     with ffunction "Tuple_delete" reserving 6 [Tuple_delete] := "ArrayTuple"!"delete"
     with ffunction "Tuple_copy" reserving 11 [Tuple_copy] := "ArrayTuple"!"copy"
     with ffunction "Tuple_get" reserving 0 [Tuple_get] := "ArrayTuple"!"get"
     with ffunction "Tuple_set" reserving 0 [Tuple_set] := "ArrayTuple"!"set"
 
-    with*) ffunction "List_new" reserving 8 [List_new] := "TupleList"!"new"
+    with ffunction "List_new" reserving 8 [List_new] := "TupleList"!"new"
     with ffunction "List_delete" reserving 6 [List_delete] := "TupleList"!"delete"
     with ffunction "List_copy" reserving 18 [List_copy] := "TupleList"!"copy"
     with ffunction "List_pop" reserving 8 [List_pop] := "TupleList"!"pop"
@@ -64,6 +68,10 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "List_push" reserving 8 [List_push] := "TupleList"!"push"
     with ffunction "List_rev" reserving 2 [List_rev] := "TupleList"!"rev"
     with ffunction "List_length" reserving 1 [List_length] := "TupleList"!"length"
+
+    with ffunction "Tuples0_new" reserving 11 [Tuples0_new] := "Tuples0"!"new"
+    with ffunction "Tuples0_insert" reserving 12 [Tuples0_insert] := "Tuples0"!"insert"
+    with ffunction "Tuples0_enumerate" reserving 22 [Tuples0_enumerate] := "Tuples0"!"enumerate"
   }}.
 
 Ltac peel := repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
@@ -321,6 +329,94 @@ Proof.
   apply Properties.F.add_mapsto_iff in H7; intuition.
   apply Properties.F.add_mapsto_iff in H8; intuition.
   apply Properties.F.empty_mapsto_iff in H9; tauto.
+Qed.
+
+Theorem insert_bounded : forall ts idx t,
+  TuplesF.minFreshIndex ts idx
+  -> TuplesF.insert ts t (TuplesF.insertAt ts idx t).
+Proof.
+  unfold TuplesF.insert, TuplesF.insertAt, TuplesF.UnConstrFreshIdx.
+  destruct 1.
+  exists idx.
+  intuition.
+Qed.
+
+Hint Immediate insert_bounded.
+
+Lemma really_zero : forall (st : state) (r : reg),
+  Regs st r = $0
+  -> SCA ((let (Regs, _) := st in Regs) r) = @SCAZero ADTValue.
+Proof.
+  intros.
+  unfold SCAZero.
+  f_equal.
+  auto.
+Qed.
+
+Hint Immediate really_zero.
+
+Lemma readd_Tuples0' : forall c rv rv' c' ov len,
+  c <> c'
+  -> tuples0 len rv' c * is_heap heap_empty
+  ===> is_heap
+      (WordMap.remove c'
+         (WordMap.add c (Tuples0 len rv')
+            (WordMap.add c' ov
+               (WordMap.add c (Tuples0 len rv)
+                  heap_empty)))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  match goal with
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, Tuples0 len rv') x)
+  end.
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.remove_2; auto.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H0; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H0; intuition idtac.
+  eapply Himp_trans; [ | apply H1 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H3 in H2; intuition.
+  apply In_InA' in H5.
+  apply WordMap.elements_2 in H5.
+  apply Properties.F.remove_mapsto_iff in H5; intuition.
+  apply Properties.F.add_mapsto_iff in H6; intuition.
+  apply Properties.F.add_mapsto_iff in H7; intuition.
+  apply Properties.F.add_mapsto_iff in H8; intuition.
+  apply Properties.F.empty_mapsto_iff in H9; tauto.
+Qed.
+
+Lemma get_rval''' : forall specs st P (Q : Prop) R S Z,
+  (Q -> interp specs (![P * R * S ] st ---> Z)%PropX)
+  -> interp specs (![((P * [|Q|]) * R) * S] st ---> Z)%PropX.
+Proof.
+  intros.
+  apply Imply_trans with (![[|Q|] * (P * R * S)]st)%PropX.
+  assert (((P * [|Q|]) * R) * S ===> [|Q|] * (P * R * S)).
+  sepLemma.
+  rewrite sepFormula_eq.
+  apply H0.
+  apply Imply_trans with ([|Q|] /\ ![P * R * S]st)%PropX.
+  rewrite sepFormula_eq.
+  do 2 (apply existsL; intro).
+  apply andL; apply injL; intro.
+  apply andL.
+  apply andL.
+  apply injL; intro.
+  apply injL; intro.
+  apply split_semp in H0; auto; subst.
+  apply andR.
+  apply injR; auto.
+  apply Imply_refl.
+  apply andL.
+  apply injL; auto.
 Qed.
 
 Theorem ok0 : moduleOk m0.
@@ -589,6 +685,72 @@ Proof.
   unfolder.
   etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
   do_delegate2 ("self" :: nil).
+
+
+  (* Tuples0 *)
+
+  (* new *)
+
+  do_abort ("len" :: nil).
+  do_abort ("len" :: nil).
+  do_abort ("len" :: nil).
+
+  do_delegate1 ("len" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("len" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  do_delegate2 ("len" :: nil).
+
+  (* insert *)
+
+  do_abort ("self" :: "tup" :: nil).
+  do_abort ("self" :: "tup" :: nil).
+  do_abort ("self" :: "tup" :: nil).
+
+  do_delegate1 ("self" :: "tup" :: nil) hints.
+  add_side_conditions.
+  descend; step hints.
+  simpl; step hints.
+  peel.
+  apply get_rval''; intro.
+  descend; step hints.
+  descend; step hints.
+  2: returnScalar; eauto 7.
+  simpl.
+  make_toArray ("self" :: "tup" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_Tuples0' ] ].
+  do_delegate2 ("self" :: "tup" :: nil).
+  congruence.
+
+  (* enumerate *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  peel.
+  apply get_rval'''; intro.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnAdt; eauto 7.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_Tuples0 ] ].
+  do_delegate2 ("self" :: nil).
+
 
   Grab Existential Variables.
   exact 0.

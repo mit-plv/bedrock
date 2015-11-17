@@ -198,9 +198,9 @@ Section Tuples0ADTSpec.
   Definition Tuples0_insert : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len ts t,
+                     exists len ts t idx,
                        args = [ADT (Tuples0 len ts); ADT (Tuple t)]
-                       /\ bounded ts
+                       /\ minFreshIndex ts idx
                        /\ length t = wordToNat len;
         PostCond := fun args ret =>
                       exists len ts t idx,
