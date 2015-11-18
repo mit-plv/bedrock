@@ -235,6 +235,12 @@ Definition findBothS := SPEC("extra_stack", "self", "k1", "k2") reserving 38
   POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
         * [| EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 (V "k1")) key2 (V "k2")) ls |].
 
+Definition findFirstS := SPEC("extra_stack", "self", "k1") reserving 37
+  Al len, Al key1, Al key2, Al ts,
+  PRE[V] tuples2 len key1 key2 ts (V "self") * [| functional ts |] * mallocHeap 0
+  POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+        * [| EnsembleIndexedListEquivalence (keepEq ts key1 (V "k1")) ls |].
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
                            "Tuples1"!"new" @ [Tuples1F.newS], "Tuples1"!"insert" @ [Tuples1F.insertS],
@@ -370,6 +376,40 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
        POST[R'] [| R' = R |] ];;
       Return "self"
     end
+
+    with bfunction "findFirst"("extra_stack", "self", "k1") [findFirstS]
+      "self" <-* "self" + 12;;
+
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V] tree len key1 key2 sk ts (V "self") * [| functional ts |] * mallocHeap 0
+       POST[R] tree len key1 key2 sk ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq ts key1 (V "k1")) ls |] ]
+      While ("self" <> 0) {
+        "extra_stack" <-* "self" + 4;;
+
+        If ("extra_stack" = "k1") {
+          (* Found existing node for this key.  Delegate to the nested data structure found here. *)
+          "extra_stack" <-* "self" + 8;;
+          "self" <-- Call "Tuples1"!"enumerate"("extra_stack", "extra_stack")
+          [PRE[_, R] Emp
+           POST[R'] [| R' = R |] ];;
+          Return "self"
+        } else {
+          (* No match.  Proceed to appropriate subtree. *)
+          If ("k1" < "extra_stack") {
+            "self" <-* "self"
+          } else {
+            "self" <-* "self" + 12
+          }
+        }
+      };;
+
+      (* No match.  Prepare a new empty list to return. *)
+      "self" <-- Call "TupleList"!"new"("extra_stack")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "self"
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -454,6 +494,29 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
