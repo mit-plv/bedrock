@@ -60,6 +60,10 @@ Module Type ADT.
     = ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
         * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |])%Sep.
 
+  Axiom tuples1_Equiv : forall len key ts1 ts2 p,
+    Equiv ts1 ts2
+    -> tuples1 len key ts1 p ===> tuples1 len key ts2 p.
+
   Axiom tree_Equiv : forall len key sk ts1 ts2 p,
     Equiv ts1 ts2
     -> tree len key sk ts1 p ===> tree len key sk ts2 p.
@@ -191,6 +195,14 @@ Module Adt : ADT.
 
     repeat apply himp_star_frame; eauto.
     eapply tuples0_Equiv; eauto.
+  Qed.
+
+  Theorem tuples1_Equiv : forall len key ts1 ts2 p,
+    Equiv ts1 ts2
+    -> tuples1 len key ts1 p ===> tuples1 len key ts2 p.
+  Proof.
+    unfold tuples1; sepLemma.
+    eapply tree_Equiv; eauto.
   Qed.
 
   Theorem tree_leaf_fwd : forall len key sk ts (p : W), p = 0

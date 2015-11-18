@@ -229,9 +229,17 @@ Definition insertS := SPEC("extra_stack", "self", "tup") reserving 31
          * [| insert ts t ts' |]
   POST[R] [| R = $0 |] * tuples2 len key1 key2 ts' (V "self") * mallocHeap 0.
 
+Definition findBothS := SPEC("extra_stack", "self", "k1", "k2") reserving 38
+  Al len, Al key1, Al key2, Al ts,
+  PRE[V] tuples2 len key1 key2 ts (V "self") * mallocHeap 0
+  POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+        * [| EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 (V "k1")) key2 (V "k2")) ls |].
+
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
-                           "Tuples1"!"new" @ [Tuples1F.newS], "Tuples1"!"insert" @ [Tuples1F.insertS] ]]
+                           "Tuples1"!"new" @ [Tuples1F.newS], "Tuples1"!"insert" @ [Tuples1F.insertS],
+                           "Tuples1"!"find" @ [Tuples1F.findS], "Tuples1"!"findInto" @ [Tuples1F.findIntoS],
+                           "Tuples1"!"enumerate" @ [Tuples1F.enumerateS], "Tuples1"!"enumerateInto" @ [Tuples1F.enumerateIntoS] ]]
   bmodule "Tuples2" {{
     bfunction "new"("extra_stack", "len", "key1", "key2") [newS]
       "extra_stack" <-- Call "malloc"!"malloc"(0, 4)
@@ -328,6 +336,40 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       "self" *<- "p";;
       Return 0
     end
+
+    with bfunction "findBoth"("extra_stack", "self", "k1", "k2") [findBothS]
+      "self" <-* "self" + 12;;
+
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V] tree len key1 key2 sk ts (V "self") * mallocHeap 0
+       POST[R] tree len key1 key2 sk ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 (V "k1")) key2 (V "k2")) ls |] ]
+      While ("self" <> 0) {
+        "extra_stack" <-* "self" + 4;;
+
+        If ("extra_stack" = "k1") {
+          (* Found existing node for this key.  Delegate to the nested data structure found here. *)
+          "extra_stack" <-* "self" + 8;;
+          "self" <-- Call "Tuples1"!"find"("extra_stack", "extra_stack", "k2")
+          [PRE[_, R] Emp
+           POST[R'] [| R' = R |] ];;
+          Return "self"
+        } else {
+          (* No match.  Proceed to appropriate subtree. *)
+          If ("k1" < "extra_stack") {
+            "self" <-* "self"
+          } else {
+            "self" <-* "self" + 12
+          }
+        }
+      };;
+
+      (* No match.  Prepare a new empty list to return. *)
+      "self" <-- Call "TupleList"!"new"("extra_stack")
+      [PRE[_, R] Emp
+       POST[R'] [| R' = R |] ];;
+      Return "self"
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -346,6 +388,49 @@ Ltac tree_cong :=
 Ltac t := solve [ enterFunction
             || (post; evaluate hints; descend; try unifyLocals; repeat (step hints; descend'); eauto;
                 try tree_cong) ].
+
+Lemma EnsembleIndexedListEquivalence_keepEq_keepEq_keepLt : forall ts k1 key1 key2 k k' v,
+  EnsembleIndexedListEquivalence (keepEq (keepEq (keepLt ts key1 k1) key1 k) key2 k') v
+  -> k < k1
+  -> EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 k) key2 k') v.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+
+  destruct H1; intuition (subst; simpl in * ).
+  firstorder.
+  firstorder.
+Qed.
+
+Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepEq_keepLt.
+
+Lemma EnsembleIndexedListEquivalence_keepEq_keepEq_keepGt : forall ts k1 key1 key2 k k' v,
+  EnsembleIndexedListEquivalence (keepEq (keepEq (keepGt ts key1 k1) key1 k) key2 k') v
+  -> k1 <= k
+  -> k <> k1
+  -> EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 k) key2 k') v.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+
+  destruct H2; intuition (subst; simpl in * ).
+  exists x; intuition (subst; simpl in * ).
+  firstorder.
+  firstorder.
+Qed.
+
+Hint Resolve EnsembleIndexedListEquivalence_keepEq_keepEq_keepGt.
+
+Lemma EnsembleIndexedListEquivalence_keepEq_keepEq_empty : forall ts key1 k key2 k',
+  empty ts
+  -> EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 k) key2 k') nil.
+Proof.
+  unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
+  exists 0; firstorder.
+  hnf.
+  exists nil; firstorder.
+  constructor.
+Qed.
+
+Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepEq_empty.
 
 Theorem ok : moduleOk m.
 Proof.
@@ -369,6 +454,29 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
