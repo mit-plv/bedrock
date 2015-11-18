@@ -72,11 +72,6 @@ Module Type ADT.
       ===> stack len key1 key2 tss p.
 End ADT.
 
-(* ADD THIS (with proof) TO Tuples1F! *)
-Axiom tuples1_Equiv : forall len key ts1 ts2 p,
-  Equiv ts1 ts2
-  -> tuples1 len key ts1 p ===> tuples1 len key ts2 p.
-
 Module Adt : ADT.
   Open Scope Sep_scope.
 
@@ -240,6 +235,18 @@ Definition findFirstS := SPEC("extra_stack", "self", "k1") reserving 37
   PRE[V] tuples2 len key1 key2 ts (V "self") * [| functional ts |] * mallocHeap 0
   POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
         * [| EnsembleIndexedListEquivalence (keepEq ts key1 (V "k1")) ls |].
+
+Definition enumerateS := SPEC("extra_stack", "self") reserving 36
+  Al len, Al key1, Al key2, Al ts,
+  PRE[V] tuples2 len key1 key2 ts (V "self") * [| functional ts |] * mallocHeap 0
+  POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+        * [| EnsembleIndexedListEquivalence ts ls |].
+
+Definition findSecondS := SPEC("extra_stack", "self", "k2") reserving 37
+  Al len, Al key1, Al key2, Al ts,
+  PRE[V] tuples2 len key1 key2 ts (V "self") * [| functional ts |] * mallocHeap 0
+  POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
+        * [| EnsembleIndexedListEquivalence (keepEq ts key2 (V "k2")) ls |].
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
@@ -410,6 +417,99 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
        POST[R'] [| R' = R |] ];;
       Return "self"
     end
+
+    with bfunction "enumerate"("extra_stack", "self", "ls", "stack", "tmp") [enumerateS]
+      "self" <-* "self" + 12;;
+      "ls" <-- Call "TupleList"!"new"("extra_stack")
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V, R] lseq nil R * tree len key1 key2 sk ts (V "self") * [| functional ts |] * mallocHeap 0
+       POST[R'] Ex sk', tree len key1 key2 sk' ts (V "self") * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence ts ls |] ];;
+
+      "stack" <-- Call "malloc"!"malloc"(0, 2)
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |] * [| functional ts |]
+               * tree len key1 key2 sk ts (V "self") * lseq nil (V "ls") * mallocHeap 0
+       POST[R'] Ex sk', tree len key1 key2 sk' ts (V "self")
+             * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence ts ls |]];;
+
+      "stack" *<- "self";;
+      "stack" + 4 *<- 0;;
+
+      [Al len, Al key1, Al key2, Al tss, Al ls,
+       PRE[V, R] stack len key1 key2 tss (V "stack") * lseq ls (V "ls") * mallocHeap 0
+       POST[R'] stacktrees len key1 key2 tss
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalence tss ls' |] ]
+      While ("stack" <> 0) {
+        "self" <-* "stack";;
+        "tmp" <-* "stack" + 4;;
+
+        Call "malloc"!"free"(0, "stack", 2)
+        [Al len, Al key1, Al key2, Al tss, Al ls, Al sk, Al tp, Al ts,
+         PRE[V, R] stack len key1 key2 tss (V "tmp") * tree len key1 key2 sk ts (V "self")
+                 * lseq ls (V "ls") * mallocHeap 0 * [| functional ts |]
+         POST[R'] Ex sk', stacktrees len key1 key2 tss * tree len key1 key2 sk' ts (V "self")
+                * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+                * [| multiEquivalence ((ts, tp) :: tss) ls' |]];;
+
+        "stack" <- "tmp";;
+
+        If ("self" = 0) {
+          Skip
+        } else {
+          "tmp" <-* "self" + 8;;
+          Call "Tuples1"!"enumerateInto"("extra_stack", "tmp", "ls")
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V] stack len key1 key2 tss (V "stack")
+             * V "self" =*> p1 * tree len key1 key2 sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R] stacktrees len key1 key2 tss
+             * Ex sk1', V "self" =*> p1 * tree len key1 key2 sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R * mallocHeap 0
+             * [| multiEquivalence ((ts2, p1) :: (ts1, p2) :: tss) ls' |]];;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key1 key2 tss (V "stack")
+             * V "self" =*> p1 * tree len key1 key2 sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] stacktrees len key1 key2 tss
+             * Ex sk1', V "self" =*> p1 * tree len key1 key2 sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalence ((ts2, p2) :: (ts1, p1) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self";;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp";;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key1 key2 tss (V "stack")
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] stacktrees len key1 key2 tss
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalence ((ts2, p2) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self" + 12;;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp"
+        }
+      };;
+
+      Return "ls"
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -471,6 +571,8 @@ Proof.
 Qed.
 
 Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepEq_empty.
+
+Opaque multiEquivalence.
 
 Theorem ok : moduleOk m.
 Proof.
@@ -540,6 +642,37 @@ Proof.
   t.
   t.
 
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
