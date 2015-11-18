@@ -10,7 +10,8 @@ Inductive ADTValue :=
 | Tuple (t : tupl)
 | List (ts : list tupl)
 | Tuples0 (len : W) (ts : tuples)
-| Tuples1 (len key : W) (ts : tuples).
+| Tuples1 (len key : W) (ts : tuples)
+| Tuples2 (len key1 key2 : W) (ts : tuples).
 
 Require Import Bedrock.Platform.Cito.ADT.
 
@@ -280,5 +281,92 @@ Section Tuples1ADTSpec.
                         /\ EnsembleIndexedListEquivalence (keepEq ts key k) l
       |}; crush_types.
   Defined.
-
 End Tuples1ADTSpec.
+
+Section Tuples2ADTSpec.
+
+  Definition Tuples2_new : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args => exists len key1 key2,
+                                 args = [SCA _ len; SCA _ key1; SCA _ key2]
+                                 /\ len >= $2
+                                 /\ key1 < len
+                                 /\ key2 < len;
+        PostCond := fun args ret => exists len key1 key2,
+                                      args = [(SCA _ len, None); (SCA _ key1, None); (SCA _ key2, None)]
+                                      /\ ret = ADT (Tuples2 len key1 key2 Empty)
+      |}; crush_types.
+  Defined.
+
+  Definition Tuples2_insert : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key1 key2 ts t idx,
+                       args = [ADT (Tuples2 len key1 key2 ts); ADT (Tuple t)]
+                       /\ minFreshIndex ts idx
+                       /\ length t = wordToNat len;
+        PostCond := fun args ret =>
+                      exists len key1 key2 ts t idx,
+                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 (insertAt ts idx t)));
+                                 (ADT (Tuple t), None) ]
+                        /\ minFreshIndex ts idx
+                        /\ ret = SCAZero
+      |}; crush_types.
+  Defined.
+
+  Definition Tuples2_enumerate : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key1 key2 ts,
+                       args = [ADT (Tuples2 len key1 key2 ts)]
+                       /\ functional ts;
+        PostCond := fun args ret =>
+                      exists len key1 key2 ts l,
+                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)) ]
+                        /\ ret = ADT (List l)
+                        /\ EnsembleIndexedListEquivalence ts l
+      |}; crush_types.
+  Defined.
+
+  Definition Tuples2_findBoth : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key1 key2 ts k1 k2,
+                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k1; SCA _ k2];
+        PostCond := fun args ret =>
+                      exists len key1 key2 ts k1 k2 l,
+                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k1, None); (SCA _ k2, None) ]
+                        /\ ret = ADT (List l)
+                        /\ EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 k1) key2 k2) l
+      |}; crush_types.
+  Defined.
+
+  Definition Tuples2_findFirst : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key1 key2 ts k,
+                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k]
+                       /\ functional ts;
+        PostCond := fun args ret =>
+                      exists len key1 key2 ts k l,
+                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
+                        /\ ret = ADT (List l)
+                        /\ EnsembleIndexedListEquivalence (keepEq ts key1 k) l
+      |}; crush_types.
+  Defined.
+
+  Definition Tuples2_findSecond : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key1 key2 ts k,
+                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k]
+                       /\ functional ts;
+        PostCond := fun args ret =>
+                      exists len key1 key2 ts k l,
+                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
+                        /\ ret = ADT (List l)
+                        /\ EnsembleIndexedListEquivalence (keepEq ts key2 k) l
+      |}; crush_types.
+  Defined.
+
+End Tuples2ADTSpec.

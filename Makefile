@@ -64,8 +64,7 @@ FACADE_ALL_VO := \
 
 QSFACADE_VO := Bedrock/Platform/Facade/examples/QsADTs.vo
 
-QSFACADE_IMPL_VO := Bedrock/Platform/Facade/examples/QsImpl.vo \
-	Bedrock/Platform/Facade/examples/Tuples2F.vo
+QSFACADE_IMPL_VO := Bedrock/Platform/Facade/examples/QsImpl.vo
 
 QSFACADE_COMPILER_VO := Bedrock/Platform/Facade/examples/ExtractCompiler.vo
 

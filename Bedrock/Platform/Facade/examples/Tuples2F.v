@@ -242,11 +242,19 @@ Definition enumerateS := SPEC("extra_stack", "self") reserving 36
   POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
         * [| EnsembleIndexedListEquivalence ts ls |].
 
-Definition findSecondS := SPEC("extra_stack", "self", "k2") reserving 37
+Definition findSecondS := SPEC("extra_stack", "self", "k2") reserving 36
   Al len, Al key1, Al key2, Al ts,
   PRE[V] tuples2 len key1 key2 ts (V "self") * [| functional ts |] * mallocHeap 0
   POST[R] tuples2 len key1 key2 ts (V "self") * Ex ls, lseq ls R * mallocHeap 0
         * [| EnsembleIndexedListEquivalence (keepEq ts key2 (V "k2")) ls |].
+
+Fixpoint multiEquivalenceEq (key k : W) (tss : list (tuples * W)) (ls : list tupl) : Prop :=
+  match tss with
+  | nil => ls = nil
+  | (ts, _) :: tss' => exists ls1 ls2, EnsembleIndexedListEquivalence (keepEq ts key k) ls1
+                                       /\ multiEquivalenceEq key k tss' ls2
+                                       /\ ls = ls2 ++ ls1
+  end.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ArrayTuple"!"get" @ [ArrayTupleF.getS], "TupleList"!"new" @ [TupleListF.newS],
@@ -510,6 +518,99 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
 
       Return "ls"
     end
+
+    with bfunction "findSecond"("extra_stack", "self", "k2", "ls", "stack", "tmp") [findSecondS]
+      "self" <-* "self" + 12;;
+      "ls" <-- Call "TupleList"!"new"("extra_stack")
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V, R] lseq nil R * tree len key1 key2 sk ts (V "self") * [| functional ts |] * mallocHeap 0
+       POST[R'] Ex sk', tree len key1 key2 sk' ts (V "self") * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq ts key2 (V "k2")) ls |] ];;
+
+      "stack" <-- Call "malloc"!"malloc"(0, 2)
+      [Al len, Al key1, Al key2, Al sk, Al ts,
+       PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |] * [| functional ts |]
+               * tree len key1 key2 sk ts (V "self") * lseq nil (V "ls") * mallocHeap 0
+       POST[R'] Ex sk', tree len key1 key2 sk' ts (V "self")
+             * Ex ls, lseq ls R' * mallocHeap 0
+             * [| EnsembleIndexedListEquivalence (keepEq ts key2 (V "k2")) ls |]];;
+
+      "stack" *<- "self";;
+      "stack" + 4 *<- 0;;
+
+      [Al len, Al key1, Al key2, Al tss, Al ls,
+       PRE[V, R] stack len key1 key2 tss (V "stack") * lseq ls (V "ls") * mallocHeap 0
+       POST[R'] stacktrees len key1 key2 tss
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalenceEq key2 (V "k2") tss ls' |] ]
+      While ("stack" <> 0) {
+        "self" <-* "stack";;
+        "tmp" <-* "stack" + 4;;
+
+        Call "malloc"!"free"(0, "stack", 2)
+        [Al len, Al key1, Al key2, Al tss, Al ls, Al sk, Al tp, Al ts,
+         PRE[V, R] stack len key1 key2 tss (V "tmp") * tree len key1 key2 sk ts (V "self")
+                 * lseq ls (V "ls") * mallocHeap 0 * [| functional ts |]
+         POST[R'] Ex sk', stacktrees len key1 key2 tss * tree len key1 key2 sk' ts (V "self")
+                * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+                * [| multiEquivalenceEq key2 (V "k2") ((ts, tp) :: tss) ls' |]];;
+
+        "stack" <- "tmp";;
+
+        If ("self" = 0) {
+          Skip
+        } else {
+          "tmp" <-* "self" + 8;;
+          Call "Tuples1"!"findInto"("extra_stack", "tmp", "k2", "ls")
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V] stack len key1 key2 tss (V "stack")
+             * V "self" =*> p1 * tree len key1 key2 sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R] stacktrees len key1 key2 tss
+             * Ex sk1', V "self" =*> p1 * tree len key1 key2 sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R * mallocHeap 0
+             * [| multiEquivalenceEq key2 (V "k2") ((ts2, p1) :: (ts1, p2) :: tss) ls' |]];;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p1, Al sk1, Al ts1, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key1 key2 tss (V "stack")
+             * V "self" =*> p1 * tree len key1 key2 sk1 ts1 p1 * [| functional ts1 |]
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] stacktrees len key1 key2 tss
+             * Ex sk1', V "self" =*> p1 * tree len key1 key2 sk1' ts1 p1
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalenceEq key2 (V "k2") ((ts2, p2) :: (ts1, p1) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self";;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp";;
+
+          "tmp" <-- Call "malloc"!"malloc"(0, 2)
+          [Al len, Al key1, Al key2, Al tss, Al ls, Al p2, Al sk2, Al ts2,
+           PRE[V, R] R =?> 2 * [| R <> $0 |] * [| freeable R 2 |]
+             * stack len key1 key2 tss (V "stack")
+             * (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2 ts2 p2 * [| functional ts2 |]
+             * lseq ls (V "ls") * mallocHeap 0
+           POST[R'] stacktrees len key1 key2 tss
+             * Ex sk2', (V "self" ^+ $12) =*> p2 * tree len key1 key2 sk2' ts2 p2
+             * Ex ls', lseq (ls' ++ ls) R' * mallocHeap 0
+             * [| multiEquivalenceEq key2 (V "k2") ((ts2, p2) :: tss) ls' |]];;
+
+          "extra_stack" <-* "self" + 12;;
+          "tmp" *<- "extra_stack";;
+          "tmp" + 4 *<- "stack";;
+          "stack" <- "tmp"
+        }
+      };;
+
+      Return "ls"
+    end
   }}.
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -574,125 +675,130 @@ Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepEq_empty.
 
 Opaque multiEquivalence.
 
+Lemma multiEq_init : forall key k ts tp ls,
+  multiEquivalenceEq key k ((ts, tp) :: nil) ls
+  -> EnsembleIndexedListEquivalence (keepEq ts key k) ls.
+Proof.
+  simpl.
+  destruct 2 as [ ? [ ] ]; intuition subst.
+  assumption.
+Qed.
+
+Hint Immediate multiEq_init.
+
+Lemma multiEq_empty : forall key k tss ls ts tp,
+  multiEquivalenceEq key k tss ls
+  -> empty ts
+  -> multiEquivalenceEq key k ((ts, tp) :: tss) ls.
+Proof.
+  simpl.
+  intros.
+  exists nil, ls; intuition.
+Qed.
+
+Hint Immediate multiEq_empty.
+
+Theorem multiEq_step1 : forall key' k' ts tp key k tp1 tp2 tss ls1 ls2,
+  multiEquivalenceEq key' k' ((keepGt ts key k, tp2) :: (keepLt ts key k, tp1) :: tss) ls1
+  -> EnsembleIndexedListEquivalence (keepEq (keepEq ts key k) key' k') ls2
+  -> functional ts
+  -> multiEquivalenceEq key' k' ((ts, tp) :: tss) (ls1 ++ ls2).
+Proof.
+  unfold functional, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence; Equiv'; intuition;
+  repeat match goal with
+         | [ H : Logic.ex _ |- _ ] => destruct H; intuition (subst; simpl in * )
+         end.
+
+  exists (x3 ++ x1 ++ map indexedElement x).
+  exists x4; intuition.
+  2: repeat rewrite app_assoc; reflexivity.
+  unfold EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence in *; Equiv'; intuition;
+  repeat match goal with
+         | [ H : Logic.ex _ |- _ ] => destruct H; intuition (subst; simpl in * )
+         end.
+
+  exists (max x0 (max x1 x3)); intuition idtac.
+  destruct (weq (Array.sel (indexedElement element) key) k); subst.
+  assert (elementIndex element < x0)%nat by auto.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  destruct (wlt_dec (Array.sel (indexedElement element) key) k).
+  assert (elementIndex element < x3)%nat by auto.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  assert (elementIndex element < x1)%nat by intuition.
+  specialize (Max.max_spec x1 x3); specialize (Max.max_spec x0 (max x1 x3)); intuition.
+
+  exists (x2 ++ x5 ++ x).
+  repeat rewrite map_app; intuition.
+  destruct (weq (Array.sel (indexedElement x6) key) k); subst.
+  assert (In x6 x)%nat by (apply H0; tauto).
+  eauto using in_or_app.
+
+  destruct (wlt_dec (Array.sel (indexedElement x6) key) k).
+  assert (In x6 x2)%nat by (apply H4; tauto).
+  eauto using in_or_app.
+
+  assert (In x6 x5)%nat by (apply H7; intuition).
+  eauto using in_or_app.
+
+  apply in_app_or in H8; intuition.
+  firstorder.
+  apply in_app_or in H9; intuition; firstorder.
+
+  apply in_app_or in H8; intuition.
+  firstorder.
+  apply in_app_or in H9; intuition; firstorder.
+
+  repeat apply NoDup_app; auto.
+
+  intros.
+  apply in_map_iff in H8.
+  apply in_map_iff in H9.
+  destruct H8, H9; intuition subst.
+  apply H7 in H13.
+  apply H0 in H14.
+  intuition subst.
+  specialize (H1 _ _ H9 H14 H8); subst.
+  nomega.
+
+  intros.
+  apply in_app_or in H9; intuition.
+
+  apply in_map_iff in H8.
+  apply in_map_iff in H12.
+  destruct H8, H12; intuition subst.
+  apply H4 in H13.
+  apply H7 in H14.
+  intuition subst.
+  specialize (H1 _ _ H9 H14 H8); subst.
+  nomega.
+
+  apply in_map_iff in H8.
+  apply in_map_iff in H12.
+  destruct H8, H12; intuition subst.
+  apply H4 in H13.
+  apply H0 in H14.
+  intuition subst.
+  specialize (H1 _ _ H9 H14 H8); subst.
+  nomega.
+Qed.
+
+Hint Immediate multiEq_step1.
+
+Lemma multiEq_nil : forall key k, multiEquivalenceEq key k nil nil.
+Proof.
+  reflexivity.
+Qed.
+
+Hint Immediate multiEq_nil.
+
+Opaque multiEquivalenceEq.
+
 Theorem ok : moduleOk m.
 Proof.
-  vcgen.
+  vcgen; try abstract t; t.
 
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  Grab Existential Variables.
+  exact 0.
 Qed.
