@@ -5,12 +5,13 @@ Require Import Bedrock.Platform.Facade.examples.QsADTs.
 Import Adt.
 Require Import Bedrock.Platform.Cito.RepInv.
 
-Require Import Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
     | Tuple t => tuple t p
-    | List ts => lseq ts p
+    | WordList ts => ListSeqF.Adt.lseq ts p
+    | TupleList ts => lseq ts p
     | Tuples0 len ts => tuples0 len ts p
     | Tuples1 len key ts => tuples1 len key ts p
     | Tuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
@@ -35,6 +36,8 @@ Module Ri <: RepInv QsADTs.Adt.
     destruct t; simpl in *; intuition (try omega).
     unfold array; simpl.
     sepLemma; apply any_easy.
+
+    eapply Himp_trans; [ apply ListSeqF.Adt.lseq_fwd | sepLemma ]; apply any_easy.
 
     eapply Himp_trans; [ apply lseq_fwd | sepLemma ]; apply any_easy.
 

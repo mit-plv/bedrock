@@ -10,7 +10,7 @@ Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.MakeADT.
 
 Require Import Bedrock.Platform.AutoSep.
 
-Require Import Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
 Require Import Bedrock.Platform.Facade.examples.QsRepInv.
 
 Module Import Made := MakeADT.Make(QsADTs.Adt)(Ri).
@@ -40,12 +40,21 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "ArrayTuple"!"get" @ [ArrayTupleF.getS],
                             "ArrayTuple"!"set" @ [ArrayTupleF.setS],
 
+                            "ListSeq"!"new" @ [ListSeqF.newS],
+                            "ListSeq"!"delete" @ [ListSeqF.deleteS],
+                            "ListSeq"!"pop" @ [ListSeqF.popS],
+                            "ListSeq"!"empty" @ [ListSeqF.emptyS],
+                            "ListSeq"!"push" @ [ListSeqF.pushS],
+                            "ListSeq"!"copy" @ [ListSeqF.copyS],
+                            "ListSeq"!"rev" @ [ListSeqF.revS],
+                            "ListSeq"!"length" @ [ListSeqF.lengthS],
+
                             "TupleList"!"new" @ [TupleListF.newS],
                             "TupleList"!"delete" @ [TupleListF.deleteS],
-                            "TupleList"!"copy" @ [TupleListF.copyS],
                             "TupleList"!"pop" @ [TupleListF.popS],
                             "TupleList"!"empty" @ [TupleListF.emptyS],
                             "TupleList"!"push" @ [TupleListF.pushS],
+                            "TupleList"!"copy" @ [TupleListF.copyS],
                             "TupleList"!"rev" @ [TupleListF.revS],
                             "TupleList"!"length" @ [TupleListF.lengthS],
 
@@ -71,14 +80,23 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "Tuple_get" reserving 0 [Tuple_get] := "ArrayTuple"!"get"
     with ffunction "Tuple_set" reserving 0 [Tuple_set] := "ArrayTuple"!"set"
 
-    with ffunction "List_new" reserving 8 [List_new] := "TupleList"!"new"
-    with ffunction "List_delete" reserving 6 [List_delete] := "TupleList"!"delete"
-    with ffunction "List_copy" reserving 18 [List_copy] := "TupleList"!"copy"
-    with ffunction "List_pop" reserving 8 [List_pop] := "TupleList"!"pop"
-    with ffunction "List_empty" reserving 0 [List_empty] := "TupleList"!"empty"
-    with ffunction "List_push" reserving 8 [List_push] := "TupleList"!"push"
-    with ffunction "List_rev" reserving 2 [List_rev] := "TupleList"!"rev"
-    with ffunction "List_length" reserving 1 [List_length] := "TupleList"!"length"
+    with ffunction "WordList_new" reserving 8 [WordList_new] := "ListSeq"!"new"
+    with ffunction "WordList_delete" reserving 7 [WordList_delete] := "ListSeq"!"delete"
+    with ffunction "WordList_pop" reserving 8 [WordList_pop] := "ListSeq"!"pop"
+    with ffunction "WordList_empty" reserving 0 [WordList_empty] := "ListSeq"!"empty"
+    with ffunction "WordList_push" reserving 8 [WordList_push] := "ListSeq"!"push"
+    with ffunction "WordList_copy" reserving 10 [WordList_copy] := "ListSeq"!"copy"
+    with ffunction "WordList_rev" reserving 2 [WordList_rev] := "ListSeq"!"rev"
+    with ffunction "WordList_length" reserving 1 [WordList_length] := "ListSeq"!"length"
+
+    with ffunction "TupleList_new" reserving 8 [TupleList_new] := "TupleList"!"new"
+    with ffunction "TupleList_delete" reserving 6 [TupleList_delete] := "TupleList"!"delete"
+    with ffunction "TupleList_copy" reserving 18 [TupleList_copy] := "TupleList"!"copy"
+    with ffunction "TupleList_pop" reserving 8 [TupleList_pop] := "TupleList"!"pop"
+    with ffunction "TupleList_empty" reserving 0 [TupleList_empty] := "TupleList"!"empty"
+    with ffunction "TupleList_push" reserving 8 [TupleList_push] := "TupleList"!"push"
+    with ffunction "TupleList_rev" reserving 2 [TupleList_rev] := "TupleList"!"rev"
+    with ffunction "TupleList_length" reserving 1 [TupleList_length] := "TupleList"!"length"
 
     with ffunction "Tuples0_new" reserving 11 [Tuples0_new] := "Tuples0"!"new"
     with ffunction "Tuples0_insert" reserving 12 [Tuples0_insert] := "Tuples0"!"insert"
@@ -209,13 +227,40 @@ Proof.
   apply Properties.F.empty_mapsto_iff in H6; tauto.
 Qed.
 
-Lemma readd_List : forall c rv rv',
+Lemma readd_TupleList : forall c rv rv',
   lseq rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (List rv') (heap_upd heap_empty c (List rv))).
+  ===> is_heap (WordMap.add c (TupleList rv') (heap_upd heap_empty c (TupleList rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, List rv') (heap_elements (WordMap.add c (List rv') (heap_upd heap_empty c (List rv))))).
+  assert (List.In (c, TupleList rv') (heap_elements (WordMap.add c (TupleList rv') (heap_upd heap_empty c (TupleList rv))))).
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H; intuition idtac.
+  eapply Himp_trans; [ | apply H0 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H2 in H1; intuition.
+  apply In_InA' in H4.
+  apply WordMap.elements_2 in H4.
+  apply Properties.F.add_mapsto_iff in H4; intuition.
+  apply Properties.F.add_mapsto_iff in H5; intuition.
+  apply Properties.F.empty_mapsto_iff in H6; tauto.
+Qed.
+
+Lemma readd_WordList : forall c rv rv',
+  ListSeqF.Adt.lseq rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (WordList rv') (heap_upd heap_empty c (WordList rv))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, WordList rv') (heap_elements (WordMap.add c (WordList rv') (heap_upd heap_empty c (WordList rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -343,20 +388,20 @@ Proof.
   apply injL; auto.
 Qed.
 
-Lemma readd_List' : forall c rv rv' c' ov,
+Lemma readd_TupleList' : forall c rv rv' c' ov,
   c <> c'
   -> lseq rv' c * is_heap heap_empty
   ===> is_heap
       (WordMap.remove c'
-         (WordMap.add c (List rv')
+         (WordMap.add c (TupleList rv')
             (WordMap.add c' ov
-               (WordMap.add c (List rv)
+               (WordMap.add c (TupleList rv)
                   heap_empty)))).
 Proof.
   intros.
   unfold is_heap at 2.
   match goal with
-  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, List rv') x)
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, TupleList rv') x)
   end.
   apply InA_In.
   apply WordMap.elements_1.
@@ -675,6 +720,166 @@ Proof.
   do_delegate2 ("self" :: "pos" :: "val" :: nil).
 
 
+  (* WordList *)
+
+  (* new *)
+
+  do_abort (@nil string).
+  do_abort (@nil string).
+  do_abort (@nil string).
+
+  do_delegate1 (@nil string) hints.
+  do 2 (descend; step auto_ext).
+  2: returnAdt.
+  simpl.
+  make_toArray (@nil string).
+  step auto_ext.
+  etransitivity; [ | apply himp_star_frame; [ apply (@is_state_in x4) | reflexivity ] ].
+  unfolder.
+  do_delegate2 (@nil string).
+
+  (* delete *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step auto_ext.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval'; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* pop *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* empty *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* push *)
+
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+  do_abort ("self" :: "n" :: nil).
+
+  do_delegate1 ("self" :: "n" :: nil) hints.
+  descend; step hints.
+  simpl.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "n" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: "n" :: nil).
+
+  (* copy *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* rev *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  simpl.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* length *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WordList ] ].
+  do_delegate2 ("self" :: nil).
+
+
   (* TupleList *)
 
   (* new *)
@@ -729,7 +934,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList ] ].
   do_delegate2 ("self" :: "len" :: nil).
 
   (* pop *)
@@ -748,7 +953,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList ] ].
   do_delegate2 ("self" :: nil).
 
   (* empty *)
@@ -768,7 +973,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList ] ].
   do_delegate2 ("self" :: nil).
 
   (* push *)
@@ -793,7 +998,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List' ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList' ] ].
   do_delegate2 ("self" :: "tup" :: nil).
   congruence.
 
@@ -815,7 +1020,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList ] ].
   do_delegate2 ("self" :: nil).
 
   (* length *)
@@ -835,7 +1040,7 @@ Proof.
   step auto_ext.
   etransitivity; [ | apply (@is_state_in x2) ].
   unfolder.
-  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_List ] ].
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_TupleList ] ].
   do_delegate2 ("self" :: nil).
 
 
@@ -1123,14 +1328,20 @@ Proof.
   exact 0.
   exact 0.
   exact 0.
+  exact 0.
+  exact 0.
+  exact 0.
+  exact 0.
+  exact 0.
 Qed.
 
 Definition m1 := link ArrayTupleF.m m0.
-Definition m2 := link TupleListF.m m1.
-Definition m3 := link Tuples0F.m m2.
-Definition m4 := link Tuples1F.m m3.
-Definition m5 := link Tuples2F.m m4.
-Definition m := link Malloc.m m5.
+Definition m2 := link ListSeqF.m m1.
+Definition m3 := link TupleListF.m m2.
+Definition m4 := link Tuples0F.m m3.
+Definition m5 := link Tuples1F.m m4.
+Definition m6 := link Tuples2F.m m5.
+Definition m := link Malloc.m m6.
 
 Theorem ok1 : moduleOk m1.
 Proof.
@@ -1139,25 +1350,30 @@ Qed.
 
 Theorem ok2 : moduleOk m2.
 Proof.
-  link TupleListF.ok ok1.
+  link ListSeqF.ok ok1.
 Qed.
 
 Theorem ok3 : moduleOk m3.
 Proof.
-  link Tuples0F.ok ok2.
+  link TupleListF.ok ok2.
 Qed.
 
 Theorem ok4 : moduleOk m4.
 Proof.
-  link Tuples1F.ok ok3.
+  link Tuples0F.ok ok3.
 Qed.
 
 Theorem ok5 : moduleOk m5.
 Proof.
-  link Tuples2F.ok ok4.
+  link Tuples1F.ok ok4.
+Qed.
+
+Theorem ok6 : moduleOk m6.
+Proof.
+  link Tuples2F.ok ok5.
 Qed.
 
 Theorem ok : moduleOk m.
 Proof.
-  link Malloc.ok ok5.
+  link Malloc.ok ok6.
 Qed.

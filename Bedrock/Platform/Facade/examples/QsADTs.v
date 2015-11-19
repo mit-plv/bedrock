@@ -8,7 +8,8 @@ Require Import Bedrock.Platform.Facade.examples.TuplesF.
 
 Inductive ADTValue :=
 | Tuple (t : tupl)
-| List (ts : list tupl)
+| WordList (ws : list W)
+| TupleList (ts : list tupl)
 | Tuples0 (len : W) (ts : tuples)
 | Tuples1 (len key : W) (ts : tuples)
 | Tuples2 (len key1 key2 : W) (ts : tuples).
@@ -92,98 +93,188 @@ Section TupleADTSpec.
 
 End TupleADTSpec.
 
-Section ListADTSpec.
+Section WordListADTSpec.
 
-  Definition List_new : AxiomaticSpec ADTValue.
+  Definition WordList_new : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => args = [];
-        PostCond := fun args ret => args = [] /\ ret = ADT (List [])
+        PostCond := fun args ret => args = [] /\ ret = ADT (WordList [])
       |}; crush_types.
   Defined.
 
-  Definition List_delete : AxiomaticSpec ADTValue.
+  Definition WordList_delete : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => args = [ADT (List nil)];
-        PostCond := fun args ret => args = [ (ADT (List nil), None) ]
+        PreCond := fun args => exists l, args = [ADT (WordList l)];
+        PostCond := fun args ret => exists l, args = [(ADT (WordList l), None)] /\ ret = SCAZero
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_pop : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists h t,
+                       args = [ADT (WordList (h :: t))];
+        PostCond := fun args ret =>
+                      exists h t,
+                        args = [ (ADT (WordList (h :: t)), Some (WordList t)) ] /\
+                        ret = SCA ADTValue h
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_empty : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (WordList l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [(ADT (WordList l), Some (WordList l))] /\
+                        exists w, ret = SCA _ w /\ Bedrock.Programming.propToWord (l = nil) w
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_push : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l w,
+                       args = [ADT (WordList l); SCA _ w];
+        PostCond := fun args ret =>
+                      exists l w,
+                        args = [ (ADT (WordList l), Some (WordList (w :: l))); (SCA _ w, None) ] /\
+                        ret = SCAZero
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_copy : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (WordList l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [ (ADT (WordList l), Some (WordList l)) ] /\
+                        ret = ADT (WordList l)
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_rev : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (WordList l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [ (ADT (WordList l), Some (WordList (rev l))) ] /\
+                        ret = SCAZero
+      |}; crush_types.
+  Defined.
+
+  Definition WordList_length : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l,
+                       args = [ADT (WordList l)];
+        PostCond := fun args ret =>
+                      exists l,
+                        args = [ (ADT (WordList l), Some (WordList l)) ] /\
+                        ret = SCA _ (Word.natToWord _ (length l))
+      |}; crush_types.
+  Defined.
+
+End WordListADTSpec.
+
+Section TupleListADTSpec.
+
+  Definition TupleList_new : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args => args = [];
+        PostCond := fun args ret => args = [] /\ ret = ADT (TupleList [])
+      |}; crush_types.
+  Defined.
+
+  Definition TupleList_delete : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args => args = [ADT (TupleList nil)];
+        PostCond := fun args ret => args = [ (ADT (TupleList nil), None) ]
                                     /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition List_copy : AxiomaticSpec ADTValue.
+  Definition TupleList_copy : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l len,
-                       args = [ADT (List l); SCA _ len]
+                       args = [ADT (TupleList l); SCA _ len]
                        /\ allTuplesLen (wordToNat len) l
                        /\ $2 <= len;
         PostCond := fun args ret =>
                       exists l len,
-                        args = [ (ADT (List l), Some (List l)); (SCA _ len, None) ] /\
-                        ret = ADT (List l)
+                        args = [ (ADT (TupleList l), Some (TupleList l)); (SCA _ len, None) ] /\
+                        ret = ADT (TupleList l)
       |}; crush_types.
   Defined.
 
-  Definition List_pop : AxiomaticSpec ADTValue.
+  Definition TupleList_pop : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists h t,
-                       args = [ADT (List (h :: t))];
+                       args = [ADT (TupleList (h :: t))];
         PostCond := fun args ret =>
                       exists h t,
-                        args = [ (ADT (List (h :: t)), Some (List t)) ] /\
+                        args = [ (ADT (TupleList (h :: t)), Some (TupleList t)) ] /\
                         ret = ADT (Tuple h)
       |}; crush_types.
   Defined.
 
-  Definition List_empty : AxiomaticSpec ADTValue.
+  Definition TupleList_empty : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
-                       args = [ADT (List l)];
+                       args = [ADT (TupleList l)];
         PostCond := fun args ret =>
                       exists l,
-                        args = [(ADT (List l), Some (List l))] /\
+                        args = [(ADT (TupleList l), Some (TupleList l))] /\
                         exists w, ret = SCA _ w /\ propToWord (l = nil) w
       |}; crush_types.
   Defined.
 
-  Definition List_push : AxiomaticSpec ADTValue.
+  Definition TupleList_push : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l t,
-                       args = [ADT (List l); ADT (Tuple t)];
+                       args = [ADT (TupleList l); ADT (Tuple t)];
         PostCond := fun args ret =>
                       exists l t,
-                        args = [ (ADT (List l), Some (List (t :: l))); (ADT (Tuple t), None) ] /\
+                        args = [ (ADT (TupleList l), Some (TupleList (t :: l))); (ADT (Tuple t), None) ] /\
                         ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition List_rev : AxiomaticSpec ADTValue.
+  Definition TupleList_rev : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
-                       args = [ADT (List l)];
+                       args = [ADT (TupleList l)];
         PostCond := fun args ret =>
                       exists l,
-                        args = [ (ADT (List l), Some (List (rev l))) ] /\
+                        args = [ (ADT (TupleList l), Some (TupleList (rev l))) ] /\
                         ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition List_length : AxiomaticSpec ADTValue.
+  Definition TupleList_length : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
-                       args = [ADT (List l)];
+                       args = [ADT (TupleList l)];
         PostCond := fun args ret =>
                       exists l,
-                        args = [ (ADT (List l), Some (List l)) ] /\
+                        args = [ (ADT (TupleList l), Some (TupleList l)) ] /\
                         ret = SCA _ (natToWord _ (length l))
       |}; crush_types.
   Defined.
 
-End ListADTSpec.
+End TupleListADTSpec.
 
 Section Tuples0ADTSpec.
 
@@ -220,7 +311,7 @@ Section Tuples0ADTSpec.
         PostCond := fun args ret =>
                       exists len ts l,
                         args = [ (ADT (Tuples0 len ts), Some (Tuples0 len ts)) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
@@ -264,7 +355,7 @@ Section Tuples1ADTSpec.
         PostCond := fun args ret =>
                       exists len key ts l,
                         args = [ (ADT (Tuples1 len key ts), Some (Tuples1 len key ts)) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
@@ -277,7 +368,7 @@ Section Tuples1ADTSpec.
         PostCond := fun args ret =>
                       exists len key ts k l,
                         args = [ (ADT (Tuples1 len key ts), Some (Tuples1 len key ts)); (SCA _ k, None) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence (keepEq ts key k) l
       |}; crush_types.
   Defined.
@@ -323,7 +414,7 @@ Section Tuples2ADTSpec.
         PostCond := fun args ret =>
                       exists len key1 key2 ts l,
                         args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
@@ -336,7 +427,7 @@ Section Tuples2ADTSpec.
         PostCond := fun args ret =>
                       exists len key1 key2 ts k1 k2 l,
                         args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k1, None); (SCA _ k2, None) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence (keepEq (keepEq ts key1 k1) key2 k2) l
       |}; crush_types.
   Defined.
@@ -350,7 +441,7 @@ Section Tuples2ADTSpec.
         PostCond := fun args ret =>
                       exists len key1 key2 ts k l,
                         args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence (keepEq ts key1 k) l
       |}; crush_types.
   Defined.
@@ -364,7 +455,7 @@ Section Tuples2ADTSpec.
         PostCond := fun args ret =>
                       exists len key1 key2 ts k l,
                         args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
-                        /\ ret = ADT (List l)
+                        /\ ret = ADT (TupleList l)
                         /\ EnsembleIndexedListEquivalence (keepEq ts key2 k) l
       |}; crush_types.
   Defined.
