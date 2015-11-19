@@ -801,4 +801,5 @@ Proof.
 
   Grab Existential Variables.
   exact 0.
+  exact 0.
 Qed.
