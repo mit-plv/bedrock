@@ -41,7 +41,7 @@ endif
 .DEFAULT_GOAL := examples
 
 clean::
-	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi
+	rm -f Bedrock/ILTac.v Bedrock/reification/extlib.cmi Bedrock/reification/reif.ml4 Bedrock/reification/extlib.ml Bedrock/reification/extlib.mli
 
 ALL_EXAMPLES_VO := $(filter Bedrock/Examples/%.vo,$(VOFILES))
 EXAMPLES_VO := $(addprefix Bedrock/Examples/,$(call not-containing,/,$(patsubst Bedrock/Examples/%,%,$(ALL_EXAMPLES_VO))))
@@ -193,7 +193,7 @@ endif
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 $(UPDATE_COQPROJECT_TARGET):
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; find Bedrock -name "*.v" -a ! -wholename 'Bedrock/ILTac.v' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (find Bedrock/reification -name "*.mli" -o -name "*.ml4" -o -name "*.ml" -a ! -wholename "Bedrock/reification/extlib.ml" -a ! -wholename "Bedrock/reification/reif.ml4"; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml"; echo 'Bedrock/reification/extlib.mli'; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject
 
 time:
 	@ rm -rf timing
