@@ -67,4 +67,24 @@ Section ADTValue.
     eauto.
   Qed.
 
+  Require Import Memory.
+
+  Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
+    let '((w, i), o) := w_input_output in
+    {| Word := w; ADTIn := i; ADTOut := o |}.
+
+  Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
+
+  Lemma make_triples_make_triples' :
+    forall words_inputs outputs,
+      length words_inputs = length outputs ->
+      make_triples words_inputs outputs = make_triples' words_inputs outputs.
+  Proof.
+    induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
+    unfold make_triples'.
+    simpl.
+    destruct a as [w i]; simpl in *.
+    f_equal; eauto.
+  Qed.
+
 End ADTValue.

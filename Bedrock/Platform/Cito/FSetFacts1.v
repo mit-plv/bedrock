@@ -126,10 +126,8 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
     unfold Equal, Subset; firstorder.
   Qed.
 
-  Lemma iff_not_iff P Q : (P <-> Q) -> (~ P <-> ~ Q).
-  Proof.
-    split; intros; intuition.
-  Qed.
+  Require Import IffFacts.
+  Export IffFacts.
 
   Lemma singleton_not_iff x x' : ~ In x' (singleton x) <-> x <> x'.
   Proof.

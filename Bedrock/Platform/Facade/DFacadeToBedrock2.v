@@ -91,19 +91,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import StringMapFacts.
 
-    Lemma is_sub_domain_complete : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), sub_domain m1 m2 -> is_sub_domain m1 m2 = true.
-    Proof.
-      intros.
-      unfold is_sub_domain, sub_domain in *.
-      eapply forallb_forall.
-      intros k Hin.
-      eapply mem_in_iff; eauto.
-      eapply H.
-      Require Import SetoidListFacts.
-      eapply In_InA in Hin.
-      eapply In_In_keys; eauto.     
-    Qed.
-
     Require Import CModule.
 
     Lemma exports_in_domain_cmodule : is_sub_domain exports (CModule.Funs cito_module) = true.
@@ -125,48 +112,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import GLabelMap.
     Require Import Bedrock.Platform.Cito.GLabelMapFacts.
     Import FMapNotations.
-    Lemma strengthen_diff_intro : forall specs_diff env_ax specs, (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> strengthen_diff specs specs_diff env_ax.
-    Proof.
-      do 3 intro.
-      (* intros Hforall. *)
-      (* unfold strengthen_diff. *)
-      eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> H); simpl.
-      intros m m' a Heqm Ha Hforall.
-      { 
-        eapply Ha.
-        intros lbl ax Hfind.
-        rewrite Heqm in Hfind.
-        eauto.
-      }
-      { eauto. }
-      intros k e a m' Hmapsto Hnin Ha Hforall.
-      unfold strengthen_diff_f.
-      split.
-      {
-        eapply Ha.
-        intros lbl ax Hfind.
-        eapply Hforall.
-        eapply find_mapsto_iff.
-        eapply add_mapsto_iff.
-        right.
-        split.
-        {
-          intro Heq; subst.
-          contradict Hnin.
-          eapply MapsTo_In.
-          eapply find_mapsto_iff.
-          eauto.
-        }
-        eapply find_mapsto_iff.
-        eauto.
-      }
-      eapply Hforall.
-      eapply find_mapsto_iff.
-      eapply add_mapsto_iff.
-      left.
-      eauto.
-    Qed.
-
     Require Import Bedrock.Platform.Cito.StringMap.
     Import StringMap.
     Require Import Bedrock.Platform.Cito.StringMapFacts.
@@ -201,107 +146,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Hint Extern 0 (_ == _) => reflexivity.
 
-    Lemma good_inputs_make_heap_submap h pairs :
-      good_inputs (ADTValue := ADTValue) h pairs ->
-      make_heap pairs <= h.
-    Proof.
-      Require DFacadeToBedrock2Util.
-      intros Hgi.
-      destruct Hgi as [Hforall Hdisj].
-      unfold good_inputs in *.
-      intros k1 v Hk1.
-      rewrite make_heap_make_heap' in * by eauto.
-      Lemma mapsto_make_heap'_elim pairs :
-        disjoint_ptrs pairs ->
-        forall k (v : ADTValue),
-          find k (make_heap' pairs) = Some v ->
-          List.In (k, ADT v) pairs.
-      Proof.
-        induction pairs; intros Hdisj k v Hk; simpl in *.
-        {
-          rewrite empty_o in *.
-          intuition.
-        }
-        eapply disjoint_ptrs_cons_elim in Hdisj.
-        destruct Hdisj as [Hnc Hdisj].
-        destruct a as [k' v']; simpl in *.
-        unfold store_pair in *; simpl in *.
-        destruct v' as [w | v']; simpl in *.
-        {
-          unfold store_pair in *; simpl in *.
-          right.
-          eapply IHpairs; eauto.
-        }
-        destruct (weq k k') as [? | Hne]; subst.
-        {
-          rewrite add_eq_o in * by eauto.
-          inject Hk.
-          left; eauto.
-        }
-        rewrite add_neq_o in * by eauto.
-        eapply IHpairs in Hk; eauto.
-      Qed.
-      Lemma mapsto_make_heap'_intro pairs :
-        disjoint_ptrs pairs ->
-        forall k (v : ADTValue),
-          List.In (k, ADT v) pairs ->
-          find k (make_heap' pairs) = Some v.
-      Proof.
-        induction pairs; intros Hdisj k v Hk; simpl in *.
-        {
-          intuition.
-        }
-        eapply disjoint_ptrs_cons_elim in Hdisj.
-        destruct Hdisj as [Hnc Hdisj].
-        destruct a as [k' v']; simpl in *.
-        unfold store_pair in *; simpl in *.
-        destruct Hk as [Hk | Hk].
-        {
-          inject Hk.
-          rewrite add_eq_o in * by eauto.
-          eauto.
-        }
-        destruct v' as [w | v']; simpl in *.
-        {
-          eapply IHpairs; eauto.
-        }
-        destruct (weq k k') as [? | Hne]; subst.
-        {
-          eapply no_clash_ls_not_in_heap in Hnc.
-          unfold not_in_heap in *.
-          eapply IHpairs in Hk; eauto.
-          contradict Hnc.
-          eapply find_Some_in; eauto.
-        }
-        rewrite add_neq_o in * by eauto.
-        eapply IHpairs in Hk; eauto.
-      Qed.
-      Lemma mapsto_make_heap'_iff pairs :
-        disjoint_ptrs pairs ->
-        forall k (v : ADTValue),
-          List.In (k, ADT v) pairs <->
-          find k (make_heap' pairs) = Some v.
-      Proof.
-        intros Hdisj k v; split; intros H.
-        - eapply mapsto_make_heap'_intro; eauto.
-        - eapply mapsto_make_heap'_elim; eauto.
-      Qed.
-      eapply mapsto_make_heap'_iff in Hk1; eauto.
-      eapply Forall_forall in Hforall; eauto.
-      unfold word_adt_match in *.
-      simpl in *.
-      eauto.
-    Qed.
-
-    Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
-      intros.
-      eapply Forall_weaken.
-      2 : eassumption.
-      intros.
-      destruct x.
-      unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
-      destruct v; simpl in *; intuition.
-    Qed.
+    Require DFacadeToBedrock2Util.
 
     Import List.
     Import DFModule.
@@ -318,106 +163,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Require Import Bedrock.Platform.Cito.StringMapFacts.
     Import FMapNotations.
 
-    Lemma make_map_Equal_elim A :
-      forall ks (vs vs' : list A),
-        NoDup ks ->
-        length vs = length ks ->
-        length vs' = length ks ->
-        make_map ks vs == make_map ks vs' ->
-        vs = vs'.
-    Proof.
-      induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition].
-      intros Hnd Hlen Hlen' Heqv.
-      inversion Hnd; subst.
-      inject Hlen.
-      inject Hlen'.
-      rename a into k.
-      f_equal.
-      {
-        unfold Equal in *.
-        specialize (Heqv k).
-        repeat rewrite add_eq_o in * by eauto.
-        inject Heqv.
-        eauto.
-      }
-      eapply IHks; eauto.
-      unfold Equal in *.
-      intros k'.
-      destruct (string_dec k' k) as [? | Hne]; subst.
-      {
-        Import StringMap.
-        Lemma make_map_find_None A k ks (vs : list A) :
-          ~ List.In k ks ->
-          find k (make_map ks vs) = None.
-        Proof.
-          intros H.
-          eapply make_map_not_in in H.
-          eapply not_find_in_iff; eauto.
-        Qed.
-        repeat rewrite make_map_find_None by eauto.
-        eauto.
-      }
-      specialize (Heqv k').
-      repeat rewrite add_neq_o in * by eauto.
-      eauto.
-    Qed.
-    Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
-    Proof.
-      induction ls; simpl; intros Hfg; trivial.
-      f_equal.
-      {
-        eapply Hfg.
-        eauto.
-      }
-      eapply IHls.
-      intuition.
-    Qed.
-    Notation boolcase := Sumbool.sumbool_of_bool.
-    Lemma Forall_forall_1 A P (ls : list A) : Forall P ls -> (forall x, List.In x ls -> P x).
-      intros; eapply Forall_forall; eauto.
-    Qed.
-    Definition make_triple (w_input_output : (W * Value ADTValue) * option ADTValue) :=
-      let '((w, i), o) := w_input_output in
-      {| Word := w; ADTIn := i; ADTOut := o |}.
-    Definition make_triples' words_inputs outputs := List.map make_triple (combine words_inputs outputs).
-    Lemma make_triples_make_triples' :
-      forall words_inputs outputs,
-        length words_inputs = length outputs ->
-        make_triples words_inputs outputs = make_triples' words_inputs outputs.
-    Proof.
-      induction words_inputs; destruct outputs; simpl; intros Hlen; try solve [intuition].
-      unfold make_triples'.
-      simpl.
-      destruct a as [w i]; simpl in *.
-      f_equal; eauto.
-    Qed.
-    Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
-    Proof.
-      intros; subst.
-      eapply weqb_true_iff; eauto.
-    Qed.
-    Lemma weqb_false_intro (x y : W) : x <> y -> weqb x y = false.
-    Proof.
-      intros H.
-      destruct (boolcase (weqb x y)) as [Heq | Heq]; trivial.
-      eapply weqb_true_iff in Heq; subst.
-      intuition.
-    Qed.
-
     Import Bool.
-    Definition is_string_eq := string_bool.
-    Lemma is_string_eq_iff a b : is_string_eq a b = true <-> a = b.
-      unfold is_string_eq, string_bool.
-      destruct (string_dec a b); intuition.
-    Qed.
     Require Import Bedrock.Platform.Cito.StringSetFacts.
-    Lemma is_string_eq_iff_conv a b : is_string_eq a b = false <-> a <> b.
-    Proof.
-      etransitivity.
-      { symmetry; eapply not_true_iff_false. }
-      eapply iff_not_iff.
-      eapply is_string_eq_iff.
-    Qed.
 
     Require Import Bedrock.Platform.Cito.GLabelMap.
     Import GLabelMap.
@@ -447,7 +194,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       unfold exports_with_glabel in *.
       eapply find_mapsto_iff in H.
       eapply find_mapsto_iff.
-      Definition Disjoint2 {A B} (m1 : t A) (m2 : t B) := forall k, In k m1 -> ~ In k m2.
       Arguments Foreign {_} _.
       set (ops := map_aug_mod_name op_mod_name (CModule.Funs cito_module)) in *.
       set (exs := map_aug_mod_name op_mod_name exports) in *.
@@ -590,14 +336,6 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           eexists.
           split; eauto.
           simpl.
-          Lemma core_eq_func_eq f1 (H1 : is_no_dup (FuncCore.ArgVars f1) = true) f2 (H2 : is_no_dup (FuncCore.ArgVars f2) = true) : f1 = f2 -> {| Fun := f1; NoDupArgVars := H1 |} = {| Fun := f2; NoDupArgVars := H2 |}.
-          Proof.
-            intros.
-            subst.
-            f_equal.
-            Require Import BoolEqDep.
-            eapply bool_irre.
-          Qed.
           f_equal.
           eapply core_eq_func_eq.
           reflexivity.
@@ -972,6 +710,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                     eapply Hle in Hfindk.
                     unfold heap_sel.
                     rewrite Hfindk.
+                    Require Import BoolFacts.
                     destruct (boolcase (is_ret_adt && weqb (Locals.sel vs k) (Locals.sel vs rvar))) as [Heq | Heq]; rewrite Heq in *; trivial.
                     eapply andb_true_iff in Heq.
                     destruct Heq as [Hiraeq Hkr].
@@ -1220,6 +959,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                 eapply length_eq_nth_error with (ls2 := outputs') in Hh1'; eauto.
                 destruct Hh1' as [o Hh1'].
                 eapply (Hnin' a'' o).
+                Require Import SemanticsFacts7.
                 rewrite make_triples_make_triples'; eauto.
                 eapply nth_error_In with (n := i).
                 unfold make_triples'.
@@ -1267,6 +1007,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             inject HH1.
             unfold output_gen in HH4; simpl in *.
             unfold weqb in *.
+            Require Import WordFacts6.
             rewrite weqb_complete in HH4; eauto.
             intuition.
           }

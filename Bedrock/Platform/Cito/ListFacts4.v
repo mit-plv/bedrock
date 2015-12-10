@@ -226,6 +226,18 @@ Proof.
   intros; eapply map_ext; eauto.
 Qed.
 
+Lemma In_map_ext A B (f g : A -> B) : forall ls, (forall x, List.In x ls -> f x = g x) -> List.map f ls = List.map g ls.
+Proof.
+  induction ls; simpl; intros Hfg; trivial.
+  f_equal.
+  {
+    eapply Hfg.
+    eauto.
+  }
+  eapply IHls.
+  intuition.
+Qed.
+
 Lemma in_singleton_iff A (x' x : A) : List.In x' (x :: nil) <-> x' = x.
 Proof.
   intros; subst; simpl in *; intuition.
@@ -247,4 +259,8 @@ Qed.
 
 Lemma map_eq_length_eq : forall A B C (f1 : A -> B) ls1 (f2 : C -> B) ls2, map f1 ls1 = map f2 ls2 -> length ls1 = length ls2.
   intros; assert (length (map f1 ls1) = length (map f2 ls2)) by congruence; repeat rewrite map_length in *; eauto.
+Qed.
+
+Lemma Forall_forall_1 A P (ls : list A) : Forall P ls -> (forall x, List.In x ls -> P x).
+  intros; eapply Forall_forall; eauto.
 Qed.
