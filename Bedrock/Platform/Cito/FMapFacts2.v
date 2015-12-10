@@ -1250,6 +1250,50 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply make_map_in; eauto.
     Qed.
 
+    Lemma make_map_find_None A k ks (vs : list A) :
+      ~ List.In k ks ->
+      find k (make_map ks vs) = None.
+    Proof.
+      intros H.
+      eapply make_map_not_in in H.
+      eapply not_find_in_iff; eauto.
+    Qed.
+
+    Lemma make_map_Equal_elim A :
+      forall ks (vs vs' : list A),
+        NoDup ks ->
+        length vs = length ks ->
+        length vs' = length ks ->
+        make_map ks vs == make_map ks vs' ->
+        vs = vs'.
+    Proof.
+      induction ks; destruct vs; destruct vs'; simpl; try solve [intros; intuition; try discriminate].
+      intros Hnd Hlen Hlen' Heqv.
+      inversion Hnd; subst.
+      inject Hlen.
+      inject Hlen'.
+      rename a into k.
+      f_equal.
+      {
+        unfold Equal in *.
+        specialize (Heqv k).
+        repeat rewrite add_eq_o in * by eauto.
+        inject Heqv.
+        eauto.
+      }
+      eapply IHks; eauto.
+      unfold Equal in *.
+      intros k'.
+      destruct (eq_dec k' k) as [? | Hne]; subst.
+      {
+        repeat rewrite make_map_find_None by eauto.
+        eauto.
+      }
+      specialize (Heqv k').
+      repeat rewrite add_neq_o in * by eauto.
+      eauto.
+    Qed.
+
     Fixpoint make_mapM {elt} keys values :=
       match keys, values with
         | k :: keys', v :: values' =>
@@ -1630,6 +1674,19 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply In_In_keys; eauto.
     Qed.
 
+    Lemma is_sub_domain_complete : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), sub_domain m1 m2 -> is_sub_domain m1 m2 = true.
+    Proof.
+      intros.
+      unfold is_sub_domain, sub_domain in *.
+      eapply forallb_forall.
+      intros k Hin.
+      eapply mem_in_iff; eauto.
+      eapply H.
+      Require Import SetoidListFacts.
+      eapply In_InA in Hin.
+      eapply In_In_keys; eauto.     
+    Qed.
+
     Definition equal_domain_dec elt1 elt2 (m1 : t elt1) (m2 : t elt2) := (is_sub_domain m1 m2 && is_sub_domain m2 m1)%bool.
 
     Lemma equal_domain_dec_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), equal_domain_dec m1 m2 = true -> equal_domain m1 m2.
@@ -1840,6 +1897,8 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
           subst; intuition.
       }
     Qed.
+
+    Definition Disjoint2 {A B} (m1 : t A) (m2 : t B) := forall k, In k m1 -> ~ In k m2.
 
   End TopSection.
 

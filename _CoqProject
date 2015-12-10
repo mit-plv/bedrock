@@ -281,10 +281,13 @@ Bedrock/Platform/Cito/WordFacts2.v
 Bedrock/Platform/Cito/WordFacts3.v
 Bedrock/Platform/Cito/WordFacts4.v
 Bedrock/Platform/Cito/WordFacts5.v
+Bedrock/Platform/Cito/WordFacts6.v
 Bedrock/Platform/Cito/WordKey.v
 Bedrock/Platform/Cito/WordMap.v
 Bedrock/Platform/Cito/WordMapFacts.v
 Bedrock/Platform/Cito/adt/TabledADT.v
+Bedrock/Platform/Cito/BoolFacts.v
+Bedrock/Platform/Cito/IffFacts.v
 Bedrock/Platform/Cito/examples/ArraySeq.v
 Bedrock/Platform/Cito/examples/Cell.v
 Bedrock/Platform/Cito/examples/CountUnique.v

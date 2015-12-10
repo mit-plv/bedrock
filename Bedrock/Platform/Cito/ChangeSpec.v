@@ -90,6 +90,48 @@ Section ADTValue.
   Definition strengthen_diff specs specs_diff env_ax :=
     fold (strengthen_diff_f specs env_ax) specs_diff True.
 
+  Lemma strengthen_diff_intro : forall specs_diff env_ax specs, (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> strengthen_diff specs specs_diff env_ax.
+  Proof.
+    do 3 intro.
+    (* intros Hforall. *)
+    (* unfold strengthen_diff. *)
+    eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => (forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax) -> H); simpl.
+    intros m m' a Heqm Ha Hforall.
+    { 
+      eapply Ha.
+      intros lbl ax Hfind.
+      rewrite Heqm in Hfind.
+      eauto.
+    }
+    { eauto. }
+    intros k e a m' Hmapsto Hnin Ha Hforall.
+    unfold strengthen_diff_f.
+    split.
+    {
+      eapply Ha.
+      intros lbl ax Hfind.
+      eapply Hforall.
+      eapply find_mapsto_iff.
+      eapply add_mapsto_iff.
+      right.
+      split.
+      {
+        intro Heq; subst.
+        contradict Hnin.
+        eapply MapsTo_In.
+        eapply find_mapsto_iff.
+        eauto.
+      }
+      eapply find_mapsto_iff.
+      eauto.
+    }
+    eapply Hforall.
+    eapply find_mapsto_iff.
+    eapply add_mapsto_iff.
+    left.
+    eauto.
+  Qed.
+
   Lemma strengthen_diff_elim : forall specs_diff env_ax specs, strengthen_diff specs specs_diff env_ax -> forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax.
     do 3 intro.
     eapply fold_rec_bis with (P := fun specs_diff (H : Prop) => H -> forall lbl ax, find lbl specs_diff = Some ax -> find lbl specs = Some (Foreign ax) \/ exists op, find lbl specs = Some (Internal op) /\ strengthen_op_ax op ax env_ax); simpl; intros.

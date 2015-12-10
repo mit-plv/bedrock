@@ -37,6 +37,23 @@ Section TopSection.
 
   Definition string_bool a b := sumbool_to_bool (string_dec a b).
 
+  Definition is_string_eq := string_bool.
+
+  Lemma is_string_eq_iff a b : is_string_eq a b = true <-> a = b.
+    unfold is_string_eq, string_bool.
+    destruct (string_dec a b); intuition; try discriminate.
+  Qed.
+
+  Require Import IffFacts.
+
+  Lemma is_string_eq_iff_conv a b : is_string_eq a b = false <-> a <> b.
+  Proof.
+    etransitivity.
+    { symmetry; eapply not_true_iff_false. }
+    eapply iff_not_iff.
+    eapply is_string_eq_iff.
+  Qed.
+
   Lemma NoDup_bool_string_eq_sound : forall ls, NoDup_bool string_bool ls = true -> NoDup ls.
     intros.
     eapply NoDup_bool_sound.

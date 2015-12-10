@@ -256,6 +256,84 @@ Section ADTValue.
     intuition.
   Qed.
 
+  Lemma mapsto_make_heap'_intro pairs :
+    disjoint_ptrs pairs ->
+    forall k (v : ADTValue),
+      List.In (k, ADT v) pairs ->
+      find k (make_heap' pairs) = Some v.
+  Proof.
+    induction pairs; intros Hdisj k v Hk; simpl in *.
+    {
+      intuition.
+    }
+    eapply disjoint_ptrs_cons_elim in Hdisj.
+    destruct Hdisj as [Hnc Hdisj].
+    destruct a as [k' v']; simpl in *.
+    unfold store_pair in *; simpl in *.
+    destruct Hk as [Hk | Hk].
+    {
+      inject Hk.
+      rewrite add_eq_o in * by eauto.
+      eauto.
+    }
+    destruct v' as [w | v']; simpl in *.
+    {
+      eapply IHpairs; eauto.
+    }
+    destruct (weq k k') as [? | Hne]; subst.
+    {
+      eapply no_clash_ls_not_in_heap in Hnc.
+      unfold not_in_heap in *.
+      eapply IHpairs in Hk; eauto.
+      contradict Hnc.
+      eapply find_Some_in; eauto.
+    }
+    rewrite add_neq_o in * by eauto.
+    eapply IHpairs in Hk; eauto.
+  Qed.
+
+  Lemma mapsto_make_heap'_elim pairs :
+    disjoint_ptrs pairs ->
+    forall k (v : ADTValue),
+      find k (make_heap' pairs) = Some v ->
+      List.In (k, ADT v) pairs.
+  Proof.
+    induction pairs; intros Hdisj k v Hk; simpl in *.
+    {
+      rewrite empty_o in *.
+      discriminate.
+    }
+    eapply disjoint_ptrs_cons_elim in Hdisj.
+    destruct Hdisj as [Hnc Hdisj].
+    destruct a as [k' v']; simpl in *.
+    unfold store_pair in *; simpl in *.
+    destruct v' as [w | v']; simpl in *.
+    {
+      unfold store_pair in *; simpl in *.
+      right.
+      eapply IHpairs; eauto.
+    }
+    destruct (weq k k') as [? | Hne]; subst.
+    {
+      rewrite add_eq_o in * by eauto.
+      inject Hk.
+      left; eauto.
+    }
+    rewrite add_neq_o in * by eauto.
+    eapply IHpairs in Hk; eauto.
+  Qed.
+
+  Lemma mapsto_make_heap'_iff pairs :
+    disjoint_ptrs pairs ->
+    forall k (v : ADTValue),
+      List.In (k, ADT v) pairs <->
+      find k (make_heap' pairs) = Some v.
+  Proof.
+    intros Hdisj k v; split; intros H.
+    - eapply mapsto_make_heap'_intro; eauto.
+    - eapply mapsto_make_heap'_elim; eauto.
+  Qed.
+
   Arguments word_scalar_match {ADTValue} _.
 
   Lemma DisjointPtrs_good_scalars_forall_word_adt_match : forall pairs h, DisjointPtrs pairs -> List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (fold_left store_pair pairs h)) pairs.
@@ -304,6 +382,45 @@ Section ADTValue.
       rewrite add_eq_o by eauto.
       eauto.
     - repeat econstructor; eauto.
+  Qed.
+
+  Local Open Scope fmap_scope.
+
+  Lemma good_inputs_make_heap_submap h pairs :
+    good_inputs (ADTValue := ADTValue) h pairs ->
+    make_heap pairs <= h.
+  Proof.
+    intros Hgi.
+    destruct Hgi as [Hforall Hdisj].
+    unfold good_inputs in *.
+    intros k1 v Hk1.
+    rewrite make_heap_make_heap' in * by eauto.
+    eapply mapsto_make_heap'_iff in Hk1; eauto.
+    eapply Forall_forall in Hforall; eauto.
+    unfold word_adt_match in *.
+    simpl in *.
+    eauto.
+  Qed.
+
+  Lemma forall_word_adt_match_good_scalars : forall h pairs, List.Forall (word_adt_match h) pairs -> List.Forall (@word_scalar_match ADTValue) pairs.
+    intros.
+    eapply Locals.Forall_weaken.
+    2 : eassumption.
+    intros.
+    destruct x.
+    unfold word_adt_match, Semantics.word_adt_match, word_scalar_match in *; simpl in *.
+    destruct v; simpl in *; intuition.
+  Qed.
+
+  Require Import ListFacts3.
+
+  Lemma core_eq_func_eq f1 (H1 : is_no_dup (FuncCore.ArgVars f1) = true) f2 (H2 : is_no_dup (FuncCore.ArgVars f2) = true) : f1 = f2 -> {| Fun := f1; NoDupArgVars := H1 |} = {| Fun := f2; NoDupArgVars := H2 |}.
+  Proof.
+    intros.
+    subst.
+    f_equal.
+    Require Import BoolFacts.
+    eapply bool_irre.
   Qed.
 
 End ADTValue.

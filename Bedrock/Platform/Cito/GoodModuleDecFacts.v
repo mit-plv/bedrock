@@ -51,7 +51,7 @@ Section TopSection.
     intros.
     repeat (eapply andb_true_iff in H; openhyp).
     econstructor.
-    eapply is_no_dup_sound; eauto.
+    eauto.
     split.
     eapply is_no_uninited_sound; eauto.
     split.
