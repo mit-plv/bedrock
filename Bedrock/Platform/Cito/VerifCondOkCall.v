@@ -479,7 +479,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       set (arr := map _ _) in *.
       set (avars := ArgVars _) in *.
       rewrite (@replace_array_to_locals arr _ avars) in H7.
-      assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply (NoDupArgVars _) ]).
+      Require Import ListFacts3.
+      assert (array_to_locals_ok arr avars) by (unfold_all; unfold array_to_locals_ok; descend; [ rewrite map_length; eauto | eapply is_no_dup_sound; eapply (NoDupArgVars _) ]).
       hiding ltac:(evaluate hints_array_to_locals).
       fold (@skipn W) in *.
 

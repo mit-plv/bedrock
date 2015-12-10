@@ -40,4 +40,5 @@ Proof.
   eapply is_good_func_sound in good_func.
   destruct good_func.
   eauto.
+  eapply ListFacts3.is_no_dup_sound; eauto.
 Qed.

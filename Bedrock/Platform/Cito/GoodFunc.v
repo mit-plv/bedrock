@@ -10,11 +10,12 @@ Section TopSection.
   Require Import Bedrock.Platform.Cito.GetLocalVars.
   Require Import Bedrock.Platform.Cito.Depth.
   Require Import Bedrock.Platform.Cito.WellFormed.
+  Require Import Bedrock.Platform.Cito.ListFacts3.
 
   Definition GoodFunc f :=
     let body := Body f in
     let local_vars := get_local_vars body (ArgVars f) (RetVar f) in
-    NoDup (ArgVars f) /\
+    is_no_dup (ArgVars f) = true /\
     NoUninitialized (ArgVars f) (RetVar f) body /\
     wellformed body /\
     goodSize (length local_vars + depth body).
@@ -72,8 +73,13 @@ Section TopSection.
   Lemma GoodFunc_NoDup_vars : forall f, GoodFunc f -> forall s r, NoDup (ArgVars f ++ get_local_vars s (ArgVars f) r).
     unfold GoodFunc; intuition.
     apply NoDup_app; auto.
-    apply NoDupA_NoDup.
-    apply StringSet.StringSet.elements_3w.
+    {
+      eapply is_no_dup_sound; eauto.
+    }
+    {
+      apply NoDupA_NoDup.
+      apply StringSet.StringSet.elements_3w.
+    }
     intros.
     nintro.
     unfold get_local_vars in H4.

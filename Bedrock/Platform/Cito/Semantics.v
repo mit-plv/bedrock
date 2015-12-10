@@ -10,10 +10,11 @@ Definition upd_option vs x value :=
 
 Require Import Bedrock.Platform.Cito.FuncCore.
 Export FuncCore.
+Require Import ListFacts3.
 Record InternalFuncSpec :=
   {
     Fun : FuncCore;
-    NoDupArgVars : NoDup (ArgVars Fun)
+    NoDupArgVars : is_no_dup (ArgVars Fun) = true
   }.
 
 Coercion Fun : InternalFuncSpec >-> FuncCore.

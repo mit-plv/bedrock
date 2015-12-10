@@ -27,5 +27,5 @@ Definition compile_op (spec : OperationalSpec) :=
         FuncCore.RetVar := RetVar spec;
         FuncCore.Body := compile (Body spec)
       |};
-    Semantics.NoDupArgVars := is_no_dup_sound _ (args_no_dup spec)
+    Semantics.NoDupArgVars := args_no_dup spec
   |}.
