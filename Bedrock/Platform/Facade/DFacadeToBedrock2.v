@@ -595,25 +595,21 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             intros.
             subst.
             f_equal.
-            Lemma bool_irre : forall (a b : bool) (H1 H2 : a = b), H1 = H2.
-            Proof.
-              clear.
-              intros.
-              destruct a; destruct b; try discriminate.
-              Set Printing Coercions.
-              Unset Printing Notations.
-              Set Printing All.
-              (*here*)
-              destruct H1.
-              destruct (boolcase (is_no_dup (FuncCore.ArgVars f2))) as [H | H].
-              eauto.
-              admit.
-            Qed.
+            Require Import BoolEqDep.
             eapply bool_irre.
           Qed.
           f_equal.
           eapply core_eq_func_eq.
           reflexivity.
+        }
+        {
+          subst k.
+          subst exs.
+          intro Hin1.
+          contradict Hnin1.
+          eapply map_4 in Hin1.
+          eapply map_in_iff.
+          eauto.
         }
       }
     Qed.
