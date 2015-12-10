@@ -512,54 +512,51 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         intros k' Hin1 Hin2.
         eapply Hdisj; eauto.
       }
-      (* eapply update_mapsto_iff in H. *)
-      (* destruct H as [H | H]. *)
+      eapply update_mapsto_iff in H.
+      destruct H as [H | H].
       {
-        eapply update_mapsto_iff in H.
-        destruct H as [H | H].
+        eapply map_mapsto_iff in H.
+        destruct H as [ax [? H] ].
+        subst.
+        assert (Hin : In k imports).
         {
-          eapply map_mapsto_iff in H.
-          destruct H as [ax [? H] ].
-          subst.
-          assert (Hin : In k imports).
-          {
-            eapply MapsTo_In; eauto.
-          }
+          eapply MapsTo_In; eauto.
+        }
+        eapply update_mapsto_iff.
+        right.
+        split.
+        {
           eapply update_mapsto_iff.
           right.
           split.
           {
-            eapply update_mapsto_iff.
-            right.
-            split.
-            {
-              eapply map_mapsto_iff.
-              exists ax.
-              split; trivial.
-            }
-            intros HH; eapply map_4 in HH; eapply Hdisj; eauto.
+            eapply map_mapsto_iff.
+            exists ax.
+            split; trivial.
           }
-          intros HH; eapply map_4 in HH; eapply Hdisj'; eauto.
+          intros HH; eapply map_4 in HH; eapply Hdisj; eauto.
         }
-        {
-          destruct H as [H Hnin].
-          eapply map_mapsto_iff in H.
-          destruct H as [ax [? H] ].
-          subst.
-          assert (Hin : In k exs).
-          {
-            eapply MapsTo_In; eauto.
-          }
-          eapply update_mapsto_iff.
-          left.
-          eapply map_mapsto_iff.
-          exists ax.
-          split; trivial.
-        }
+        intros HH; eapply map_4 in HH; eapply Hdisj'; eauto.
       }
-(*
+      destruct H as [H Hnin].
+      eapply update_mapsto_iff in H.
+      destruct H as [H | H].
       {
-        destruct H as [H Hnin].
+        eapply map_mapsto_iff in H.
+        destruct H as [ax [? H] ].
+        subst.
+        assert (Hin : In k exs).
+        {
+          eapply MapsTo_In; eauto.
+        }
+        eapply update_mapsto_iff.
+        left.
+        eapply map_mapsto_iff.
+        exists ax.
+        split; trivial.
+      }
+      {
+        destruct H as [H Hnin1].
         eapply map_mapsto_iff in H.
         destruct H as [op [? H] ].
         subst.
@@ -593,20 +590,32 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           eexists.
           split; eauto.
           simpl.
-          destruct op; simpl in *.
-          unfold compile_op; simpl in *.
-          unfold Compile.compile_op; simpl in *.
-          unfold compile_func; simpl in *.
-          unfold CompileModule.compile_func; simpl in *.
-          Set Printing Coercions.
-          unfold to_internal_func_spec; simpl in *.
-          unfold is_good_func_sound.
-          simpl.
+          Lemma core_eq_func_eq f1 (H1 : is_no_dup (FuncCore.ArgVars f1) = true) f2 (H2 : is_no_dup (FuncCore.ArgVars f2) = true) : f1 = f2 -> {| Fun := f1; NoDupArgVars := H1 |} = {| Fun := f2; NoDupArgVars := H2 |}.
+          Proof.
+            intros.
+            subst.
+            f_equal.
+            Lemma bool_irre : forall (a b : bool) (H1 H2 : a = b), H1 = H2.
+            Proof.
+              clear.
+              intros.
+              destruct a; destruct b; try discriminate.
+              Set Printing Coercions.
+              Unset Printing Notations.
+              Set Printing All.
+              (*here*)
+              destruct H1.
+              destruct (boolcase (is_no_dup (FuncCore.ArgVars f2))) as [H | H].
+              eauto.
+              admit.
+            Qed.
+            eapply bool_irre.
+          Qed.
+          f_equal.
+          eapply core_eq_func_eq.
           reflexivity.
-          eauto.
         }
       }
-*)
     Qed.
 
     Lemma in_whole_env_in_whole_specs k : 

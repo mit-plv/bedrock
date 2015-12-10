@@ -90,7 +90,7 @@ Section TopSection.
          (3) imports of 'module'
    *)
   Definition get_env op_mod_name (exports : StringMap.t (AxiomaticSpec ADTValue)) module : Env ADTValue := 
-    (* map (fun (f : DFFun) => Operational f) (map_aug_mod_name op_mod_name (Funs module)) +  *)
+    GLabelMap.map (fun (f : DFFun) => Operational _ f) (map_aug_mod_name op_mod_name (Funs module)) +
     GLabelMap.map (@Axiomatic _) (map_aug_mod_name op_mod_name exports) + 
     GLabelMap.map (@Axiomatic _) (Imports module).
 
