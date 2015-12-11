@@ -1,11 +1,11 @@
 Set Implicit Arguments.
 
-Require Import Bedrock.Platform.Facade.examples.FiatADTs.
-Require Import Bedrock.Platform.Facade.examples.FiatRepInv.
+Require Import Bedrock.Platform.Facade.examples.QsADTs.
+Require Import Bedrock.Platform.Facade.examples.QsRepInv.
 
 Require Import Bedrock.Platform.Facade.DFacadeToBedrock2.
 
-Module Import M := DFacadeToBedrock2.Make FiatADTs.Adt FiatRepInv.Ri.
+Module Import M := DFacadeToBedrock2.Make QsADTs.Adt QsRepInv.Ri.
 
 Require Import AxSpec.
 
@@ -42,7 +42,10 @@ Definition foo : DFFun :=
   |}.
 
 Definition funs := StringMapFacts.of_list (("foo", foo) :: nil).
-Definition imports := GLabelMapFacts.of_list ((("ADT", "sEmpty"), FEnsemble_sEmpty) :: nil).
+Definition imports := GLabelMapFacts.of_list (
+                          (("ADT", "Tuple_new"), Tuple_new) ::
+                          (("ADT", "TupleList_empty"), TupleList_empty) ::
+                          nil).
 
 Definition exam : DFModule ADTValue :=
   {|
@@ -126,11 +129,11 @@ Lemma all1_ok : moduleOk all1.
   link m1_ok m2_ok.
 Qed.
 
-Require Import Bedrock.Platform.Facade.examples.FiatImpl.
+Require Import Bedrock.Platform.Facade.examples.QsImpl.
 
 (* link all1 with the ADT implementation *)
-Definition all := link all1 FiatImpl.m.
+Definition all := link all1 QsImpl.m.
 
 Theorem all_ok : moduleOk all.
-  link all1_ok FiatImpl.ok.
+  link all1_ok QsImpl.ok.
 Qed.
