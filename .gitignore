@@ -3,6 +3,7 @@
 
 *.depend
 Makefile.coq
+_CoqProject
 *.vo
 *.vio
 *.glob
@@ -13,6 +14,7 @@ Bedrock/ILTac.v
 Bedrock/reification/extlib.ml
 Bedrock/reification/extlib.mli
 Bedrock/reification/reif.ml4
+Bedrock/Coq__8_4__8_5__Compat.v
 
 *.aux
 *.bbl
@@ -21,6 +23,7 @@ Bedrock/reification/reif.ml4
 *.out
 timing/
 .coq-native/
+.coq-version
 *.cmo
 *.cmx
 *.cmxs
