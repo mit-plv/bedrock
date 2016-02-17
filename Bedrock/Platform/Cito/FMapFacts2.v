@@ -2,12 +2,20 @@ Set Implicit Arguments.
 
 Require Import Coq.Structures.DecidableTypeEx.
 Require Import Coq.FSets.FMapInterface.
+Require Bedrock.Platform.Cito.ListFacts1.
+Require Bedrock.Platform.Cito.FMapFacts1.
+Require Bedrock.Platform.Cito.GeneralTactics.
+Require Bedrock.Platform.Cito.GeneralTactics2.
+Require Bedrock.Platform.Cito.Option.
+Require Bedrock.Platform.Cito.GeneralTactics4.
+Require Bedrock.Platform.Cito.ListFacts4.
+Require Bedrock.Platform.Cito.SetoidListFacts.
 
 Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
-  Require Import Bedrock.Platform.Cito.ListFacts1.
+  Import Bedrock.Platform.Cito.ListFacts1.
 
-  Require Import Bedrock.Platform.Cito.FMapFacts1.
+  Import Bedrock.Platform.Cito.FMapFacts1.
   Module Import UWFacts := UWFacts_fun E M.
   Import WFacts.
   Import P.
@@ -28,9 +36,9 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
   Section TopSection.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics.
-    Require Import Bedrock.Platform.Cito.GeneralTactics2.
-    Require Import Bedrock.Platform.Cito.Option.
+    Import Bedrock.Platform.Cito.GeneralTactics.
+    Import Bedrock.Platform.Cito.GeneralTactics2.
+    Import Bedrock.Platform.Cito.Option.
     Import ListNotations.
     Import FMapNotations.
     Open Scope fmap_scope.
@@ -993,7 +1001,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
       eapply diff_find_Some_iff in Hf; openhyp; rewrite diff_o; eauto.
     Qed.
 
-    Require Import Bedrock.Platform.Cito.GeneralTactics4.
+    Import Bedrock.Platform.Cito.GeneralTactics4.
 
     Lemma submap_diff_diff elt (h1 h2 h3 : t elt) : h1 <= h2 -> h2 <= h3 -> h2 - h1 == (h3 - h1) - (h3 - h2).
     Proof.
@@ -1304,7 +1312,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
         | _, _ => @empty elt
       end.
 
-    Require Import Bedrock.Platform.Cito.ListFacts4.
+    Import Bedrock.Platform.Cito.ListFacts4.
 
     Lemma in_make_mapM_iff elt ks : forall vs k, length ks = length vs -> (In k (make_mapM ks vs) <-> exists i (a : elt), nth_error ks i = Some k /\ nth_error vs i = Some (Some a)).
     Proof.
@@ -1662,7 +1670,7 @@ Module UWFacts_fun (E : UsualDecidableType) (Import M : WSfun E).
 
     Definition is_sub_domain elt1 elt2 (m1 : t elt1) (m2 : t elt2) := forallb (fun k => mem k m2) (keys m1).
 
-    Require Import Bedrock.Platform.Cito.SetoidListFacts.
+    Import Bedrock.Platform.Cito.SetoidListFacts.
 
     Lemma is_sub_domain_sound : forall elt1 elt2 (m1 : t elt1) (m2 : t elt2), is_sub_domain m1 m2 = true -> sub_domain m1 m2.
       intros.

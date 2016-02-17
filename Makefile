@@ -1,3 +1,4 @@
+COMPATIBILITY_FILE=Bedrock/Coq__8_4__8_5__Compat.v
 STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
 .PHONY: examples platform cito facade facade-all facade-allv src reification \
@@ -14,19 +15,21 @@ submodule-update: .gitmodules
 	touch "$@"
 
 ifneq (,$(wildcard .git)) # if we're in a git repo
-etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml: submodule-update
+etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml: submodule-update
 	@ touch "$@"
 endif
 
 HASNATDYNLINK = true
 
-FAST_TARGETS += dist version package admit etc/coq-scripts etc/coq-scripts/Makefile.coq.common submodule-update time native ltac
+FAST_TARGETS += dist version package admit etc/coq-scripts etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early submodule-update time native ltac
 SUPER_FAST_TARGETS += submodule-update
 
-Makefile.coq: etc/coq-scripts/Makefile.coq.common
+Makefile.coq: etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early
 
+-include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early
 -include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml
 -include etc/coq-scripts/Makefile.coq.common
+-include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85
 
 IS_FAST := 1
 
@@ -198,7 +201,7 @@ endif
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 $(UPDATE_COQPROJECT_TARGET):
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml"; echo 'Bedrock/reification/extlib.mli'; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml"; echo 'Bedrock/reification/extlib.mli'; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject.in
 
 time:
 	@ rm -rf timing
