@@ -171,6 +171,10 @@ NOT_EXISTS_UNSAFE_TYPE_OF := $(call test_exists_ml_function,Typing.unsafe_type_o
 # > 8.4 if it exists
 NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL := $(call test_exists_ml_function,Universes.constr_of_global)
 
+ifeq ($(USE_COQ_84),1)
+EXPECTED_EXT:=.v84
+ML_DESCRIPTION := "Coq v8.4"
+else
 ifeq ($(NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL),1) # <= 8.4
 EXPECTED_EXT:=.v84
 ML_DESCRIPTION := "Coq v8.4"
@@ -181,6 +185,7 @@ ML_DESCRIPTION := "Coq > 8.4 && <= 8.5beta2"
 else
 EXPECTED_EXT:=.v85
 ML_DESCRIPTION := "Coq > 8.5beta2"
+endif
 endif
 endif
 

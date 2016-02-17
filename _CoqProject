@@ -140,6 +140,7 @@ Bedrock/Platform/XmlSearch.v
 Bedrock/Platform/Cito/ADT.v
 Bedrock/Platform/Cito/AxSpec.v
 Bedrock/Platform/Cito/BedrockTactics.v
+Bedrock/Platform/Cito/BoolFacts.v
 Bedrock/Platform/Cito/CModule.v
 Bedrock/Platform/Cito/CModuleFacts.v
 Bedrock/Platform/Cito/ChangeSpec.v
@@ -184,6 +185,7 @@ Bedrock/Platform/Cito/GoodModule.v
 Bedrock/Platform/Cito/GoodModuleDec.v
 Bedrock/Platform/Cito/GoodModuleDecFacts.v
 Bedrock/Platform/Cito/GoodOptimizer.v
+Bedrock/Platform/Cito/IffFacts.v
 Bedrock/Platform/Cito/Inv.v
 Bedrock/Platform/Cito/InvFacts.v
 Bedrock/Platform/Cito/IsGoodModule.v
@@ -286,8 +288,6 @@ Bedrock/Platform/Cito/WordKey.v
 Bedrock/Platform/Cito/WordMap.v
 Bedrock/Platform/Cito/WordMapFacts.v
 Bedrock/Platform/Cito/adt/TabledADT.v
-Bedrock/Platform/Cito/BoolFacts.v
-Bedrock/Platform/Cito/IffFacts.v
 Bedrock/Platform/Cito/examples/ArraySeq.v
 Bedrock/Platform/Cito/examples/Cell.v
 Bedrock/Platform/Cito/examples/CountUnique.v
