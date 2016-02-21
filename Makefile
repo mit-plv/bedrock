@@ -9,12 +9,19 @@ STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 	clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-src clean-unmade-for-reification \
 	native ltac version dist time
 
-submodule-update: .gitmodules
+ifneq (,$(wildcard .git)) # if we're in a git repo
+
+# if the submodule changed, update it
+SUBMODULE_DIFF=$(shell git diff etc/coq-scripts 2>&1)
+ifneq (,$(SUBMODULE_DIFF))
+submodule-update::
 	git submodule sync && \
 	git submodule update --init && \
 	touch "$@"
+else
+submodule-update::
+endif
 
-ifneq (,$(wildcard .git)) # if we're in a git repo
 etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml: submodule-update
 	@ touch "$@"
 endif
