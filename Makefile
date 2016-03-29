@@ -75,7 +75,10 @@ FACADE_VO := \
 	Bedrock/Platform/Facade/Facade.vo \
 	Bedrock/Platform/Facade/DFacade.vo \
 	Bedrock/Platform/Facade/CompileUnit.vo \
-	Bedrock/Platform/Facade/CompileUnit2.vo
+	Bedrock/Platform/Facade/CompileUnit2.vo \
+	Bedrock/Platform/Facade/examples/QsADTs.vo \
+	Bedrock/Platform/Facade/examples/TuplesF.vo \
+	Bedrock/Platform/Facade/DFacadeFacts2.vo \
 
 FACADE_ALL_VO := \
 	Bedrock/Platform/Facade/examples/FiatADTs.vo \
