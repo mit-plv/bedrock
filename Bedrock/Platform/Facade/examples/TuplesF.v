@@ -61,8 +61,8 @@ Section IndexedEnsembles.
     /\ UnIndexedEnsembleListEquivalence ensemble l.
 End IndexedEnsembles.
 
-Definition tupl := list W.
-Definition tuples := @IndexedEnsemble tupl.
+Definition GenericTuple A := list A.
+Definition GenericTuples A := @IndexedEnsemble (GenericTuple A).
 
 Definition EnsembleInsert {A : Type}
            (a : A)
@@ -78,37 +78,41 @@ Proof.
   firstorder.
 Qed.
 
-Definition Equiv (ts1 ts2 : tuples) := forall t, ts1 t <-> ts2 t.
+Definition Equiv {A} (ts1 ts2 : @IndexedEnsemble A) := forall t, ts1 t <-> ts2 t.
 
-Theorem Equiv_refl : forall ts1 ts2, ts1 = ts2 -> Equiv ts1 ts2.
+Theorem Equiv_refl : forall A ts1 ts2, ts1 = ts2 -> @Equiv A ts1 ts2.
 Proof.
   unfold Equiv; firstorder congruence.
 Qed.
 
 Hint Resolve Equiv_refl.
 
-Definition insert (ts : tuples) (t : tupl) (ts' : tuples) : Prop :=
+Definition insert {A} (ts : GenericTuples A) (t : GenericTuple A) (ts' : GenericTuples A) : Prop :=
   exists idx,
     UnConstrFreshIdx ts idx
     /\ Equiv ts' (EnsembleInsert {| elementIndex := idx;
                                     indexedElement:= t |} ts).
 
-Fixpoint allTuplesLen (len : nat) (ts : list (list W)) :=
+Fixpoint allTuplesLen {A} (len : nat) (ts : list (GenericTuple A)) :=
   match ts with
   | nil => True
   | t :: ts' => length t = len /\ allTuplesLen len ts'
   end.
 
-Definition Empty : tuples := fun _ => False.
-Definition bounded (ts : tuples) := exists idx, UnConstrFreshIdx ts idx.
-Definition minFreshIndex (ts : tuples) (idx : nat) :=
+Definition Empty {A} : GenericTuples A := fun _ => False.
+Definition bounded {A} (ts : GenericTuples A) := exists idx, UnConstrFreshIdx ts idx.
+Definition minFreshIndex {A} (ts : GenericTuples A) (idx : nat) :=
   UnConstrFreshIdx ts idx
-  /\ forall idx', (idx' < idx)%nat -> ~UnConstrFreshIdx ts idx'.
-Definition insertAt (ts : tuples) (idx : nat) (t : tupl) : tuples :=
+  /\ forall idx', (idx' < idx)%nat -> ~UnConstrFreshIdx ts idx'. 
+Definition insertAt {A} (ts : GenericTuples A) (idx : nat) (t : GenericTuple A) : GenericTuples A :=
   EnsembleInsert {| elementIndex := idx;
                     indexedElement:= t |} ts.
-Definition keepEq (ts : tuples) (key k : W) : tuples :=
-  fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key = k.
-Definition functional (ts : tuples) :=
+Definition functional {A} (ts : GenericTuples A) :=
   forall t1 t2, Ensembles.In _ ts t1 -> Ensembles.In _ ts t2
                 -> elementIndex t1 = elementIndex t2 -> t1 = t2.
+
+Definition keepEq {A B} (EQ: A -> B -> Prop) (ts : GenericTuples A) (default: A) (key: W) (k : B) : GenericTuples A :=
+  fun tup => EQ (List.nth (wordToNat key) (indexedElement tup) default) k.
+
+Definition tupl := GenericTuple W.
+Definition tuples := GenericTuples W.
