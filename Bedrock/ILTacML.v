@@ -18,7 +18,7 @@ Declare ML Module "reif".
 
 
 (** Cancellation **)
-(******************)
+(*******************)
 Ltac sep_canceller isConst ext simplifier :=
 (*TIME  start_timer "sep_canceler:change_to_himp" ; *)
   (try change_to_himp) ;

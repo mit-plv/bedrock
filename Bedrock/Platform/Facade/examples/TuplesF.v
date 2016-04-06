@@ -1,6 +1,7 @@
 (** Multisets of tuples *)
-
-Require Import Bedrock Ensembles Relations.
+Require Import Coq.Sets.Ensembles.
+Require Import Bedrock.Bedrock.
+Require Import Coq.Relations.Relations.
 
 (* This section copied from Fiat for convenience, to avoid circular dependencies across libraries! *)
 Section IndexedEnsembles.
@@ -71,8 +72,8 @@ Definition EnsembleInsert {A : Type}
 
 Lemma in_ensemble_insert_iff :
   forall {A} table tup inserted,
-    In A (EnsembleInsert inserted table) tup <->
-    tup = inserted \/ In A table tup.
+    Ensembles.In A (EnsembleInsert inserted table) tup <->
+    tup = inserted \/ Ensembles.In A table tup.
 Proof.
   firstorder.
 Qed.
@@ -102,7 +103,7 @@ Definition Empty : tuples := fun _ => False.
 Definition bounded (ts : tuples) := exists idx, UnConstrFreshIdx ts idx.
 Definition minFreshIndex (ts : tuples) (idx : nat) :=
   UnConstrFreshIdx ts idx
-  /\ forall idx', (idx' < idx)%nat -> ~UnConstrFreshIdx ts idx'. 
+  /\ forall idx', (idx' < idx)%nat -> ~UnConstrFreshIdx ts idx'.
 Definition insertAt (ts : tuples) (idx : nat) (t : tupl) : tuples :=
   EnsembleInsert {| elementIndex := idx;
                     indexedElement:= t |} ts.
