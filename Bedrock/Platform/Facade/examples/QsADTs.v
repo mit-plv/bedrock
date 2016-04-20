@@ -6,13 +6,6 @@ Require Import Bedrock.Bedrock.
 
 Require Import Bedrock.Platform.Facade.examples.TuplesF.
 
-(* FIXME remove *)
-Definition keepEq {A B} (EQ: A -> B -> Prop) (ts : GenericTuples A) (key: W) (k : B) : GenericTuples A :=
-  fun tup => match List.nth_error (indexedElement tup) (wordToNat key) with
-             | Some k0 => EQ k0 k
-             | None => False
-             end.
-
 Inductive WS :=
 | WSWord (w: W)
 | WSString (s: string).
@@ -23,22 +16,21 @@ Definition WSTuplSet := GenericTuples WS.
 Inductive ADTValue :=
 | WTuple (t : tupl)
 | WordList (ws : list W)
-| TupleList (ts : list tupl)
-| Tuples0 (len : W) (ts : tuples)
-| Tuples1 (len key : W) (ts : tuples)
-| Tuples2 (len key1 key2 : W) (ts : tuples)
+| WTupleList (ts : list tupl)
+| WTuples0 (len : W) (ts : tuples)
+| WTuples1 (len key : W) (ts : tuples)
+| WTuples2 (len key1 key2 : W) (ts : tuples)
 | WSTuple (t : WSTupl)
 | WSTupleList (ts : list WSTupl)
 | ADTString (s: string)
 | WSTrie (len keyIndex : W) (tuples : WSTuplSet)
-| BagOfWSTuples1 (len keyIndex : W) (tuples : WSTuplSet).
+| BagOfWSTuples1 (len keyIndex : W) (tuples : WSTuplSet)
+| NestedWSTrieBagOfWSTuples1 (len keyIndex1 keyIndex2 : W) (tuples : WSTuplSet).
 
 Require Import Bedrock.Platform.Cito.ADT.
 
 Module Adt <: ADT.
-
   Definition ADTValue := ADTValue.
-
 End Adt.
 
 Require Import Coq.Lists.List Coq.Program.Program.
@@ -46,11 +38,15 @@ Require Import Coq.Lists.List Coq.Program.Program.
 Definition SCAZero {t} := SCA t (Word.natToWord 32 0).
 Definition SCAOne  {t} := SCA t (Word.natToWord 32 1).
 
+Create HintDb crush_types_db.
+
 Ltac crush_types :=
   unfold type_conforming, same_types, same_type; intros;
   repeat match goal with
          | [ H: exists t, _ |- _ ] => destruct H
-         end; repeat progress (subst; intuition).
+         end;
+  repeat progress (subst; intuition);
+  try (compute; autorewrite with crush_types_db; reflexivity).
 
 Module Type TupleADTSpecParams.
   Parameter FieldType : Type.
@@ -109,7 +105,7 @@ End TupleADTSpec.
 Module WTupleADTSpecParams <: TupleADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
-  Definition ListConstructor := TupleList.
+  Definition ListConstructor := WTupleList.
   Definition ValueConstructor (x: option FieldType) :=
     SCA ADTValue (match x with
                   | Some w => w
@@ -165,7 +161,8 @@ Module WSTupleADTSpec.
                        /\ pos < natToW (length ls);
         PostCond := fun args ret =>
                       exists ls pos val,
-                        args = [(ADT (TupleConstructor ls), Some (TupleConstructor (PutAt ls pos (WSWord val))));
+                        args = [(ADT (TupleConstructor ls),
+                                 Some (TupleConstructor (PutAt ls pos (WSWord val))));
                                 (SCA _ pos, None); (SCA _ val, None)] /\
                         ret = SCAZero
       |}; crush_types.
@@ -186,22 +183,22 @@ Module WSTupleADTSpec.
   Defined.
 End WSTupleADTSpec.
 
-Section WordListADTSpec.
-  Definition WordList_new : AxiomaticSpec ADTValue.
+Module WordListADTSpec.
+  Definition New : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => args = [];
         PostCond := fun args ret => args = [] /\ ret = ADT (WordList [])
       |}; crush_types.
   Defined.
 
-  Definition WordList_delete : AxiomaticSpec ADTValue.
+  Definition Delete : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => exists l, args = [ADT (WordList l)];
         PostCond := fun args ret => exists l, args = [(ADT (WordList l), None)] /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition WordList_pop : AxiomaticSpec ADTValue.
+  Definition Pop : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists h t,
@@ -213,7 +210,7 @@ Section WordListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition WordList_empty : AxiomaticSpec ADTValue.
+  Definition Empty : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -225,7 +222,7 @@ Section WordListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition WordList_push : AxiomaticSpec ADTValue.
+  Definition Push : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l w,
@@ -237,7 +234,7 @@ Section WordListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition WordList_copy : AxiomaticSpec ADTValue.
+  Definition Copy : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -249,7 +246,7 @@ Section WordListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition WordList_rev : AxiomaticSpec ADTValue.
+  Definition Rev : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -261,7 +258,7 @@ Section WordListADTSpec.
       |}; crush_types.
   Defined.
 
-  Definition WordList_length : AxiomaticSpec ADTValue.
+  Definition Length : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists l,
@@ -307,7 +304,8 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
                        /\ $2 <= len;
         PostCond := fun args ret =>
                       exists l len,
-                        args = [ (ADT (ListConstructor l), Some (ListConstructor l)); (SCA _ len, None) ] /\
+                        args = [ (ADT (ListConstructor l),
+                                  Some (ListConstructor l)); (SCA _ len, None) ] /\
                         ret = ADT (ListConstructor l)
       |}; crush_types.
   Defined.
@@ -340,7 +338,7 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
     refine {|
         PreCond := fun args =>
                      exists l t,
-                       args = [ADT (ListConstructor l); ADT (Tuple t)];
+                       args = [ADT (ListConstructor l); ADT (TupleConstructor t)];
         PostCond := fun args ret =>
                       exists l t,
                         args = [ (ADT (ListConstructor l), Some (ListConstructor (t :: l)));
@@ -376,8 +374,8 @@ End TupleListADTSpec.
 
 Module WTupleListADTSpecParams <: TupleListADTSpecParams.
   Definition FieldType := W.
-  Definition TupleConstructor := Tuple.
-  Definition ListConstructor := TupleList.
+  Definition TupleConstructor := WTuple.
+  Definition ListConstructor := WTupleList.
 End WTupleListADTSpecParams.
 
 Module WTupleListSpec := TupleListADTSpec (WTupleListADTSpecParams).
@@ -393,47 +391,65 @@ Module WSTupleListSpec := TupleListADTSpec (WSTupleListADTSpecParams).
 Print Module WTupleListSpec.
 Print Module WSTupleListSpec.
 
-Section Tuples0ADTSpec.
+Module Type IndexedBag0ADTSpecParams.
+  Parameter FieldType : Type.
+  Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Parameter TreeConstructor : forall (len: W) (elems: GenericTuples FieldType), ADTValue.
+End IndexedBag0ADTSpecParams.
 
-  Definition Tuples0_new : AxiomaticSpec ADTValue.
+Module IndexedBag0ADTSpec (Params : IndexedBag0ADTSpecParams).
+  Import Params.
+
+  Definition New : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => exists len, args = [SCA _ len]
                                            /\ len >= $2;
         PostCond := fun args ret => exists len, args = [(SCA _ len, None)]
-                                                /\ ret = ADT (Tuples0 len Empty)
+                                                /\ ret = ADT (TreeConstructor len Empty)
       |}; crush_types.
   Defined.
 
-  Definition Tuples0_insert : AxiomaticSpec ADTValue.
+  Definition Insert : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists len ts t idx,
-                       args = [ADT (Tuples0 len ts); ADT (Tuple t)]
+                       args = [ADT (TreeConstructor len ts); ADT (TupleConstructor t)]
                        /\ minFreshIndex ts idx
                        /\ length t = wordToNat len;
         PostCond := fun args ret =>
                       exists len ts t idx,
-                        args = [ (ADT (Tuples0 len ts), Some (Tuples0 len (insertAt ts idx t)));
-                                 (ADT (Tuple t), None) ]
+                        args = [ (ADT (TreeConstructor len ts),
+                                  Some (TreeConstructor len (insertAt ts idx t)));
+                                 (ADT (TupleConstructor t), None) ]
                         /\ minFreshIndex ts idx
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition Tuples0_enumerate : AxiomaticSpec ADTValue.
+  Definition Enumerate : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
                      exists len ts,
-                       args = [ADT (Tuples0 len ts)];
+                       args = [ADT (TreeConstructor len ts)];
         PostCond := fun args ret =>
                       exists len ts l,
-                        args = [ (ADT (Tuples0 len ts), Some (Tuples0 len ts)) ]
-                        /\ ret = ADT (TupleList l)
+                        args = [ (ADT (TreeConstructor len ts), Some (TreeConstructor len ts)) ]
+                        /\ ret = ADT (TupleListConstructor l)
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
+End IndexedBag0ADTSpec.
 
-End Tuples0ADTSpec.
+Module Tuples0ADTSpecParams <: IndexedBag0ADTSpecParams.
+  Definition FieldType := W.
+  Definition TupleConstructor := WTuple.
+  Definition TupleListConstructor := WTupleList.
+  Definition TreeConstructor := WTuples0.
+End Tuples0ADTSpecParams.
+
+Module Tuples0ADTSpec := IndexedBag0ADTSpec Tuples0ADTSpecParams.
+Print Module Tuples0ADTSpec.
 
 Module Type IndexedBag1ADTSpecParams.
   Parameter KeyType : Type.
@@ -468,7 +484,8 @@ Module IndexedBag1ADTSpec (Params : IndexedBag1ADTSpecParams).
                        /\ length t = wordToNat len;
         PostCond := fun args ret =>
                       exists len key ts t idx,
-                        args = [ (ADT (BagConstructor len key ts), Some (BagConstructor len key (insertAt ts idx t)));
+                        args = [ (ADT (BagConstructor len key ts),
+                                  Some (BagConstructor len key (insertAt ts idx t)));
                                  (ADT (TupleConstructor t), None) ]
                         /\ minFreshIndex ts idx
                         /\ ret = SCAZero
@@ -489,6 +506,7 @@ Module IndexedBag1ADTSpec (Params : IndexedBag1ADTSpecParams).
       |}; crush_types.
   Defined.
 
+  Hint Rewrite KeyConstructor_SameTypes : crush_types_db.
   Definition Find : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
@@ -500,7 +518,7 @@ Module IndexedBag1ADTSpec (Params : IndexedBag1ADTSpecParams).
                                  (KeyConstructor k, None) ]
                         /\ ret = ADT (TupleListConstructor l)
                         /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction ts keyIndex k) l
-      |}; crush_types; compute; rewrite KeyConstructor_SameTypes; reflexivity.
+      |}; crush_types.
   Defined.
 End IndexedBag1ADTSpec.
 
@@ -510,19 +528,31 @@ Module WBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition KeyConstructor := SCA ADTValue.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
   Definition MatchingFunction := @eq W.
-  Definition TupleConstructor := Tuple.
-  Definition TupleListConstructor := TupleList.
-  Definition BagConstructor := Tuples1.
+  Definition TupleConstructor := WTuple.
+  Definition TupleListConstructor := WTupleList.
+  Definition BagConstructor := WTuples1.
 End WBag1ADTSpecParams.
 
 Module Tuples1ADTSpec := IndexedBag1ADTSpec (WBag1ADTSpecParams).
+
+Definition WS_StringPrefixB ws key :=
+  match ws with
+  | WSString s => prefix key s
+  | _ => false
+  end.
+
+Definition WS_WordEqB ws key :=
+  match ws with
+  | WSWord w => Word.weqb w key
+  | _ => false
+  end.
 
 Module WSBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := WS.
   Definition KeyConstructor := SCA ADTValue.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
-  Definition MatchingFunction := fun (field: FieldType) key => match field with WSWord f => f = key | _ => False end.
+  Definition MatchingFunction ws key := WS_WordEqB ws key = true.
   Definition TupleConstructor := WSTuple.
   Definition TupleListConstructor := WSTupleList.
   Definition BagConstructor := BagOfWSTuples1.
@@ -535,7 +565,7 @@ Module WSTrieADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition FieldType := WS.
   Definition KeyConstructor := (fun x => ADT (ADTString x)).
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
-  Definition MatchingFunction := fun (field: FieldType) key => match field with WSString f => f = key | _ => False end.
+  Definition MatchingFunction ws key := WS_StringPrefixB ws key = true.
   Definition TupleConstructor := WSTuple.
   Definition TupleListConstructor := WSTupleList.
   Definition BagConstructor := WSTrie.
@@ -547,90 +577,157 @@ Print Module Tuples1ADTSpec.
 Print Module WSBag1ADTSpec.
 Print Module WSTrieADTSpec.
 
-Section Tuples2ADTSpec.
+Module Type IndexedBag2ADTSpecParams.
+  Parameter KeyType1 KeyType2 : Type.
+  Parameter FieldType : Type.
+  Parameter KeyConstructor1 : forall (k: KeyType1), Value ADTValue.
+  Parameter KeyConstructor2 : forall (k: KeyType2), Value ADTValue.
+  Parameter KeyConstructor1_SameTypes : forall x y, is_same_type (KeyConstructor1 x) (KeyConstructor1 y) = true.
+  Parameter KeyConstructor2_SameTypes : forall x y, is_same_type (KeyConstructor2 x) (KeyConstructor2 y) = true.
+  Parameter MatchingFunction1 : forall (f: FieldType) (k: KeyType1), Prop.
+  Parameter MatchingFunction2 : forall (f: FieldType) (k: KeyType2), Prop.
+  Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Parameter BagConstructor : forall (len keyIndex1 keyIndex2 : W) (tuples : GenericTuples FieldType), ADTValue.
+End IndexedBag2ADTSpecParams.
 
-  Definition Tuples2_new : AxiomaticSpec ADTValue.
+Module IndexedBag2ADTSpec (Params: IndexedBag2ADTSpecParams).
+  Import Params.
+
+  Definition New : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => exists len key1 key2,
-                       args = [SCA _ len; SCA _ key1; SCA _ key2]
+        PreCond := fun args => exists len keyIndex1 keyIndex2,
+                       args = [SCA _ len; SCA _ keyIndex1; SCA _ keyIndex2]
                        /\ len >= $2
-                       /\ key1 < len
-                       /\ key2 < len;
-        PostCond := fun args ret => exists len key1 key2,
-                        args = [(SCA _ len, None); (SCA _ key1, None); (SCA _ key2, None)]
-                        /\ ret = ADT (Tuples2 len key1 key2 Empty)
+                       /\ keyIndex1 < len
+                       /\ keyIndex2 < len;
+        PostCond := fun args ret => exists len keyIndex1 keyIndex2,
+                        args = [(SCA _ len, None); (SCA _ keyIndex1, None); (SCA _ keyIndex2, None)]
+                        /\ ret = ADT (BagConstructor len keyIndex1 keyIndex2 Empty)
       |}; crush_types.
   Defined.
 
-  Definition Tuples2_insert : AxiomaticSpec ADTValue.
+  Definition Insert : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key1 key2 ts t idx,
-                       args = [ADT (Tuples2 len key1 key2 ts); ADT (Tuple t)]
+                     exists len keyIndex1 keyIndex2 ts t idx,
+                       args = [ADT (BagConstructor len keyIndex1 keyIndex2 ts); ADT (TupleConstructor t)]
                        /\ minFreshIndex ts idx
                        /\ length t = wordToNat len;
         PostCond := fun args ret =>
-                      exists len key1 key2 ts t idx,
-                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 (insertAt ts idx t)));
-                                 (ADT (Tuple t), None) ]
+                      exists len keyIndex1 keyIndex2 ts t idx,
+                        args = [ (ADT (BagConstructor len keyIndex1 keyIndex2 ts),
+                                  Some (BagConstructor len keyIndex1 keyIndex2 (insertAt ts idx t)));
+                                 (ADT (TupleConstructor t), None) ]
                         /\ minFreshIndex ts idx
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
 
-  Definition Tuples2_enumerate : AxiomaticSpec ADTValue.
+  Definition Enumerate : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key1 key2 ts,
-                       args = [ADT (Tuples2 len key1 key2 ts)]
+                     exists len keyIndex1 keyIndex2 ts,
+                       args = [ADT (BagConstructor len keyIndex1 keyIndex2 ts)]
                        /\ functional ts;
         PostCond := fun args ret =>
-                      exists len key1 key2 ts l,
-                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)) ]
-                        /\ ret = ADT (TupleList l)
+                      exists len keyIndex1 keyIndex2 ts l,
+                        args = [ (ADT (BagConstructor len keyIndex1 keyIndex2 ts),
+                                  Some (BagConstructor len keyIndex1 keyIndex2 ts)) ]
+                        /\ ret = ADT (TupleListConstructor l)
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
 
-  Definition Tuples2_findBoth : AxiomaticSpec ADTValue.
+  Hint Rewrite KeyConstructor1_SameTypes : crush_types_db.
+  Hint Rewrite KeyConstructor2_SameTypes : crush_types_db.
+
+  Definition FindBoth : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key1 key2 ts k1 k2,
-                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k1; SCA _ k2];
+                     exists len keyIndex1 keyIndex2 ts k1 k2,
+                       args = [ADT (BagConstructor len keyIndex1 keyIndex2 ts);
+                               KeyConstructor1 k1; KeyConstructor2 k2];
         PostCond := fun args ret =>
-                      exists len key1 key2 ts k1 k2 l,
-                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k1, None); (SCA _ k2, None) ]
-                        /\ ret = ADT (TupleList l)
-                        /\ EnsembleIndexedListEquivalence (keepEq eq (keepEq eq ts key1 k1) key2 k2) l
+                      exists len keyIndex1 keyIndex2 ts k1 k2 l,
+                        args = [ (ADT (BagConstructor len keyIndex1 keyIndex2 ts),
+                                  Some (BagConstructor len keyIndex1 keyIndex2 ts));
+                                 (KeyConstructor1 k1, None); (KeyConstructor2 k2, None) ]
+                        /\ ret = ADT (TupleListConstructor l)
+                        /\ EnsembleIndexedListEquivalence
+                            (keepEq MatchingFunction2 (keepEq MatchingFunction1 ts keyIndex1 k1) keyIndex2 k2)
+                            l
       |}; crush_types.
   Defined.
 
-  Definition Tuples2_findFirst : AxiomaticSpec ADTValue.
+  Definition FindFirst : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key1 key2 ts k,
-                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k]
+                     exists len keyIndex1 keyIndex2 ts k,
+                       args = [ADT (BagConstructor len keyIndex1 keyIndex2 ts); KeyConstructor1 k]
                        /\ functional ts;
         PostCond := fun args ret =>
-                      exists len key1 key2 ts k l,
-                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
-                        /\ ret = ADT (TupleList l)
-                        /\ EnsembleIndexedListEquivalence (keepEq eq ts key1 k) l
+                      exists len keyIndex1 keyIndex2 ts k l,
+                        args = [ (ADT (BagConstructor len keyIndex1 keyIndex2 ts),
+                                  Some (BagConstructor len keyIndex1 keyIndex2 ts));
+                                 (KeyConstructor1 k, None) ]
+                        /\ ret = ADT (TupleListConstructor l)
+                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction1 ts keyIndex1 k) l
       |}; crush_types.
   Defined.
 
-  Definition Tuples2_findSecond : AxiomaticSpec ADTValue.
+  Definition FindSecond : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
-                     exists len key1 key2 ts k,
-                       args = [ADT (Tuples2 len key1 key2 ts); SCA _ k]
+                     exists len keyIndex1 keyIndex2 ts k,
+                       args = [ADT (BagConstructor len keyIndex1 keyIndex2 ts); KeyConstructor2 k]
                        /\ functional ts;
         PostCond := fun args ret =>
-                      exists len key1 key2 ts k l,
-                        args = [ (ADT (Tuples2 len key1 key2 ts), Some (Tuples2 len key1 key2 ts)); (SCA _ k, None) ]
-                        /\ ret = ADT (TupleList l)
-                        /\ EnsembleIndexedListEquivalence (keepEq eq ts key2 k) l
+                      exists len key1 keyIndex2 ts k l,
+                        args = [ (ADT (BagConstructor len key1 keyIndex2 ts),
+                                  Some (BagConstructor len key1 keyIndex2 ts));
+                                 (KeyConstructor2 k, None) ]
+                        /\ ret = ADT (TupleListConstructor l)
+                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction2 ts keyIndex2 k) l
       |}; crush_types.
   Defined.
+End IndexedBag2ADTSpec.
 
-End Tuples2ADTSpec.
+Check prefix.
+
+Module WBag2ADTSpecParams <: IndexedBag2ADTSpecParams.
+  Definition KeyType1 := W.
+  Definition KeyType2 := W.
+  Definition FieldType := W.
+  Definition KeyConstructor1 := SCA ADTValue.
+  Definition KeyConstructor2 := SCA ADTValue.
+  Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
+  Definition KeyConstructor2_SameTypes := fun _ _ : KeyType2 => @eq_refl bool true.
+  Definition MatchingFunction1 := @eq KeyType1.
+  Definition MatchingFunction2 := @eq KeyType2.
+  Definition TupleConstructor := WTuple.
+  Definition TupleListConstructor := WTupleList.
+  Definition BagConstructor := WTuples2.
+End WBag2ADTSpecParams.
+
+Module Tuples2ADTSpec := IndexedBag2ADTSpec WBag2ADTSpecParams.
+Print Module Tuples2ADTSpec.
+
+Module WSTrieWBagADTSpecParams <: IndexedBag2ADTSpecParams.
+  Definition KeyType1 := string.
+  Definition KeyType2 := W.
+  Definition FieldType := WS.
+  Definition KeyConstructor1 := (fun x => ADT (ADTString x)).
+  Definition KeyConstructor2 := SCA ADTValue.
+  Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
+  Definition KeyConstructor2_SameTypes := fun _ _ : KeyType2 => @eq_refl bool true.
+  Definition MatchingFunction1 ws key := WS_StringPrefixB ws key = true.
+  Definition MatchingFunction2 ws key := WS_WordEqB ws key = true.
+  Definition TupleConstructor := WSTuple.
+  Definition TupleListConstructor := WSTupleList.
+  Definition BagConstructor := NestedWSTrieBagOfWSTuples1.
+End WSTrieWBagADTSpecParams.
+
+Module WSTrieWBagADTSpec := IndexedBag2ADTSpec WSTrieWBagADTSpecParams.
+Print Module WSTrieWBagADTSpec.
+
