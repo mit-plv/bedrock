@@ -295,9 +295,9 @@ Definition weq : forall sz (x y : word sz), {x = y} + {x <> y}.
   abstract (subst; symmetry; apply (shatter_word y)).
 
   abstract (rewrite (shatter_word y); simpl; intro; injection H; intros;
-    apply _H0; apply inj_pair2_eq_dec in H0; [ auto | apply eq_nat_dec ]).
+    eauto using inj_pair2_eq_dec, eq_nat_dec).
 
-  abstract (rewrite (shatter_word y); simpl; intro; apply _H; injection H; auto).
+  abstract (rewrite (shatter_word y); simpl; intro; injection H; auto).
 Defined.
 
 Fixpoint weqb sz (x : word sz) : word sz -> bool :=
