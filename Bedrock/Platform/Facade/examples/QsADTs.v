@@ -20,12 +20,12 @@ Inductive ADTValue :=
 | WTuple (t : tupl)
 | WordList (ws : list W)
 | WTupleList (ts : list tupl)
-| WTuples0 (len : W) (ts : tuples)
-| WTuples1 (len key : W) (ts : tuples)
-| WTuples2 (len key1 key2 : W) (ts : tuples)
+| BagOfWTuples0 (len : W) (ts : tuples)
+| BagOfWTuples1 (len key : W) (ts : tuples)
+| BagOfWTuples2 (len key1 key2 : W) (ts : tuples)
 | WSTuple (t : WSTupl)
 | WSTupleList (ts : list WSTupl)
-| Bytes (capacity: W) (bs: byteString)
+| ByteString (capacity: W) (bs: byteString)
 | WSTrie (len keyIndex : W) (tuples : WSTuplSet)
 | BagOfWSTuples1 (len keyIndex : W) (tuples : WSTuplSet)
 | NestedWSTrieBagOfWSTuples1 (len keyIndex1 keyIndex2 : W) (tuples : WSTuplSet).
@@ -141,7 +141,7 @@ Module WSTupleADTSpecParams <: TupleADTSpecParams.
   Definition ValueConstructor (x: option FieldType) :=
     match x with
     | Some (WSWord w) => SCA ADTValue w
-    | Some (WSBytes c s) => ADT (Bytes c s)
+    | Some (WSBytes c s) => ADT (ByteString c s)
     | _ => SCA ADTValue (wzero _)
     end.
 End WSTupleADTSpecParams.
@@ -175,13 +175,13 @@ Module WSTupleADTSpec.
     refine {|
         PreCond := fun args =>
                      exists ls pos capacity string,
-                       args = [ADT (TupleConstructor ls); SCA _ pos; ADT (Bytes capacity string)]
+                       args = [ADT (TupleConstructor ls); SCA _ pos; ADT (ByteString capacity string)]
                        /\ pos < natToW (length ls);
         PostCond := fun args ret =>
                       exists ls pos capacity string,
                         args = [(ADT (TupleConstructor ls),
                                  Some (TupleConstructor (PutAt ls pos (WSBytes capacity string))));
-                                (SCA _ pos, None); (ADT (Bytes capacity string), None)]
+                                (SCA _ pos, None); (ADT (ByteString capacity string), None)]
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
@@ -449,7 +449,7 @@ Module Tuples0ADTSpecParams <: IndexedBag0ADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
-  Definition TreeConstructor := WTuples0.
+  Definition TreeConstructor := BagOfWTuples0.
 End Tuples0ADTSpecParams.
 
 Module Tuples0ADTSpec := IndexedBag0ADTSpec Tuples0ADTSpecParams.
@@ -534,7 +534,7 @@ Module WBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition MatchingFunction := @eq W.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
-  Definition BagConstructor := WTuples1.
+  Definition BagConstructor := BagOfWTuples1.
 End WBag1ADTSpecParams.
 
 Module Tuples1ADTSpec := TupleADTSpec WSTupleADTSpecParams.
@@ -615,7 +615,7 @@ Module WSBag1ADTSpec := IndexedBag1ADTSpec (WSBag1ADTSpecParams).
 Module WSTrieADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition KeyType := (nat * byteString)%type.
   Definition FieldType := WS.
-  Definition KeyConstructor := (fun cbs: KeyType => ADT (let (c, bs) := cbs in Bytes c bs)).
+  Definition KeyConstructor := (fun cbs: KeyType => ADT (let (c, bs) := cbs in ByteString c bs)).
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
   Definition MatchingFunction ws (key: KeyType) := WS_StringPrefixB ws (snd key) = true.
   Definition TupleConstructor := WSTuple.
@@ -759,7 +759,7 @@ Module WBag2ADTSpecParams <: IndexedBag2ADTSpecParams.
   Definition MatchingFunction2 := @eq KeyType2.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
-  Definition BagConstructor := WTuples2.
+  Definition BagConstructor := BagOfWTuples2.
 End WBag2ADTSpecParams.
 
 Module Tuples2ADTSpec := IndexedBag2ADTSpec WBag2ADTSpecParams.
@@ -769,7 +769,7 @@ Module WSTrieWBagADTSpecParams <: IndexedBag2ADTSpecParams.
   Definition KeyType1 := (nat * byteString)%type.
   Definition KeyType2 := W.
   Definition FieldType := WS.
-  Definition KeyConstructor1 := (fun (cbs: KeyType1) => ADT (let (c, bs) := cbs in Bytes c bs)).
+  Definition KeyConstructor1 := (fun (cbs: KeyType1) => ADT (let (c, bs) := cbs in ByteString c bs)).
   Definition KeyConstructor2 := SCA ADTValue.
   Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
   Definition KeyConstructor2_SameTypes := fun _ _ : KeyType2 => @eq_refl bool true.
@@ -792,7 +792,7 @@ Module BytesADTSpec.
     refine {|
         PreCond := fun args => exists capacity, args = [SCA _ capacity];
         PostCond := fun args ret => exists capacity, args = [(SCA _ capacity, None)]
-                                                     /\ ret = ADT (Bytes capacity nil)
+                                                     /\ ret = ADT (ByteString capacity nil)
       |}; crush_types.
   Defined.
 
@@ -801,9 +801,9 @@ Module BytesADTSpec.
         PreCond := fun args =>
                      exists capacity bytes,
                        (length bytes < wordToNat capacity)%nat
-                       /\ args = [ADT (Bytes capacity bytes)];
+                       /\ args = [ADT (ByteString capacity bytes)];
         PostCond := fun args ret => exists capacity bytes,
-                        args = [(ADT (Bytes capacity bytes), None)]
+                        args = [(ADT (ByteString capacity bytes), None)]
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
@@ -813,10 +813,10 @@ Module BytesADTSpec.
         PreCond := fun args =>
                      exists capacity bytes byte,
                        (S (length bytes) < wordToNat capacity)%nat
-                       /\ args = [ADT (Bytes capacity bytes); SCA _ (ByteToWord byte)];
+                       /\ args = [ADT (ByteString capacity bytes); SCA _ (ByteToWord byte)];
         PostCond := fun args ret =>
                       exists capacity bytes byte,
-                        args = [(ADT (Bytes capacity bytes), Some (Bytes capacity (bytes ++ [byte])));
+                        args = [(ADT (ByteString capacity bytes), Some (ByteString capacity (bytes ++ [byte])));
                                 (SCA _ (ByteToWord byte), None)]
                         /\ ret = SCAZero
       |}; crush_types.
@@ -828,11 +828,11 @@ Module BytesADTSpec.
                      exists capacity bytes index byte,
                        ((length bytes) < wordToNat capacity)%nat
                        /\ (wordToNat index < (length bytes))%nat
-                       /\ args = [ADT (Bytes capacity bytes); SCA _ index; SCA _ (ByteToWord byte)];
+                       /\ args = [ADT (ByteString capacity bytes); SCA _ index; SCA _ (ByteToWord byte)];
         PostCond := fun args ret =>
                       exists capacity bytes index byte,
-                        args = [(ADT (Bytes capacity bytes),
-                                 Some (Bytes capacity (PutAt bytes (wordToNat index) byte)));
+                        args = [(ADT (ByteString capacity bytes),
+                                 Some (ByteString capacity (PutAt bytes (wordToNat index) byte)));
                                 (SCA _ index, None); (SCA _ (ByteToWord byte), None)]
                         /\ ret = SCAZero
       |}; crush_types.
@@ -844,10 +844,10 @@ Module BytesADTSpec.
                      exists capacity bytes index,
                        ((length bytes) < wordToNat capacity)%nat
                        /\ (wordToNat index < (length bytes))%nat
-                       /\ args = [ADT (Bytes capacity bytes); SCA _ index];
+                       /\ args = [ADT (ByteString capacity bytes); SCA _ index];
         PostCond := fun args ret =>
                       exists capacity bytes index,
-                        args = [(ADT (Bytes capacity bytes), Some (Bytes capacity bytes));
+                        args = [(ADT (ByteString capacity bytes), Some (ByteString capacity bytes));
                                 (SCA _ index, None)]
                         /\ ret = SCA _ (ByteToWord (nth (wordToNat index) bytes (wzero _)))
       |}; crush_types.
