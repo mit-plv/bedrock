@@ -395,14 +395,14 @@ Module WSTupleListSpec := TupleListADTSpec (WSTupleListADTSpecParams).
 Print Module WTupleListSpec.
 Print Module WSTupleListSpec.
 
-Module Type IndexedBag0ADTSpecParams.
+Module Type BagOfTuples0ADTSpecParams.
   Parameter FieldType : Type.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
   Parameter TreeConstructor : forall (len: W) (elems: GenericTuples FieldType), ADTValue.
-End IndexedBag0ADTSpecParams.
+End BagOfTuples0ADTSpecParams.
 
-Module IndexedBag0ADTSpec (Params : IndexedBag0ADTSpecParams).
+Module BagOfTuples0ADTSpec (Params : BagOfTuples0ADTSpecParams).
   Import Params.
 
   Definition New : AxiomaticSpec ADTValue.
@@ -443,19 +443,19 @@ Module IndexedBag0ADTSpec (Params : IndexedBag0ADTSpecParams).
                         /\ EnsembleIndexedListEquivalence ts l
       |}; crush_types.
   Defined.
-End IndexedBag0ADTSpec.
+End BagOfTuples0ADTSpec.
 
-Module Tuples0ADTSpecParams <: IndexedBag0ADTSpecParams.
+Module BagOfWTuples0ADTSpecParams <: BagOfTuples0ADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
   Definition TreeConstructor := BagOfWTuples0.
-End Tuples0ADTSpecParams.
+End BagOfWTuples0ADTSpecParams.
 
-Module Tuples0ADTSpec := IndexedBag0ADTSpec Tuples0ADTSpecParams.
-Print Module Tuples0ADTSpec.
+Module BagOfWTuples0ADTSpec := BagOfTuples0ADTSpec BagOfWTuples0ADTSpecParams.
+Print Module BagOfWTuples0ADTSpec.
 
-Module Type IndexedBag1ADTSpecParams.
+Module Type BagOfTuples1ADTSpecParams.
   Parameter KeyType : Type.
   Parameter FieldType : Type.
   Parameter KeyConstructor : forall (k: KeyType), Value ADTValue.
@@ -464,9 +464,9 @@ Module Type IndexedBag1ADTSpecParams.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
   Parameter BagConstructor : forall (len keyIndex : W) (tuples : GenericTuples FieldType), ADTValue.
-End IndexedBag1ADTSpecParams.
+End BagOfTuples1ADTSpecParams.
 
-Module IndexedBag1ADTSpec (Params : IndexedBag1ADTSpecParams).
+Module BagOfTuples1ADTSpec (Params : BagOfTuples1ADTSpecParams).
   Import Params.
 
   Definition New : AxiomaticSpec ADTValue.
@@ -524,9 +524,9 @@ Module IndexedBag1ADTSpec (Params : IndexedBag1ADTSpecParams).
                         /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction ts keyIndex k) l
       |}; crush_types.
   Defined.
-End IndexedBag1ADTSpec.
+End BagOfTuples1ADTSpec.
 
-Module WBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
+Module WBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := W.
   Definition KeyConstructor := SCA ADTValue.
@@ -535,9 +535,9 @@ Module WBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
   Definition BagConstructor := BagOfWTuples1.
-End WBag1ADTSpecParams.
+End WBagOfTuples1ADTSpecParams.
 
-Module Tuples1ADTSpec := TupleADTSpec WSTupleADTSpecParams.
+Module WBagOfTuples1ADTSpec := BagOfTuples1ADTSpec WBagOfTuples1ADTSpecParams.
 
 Definition ByteToAscii (w8: byte) : Ascii.ascii :=
   match w8 with
@@ -599,7 +599,7 @@ Definition WS_WordEqB ws key :=
   | _ => false
   end.
 
-Module WSBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
+Module WSBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := WS.
   Definition KeyConstructor := SCA ADTValue.
@@ -608,11 +608,11 @@ Module WSBag1ADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition TupleConstructor := WSTuple.
   Definition TupleListConstructor := WSTupleList.
   Definition BagConstructor := BagOfWSTuples1.
-End WSBag1ADTSpecParams.
+End WSBagOfTuples1ADTSpecParams.
 
-Module WSBag1ADTSpec := IndexedBag1ADTSpec (WSBag1ADTSpecParams).
+Module WSBagOfTuples1ADTSpec := BagOfTuples1ADTSpec (WSBagOfTuples1ADTSpecParams).
 
-Module WSTrieADTSpecParams <: IndexedBag1ADTSpecParams.
+Module WSTrieADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := (nat * byteString)%type.
   Definition FieldType := WS.
   Definition KeyConstructor := (fun cbs: KeyType => ADT (let (c, bs) := cbs in ByteString c bs)).
@@ -623,13 +623,13 @@ Module WSTrieADTSpecParams <: IndexedBag1ADTSpecParams.
   Definition BagConstructor := WSTrie.
 End WSTrieADTSpecParams.
 
-Module WSTrieADTSpec := IndexedBag1ADTSpec (WSTrieADTSpecParams).
+Module WSTrieADTSpec := BagOfTuples1ADTSpec (WSTrieADTSpecParams).
 
-Print Module Tuples1ADTSpec.
-Print Module WSBag1ADTSpec.
+Print Module WBagOfTuples1ADTSpec.
+Print Module WSBagOfTuples1ADTSpec.
 Print Module WSTrieADTSpec.
 
-Module Type IndexedBag2ADTSpecParams.
+Module Type BagOfTuples2ADTSpecParams.
   Parameter KeyType1 KeyType2 : Type.
   Parameter FieldType : Type.
   Parameter KeyConstructor1 : forall (k: KeyType1), Value ADTValue.
@@ -641,9 +641,9 @@ Module Type IndexedBag2ADTSpecParams.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
   Parameter BagConstructor : forall (len keyIndex1 keyIndex2 : W) (tuples : GenericTuples FieldType), ADTValue.
-End IndexedBag2ADTSpecParams.
+End BagOfTuples2ADTSpecParams.
 
-Module IndexedBag2ADTSpec (Params: IndexedBag2ADTSpecParams).
+Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
   Import Params.
 
   Definition New : AxiomaticSpec ADTValue.
@@ -743,11 +743,11 @@ Module IndexedBag2ADTSpec (Params: IndexedBag2ADTSpecParams).
                         /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction2 ts keyIndex2 k) l
       |}; crush_types.
   Defined.
-End IndexedBag2ADTSpec.
+End BagOfTuples2ADTSpec.
 
 Check prefix.
 
-Module WBag2ADTSpecParams <: IndexedBag2ADTSpecParams.
+Module WBagOfTuples2ADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition KeyType1 := W.
   Definition KeyType2 := W.
   Definition FieldType := W.
@@ -760,12 +760,12 @@ Module WBag2ADTSpecParams <: IndexedBag2ADTSpecParams.
   Definition TupleConstructor := WTuple.
   Definition TupleListConstructor := WTupleList.
   Definition BagConstructor := BagOfWTuples2.
-End WBag2ADTSpecParams.
+End WBagOfTuples2ADTSpecParams.
 
-Module Tuples2ADTSpec := IndexedBag2ADTSpec WBag2ADTSpecParams.
-Print Module Tuples2ADTSpec.
+Module WBagOfTuples2ADTSpec := BagOfTuples2ADTSpec WBagOfTuples2ADTSpecParams.
+Print Module WBagOfTuples2ADTSpec.
 
-Module WSTrieWBagADTSpecParams <: IndexedBag2ADTSpecParams.
+Module WSTrieWBagADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition KeyType1 := (nat * byteString)%type.
   Definition KeyType2 := W.
   Definition FieldType := WS.
@@ -780,7 +780,7 @@ Module WSTrieWBagADTSpecParams <: IndexedBag2ADTSpecParams.
   Definition BagConstructor := NestedWSTrieBagOfWSTuples1.
 End WSTrieWBagADTSpecParams.
 
-Module WSTrieWBagADTSpec := IndexedBag2ADTSpec WSTrieWBagADTSpecParams.
+Module WSTrieWBagADTSpec := BagOfTuples2ADTSpec WSTrieWBagADTSpecParams.
 Print Module WSTrieWBagADTSpec.
 
 Definition ByteToWord (b: byte) : W :=
