@@ -112,7 +112,8 @@ Definition functional {A} (ts : GenericTuples A) :=
                 -> elementIndex t1 = elementIndex t2 -> t1 = t2.
 
 Definition keepEq {A B} (EQ: A -> B -> Prop) (ts : GenericTuples A) (key: W) (k : B) : GenericTuples A :=
-  fun tup => match List.nth_error (indexedElement tup) (wordToNat key) with
+  fun tup => Ensembles.In _ ts tup /\
+          match List.nth_error (indexedElement tup) (wordToNat key) with
           | Some k0 => EQ k0 k
           | None => False
           end.
