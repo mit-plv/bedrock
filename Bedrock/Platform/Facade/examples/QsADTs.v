@@ -20,15 +20,15 @@ Inductive ADTValue :=
 | WTuple (t : tupl)
 | WordList (ws : list W)
 | WTupleList (ts : list tupl)
-| BagOfWTuples0 (len : W) (ts : tuples)
-| BagOfWTuples1 (len key : W) (ts : tuples)
-| BagOfWTuples2 (len key1 key2 : W) (ts : tuples)
+| WBagOfTuples0 (len : W) (ts : tuples)
+| WBagOfTuples1 (len key : W) (ts : tuples)
+| WBagOfTuples2 (len key1 key2 : W) (ts : tuples)
 | WSTuple (t : WSTupl)
 | WSTupleList (ts : list WSTupl)
 | ByteString (capacity: W) (bs: byteString)
 | WSTrie (len keyIndex : W) (tuples : WSTuplSet)
-| BagOfWSTuples1 (len keyIndex : W) (tuples : WSTuplSet)
-| NestedWSTrieBagOfWSTuples1 (len keyIndex1 keyIndex2 : W) (tuples : WSTuplSet).
+| WSBagOfTuples1 (len keyIndex : W) (tuples : WSTuplSet)
+| NestedWSTrieWSBagOfTuples1 (len keyIndex1 keyIndex2 : W) (tuples : WSTuplSet).
 
 Require Import Bedrock.Platform.Cito.ADT.
 
@@ -44,17 +44,30 @@ Definition SCAOne  {t} := SCA t (Word.natToWord 32 1).
 Create HintDb crush_types_db.
 
 Ltac crush_types :=
-  unfold type_conforming, same_types, same_type; intros;
-  repeat match goal with
-         | [ H: exists t, _ |- _ ] => destruct H
-         end;
-  repeat progress (subst; intuition);
-  try (compute; autorewrite with crush_types_db; reflexivity).
+  (unfold type_conforming, same_types, same_type; intros;
+   repeat match goal with
+          | [ H: exists t, _ |- _ ] => destruct H
+          end;
+   repeat progress (subst; intuition);
+   try (compute; autorewrite with crush_types_db; reflexivity)).
+
+Definition Injective {A B} (f: A -> B) :=
+  forall x y, f x = f y -> x = y.
+
+Definition Injective2 {A B C} (f: C -> A -> B) :=
+  forall c x y, f c x = f c y -> x = y.
+
+Definition Injective3 {A B C1 C2} (f: C1 -> C2 -> A -> B) :=
+  forall c1 c2 x y, f c1 c2 x = f c1 c2 y -> x = y.
+
+Definition Injective4 {A B C1 C2 C3} (f: C1 -> C2 -> C3 -> A -> B) :=
+  forall c1 c2 c3 x y, f c1 c2 c3 x = f c1 c2 c3 y -> x = y.
 
 Module Type TupleADTSpecParams.
   Parameter FieldType : Type.
   Parameter ValueConstructor : forall (t: option FieldType), Value ADTValue.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
 End TupleADTSpecParams.
 
 Module TupleADTSpec (Params: TupleADTSpecParams).
@@ -105,10 +118,12 @@ Module TupleADTSpec (Params: TupleADTSpecParams).
   Defined.
 End TupleADTSpec.
 
+Ltac autoinj := inversion 1; intuition congruence.
+
 Module WTupleADTSpecParams <: TupleADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
-  Definition ListConstructor := WTupleList.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition ValueConstructor (x: option FieldType) :=
     SCA ADTValue (match x with
                   | Some w => w
@@ -137,7 +152,7 @@ End WTupleADTSpec.
 Module WSTupleADTSpecParams <: TupleADTSpecParams.
   Definition FieldType := WS.
   Definition TupleConstructor := WSTuple.
-  Definition ListConstructor := WSTupleList.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition ValueConstructor (x: option FieldType) :=
     match x with
     | Some (WSWord w) => SCA ADTValue w
@@ -278,7 +293,9 @@ End WordListADTSpec.
 Module Type TupleListADTSpecParams.
   Parameter FieldType : Type.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
   Parameter ListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Axiom ListConstructor_inj : (Injective ListConstructor).
 End TupleListADTSpecParams.
 
 Module TupleListADTSpec (Params: TupleListADTSpecParams).
@@ -379,31 +396,38 @@ End TupleListADTSpec.
 Module WTupleListADTSpecParams <: TupleListADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition ListConstructor := WTupleList.
+  Lemma ListConstructor_inj : Injective ListConstructor. autoinj. Qed.
 End WTupleListADTSpecParams.
 
-Module WTupleListSpec := TupleListADTSpec (WTupleListADTSpecParams).
+Module WTupleListADTSpec := TupleListADTSpec (WTupleListADTSpecParams).
 
 Module WSTupleListADTSpecParams <: TupleListADTSpecParams.
   Definition FieldType := WS.
   Definition TupleConstructor := WSTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition ListConstructor := WSTupleList.
+  Lemma ListConstructor_inj : Injective ListConstructor. autoinj. Qed.
 End WSTupleListADTSpecParams.
 
 Module WSTupleListSpec := TupleListADTSpec (WSTupleListADTSpecParams).
 
-Print Module WTupleListSpec.
+Print Module WTupleListADTSpec.
 Print Module WSTupleListSpec.
 
 Module Type BagOfTuples0ADTSpecParams.
   Parameter FieldType : Type.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Axiom TupleListConstructor_inj : (Injective TupleListConstructor).
   Parameter TreeConstructor : forall (len: W) (elems: GenericTuples FieldType), ADTValue.
+  Axiom TreeConstructor_inj : (Injective2 TreeConstructor).
 End BagOfTuples0ADTSpecParams.
 
 Module BagOfTuples0ADTSpec (Params : BagOfTuples0ADTSpecParams).
-  Import Params.
+  Export Params.
 
   Definition New : AxiomaticSpec ADTValue.
     refine {|
@@ -445,29 +469,36 @@ Module BagOfTuples0ADTSpec (Params : BagOfTuples0ADTSpecParams).
   Defined.
 End BagOfTuples0ADTSpec.
 
-Module BagOfWTuples0ADTSpecParams <: BagOfTuples0ADTSpecParams.
+Module WBagOfTuples0ADTSpecParams <: BagOfTuples0ADTSpecParams.
   Definition FieldType := W.
   Definition TupleConstructor := WTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WTupleList.
-  Definition TreeConstructor := BagOfWTuples0.
-End BagOfWTuples0ADTSpecParams.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
+  Definition TreeConstructor := WBagOfTuples0.
+  Lemma TreeConstructor_inj : Injective2 TreeConstructor. autoinj. Qed.
+End WBagOfTuples0ADTSpecParams.
 
-Module BagOfWTuples0ADTSpec := BagOfTuples0ADTSpec BagOfWTuples0ADTSpecParams.
-Print Module BagOfWTuples0ADTSpec.
+Module WBagOfTuples0ADTSpec := BagOfTuples0ADTSpec WBagOfTuples0ADTSpecParams.
+Print Module WBagOfTuples0ADTSpec.
 
 Module Type BagOfTuples1ADTSpecParams.
   Parameter KeyType : Type.
   Parameter FieldType : Type.
   Parameter KeyConstructor : forall (k: KeyType), Value ADTValue.
+  Axiom KeyConstructor_inj : (Injective KeyConstructor).
   Parameter KeyConstructor_SameTypes : forall x y, is_same_type (KeyConstructor x) (KeyConstructor y) = true.
   Parameter MatchingFunction : forall (f: FieldType) (k: KeyType), Prop.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Axiom TupleListConstructor_inj : (Injective TupleListConstructor).
   Parameter BagConstructor : forall (len keyIndex : W) (tuples : GenericTuples FieldType), ADTValue.
+  Axiom BagConstructor_inj : (Injective3 BagConstructor).
 End BagOfTuples1ADTSpecParams.
 
 Module BagOfTuples1ADTSpec (Params : BagOfTuples1ADTSpecParams).
-  Import Params.
+  Export Params.
 
   Definition New : AxiomaticSpec ADTValue.
     refine {|
@@ -530,11 +561,15 @@ Module WBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := W.
   Definition KeyConstructor := SCA ADTValue.
+  Lemma KeyConstructor_inj : Injective KeyConstructor. autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
   Definition MatchingFunction := @eq W.
   Definition TupleConstructor := WTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WTupleList.
-  Definition BagConstructor := BagOfWTuples1.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
+  Definition BagConstructor := WBagOfTuples1.
+  Lemma BagConstructor_inj : Injective3 BagConstructor. autoinj. Qed.
 End WBagOfTuples1ADTSpecParams.
 
 Module WBagOfTuples1ADTSpec := BagOfTuples1ADTSpec WBagOfTuples1ADTSpecParams.
@@ -603,24 +638,32 @@ Module WSBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := WS.
   Definition KeyConstructor := SCA ADTValue.
+  Lemma KeyConstructor_inj : Injective KeyConstructor. autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
   Definition MatchingFunction ws key := WS_WordEqB ws key = true.
   Definition TupleConstructor := WSTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WSTupleList.
-  Definition BagConstructor := BagOfWSTuples1.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
+  Definition BagConstructor := WSBagOfTuples1.
+  Lemma BagConstructor_inj : Injective3 BagConstructor. autoinj. Qed.
 End WSBagOfTuples1ADTSpecParams.
 
 Module WSBagOfTuples1ADTSpec := BagOfTuples1ADTSpec (WSBagOfTuples1ADTSpecParams).
 
 Module WSTrieADTSpecParams <: BagOfTuples1ADTSpecParams.
-  Definition KeyType := (nat * byteString)%type.
+  Definition KeyType := (W * byteString)%type.
   Definition FieldType := WS.
   Definition KeyConstructor := (fun cbs: KeyType => ADT (let (c, bs) := cbs in ByteString c bs)).
+  Lemma KeyConstructor_inj : Injective KeyConstructor. destruct x, y; autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
   Definition MatchingFunction ws (key: KeyType) := WS_StringPrefixB ws (snd key) = true.
   Definition TupleConstructor := WSTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WSTupleList.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
   Definition BagConstructor := WSTrie.
+  Lemma BagConstructor_inj : Injective3 BagConstructor. autoinj. Qed.
 End WSTrieADTSpecParams.
 
 Module WSTrieADTSpec := BagOfTuples1ADTSpec (WSTrieADTSpecParams).
@@ -639,12 +682,15 @@ Module Type BagOfTuples2ADTSpecParams.
   Parameter MatchingFunction1 : forall (f: FieldType) (k: KeyType1), Prop.
   Parameter MatchingFunction2 : forall (f: FieldType) (k: KeyType2), Prop.
   Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
   Parameter TupleListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Axiom TupleListConstructor_inj : (Injective TupleListConstructor).
   Parameter BagConstructor : forall (len keyIndex1 keyIndex2 : W) (tuples : GenericTuples FieldType), ADTValue.
+  Axiom BagConstructor_inj : (Injective4 BagConstructor).
 End BagOfTuples2ADTSpecParams.
 
 Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
-  Import Params.
+  Export Params.
 
   Definition New : AxiomaticSpec ADTValue.
     refine {|
@@ -758,8 +804,11 @@ Module WBagOfTuples2ADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition MatchingFunction1 := @eq KeyType1.
   Definition MatchingFunction2 := @eq KeyType2.
   Definition TupleConstructor := WTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WTupleList.
-  Definition BagConstructor := BagOfWTuples2.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
+  Definition BagConstructor := WBagOfTuples2.
+  Lemma BagConstructor_inj : Injective4 BagConstructor. autoinj. Qed.
 End WBagOfTuples2ADTSpecParams.
 
 Module WBagOfTuples2ADTSpec := BagOfTuples2ADTSpec WBagOfTuples2ADTSpecParams.
@@ -776,8 +825,11 @@ Module WSTrieWBagADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition MatchingFunction1 ws (key: KeyType1) := WS_StringPrefixB ws (snd key) = true.
   Definition MatchingFunction2 ws key := WS_WordEqB ws key = true.
   Definition TupleConstructor := WSTuple.
+  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
   Definition TupleListConstructor := WSTupleList.
-  Definition BagConstructor := NestedWSTrieBagOfWSTuples1.
+  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
+  Definition BagConstructor := NestedWSTrieWSBagOfTuples1.
+  Lemma BagConstructor_inj : Injective4 BagConstructor. autoinj. Qed.
 End WSTrieWBagADTSpecParams.
 
 Module WSTrieWBagADTSpec := BagOfTuples2ADTSpec WSTrieWBagADTSpecParams.
