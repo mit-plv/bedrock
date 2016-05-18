@@ -290,15 +290,15 @@ Module WordListADTSpec.
   Defined.
 End WordListADTSpec.
 
-Module Type TupleListADTSpecParams.
-  Parameter FieldType : Type.
-  Parameter TupleConstructor : forall (t: GenericTuple FieldType), ADTValue.
-  Axiom TupleConstructor_inj : (Injective TupleConstructor).
-  Parameter ListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+Module Type ADTListADTSpecParams.
+  Parameter ElemType : Type.
+  Parameter ElemConstructor : forall (t: ElemType), ADTValue.
+  Axiom ElemConstructor_inj : (Injective ElemConstructor).
+  Parameter ListConstructor : forall (ls: list ElemType), ADTValue.
   Axiom ListConstructor_inj : (Injective ListConstructor).
-End TupleListADTSpecParams.
+End ADTListADTSpecParams.
 
-Module TupleListADTSpec (Params: TupleListADTSpecParams).
+Module ADTListADTSpec (Params: ADTListADTSpecParams).
   Import Params.
 
   Definition New : AxiomaticSpec ADTValue.
@@ -316,21 +316,6 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
       |}; crush_types.
   Defined.
 
-  Definition Copy : AxiomaticSpec ADTValue.
-    refine {|
-        PreCond := fun args =>
-                     exists l len,
-                       args = [ADT (ListConstructor l); SCA _ len]
-                       /\ allTuplesLen (wordToNat len) l
-                       /\ $2 <= len;
-        PostCond := fun args ret =>
-                      exists l len,
-                        args = [ (ADT (ListConstructor l),
-                                  Some (ListConstructor l)); (SCA _ len, None) ]
-                        /\ ret = ADT (ListConstructor l)
-      |}; crush_types.
-  Defined.
-
   Definition Pop : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args =>
@@ -339,7 +324,7 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
         PostCond := fun args ret =>
                       exists h t,
                         args = [ (ADT (ListConstructor (h :: t)), Some (ListConstructor t)) ]
-                        /\ ret = ADT (TupleConstructor h)
+                        /\ ret = ADT (ElemConstructor h)
       |}; crush_types.
   Defined.
 
@@ -359,11 +344,11 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
     refine {|
         PreCond := fun args =>
                      exists l t,
-                       args = [ADT (ListConstructor l); ADT (TupleConstructor t)];
+                       args = [ADT (ListConstructor l); ADT (ElemConstructor t)];
         PostCond := fun args ret =>
                       exists l t,
                         args = [ (ADT (ListConstructor l), Some (ListConstructor (t :: l)));
-                                 (ADT (TupleConstructor t), None) ]
+                                 (ADT (ElemConstructor t), None) ]
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
@@ -391,6 +376,42 @@ Module TupleListADTSpec (Params: TupleListADTSpecParams).
                         /\ ret = SCA _ (natToWord _ (length l))
       |}; crush_types.
   Defined.
+End ADTListADTSpec.
+
+Module Type TupleListADTSpecParams.
+  Parameter FieldType : Type.
+  Parameter TupleConstructor : forall (t: (GenericTuple FieldType)), ADTValue.
+  Axiom TupleConstructor_inj : (Injective TupleConstructor).
+  Parameter ListConstructor : forall (ls: list (GenericTuple FieldType)), ADTValue.
+  Axiom ListConstructor_inj : (Injective ListConstructor).
+End TupleListADTSpecParams.
+
+Module ADTListADTSpecParamsFromTupleOnes (Import Param: TupleListADTSpecParams) <: ADTListADTSpecParams.
+  Definition ElemType := (GenericTuple FieldType).
+  Definition ElemConstructor := TupleConstructor.
+  Definition ElemConstructor_inj := TupleConstructor_inj.
+  Definition ListConstructor := ListConstructor.
+  Definition ListConstructor_inj := ListConstructor_inj.
+End ADTListADTSpecParamsFromTupleOnes.
+
+Module TupleListADTSpec (TupleParams: TupleListADTSpecParams).
+  Module Import Params := (ADTListADTSpecParamsFromTupleOnes TupleParams).
+  Include (ADTListADTSpec Params).
+
+  Definition Copy : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists l len,
+                       args = [ADT (ListConstructor l); SCA _ len]
+                       /\ allTuplesLen (wordToNat len) l
+                       /\ $2 <= len;
+        PostCond := fun args ret =>
+                      exists l len,
+                        args = [ (ADT (ListConstructor l),
+                                  Some (ListConstructor l)); (SCA _ len, None) ]
+                        /\ ret = ADT (ListConstructor l)
+      |}; crush_types.
+  Defined.
 End TupleListADTSpec.
 
 Module WTupleListADTSpecParams <: TupleListADTSpecParams.
@@ -401,7 +422,7 @@ Module WTupleListADTSpecParams <: TupleListADTSpecParams.
   Lemma ListConstructor_inj : Injective ListConstructor. autoinj. Qed.
 End WTupleListADTSpecParams.
 
-Module WTupleListADTSpec := TupleListADTSpec (WTupleListADTSpecParams).
+Module WTupleListADTSpec := TupleListADTSpec WTupleListADTSpecParams.
 
 Module WSTupleListADTSpecParams <: TupleListADTSpecParams.
   Definition FieldType := WS.
@@ -861,7 +882,7 @@ Module BytesADTSpec.
   Defined.
 
   Definition Push : AxiomaticSpec ADTValue.
-    refine {|
+    refine {| (* FIXME relax the precondition to allow variability on the higher bytes? *)
         PreCond := fun args =>
                      exists capacity bytes byte,
                        (S (length bytes) < wordToNat capacity)%nat
