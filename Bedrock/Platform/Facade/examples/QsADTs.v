@@ -863,16 +863,17 @@ End WSTrieWBagADTSpecParams.
 Module WSTrieWBagADTSpec := BagOfTuples2ADTSpec WSTrieWBagADTSpecParams.
 Print Module WSTrieWBagADTSpec.
 
-Definition ByteToWord (b: byte) : W :=
-  (* FIXME are these zero bits on the correct side? *)
-  b~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0~0.
-
 Module BytesADTSpec.
   Definition New : AxiomaticSpec ADTValue.
     refine {|
-        PreCond := fun args => exists capacity, args = [SCA _ capacity];
-        PostCond := fun args ret => exists capacity, args = [(SCA _ capacity, None)]
-                                                     /\ ret = ADT (ByteString capacity nil)
+        PreCond := fun args =>
+                     exists capacity,
+                       args = [SCA _ capacity]
+                       /\ goodSize (2 + wordToNat capacity * 4);
+        PostCond := fun args ret =>
+                      exists capacity,
+                        args = [(SCA _ capacity, None)]
+                        /\ ret = ADT (ByteString (capacity ^* $4) nil)
       |}; crush_types.
   Defined.
 
@@ -880,8 +881,7 @@ Module BytesADTSpec.
     refine {|
         PreCond := fun args =>
                      exists capacity bytes,
-                       (length bytes < wordToNat capacity)%nat
-                       /\ args = [ADT (ByteString capacity bytes)];
+                       args = [ADT (ByteString capacity bytes)];
         PostCond := fun args ret => exists capacity bytes,
                         args = [(ADT (ByteString capacity bytes), None)]
                         /\ ret = SCAZero
@@ -893,11 +893,11 @@ Module BytesADTSpec.
         PreCond := fun args =>
                      exists capacity bytes byte,
                        (S (length bytes) < wordToNat capacity)%nat
-                       /\ args = [ADT (ByteString capacity bytes); SCA _ (ByteToWord byte)];
+                       /\ args = [ADT (ByteString capacity bytes); SCA _ (BtoW byte)];
         PostCond := fun args ret =>
                       exists capacity bytes byte,
                         args = [(ADT (ByteString capacity bytes), Some (ByteString capacity (bytes ++ [byte])));
-                                (SCA _ (ByteToWord byte), None)]
+                                (SCA _ (BtoW byte), None)]
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
@@ -906,14 +906,13 @@ Module BytesADTSpec.
     refine {|
         PreCond := fun args =>
                      exists capacity bytes index byte,
-                       ((length bytes) < wordToNat capacity)%nat
-                       /\ (wordToNat index < (length bytes))%nat
-                       /\ args = [ADT (ByteString capacity bytes); SCA _ index; SCA _ (ByteToWord byte)];
+                       (wordToNat index < length bytes)%nat
+                       /\ args = [ADT (ByteString capacity bytes); SCA _ index; SCA _ (BtoW byte)];
         PostCond := fun args ret =>
                       exists capacity bytes index byte,
                         args = [(ADT (ByteString capacity bytes),
                                  Some (ByteString capacity (PutAt bytes (wordToNat index) byte)));
-                                (SCA _ index, None); (SCA _ (ByteToWord byte), None)]
+                                (SCA _ index, None); (SCA _ (BtoW byte), None)]
                         /\ ret = SCAZero
       |}; crush_types.
   Defined.
@@ -922,14 +921,13 @@ Module BytesADTSpec.
     refine {|
         PreCond := fun args =>
                      exists capacity bytes index,
-                       ((length bytes) < wordToNat capacity)%nat
-                       /\ (wordToNat index < (length bytes))%nat
+                       (wordToNat index < length bytes)%nat
                        /\ args = [ADT (ByteString capacity bytes); SCA _ index];
         PostCond := fun args ret =>
                       exists capacity bytes index,
                         args = [(ADT (ByteString capacity bytes), Some (ByteString capacity bytes));
                                 (SCA _ index, None)]
-                        /\ ret = SCA _ (ByteToWord (nth (wordToNat index) bytes (wzero _)))
+                        /\ ret = SCA _ (BtoW (nth (wordToNat index) bytes (wzero _)))
       |}; crush_types.
   Defined.
 End BytesADTSpec.
