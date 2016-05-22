@@ -52,15 +52,15 @@ Section adt.
     POST[R] [| R = $ (length ls) |] * P ls (V "self") * mallocHeap 0.
 End adt.
 
-Lemma allTuplesLen_first : forall len t ts,
-  allTuplesLen len (t :: ts)
+Lemma allTuplesLen_first : forall A len t ts,
+  allTuplesLen (A := A) len (t :: ts)
   -> length t = len.
 Proof.
   simpl; tauto.
 Qed.
 
-Lemma allTuplesLen_rest : forall len t ts,
-  allTuplesLen len (t :: ts)
+Lemma allTuplesLen_rest : forall A len t ts,
+  allTuplesLen (A := A) len (t :: ts)
   -> allTuplesLen len ts.
 Proof.
   simpl; tauto.

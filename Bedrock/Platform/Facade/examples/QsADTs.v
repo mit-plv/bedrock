@@ -506,6 +506,7 @@ Print Module WBagOfTuples0ADTSpec.
 Module Type BagOfTuples1ADTSpecParams.
   Parameter KeyType : Type.
   Parameter FieldType : Type.
+  Parameter DefaultField : FieldType.
   Parameter KeyConstructor : forall (k: KeyType), Value ADTValue.
   Axiom KeyConstructor_inj : (Injective KeyConstructor).
   Parameter KeyConstructor_SameTypes : forall x y, is_same_type (KeyConstructor x) (KeyConstructor y) = true.
@@ -573,7 +574,7 @@ Module BagOfTuples1ADTSpec (Params : BagOfTuples1ADTSpecParams).
                         args = [ (ADT (BagConstructor len keyIndex ts), Some (BagConstructor len keyIndex ts));
                                  (KeyConstructor k, None) ]
                         /\ ret = ADT (TupleListConstructor l)
-                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction ts keyIndex k) l
+                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction DefaultField ts keyIndex k) l
       |}; crush_types.
   Defined.
 End BagOfTuples1ADTSpec.
@@ -581,6 +582,7 @@ End BagOfTuples1ADTSpec.
 Module WBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := W.
+  Definition DefaultField : W := 0.
   Definition KeyConstructor := SCA ADTValue.
   Lemma KeyConstructor_inj : Injective KeyConstructor. autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
@@ -658,6 +660,7 @@ Definition WS_WordEqB ws key :=
 Module WSBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := W.
   Definition FieldType := WS.
+  Definition DefaultField := WSWord 0.
   Definition KeyConstructor := SCA ADTValue.
   Lemma KeyConstructor_inj : Injective KeyConstructor. autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
@@ -675,6 +678,7 @@ Module WSBagOfTuples1ADTSpec := BagOfTuples1ADTSpec (WSBagOfTuples1ADTSpecParams
 Module WSTrieADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := (W * byteString)%type.
   Definition FieldType := WS.
+  Definition DefaultField := WSWord 0.
   Definition KeyConstructor := (fun cbs: KeyType => ADT (let (c, bs) := cbs in ByteString c bs)).
   Lemma KeyConstructor_inj : Injective KeyConstructor. destruct x, y; autoinj. Qed.
   Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
@@ -696,6 +700,7 @@ Print Module WSTrieADTSpec.
 Module Type BagOfTuples2ADTSpecParams.
   Parameter KeyType1 KeyType2 : Type.
   Parameter FieldType : Type.
+  Parameter DefaultField : FieldType.
   Parameter KeyConstructor1 : forall (k: KeyType1), Value ADTValue.
   Parameter KeyConstructor2 : forall (k: KeyType2), Value ADTValue.
   Parameter KeyConstructor1_SameTypes : forall x y, is_same_type (KeyConstructor1 x) (KeyConstructor1 y) = true.
@@ -774,7 +779,7 @@ Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
                                  (KeyConstructor1 k1, None); (KeyConstructor2 k2, None) ]
                         /\ ret = ADT (TupleListConstructor l)
                         /\ EnsembleIndexedListEquivalence
-                             (keepEq MatchingFunction2 (keepEq MatchingFunction1 ts keyIndex1 k1) keyIndex2 k2)
+                             (keepEq MatchingFunction2 DefaultField (keepEq MatchingFunction1 DefaultField ts keyIndex1 k1) keyIndex2 k2)
                              l
       |}; crush_types.
   Defined.
@@ -791,7 +796,7 @@ Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
                                   Some (BagConstructor len keyIndex1 keyIndex2 ts));
                                  (KeyConstructor1 k, None) ]
                         /\ ret = ADT (TupleListConstructor l)
-                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction1 ts keyIndex1 k) l
+                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction1 DefaultField ts keyIndex1 k) l
       |}; crush_types.
   Defined.
 
@@ -807,7 +812,7 @@ Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
                                   Some (BagConstructor len key1 keyIndex2 ts));
                                  (KeyConstructor2 k, None) ]
                         /\ ret = ADT (TupleListConstructor l)
-                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction2 ts keyIndex2 k) l
+                        /\ EnsembleIndexedListEquivalence (keepEq MatchingFunction2 DefaultField ts keyIndex2 k) l
       |}; crush_types.
   Defined.
 End BagOfTuples2ADTSpec.
@@ -818,6 +823,7 @@ Module WBagOfTuples2ADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition KeyType1 := W.
   Definition KeyType2 := W.
   Definition FieldType := W.
+  Definition DefaultField : W := 0.
   Definition KeyConstructor1 := SCA ADTValue.
   Definition KeyConstructor2 := SCA ADTValue.
   Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
@@ -839,6 +845,7 @@ Module WSTrieWBagADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition KeyType1 := (nat * byteString)%type.
   Definition KeyType2 := W.
   Definition FieldType := WS.
+  Definition DefaultField := WSWord 0.
   Definition KeyConstructor1 := (fun (cbs: KeyType1) => ADT (let (c, bs) := cbs in ByteString c bs)).
   Definition KeyConstructor2 := SCA ADTValue.
   Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
@@ -926,4 +933,3 @@ Module BytesADTSpec.
       |}; crush_types.
   Defined.
 End BytesADTSpec.
-

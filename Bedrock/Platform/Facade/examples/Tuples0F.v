@@ -130,9 +130,9 @@ Qed.
 
 Hint Resolve fresh_Empty.
 
-Theorem EnsembleIndexedListEquivalence_insert : forall ts t ls ts',
+Theorem EnsembleIndexedListEquivalence_insert : forall A ts t ls ts',
   EnsembleIndexedListEquivalence ts ls
-  -> insert ts t ts'
+  -> insert (A := A) ts t ts'
   -> EnsembleIndexedListEquivalence ts' (t :: ls).
 Proof.
   unfold insert, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence, UnConstrFreshIdx, EnsembleInsert, Ensembles.In; simpl; firstorder subst.
@@ -160,8 +160,8 @@ Qed.
 
 Hint Immediate EnsembleIndexedListEquivalence_insert.
 
-Theorem bounded_insert : forall ts t t' n ts',
-  insert ts t ts'
+Theorem bounded_insert : forall A ts t t' n ts',
+  insert (A := A) ts t ts'
   -> (forall t'', IndexedEnsemble_In ts t'' -> length t'' = n)
   -> length t = n
   -> IndexedEnsemble_In ts' t'
@@ -177,18 +177,18 @@ Qed.
 
 Hint Immediate bounded_insert.
 
-Lemma allTuplesLen_In : forall len ls,
+Lemma allTuplesLen_In : forall A len ls,
   (forall x, In x ls -> length x = len)
-  -> allTuplesLen len ls.
+  -> allTuplesLen (A := A) len ls.
 Proof.
   induction ls; simpl; intuition.
 Qed.
 
-Lemma allTuplesLen_setwise : forall len ts ls,
+Lemma allTuplesLen_setwise : forall A len ts ls,
   EnsembleIndexedListEquivalence ts ls
   -> (forall t, IndexedEnsemble_In ts t
                 -> length t = len)
-  -> allTuplesLen len ls.
+  -> allTuplesLen (A := A) len ls.
 Proof.
   unfold EnsembleIndexedListEquivalence, IndexedEnsemble_In; firstorder idtac.
   eapply allTuplesLen_In; intros.

@@ -304,5 +304,5 @@ Local Hint Extern 1 (@eq W _ _) => words.
 
 Theorem ok : moduleOk m.
 Proof.
-  vcgen; abstract (sep hints; eauto; try rewrite natToW_S; try rewrite <- rev_alt; eauto; step auto_ext).
+  vcgen; abstract (sep hints; try fold (@length W); eauto; try rewrite natToW_S; try rewrite <- rev_alt; eauto; step auto_ext).
 Qed.

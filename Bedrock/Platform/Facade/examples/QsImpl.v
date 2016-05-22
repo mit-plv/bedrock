@@ -74,45 +74,45 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "Tuples2"!"findSecond" @ [Tuples2F.findSecondS],
                             "Tuples2"!"enumerate" @ [Tuples2F.enumerateS] ]]
   fmodule "ADT" {{
-    ffunction "Tuple_new" reserving 7 [Tuple_new] := "ArrayTuple"!"new"
-    with ffunction "Tuple_delete" reserving 6 [Tuple_delete] := "ArrayTuple"!"delete"
-    with ffunction "Tuple_copy" reserving 11 [Tuple_copy] := "ArrayTuple"!"copy"
-    with ffunction "Tuple_get" reserving 0 [Tuple_get] := "ArrayTuple"!"get"
-    with ffunction "Tuple_set" reserving 0 [Tuple_set] := "ArrayTuple"!"set"
+    ffunction "Tuple_new" reserving 7 [WTupleADTSpec.New] := "ArrayTuple"!"new"
+    with ffunction "Tuple_delete" reserving 6 [WTupleADTSpec.Delete] := "ArrayTuple"!"delete"
+    with ffunction "Tuple_copy" reserving 11 [WTupleADTSpec.Copy] := "ArrayTuple"!"copy"
+    with ffunction "Tuple_get" reserving 0 [WTupleADTSpec.Get] := "ArrayTuple"!"get"
+    with ffunction "Tuple_set" reserving 0 [WTupleADTSpec.Put] := "ArrayTuple"!"set"
 
-    with ffunction "WordList_new" reserving 8 [WordList_new] := "ListSeq"!"new"
-    with ffunction "WordList_delete" reserving 7 [WordList_delete] := "ListSeq"!"delete"
-    with ffunction "WordList_pop" reserving 8 [WordList_pop] := "ListSeq"!"pop"
-    with ffunction "WordList_empty" reserving 0 [WordList_empty] := "ListSeq"!"empty"
-    with ffunction "WordList_push" reserving 8 [WordList_push] := "ListSeq"!"push"
-    with ffunction "WordList_copy" reserving 10 [WordList_copy] := "ListSeq"!"copy"
-    with ffunction "WordList_rev" reserving 2 [WordList_rev] := "ListSeq"!"rev"
-    with ffunction "WordList_length" reserving 1 [WordList_length] := "ListSeq"!"length"
+    with ffunction "WordList_new" reserving 8 [WordListADTSpec.New] := "ListSeq"!"new"
+    with ffunction "WordList_delete" reserving 7 [WordListADTSpec.Delete] := "ListSeq"!"delete"
+    with ffunction "WordList_pop" reserving 8 [WordListADTSpec.Pop] := "ListSeq"!"pop"
+    with ffunction "WordList_empty" reserving 0 [WordListADTSpec.Empty] := "ListSeq"!"empty"
+    with ffunction "WordList_push" reserving 8 [WordListADTSpec.Push] := "ListSeq"!"push"
+    with ffunction "WordList_copy" reserving 10 [WordListADTSpec.Copy] := "ListSeq"!"copy"
+    with ffunction "WordList_rev" reserving 2 [WordListADTSpec.Rev] := "ListSeq"!"rev"
+    with ffunction "WordList_length" reserving 1 [WordListADTSpec.Length] := "ListSeq"!"length"
 
-    with ffunction "TupleList_new" reserving 8 [TupleList_new] := "TupleList"!"new"
-    with ffunction "TupleList_delete" reserving 6 [TupleList_delete] := "TupleList"!"delete"
-    with ffunction "TupleList_copy" reserving 18 [TupleList_copy] := "TupleList"!"copy"
-    with ffunction "TupleList_pop" reserving 8 [TupleList_pop] := "TupleList"!"pop"
-    with ffunction "TupleList_empty" reserving 0 [TupleList_empty] := "TupleList"!"empty"
-    with ffunction "TupleList_push" reserving 8 [TupleList_push] := "TupleList"!"push"
-    with ffunction "TupleList_rev" reserving 2 [TupleList_rev] := "TupleList"!"rev"
-    with ffunction "TupleList_length" reserving 1 [TupleList_length] := "TupleList"!"length"
+    with ffunction "TupleList_new" reserving 8 [WTupleListADTSpec.New] := "TupleList"!"new"
+    with ffunction "TupleList_delete" reserving 6 [WTupleListADTSpec.Delete] := "TupleList"!"delete"
+    with ffunction "TupleList_copy" reserving 18 [WTupleListADTSpec.Copy] := "TupleList"!"copy"
+    with ffunction "TupleList_pop" reserving 8 [WTupleListADTSpec.Pop] := "TupleList"!"pop"
+    with ffunction "TupleList_empty" reserving 0 [WTupleListADTSpec.Empty] := "TupleList"!"empty"
+    with ffunction "TupleList_push" reserving 8 [WTupleListADTSpec.Push] := "TupleList"!"push"
+    with ffunction "TupleList_rev" reserving 2 [WTupleListADTSpec.Rev] := "TupleList"!"rev"
+    with ffunction "TupleList_length" reserving 1 [WTupleListADTSpec.Length] := "TupleList"!"length"
 
-    with ffunction "Tuples0_new" reserving 11 [Tuples0_new] := "Tuples0"!"new"
-    with ffunction "Tuples0_insert" reserving 12 [Tuples0_insert] := "Tuples0"!"insert"
-    with ffunction "Tuples0_enumerate" reserving 22 [Tuples0_enumerate] := "Tuples0"!"enumerate"
+    with ffunction "Tuples0_new" reserving 11 [WBagOfTuples0ADTSpec.New] := "Tuples0"!"new"
+    with ffunction "Tuples0_insert" reserving 12 [WBagOfTuples0ADTSpec.Insert] := "Tuples0"!"insert"
+    with ffunction "Tuples0_enumerate" reserving 22 [WBagOfTuples0ADTSpec.Enumerate] := "Tuples0"!"enumerate"
 
-    with ffunction "Tuples1_new" reserving 7 [Tuples1_new] := "Tuples1"!"new"
-    with ffunction "Tuples1_insert" reserving 21 [Tuples1_insert] := "Tuples1"!"insert"
-    with ffunction "Tuples1_find" reserving 34 [Tuples1_find] := "Tuples1"!"find"
-    with ffunction "Tuples1_enumerate" reserving 34 [Tuples1_enumerate] := "Tuples1"!"enumerate"
+    with ffunction "Tuples1_new" reserving 7 [WBagOfTuples1ADTSpec.New] := "Tuples1"!"new"
+    with ffunction "Tuples1_insert" reserving 21 [WBagOfTuples1ADTSpec.Insert] := "Tuples1"!"insert"
+    with ffunction "Tuples1_find" reserving 34 [WBagOfTuples1ADTSpec.Find] := "Tuples1"!"find"
+    with ffunction "Tuples1_enumerate" reserving 34 [WBagOfTuples1ADTSpec.Enumerate] := "Tuples1"!"enumerate"
 
-    with ffunction "Tuples2_new" reserving 7 [Tuples2_new] := "Tuples2"!"new"
-    with ffunction "Tuples2_insert" reserving 31 [Tuples2_insert] := "Tuples2"!"insert"
-    with ffunction "Tuples2_findBoth" reserving 38 [Tuples2_findBoth] := "Tuples2"!"findBoth"
-    with ffunction "Tuples2_findFirst" reserving 37 [Tuples2_findFirst] := "Tuples2"!"findFirst"
-    with ffunction "Tuples2_findSecond" reserving 36 [Tuples2_findSecond] := "Tuples2"!"findSecond"
-    with ffunction "Tuples2_enumerate" reserving 36 [Tuples2_enumerate] := "Tuples2"!"enumerate"
+    with ffunction "Tuples2_new" reserving 7 [WBagOfTuples2ADTSpec.New] := "Tuples2"!"new"
+    with ffunction "Tuples2_insert" reserving 31 [WBagOfTuples2ADTSpec.Insert] := "Tuples2"!"insert"
+    with ffunction "Tuples2_findBoth" reserving 38 [WBagOfTuples2ADTSpec.FindBoth] := "Tuples2"!"findBoth"
+    with ffunction "Tuples2_findFirst" reserving 37 [WBagOfTuples2ADTSpec.FindFirst] := "Tuples2"!"findFirst"
+    with ffunction "Tuples2_findSecond" reserving 36 [WBagOfTuples2ADTSpec.FindSecond] := "Tuples2"!"findSecond"
+    with ffunction "Tuples2_enumerate" reserving 36 [WBagOfTuples2ADTSpec.Enumerate] := "Tuples2"!"enumerate"
   }}.
 
 Ltac peel := repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
@@ -202,11 +202,11 @@ Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
 
 Lemma readd_Tuple : forall c rv rv',
   tuple rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (Tuple rv') (heap_upd heap_empty c (Tuple rv))).
+  ===> is_heap (WordMap.add c (WTuple rv') (heap_upd heap_empty c (WTuple rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, Tuple rv') (heap_elements (WordMap.add c (Tuple rv') (heap_upd heap_empty c (Tuple rv))))).
+  assert (List.In (c, WTuple rv') (heap_elements (WordMap.add c (WTuple rv') (heap_upd heap_empty c (WTuple rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -229,11 +229,11 @@ Qed.
 
 Lemma readd_TupleList : forall c rv rv',
   lseq rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (TupleList rv') (heap_upd heap_empty c (TupleList rv))).
+  ===> is_heap (WordMap.add c (WTupleList rv') (heap_upd heap_empty c (WTupleList rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, TupleList rv') (heap_elements (WordMap.add c (TupleList rv') (heap_upd heap_empty c (TupleList rv))))).
+  assert (List.In (c, WTupleList rv') (heap_elements (WordMap.add c (WTupleList rv') (heap_upd heap_empty c (WTupleList rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -283,11 +283,11 @@ Qed.
 
 Lemma readd_Tuples0 : forall c len rv rv',
   tuples0 len rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (Tuples0 len rv') (heap_upd heap_empty c (Tuples0 len rv))).
+  ===> is_heap (WordMap.add c (WBagOfTuples0 len rv') (heap_upd heap_empty c (WBagOfTuples0 len rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, Tuples0 len rv') (heap_elements (WordMap.add c (Tuples0 len rv') (heap_upd heap_empty c (Tuples0 len rv))))).
+  assert (List.In (c, WBagOfTuples0 len rv') (heap_elements (WordMap.add c (WBagOfTuples0 len rv') (heap_upd heap_empty c (WBagOfTuples0 len rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -310,11 +310,11 @@ Qed.
 
 Lemma readd_Tuples1 : forall c len key rv rv',
   tuples1 len key rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (Tuples1 len key rv') (heap_upd heap_empty c (Tuples1 len key rv))).
+  ===> is_heap (WordMap.add c (WBagOfTuples1 len key rv') (heap_upd heap_empty c (WBagOfTuples1 len key rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, Tuples1 len key rv') (heap_elements (WordMap.add c (Tuples1 len key rv') (heap_upd heap_empty c (Tuples1 len key rv))))).
+  assert (List.In (c, WBagOfTuples1 len key rv') (heap_elements (WordMap.add c (WBagOfTuples1 len key rv') (heap_upd heap_empty c (WBagOfTuples1 len key rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -337,11 +337,11 @@ Qed.
 
 Lemma readd_Tuples2 : forall c len key1 key2 rv rv',
   tuples2 len key1 key2 rv' c * is_heap heap_empty
-  ===> is_heap (WordMap.add c (Tuples2 len key1 key2 rv') (heap_upd heap_empty c (Tuples2 len key1 key2 rv))).
+  ===> is_heap (WordMap.add c (WBagOfTuples2 len key1 key2 rv') (heap_upd heap_empty c (WBagOfTuples2 len key1 key2 rv))).
 Proof.
   intros.
   unfold is_heap at 2.
-  assert (List.In (c, Tuples2 len key1 key2 rv') (heap_elements (WordMap.add c (Tuples2 len key1 key2 rv') (heap_upd heap_empty c (Tuples2 len key1 key2 rv))))).
+  assert (List.In (c, WBagOfTuples2 len key1 key2 rv') (heap_elements (WordMap.add c (WBagOfTuples2 len key1 key2 rv') (heap_upd heap_empty c (WBagOfTuples2 len key1 key2 rv))))).
   apply InA_In.
   apply WordMap.elements_1.
   apply WordMap.add_1.
@@ -393,15 +393,15 @@ Lemma readd_TupleList' : forall c rv rv' c' ov,
   -> lseq rv' c * is_heap heap_empty
   ===> is_heap
       (WordMap.remove c'
-         (WordMap.add c (TupleList rv')
+         (WordMap.add c (WTupleList rv')
             (WordMap.add c' ov
-               (WordMap.add c (TupleList rv)
+               (WordMap.add c (WTupleList rv)
                   heap_empty)))).
 Proof.
   intros.
   unfold is_heap at 2.
   match goal with
-  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, TupleList rv') x)
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, WTupleList rv') x)
   end.
   apply InA_In.
   apply WordMap.elements_1.
@@ -426,8 +426,8 @@ Proof.
   apply Properties.F.empty_mapsto_iff in H9; tauto.
 Qed.
 
-Theorem insert_bounded : forall ts idx t,
-  TuplesF.minFreshIndex ts idx
+Theorem insert_bounded : forall A ts idx t,
+  TuplesF.minFreshIndex (A := A) ts idx
   -> TuplesF.insert ts t (TuplesF.insertAt ts idx t).
 Proof.
   unfold TuplesF.insert, TuplesF.insertAt, TuplesF.UnConstrFreshIdx.
@@ -455,15 +455,15 @@ Lemma readd_Tuples0' : forall c rv rv' c' ov len,
   -> tuples0 len rv' c * is_heap heap_empty
   ===> is_heap
       (WordMap.remove c'
-         (WordMap.add c (Tuples0 len rv')
+         (WordMap.add c (WBagOfTuples0 len rv')
             (WordMap.add c' ov
-               (WordMap.add c (Tuples0 len rv)
+               (WordMap.add c (WBagOfTuples0 len rv)
                   heap_empty)))).
 Proof.
   intros.
   unfold is_heap at 2.
   match goal with
-  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, Tuples0 len rv') x)
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, WBagOfTuples0 len rv') x)
   end.
   apply InA_In.
   apply WordMap.elements_1.
@@ -493,15 +493,15 @@ Lemma readd_Tuples1' : forall c rv rv' c' ov len key,
   -> tuples1 len key rv' c * is_heap heap_empty
   ===> is_heap
       (WordMap.remove c'
-         (WordMap.add c (Tuples1 len key rv')
+         (WordMap.add c (WBagOfTuples1 len key rv')
             (WordMap.add c' ov
-               (WordMap.add c (Tuples1 len key rv)
+               (WordMap.add c (WBagOfTuples1 len key rv)
                   heap_empty)))).
 Proof.
   intros.
   unfold is_heap at 2.
   match goal with
-  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, Tuples1 len key rv') x)
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, WBagOfTuples1 len key rv') x)
   end.
   apply InA_In.
   apply WordMap.elements_1.
@@ -531,15 +531,15 @@ Lemma readd_Tuples2' : forall c rv rv' c' ov len key1 key2,
   -> tuples2 len key1 key2 rv' c * is_heap heap_empty
   ===> is_heap
       (WordMap.remove c'
-         (WordMap.add c (Tuples2 len key1 key2 rv')
+         (WordMap.add c (WBagOfTuples2 len key1 key2 rv')
             (WordMap.add c' ov
-               (WordMap.add c (Tuples2 len key1 key2 rv)
+               (WordMap.add c (WBagOfTuples2 len key1 key2 rv)
                   heap_empty)))).
 Proof.
   intros.
   unfold is_heap at 2.
   match goal with
-  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, Tuples2 len key1 key2 rv') x)
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, WBagOfTuples2 len key1 key2 rv') x)
   end.
   apply InA_In.
   apply WordMap.elements_1.

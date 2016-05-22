@@ -9,13 +9,19 @@ Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
-    | Tuple t => tuple t p
+    | WTuple t => tuple t p
     | WordList ts => ListSeqF.Adt.lseq ts p
-    | TupleList ts => lseq ts p
-    | Tuples0 len ts => tuples0 len ts p
-    | Tuples1 len key ts => tuples1 len key ts p
-    | Tuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
-  end.
+    | WTupleList ts => lseq ts p
+    | WBagOfTuples0 len ts => tuples0 len ts p
+    | WBagOfTuples1 len key ts => tuples1 len key ts p
+    | WBagOfTuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
+    | WSTuple _ => [| False |]
+    | WSTupleList _ => [| False |]
+    | ByteString _ _ => [| False |]
+    | WSTrie _ _ _ => [| False |]
+    | WSBagOfTuples1 _ _ _ => [| False |]
+    | NestedWSTrieWSBagOfTuples1 _ _ _ _ => [| False |]
+  end%Sep.
 
 Module Ri <: RepInv QsADTs.Adt.
 
@@ -46,6 +52,18 @@ Module Ri <: RepInv QsADTs.Adt.
     eapply Himp_trans; [ apply tuples1_fwd | sepLemma ]; apply any_easy.
 
     eapply Himp_trans; [ apply tuples2_fwd | sepLemma ]; apply any_easy.
+
+    sepLemma.
+
+    sepLemma.
+
+    sepLemma.
+
+    sepLemma.
+
+    sepLemma.
+
+    sepLemma.
   Qed.
 
 End Ri.

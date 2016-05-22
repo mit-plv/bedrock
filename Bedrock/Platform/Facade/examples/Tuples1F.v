@@ -9,6 +9,8 @@ Inductive skel :=
 | Leaf
 | Node (sk1 sk2 : skel).
 
+Definition keepEq : tuples -> W -> W -> tuples :=
+  keepEq (@eq _) (natToW 0).
 Definition keepLt (ts : tuples) (key k : W) : tuples :=
   fun tup => Ensembles.In _ ts tup /\ Array.sel (indexedElement tup) key < k.
 Definition keepGt (ts : tuples) (key k : W) : tuples :=
@@ -561,6 +563,38 @@ Qed.
 
 Hint Immediate insert_keepLt.
 
+Lemma selN_alt : forall t key,
+    Array.selN t key =
+    match nth_error t key with
+    | Some k0 => k0
+    | None => 0
+    end.
+Proof.
+  induction t; destruct key; simpl; intuition.
+Qed.
+
+Lemma sel_alt : forall t key,
+    Array.sel t key =
+    match nth_error t (wordToNat key) with
+    | Some k0 => k0
+    | None => 0
+    end.
+Proof.
+  intros; apply selN_alt.
+Qed.
+
+Lemma sel_alt' : forall (t : list W) key,
+    match nth_error t (wordToNat key) with
+    | Some k0 => k0
+    | None => 0
+    end
+    = Array.sel t key.
+Proof.
+  symmetry; apply sel_alt.
+Qed.
+
+Hint Immediate sel_alt sel_alt'.
+
 Lemma Equiv_keepEq_lt : forall k1 k ts key ts' t,
   insert ts t ts'
   -> k1 <> k
@@ -570,7 +604,7 @@ Proof.
   Equiv.
   subst.
   apply H2 in H3; intuition (subst; simpl in * ).
-  tauto.
+  exfalso; eauto.
 Qed.
 
 Hint Immediate Equiv_keepEq_lt.
@@ -598,7 +632,7 @@ Proof.
   Equiv.
   subst.
   apply H2 in H3; intuition (subst; simpl in * ).
-  tauto.
+  exfalso; eauto.
 Qed.
 
 Hint Immediate Equiv_keepEq_lt.
@@ -641,11 +675,13 @@ Lemma insert_keepEq : forall ts t ts' key k1,
   -> k1 = Array.sel t key
   -> insert (keepEq ts key k1) t (keepEq ts' key k1).
 Proof.
+  unfold keepEq, TuplesF.keepEq.
   Equiv.
   subst; simpl.
   exists x; intuition (subst; simpl in *; auto).
   apply H1 in H2; intuition (subst; simpl in * ).
   apply H1; tauto.
+  eauto.
   firstorder.
 Qed.
 
@@ -693,7 +729,7 @@ Theorem keepEq_eq : forall ts t ts' key k,
 Proof.
   Equiv.
   apply H2 in H3; intuition (subst; simpl in * ).
-  tauto.
+  symmetry; eauto.
   firstorder.
 Qed.
 
@@ -735,11 +771,38 @@ Proof.
   unfold EnsembleIndexedListEquivalence; Equiv'; intuition.
 
   destruct H1; intuition (subst; simpl in * ).
-  firstorder.
-  firstorder.
+
+  eexists; intros; apply H.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition.
+  rewrite sel_alt.
+  congruence.
+
+  unfold UnIndexedEnsembleListEquivalence in *.
+  destruct H2; intuition subst.
+  exists x; intuition.
+  apply H.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition.
+  rewrite sel_alt.
+  congruence.
+  apply H in H2.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition.
 Qed.
 
 Hint Immediate EnsembleIndexedListEquivalence_keepEq_keepLt.
+
+Lemma cmp : forall k k1 : W,
+    ~k < k1
+    -> k <> k1
+    -> k1 < k.
+Proof.
+  intros.
+  destruct (wlt_dec k1 k); auto.
+  exfalso; apply H0.
+  apply MoreArrays.wordToNat_inj.
+  nomega.
+Qed.
+
+Hint Immediate cmp.
 
 Lemma EnsembleIndexedListEquivalence_keepEq_keepGt : forall ts k1 key k v,
   EnsembleIndexedListEquivalence (keepEq (keepGt ts key k1) key k) v
@@ -751,8 +814,21 @@ Proof.
 
   destruct H2; intuition (subst; simpl in * ).
   exists x; intuition (subst; simpl in * ).
-  firstorder.
-  firstorder.
+
+  apply H.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition subst.
+  rewrite sel_alt.
+  auto.
+
+  unfold UnIndexedEnsembleListEquivalence in *.
+  destruct H3; intuition subst.
+  exists x; intuition.
+  apply H.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition subst.
+  rewrite sel_alt.
+  auto.
+  apply H in H3.
+  unfold TuplesF.keepEq, Ensembles.In in *; intuition.
 Qed.
 
 Hint Resolve EnsembleIndexedListEquivalence_keepEq_keepGt.
@@ -816,6 +892,8 @@ Proof.
   eauto.
 Qed.
 
+Hint Unfold TuplesF.keepEq.
+
 Theorem multi_step1 : forall ts tp key k tp1 tp2 tss ls1 ls2,
   multiEquivalence ((keepGt ts key k, tp2) :: (keepLt ts key k, tp1) :: tss) ls1
   -> EnsembleIndexedListEquivalence (keepEq ts key k) ls2
@@ -850,11 +928,11 @@ Proof.
   exists (x2 ++ x5 ++ x).
   repeat rewrite map_app; intuition.
   destruct (weq (Array.sel (indexedElement x6) key) k); subst.
-  assert (In x6 x)%nat by (apply H0; tauto).
+  assert (In x6 x)%nat by (apply H0; auto).
   eauto using in_or_app.
 
   destruct (wlt_dec (Array.sel (indexedElement x6) key) k).
-  assert (In x6 x2)%nat by (apply H4; tauto).
+  assert (In x6 x2)%nat by (apply H4; auto).
   eauto using in_or_app.
 
   assert (In x6 x5)%nat by (apply H7; intuition).
@@ -873,7 +951,9 @@ Proof.
   apply H7 in H13.
   apply H0 in H14.
   intuition subst.
+  unfold TuplesF.keepEq in H14; intuition.
   specialize (H1 _ _ H13 H9 H8); subst.
+  rewrite sel_alt' in *.
   nomega.
 
   intros.
@@ -894,7 +974,9 @@ Proof.
   apply H4 in H13.
   apply H0 in H14.
   intuition subst.
+  unfold TuplesF.keepEq in H14; intuition.
   specialize (H1 _ _ H13 H9 H8); subst.
+  rewrite sel_alt' in *.
   nomega.
 Qed.
 
