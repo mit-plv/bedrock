@@ -888,6 +888,17 @@ Module BytesADTSpec.
       |}; crush_types.
   Defined.
 
+  Definition Copy : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists capacity bytes,
+                       args = [ADT (ByteString capacity bytes)];
+        PostCond := fun args ret => exists capacity bytes,
+                        args = [(ADT (ByteString capacity bytes), Some (ByteString capacity bytes))]
+                        /\ ret = ADT (ByteString capacity bytes)
+      |}; crush_types.
+  Defined.
+
   Definition Push : AxiomaticSpec ADTValue.
     refine {| (* FIXME relax the precondition to allow variability on the higher bytes? *)
         PreCond := fun args =>

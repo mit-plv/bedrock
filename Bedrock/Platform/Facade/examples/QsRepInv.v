@@ -5,7 +5,7 @@ Require Import Bedrock.Platform.Facade.examples.QsADTs.
 Import Adt.
 Require Import Bedrock.Platform.Cito.RepInv.
 
-Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
@@ -17,7 +17,7 @@ Definition rep_inv p adtvalue : HProp :=
     | WBagOfTuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
     | WSTuple _ => [| False |]
     | WSTupleList _ => [| False |]
-    | ByteString _ _ => [| False |]
+    | ByteString capacity bs => bytes capacity bs p
     | WSTrie _ _ _ => [| False |]
     | WSBagOfTuples1 _ _ _ => [| False |]
     | NestedWSTrieWSBagOfTuples1 _ _ _ _ => [| False |]
@@ -57,7 +57,7 @@ Module Ri <: RepInv QsADTs.Adt.
 
     sepLemma.
 
-    sepLemma.
+    unfold bytes; sepLemma; apply any_easy.
 
     sepLemma.
 

@@ -342,6 +342,7 @@ Bedrock/Platform/Facade/NameDecoration.v
 Bedrock/Platform/Facade/Notations.v
 Bedrock/Platform/Facade/SafeCoind.v
 Bedrock/Platform/Facade/examples/ArrayTupleF.v
+Bedrock/Platform/Facade/examples/ByteString.v
 Bedrock/Platform/Facade/examples/ExtractCompiler.v
 Bedrock/Platform/Facade/examples/FiatADTs.v
 Bedrock/Platform/Facade/examples/FiatImpl.v

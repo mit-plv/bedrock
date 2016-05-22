@@ -10,8 +10,7 @@ Definition bytes (capacity : W) (bs : list B) (p : W) : HProp :=
    * array8 (bs ++ junk) (p ^+ $8)
    * [| p <> 0 |]
    * [| freeable p (2 + wordToNat capacity') |]
-   * [| goodSize (2 + wordToNat capacity') |]
-   * [| goodSize (wordToNat capacity' * 4) |])%Sep.
+   * [| goodSize (2 + wordToNat capacity' * 4) |])%Sep.
 
 Definition newS := SPEC("extra_stack", "capacity") reserving 7
   PRE[V] [| goodSize (2 + wordToNat (V "capacity") * 4) |] * mallocHeap 0
@@ -22,20 +21,25 @@ Definition deleteS := SPEC("extra_stack", "self") reserving 6
   PRE[V] bytes capacity bs (V "self") * mallocHeap 0
   POST[R] [| R = $0 |] * mallocHeap 0.
 
-Definition pushS := SPEC("extra_stack", "self", "byte") reserving 38
+Definition pushS := SPEC("extra_stack", "self", "byte") reserving 0
   Al capacity, Al bs,
   PRE[V] bytes capacity bs (V "self") * [| length bs + 1 <= wordToNat capacity |]%nat * mallocHeap 0
   POST[R] [| R = $0 |] * bytes capacity (bs ++ WtoB (V "byte") :: nil) (V "self") * mallocHeap 0.
 
-Definition putS := SPEC("extra_stack", "self", "index", "byte") reserving 38
+Definition putS := SPEC("extra_stack", "self", "index", "byte") reserving 0
   Al capacity, Al bs,
   PRE[V] bytes capacity bs (V "self") * [| wordToNat (V "index") < length bs |]%nat * mallocHeap 0
   POST[R] [| R = $0 |] * bytes capacity (PutAt bs (wordToNat (V "index")) (WtoB (V "byte"))) (V "self") * mallocHeap 0.
 
-Definition getS := SPEC("extra_stack", "self", "index") reserving 38
+Definition getS := SPEC("extra_stack", "self", "index") reserving 0
   Al capacity, Al bs,
   PRE[V] bytes capacity bs (V "self") * [| wordToNat (V "index") < length bs |]%nat * mallocHeap 0
   POST[R] [| R = BtoW (nth (wordToNat (V "index")) bs (wzero _)) |] * bytes capacity bs (V "self") * mallocHeap 0.
+
+Definition copyS := SPEC("extra_stack", "self") reserving 13
+  Al capacity, Al bs,
+  PRE[V] bytes capacity bs (V "self") * mallocHeap 0
+  POST[R] bytes capacity bs R * bytes capacity bs (V "self") * mallocHeap 0.
 
 Inductive unfold_bytes := UnfoldBytes.
 Hint Constructors unfold_bytes.
@@ -45,12 +49,9 @@ Definition array8wc bs p (capacity : W) := array8 bs p.
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS] ]]
   bmodule "ByteString" {{
     bfunction "new"("extra_stack", "capacity") [newS]
-       Assert [PRE[V] [| goodSize (2 + wordToNat (V "capacity")) |] * [| goodSize (wordToNat (V "capacity") * 4) |] * mallocHeap 0
-               POST[R] bytes (V "capacity" ^* $4) nil R * mallocHeap 0];;
-
       "extra_stack" <- 2 + "capacity";;
       "extra_stack" <-- Call "malloc"!"malloc"(0, "extra_stack")
-      [PRE[V, R] R =?> (2 + wordToNat (V "capacity")) * [| R <> 0 |] * [| freeable R (2 + wordToNat (V "capacity")) |] * [| goodSize (2 + wordToNat (V "capacity")) |] * [| goodSize (wordToNat (V "capacity") * 4) |]
+      [PRE[V, R] R =?> (2 + wordToNat (V "capacity")) * [| R <> 0 |] * [| freeable R (2 + wordToNat (V "capacity")) |] * [| goodSize (2 + wordToNat (V "capacity") * 4) |]
        POST[R'] bytes (V "capacity" ^* $4) nil R'];;
 
       "extra_stack" *<- "capacity";;
@@ -109,6 +110,65 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
        "self" <-*8 "self" + "index";;
        Return "self"
     end
+
+    with bfunction "copy"("extra_stack", "self", "capacity", "used", "other") [copyS]
+      Note [unfold_bytes];;
+      "capacity" <-* "self";;
+      "used" <-* "self" + 4;;
+      Assert [Al bs,
+              PRE[V] bytes (V "capacity" ^* $4) bs (V "self")
+                     * [| wordToNat (V "used") = length bs |]
+                     * [| length bs <= wordToNat (V "capacity") * 4 |]%nat
+                     * [| goodSize (S (S (wordToNat (V "capacity") * 4))) |]
+                     * mallocHeap 0
+              POST[R] bytes (V "capacity" ^* $4) bs R * bytes (V "capacity" ^* $4) bs (V "self") * mallocHeap 0];;
+
+      "other" <-- Call "ByteString"!"new"("extra_stack", "capacity")
+      [Al capacity, Al bs,
+       PRE[V, R] bytes capacity nil R * bytes capacity bs (V "self")
+                 * [| wordToNat (V "used") = length bs |]
+                 * [| length bs <= wordToNat capacity |]%nat
+                 * [| goodSize (wordToNat capacity) |]
+                 * mallocHeap 0
+       POST[R'] bytes capacity bs R' * bytes capacity bs (V "self") * mallocHeap 0];;
+
+      "capacity" <- 0;;
+
+      [Al capacity, Al bs1, Al bs2,
+       PRE[V] bytes capacity bs1 (V "other") * bytes capacity (bs1 ++ bs2) (V "self")
+                 * [| wordToNat (V "used") = length bs1 + length bs2 |]%nat
+                 * [| length bs1 + length bs2 <= wordToNat capacity |]%nat
+                 * [| goodSize (wordToNat capacity) |]
+                 * [| wordToNat (V "capacity") = length bs1 |]
+                 * mallocHeap 0
+       POST[R] bytes capacity (bs1 ++ bs2) R * bytes capacity (bs1 ++ bs2) (V "self") * mallocHeap 0]
+      While ("capacity" < "used") {
+        "extra_stack" <-- Call "ByteString"!"get"("extra_stack", "self", "capacity")
+        [Al capacity, Al bs1, Al b, Al bs2,
+         PRE[V, R] bytes capacity bs1 (V "other") * bytes capacity (bs1 ++ b :: bs2) (V "self")
+                   * [| wordToNat (V "used") = length bs1 + S (length bs2) |]%nat
+                   * [| length bs1 + S (length bs2) <= wordToNat capacity |]%nat
+                   * [| goodSize (wordToNat capacity) |]
+                   * [| R = BtoW b |]
+                   * [| wordToNat (V "capacity") = length bs1 |]
+                   * mallocHeap 0
+         POST[R'] bytes capacity (bs1 ++ b :: bs2) R' * bytes capacity (bs1 ++ b :: bs2) (V "self") * mallocHeap 0];;
+
+        Call "ByteString"!"push"("extra_stack", "other", "extra_stack")
+        [Al capacity, Al bs1, Al b, Al bs2,
+         PRE[V] bytes capacity (bs1 ++ b :: nil) (V "other") * bytes capacity (bs1 ++ b :: bs2) (V "self")
+                   * [| wordToNat (V "used") = length bs1 + S (length bs2) |]%nat
+                   * [| length bs1 + S (length bs2) <= wordToNat capacity |]%nat
+                   * [| goodSize (wordToNat capacity) |]
+                   * [| wordToNat (V "capacity") = length bs1 |]
+                   * mallocHeap 0
+         POST[R] bytes capacity (bs1 ++ b :: bs2) R * bytes capacity (bs1 ++ b :: bs2) (V "self") * mallocHeap 0];;
+
+        "capacity" <- "capacity" + 1
+      };;
+      
+      Return "other"
+    end
   }}.
 
 Lemma goodSize_plus_eq : forall (w : W) (n : nat),
@@ -123,7 +183,33 @@ Proof.
   change (goodSize n); eauto.
 Qed.
 
-Hint Rewrite goodSize_plus_eq using assumption : sepFormula.
+Lemma goodSize1 : forall n,
+    goodSize (S (S (n * 4)))
+    -> goodSize (S (S n)).
+Proof.
+  intros.
+  eapply goodSize_weaken; eauto.
+Qed.
+
+Lemma goodSize1' : forall n,
+    goodSize (S (S (n * 4)))
+    -> goodSize (2 + n).
+Proof.
+  intros.
+  eapply goodSize_weaken; eauto.
+Qed.
+
+Lemma goodSize2 : forall n,
+    goodSize (S (S (n * 4)))
+    -> goodSize (n * 4).
+Proof.
+  intros.
+  eapply goodSize_weaken; eauto.
+Qed.
+
+Hint Immediate goodSize1 goodSize1' goodSize2.
+
+Hint Rewrite goodSize_plus_eq using (assumption || (apply goodSize1; assumption) || (apply goodSize2; assumption)) : sepFormula.
 
 Lemma goodSize_plus_le : forall (w : W) (n : nat),
     goodSize (n + wordToNat w)
@@ -143,8 +229,7 @@ Local Hint Extern 1 (@eq W _ _) => words.
 Lemma welcome_bytes : forall (p p' : W) capacity,
     p <> 0
     -> freeable p (2 + wordToNat capacity)
-    -> goodSize (2 + wordToNat capacity)
-    -> goodSize (wordToNat capacity * 4)
+    -> goodSize (2 + wordToNat capacity * 4)
     -> p = p'
     -> allocated p 8 (wordToNat capacity) * (p =*> capacity * (p ^+ $4) =*> 0)
        ===> bytes (capacity ^* $4) nil p'.
@@ -196,7 +281,7 @@ Proof.
   eapply goodSize_weaken; eauto.
 Qed.
 
-Hint Extern 1 (_ < natToW (length _)) =>
+Hint Extern 1 (_ < natToW (length _ + length _)) =>
   autorewrite with sepFormula in *; eapply push_bound.
 
 Lemma goodSize_times4 : forall w : W,
@@ -207,7 +292,7 @@ Proof.
   rewrite wordToNat_wmult; auto.
 Qed.
 
-Hint Rewrite goodSize_times4 using assumption : sepFormula.
+Hint Rewrite goodSize_times4 using (assumption || (apply goodSize2; assumption)) : sepFormula.
 
 Hint Rewrite app_length : sepFormula.
 
@@ -242,9 +327,10 @@ Lemma do_push : forall bs junk b n p,
     -> (length bs + 1 <= n)%nat
     -> goodSize n
     -> array8 (Array8.upd (bs ++ junk) (length bs) b) p
-       ===> array8 ((bs ++ b :: nil) ++ tl junk) p.
+       ===> array8 (bs ++ b :: tl junk) p.
 Proof.
   intros.
+  rewrite <- DepList.pf_list_simpl.
   erewrite do_push'; eauto.
   apply Himp_refl.
 Qed.
@@ -277,7 +363,7 @@ Proof.
   auto.
 Qed.
 
-Hint Immediate put_bound.
+Hint Resolve put_bound.
 
 Lemma length_PutAt : forall A (ls : list A) n v,
     length (PutAt ls n v) = length ls.
@@ -337,76 +423,148 @@ Qed.
 
 Hint Immediate get_ok.
 
-Lemma goodSize1 : forall n,
-    goodSize (S (S (n * 4)))
-    -> goodSize (S (S n)).
+Lemma roundtrip_bs : forall n m k,
+    n + m = k
+    -> goodSize (2 + k)
+    -> wordToNat (natToW n) = n.
 Proof.
-  intros.
+  intros; subst.
+  apply wordToNat_natToWord_idempotent.
+  change (goodSize n).
   eapply goodSize_weaken; eauto.
 Qed.
 
-Lemma goodSize2 : forall n,
-    goodSize (S (S (n * 4)))
-    -> goodSize (n * 4).
+Hint Immediate roundtrip_bs.
+
+Hint Rewrite DepList.pf_list_simpl : sepFormula.
+
+Lemma copy_bound : forall (c u : W) n,
+    c < u
+    -> wordToNat u = n
+    -> (wordToNat c < n)%nat.
 Proof.
-  intros.
-  eapply goodSize_weaken; eauto.
+  intros; subst.
+  nomega.
 Qed.
 
-Hint Immediate goodSize1 goodSize2.
+Hint Immediate copy_bound.
 
-Ltac t :=
+Lemma loop_inc : forall (w : W) n m k,
+    wordToNat w = n
+    -> (n + S m <= k)%nat
+    -> goodSize k
+    -> wordToNat (w ^+ $1) = n + 1.
+Proof.
+  intros; subst.
+  rewrite wordToNat_wplus; auto.
+  eapply goodSize_weaken; eauto.
+  change (wordToNat ($ 1)) with 1.
+  eauto.
+Qed.
+
+Hint Immediate loop_inc.
+
+Lemma copy_loop' : forall bs2 bs1,
+    (length bs2 > 0)%nat
+    -> bs1 ++ nth (length bs1) (bs1 ++ bs2) (wzero 8) :: tl bs2 = bs1 ++ bs2.
+Proof.
+  induction bs1; simpl; intuition.
+  destruct bs2; simpl in *; auto.
+  omega.
+Qed.
+
+Lemma copy_loop : forall bs2 bs1 (c u : W),
+    c < u
+    -> wordToNat u = length bs1 + length bs2
+    -> wordToNat c = length bs1
+    -> bs1 ++ nth (wordToNat c) (bs1 ++ bs2) (wzero 8) :: tl bs2 = bs1 ++ bs2.
+Proof.
+  intros.
+  rewrite H1.
+  apply copy_loop'.
+  nomega.
+Qed.
+
+Lemma length_tl' : forall (c u : W) A (ls : list A) n,
+    c < u
+    -> wordToNat c = n
+    -> wordToNat u = n + length ls
+    -> S (length (tl ls)) = length ls.
+Proof.
+  intros.
+  assert (length ls > 0)%nat by nomega.
+  rewrite length_tl; auto.
+Qed.
+
+Hint Rewrite length_tl' using assumption : sepFormula.
+
+Hint Extern 1 (@eq nat _ _) => erewrite length_tl' by eassumption.
+Hint Extern 1 (_ <= _)%nat => erewrite length_tl' by eassumption.
+
+Lemma BtoW_WtoB : forall w b,
+    w = BtoW b
+    -> WtoB w = b.
+Proof.
+  intros; subst.
+  unfold WtoB, BtoW.
+  apply split2_combine.
+Qed.
+
+Lemma copy_final : forall capacity bs1 o bs2 r (u c : W),
+    wordToNat c = length bs1
+    -> wordToNat u = length bs1 + length bs2
+    -> u <= c
+    -> o = r
+    -> bytes capacity bs1 o ===> bytes capacity (bs1 ++ bs2) r.
+Proof.
+  intros; subst.
+  destruct bs2; simpl in *.
+  rewrite <- app_nil_end.
+  apply Himp_refl.
+  nomega.
+Qed.
+
+Hint Extern 1 (himp _ _ _) => eapply copy_final.
+
+Ltac unifyLocals :=
+  match goal with
+  | [ _ : interp _ (![?P1] ?x) |- interp _ (![?P2] ?x) ] =>
+    match P1 with
+    | context[locals _ ?vs1 ?y _] =>
+      match P2 with
+      | context[locals _ ?vs2 y _] => unify vs1 vs2; descend
+      end
+    end
+  | [ |- interp _ (![?P1] ?x ---> ![?P2] ?x)%PropX ] =>
+    match P1 with
+    | context[locals ?y ?vs1 _ _] =>
+      match P2 with
+      | context[locals y ?vs2 _ _] => unify vs1 vs2; descend
+      end
+    end
+  end.
+
+Ltac prestep :=
+  match goal with
+  | [ |- interp _ (![?P] _ ---> ![?Q] _)%PropX ] =>
+    match P with
+    | context[Regs ?s ?r = ?v] =>
+      match Q with
+      | context[Regs s r = ?u] => unify u v
+      end
+    end
+  | _ => erewrite copy_loop by eassumption
+  | _ => erewrite BtoW_WtoB by eassumption
+  end.
+
+Ltac t := try solve [ enterFunction ];
   try match goal with
       | [ |- context[unfold_bytes] ] => unfold bytes, array8wc
-      end; sep hints; eauto; eauto.
+      end;
+  post; evaluate hints; descend; try unifyLocals; repeat (try prestep; step hints; descend);
+  eauto; descend; eauto.
 
 Theorem ok : moduleOk m.
 Proof.
-  vcgen.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
+  vcgen; abstract t.
 Qed.
