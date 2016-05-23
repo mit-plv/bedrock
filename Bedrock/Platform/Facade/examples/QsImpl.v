@@ -10,7 +10,7 @@ Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.MakeADT.
 
 Require Import Bedrock.Platform.AutoSep.
 
-Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString.
 Require Import Bedrock.Platform.Facade.examples.QsRepInv.
 
 Module Import Made := MakeADT.Make(QsADTs.Adt)(Ri).
@@ -72,7 +72,14 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "Tuples2"!"findBoth" @ [Tuples2F.findBothS],
                             "Tuples2"!"findFirst" @ [Tuples2F.findFirstS],
                             "Tuples2"!"findSecond" @ [Tuples2F.findSecondS],
-                            "Tuples2"!"enumerate" @ [Tuples2F.enumerateS] ]]
+                            "Tuples2"!"enumerate" @ [Tuples2F.enumerateS],
+
+                            "ByteString"!"new" @ [ByteString.newS],
+                            "ByteString"!"delete" @ [ByteString.deleteS],
+                            "ByteString"!"copy" @ [ByteString.copyS],
+                            "ByteString"!"push" @ [ByteString.pushS],
+                            "ByteString"!"put" @ [ByteString.putS],
+                            "ByteString"!"get" @ [ByteString.getS] ]]
   fmodule "ADT" {{
     ffunction "Tuple_new" reserving 7 [WTupleADTSpec.New] := "ArrayTuple"!"new"
     with ffunction "Tuple_delete" reserving 6 [WTupleADTSpec.Delete] := "ArrayTuple"!"delete"
@@ -113,6 +120,13 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "Tuples2_findFirst" reserving 37 [WBagOfTuples2ADTSpec.FindFirst] := "Tuples2"!"findFirst"
     with ffunction "Tuples2_findSecond" reserving 36 [WBagOfTuples2ADTSpec.FindSecond] := "Tuples2"!"findSecond"
     with ffunction "Tuples2_enumerate" reserving 36 [WBagOfTuples2ADTSpec.Enumerate] := "Tuples2"!"enumerate"
+
+    with ffunction "ByteString_new" reserving 7 [BytesADTSpec.New] := "ByteString"!"new"
+    with ffunction "ByteString_delete" reserving 6 [BytesADTSpec.Delete] := "ByteString"!"delete"
+    with ffunction "ByteString_copy" reserving 13 [BytesADTSpec.Copy] := "ByteString"!"copy"
+    with ffunction "ByteString_push" reserving 0 [BytesADTSpec.Push] := "ByteString"!"push"
+    with ffunction "ByteString_put" reserving 0 [BytesADTSpec.Put] := "ByteString"!"put"
+    with ffunction "ByteString_get" reserving 0 [BytesADTSpec.Get] := "ByteString"!"get"
   }}.
 
 Ltac peel := repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
@@ -614,6 +628,33 @@ Proof.
   apply Imply_refl.
   apply andL.
   apply injL; auto.
+Qed.
+
+Lemma readd_ByteString : forall c capacity bs capacity' bs',
+  ByteString.bytes capacity' bs' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (ByteString capacity' bs') (heap_upd heap_empty c (ByteString capacity bs))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, ByteString capacity' bs') (heap_elements (WordMap.add c (ByteString capacity' bs') (heap_upd heap_empty c (ByteString capacity bs))))).
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H; intuition idtac.
+  eapply Himp_trans; [ | apply H0 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H2 in H1; intuition.
+  apply In_InA' in H4.
+  apply WordMap.elements_2 in H4.
+  apply Properties.F.add_mapsto_iff in H4; intuition.
+  apply Properties.F.add_mapsto_iff in H5; intuition.
+  apply Properties.F.empty_mapsto_iff in H6; tauto.
 Qed.
 
 Theorem ok0 : moduleOk m0.
@@ -1319,8 +1360,133 @@ Proof.
   do_delegate2 ("self" :: nil).
 
 
+  (* ByteString *)
+
+  (* new *)
+
+  do_abort ("capacity" :: nil).
+  do_abort ("capacity" :: nil).
+  do_abort ("capacity" :: nil).
+
+  do_delegate1 ("capacity" :: nil) hints.
+  do 2 (descend; step auto_ext).
+  2: returnAdt.
+  simpl.
+  make_toArray ("capacity" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  do_delegate2 ("capacity" :: nil).
+
+  (* delete *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step auto_ext.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval'; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* copy *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_ByteString ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* push *)
+
+  do_abort ("self" :: "byte" :: nil).
+  do_abort ("self" :: "byte" :: nil).
+  do_abort ("self" :: "byte" :: nil).
+
+  do_delegate1 ("self" :: "byte" :: nil) hints.
+  descend; step hints.
+  simpl.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "byte" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_ByteString ] ].
+  fold (@app B).
+  erewrite BtoW_WtoB by eassumption.
+  do_delegate2 ("self" :: "byte" :: nil).
+
+  (* put *)
+
+  do_abort ("self" :: "index" :: "byte" :: nil).
+  do_abort ("self" :: "index" :: "byte" :: nil).
+  do_abort ("self" :: "index" :: "byte" :: nil).
+
+  do_delegate1 ("self" :: "index" :: "byte" :: nil) hints.
+  descend; step hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  step auto_ext.
+  2: returnScalar; eauto 10.
+  simpl.
+  make_toArray ("self" :: "index" :: "byte" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_ByteString ] ].
+  erewrite BtoW_WtoB by eassumption.
+  do_delegate2 ("self" :: "index" :: "byte" :: nil).
+
+  (* get *)
+
+  do_abort ("self" :: "index" :: nil).
+  do_abort ("self" :: "index" :: nil).
+  do_abort ("self" :: "index" :: nil).
+
+  do_delegate1 ("self" :: "index" :: nil) hints.
+  descend; step hints.
+  repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
+  apply get_rval''; intro.
+  step auto_ext.
+  2: returnScalar; eauto 10.
+  simpl.
+  make_toArray ("self" :: "index" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_ByteString ] ].
+  do_delegate2 ("self" :: "index" :: nil).
+
+
   (* Grabby time *)
   Grab Existential Variables.
+  exact 0.
+  exact 0.
+  exact 0.
   exact 0.
   exact 0.
   exact 0.
@@ -1341,7 +1507,8 @@ Definition m3 := link TupleListF.m m2.
 Definition m4 := link Tuples0F.m m3.
 Definition m5 := link Tuples1F.m m4.
 Definition m6 := link Tuples2F.m m5.
-Definition m := link Malloc.m m6.
+Definition m7 := link ByteString.m m6.
+Definition m := link Malloc.m m7.
 
 Theorem ok1 : moduleOk m1.
 Proof.
@@ -1373,7 +1540,12 @@ Proof.
   link Tuples2F.ok ok5.
 Qed.
 
+Theorem ok7 : moduleOk m7.
+Proof.
+  link ByteString.ok ok6.
+Qed.
+
 Theorem ok : moduleOk m.
 Proof.
-  link Malloc.ok ok6.
+  link Malloc.ok ok7.
 Qed.

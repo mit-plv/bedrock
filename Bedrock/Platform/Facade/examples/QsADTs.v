@@ -903,7 +903,7 @@ Module BytesADTSpec.
     refine {| (* FIXME relax the precondition to allow variability on the higher bytes? *)
         PreCond := fun args =>
                      exists capacity bytes byte,
-                       (S (length bytes) < wordToNat capacity)%nat
+                       (length bytes + 1 <= wordToNat capacity)%nat
                        /\ args = [ADT (ByteString capacity bytes); SCA _ (BtoW byte)];
         PostCond := fun args ret =>
                       exists capacity bytes byte,
