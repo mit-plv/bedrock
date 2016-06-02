@@ -26,9 +26,7 @@ Inductive ADTValue :=
 | WSTuple (t : WSTupl)
 | WSTupleList (ts : list WSTupl)
 | ByteString (capacity: W) (bs: byteString)
-| WSTrie (len keyIndex : W) (tuples : WSTuplSet)
-| WSBagOfTuples1 (len keyIndex : W) (tuples : WSTuplSet)
-| NestedWSTrieWSBagOfTuples1 (len keyIndex1 keyIndex2 : W) (tuples : WSTuplSet).
+| WSTrie (len keyIndex : W) (tuples : WSTuplSet).
 
 Require Import Bedrock.Platform.Cito.ADT.
 
@@ -596,7 +594,7 @@ Module WBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
 End WBagOfTuples1ADTSpecParams.
 
 Module WBagOfTuples1ADTSpec := BagOfTuples1ADTSpec WBagOfTuples1ADTSpecParams.
-
+ 
 Definition ByteToAscii (w8: byte) : Ascii.ascii :=
   match w8 with
   | Word.WO => Ascii.zero
@@ -657,24 +655,6 @@ Definition WS_WordEqB ws key :=
   | _ => false
   end.
 
-Module WSBagOfTuples1ADTSpecParams <: BagOfTuples1ADTSpecParams.
-  Definition KeyType := W.
-  Definition FieldType := WS.
-  Definition DefaultField := WSWord 0.
-  Definition KeyConstructor := SCA ADTValue.
-  Lemma KeyConstructor_inj : Injective KeyConstructor. autoinj. Qed.
-  Definition KeyConstructor_SameTypes := fun _ _ : KeyType => @eq_refl bool true.
-  Definition MatchingFunction ws key := WS_WordEqB ws key = true.
-  Definition TupleConstructor := WSTuple.
-  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
-  Definition TupleListConstructor := WSTupleList.
-  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
-  Definition BagConstructor := WSBagOfTuples1.
-  Lemma BagConstructor_inj : Injective3 BagConstructor. autoinj. Qed.
-End WSBagOfTuples1ADTSpecParams.
-
-Module WSBagOfTuples1ADTSpec := BagOfTuples1ADTSpec (WSBagOfTuples1ADTSpecParams).
-
 Module WSTrieADTSpecParams <: BagOfTuples1ADTSpecParams.
   Definition KeyType := (W * byteString)%type.
   Definition FieldType := WS.
@@ -691,7 +671,35 @@ Module WSTrieADTSpecParams <: BagOfTuples1ADTSpecParams.
   Lemma BagConstructor_inj : Injective3 BagConstructor. autoinj. Qed.
 End WSTrieADTSpecParams.
 
-Module WSTrieADTSpec := BagOfTuples1ADTSpec (WSTrieADTSpecParams).
+Module WSTrieADTSpec.
+  Include (BagOfTuples1ADTSpec (WSTrieADTSpecParams)).
+
+  Definition fieldBelowThreshold tuple index threshold :=
+    match List.nth_error tuple index with
+    | Some (WSWord w) => Word.wlt w threshold (* Do we need [<=]? *)
+    | _ => False
+    end.
+
+  Definition dropBelow (tuples: WSTuplSet) (index: W) (threshold: W) : WSTuplSet :=
+    (fun t => tuples t /\ fieldBelowThreshold (indexedElement t) (Word.wordToNat index) threshold).
+
+  Definition DropBelow : AxiomaticSpec ADTValue.
+    refine {|
+        PreCond := fun args =>
+                     exists len key ts threshold offset idx,
+                       args = [ADT (BagConstructor len key ts); SCA _ offset; SCA _ threshold]
+                       /\ minFreshIndex ts idx;
+        PostCond := fun args ret =>
+                      exists len key ts threshold offset idx,
+                        args = [ (ADT (BagConstructor len key ts),
+                                  Some (BagConstructor len key (dropBelow ts offset threshold)));
+                                 (SCA _ offset, None);
+                                 (SCA _ threshold, None) ]
+                        /\ minFreshIndex ts idx
+                        /\ ret = SCAZero
+      |}; crush_types.
+  Defined.
+End WSTrieADTSpec.
 
 Print Module WBagOfTuples1ADTSpec.
 Print Module WSBagOfTuples1ADTSpec.
@@ -817,8 +825,6 @@ Module BagOfTuples2ADTSpec (Params: BagOfTuples2ADTSpecParams).
   Defined.
 End BagOfTuples2ADTSpec.
 
-Check prefix.
-
 Module WBagOfTuples2ADTSpecParams <: BagOfTuples2ADTSpecParams.
   Definition KeyType1 := W.
   Definition KeyType2 := W.
@@ -840,28 +846,6 @@ End WBagOfTuples2ADTSpecParams.
 
 Module WBagOfTuples2ADTSpec := BagOfTuples2ADTSpec WBagOfTuples2ADTSpecParams.
 Print Module WBagOfTuples2ADTSpec.
-
-Module WSTrieWBagADTSpecParams <: BagOfTuples2ADTSpecParams.
-  Definition KeyType1 := (nat * byteString)%type.
-  Definition KeyType2 := W.
-  Definition FieldType := WS.
-  Definition DefaultField := WSWord 0.
-  Definition KeyConstructor1 := (fun (cbs: KeyType1) => ADT (let (c, bs) := cbs in ByteString c bs)).
-  Definition KeyConstructor2 := SCA ADTValue.
-  Definition KeyConstructor1_SameTypes := fun _ _ : KeyType1 => @eq_refl bool true.
-  Definition KeyConstructor2_SameTypes := fun _ _ : KeyType2 => @eq_refl bool true.
-  Definition MatchingFunction1 ws (key: KeyType1) := WS_StringPrefixB ws (snd key) = true.
-  Definition MatchingFunction2 ws key := WS_WordEqB ws key = true.
-  Definition TupleConstructor := WSTuple.
-  Lemma TupleConstructor_inj : Injective TupleConstructor. autoinj. Qed.
-  Definition TupleListConstructor := WSTupleList.
-  Lemma TupleListConstructor_inj : Injective TupleListConstructor. autoinj. Qed.
-  Definition BagConstructor := NestedWSTrieWSBagOfTuples1.
-  Lemma BagConstructor_inj : Injective4 BagConstructor. autoinj. Qed.
-End WSTrieWBagADTSpecParams.
-
-Module WSTrieWBagADTSpec := BagOfTuples2ADTSpec WSTrieWBagADTSpecParams.
-Print Module WSTrieWBagADTSpec.
 
 Module BytesADTSpec.
   Definition New : AxiomaticSpec ADTValue.
