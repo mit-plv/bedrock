@@ -1058,41 +1058,8 @@ Proof.
   t.
   t.
   t.
-
-  post.
-  evaluate hints.
-  descend.
-  step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  descend; step hints.
-  auto.
-  descend; step hints.
-  auto.
-
   t.
   t.
-
-  post.
-
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend; step hints.
-
-  evaluate hints.
-  descend.
-  step hints.
-  step hints.
-  descend; step hints.
-
-      
-
+  t.
+  t.
 Qed.
