@@ -1,5 +1,5 @@
 Require Import Bedrock.Platform.AutoSep Bedrock.Platform.Facade.examples.QsADTs.
-Require Import Bedrock.Platform.Malloc Bedrock.Platform.Arrays8.
+Require Import Bedrock.Platform.Malloc Bedrock.Platform.Arrays8 Bedrock.Platform.MoreArrays.
 Require Import Bedrock.Platform.Facade.examples.ByteString.
 
 
@@ -12,8 +12,8 @@ Module Type ADT.
   Parameter wstuple' : WSTupl -> W -> HProp.
   Parameter wsitem : WS -> W -> W -> HProp.
 
-  Axiom wstuple_fwd : forall ws p, wstuple ws p ===> wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |].
-  Axiom wstuple_bwd : forall ws p, wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] ===> wstuple ws p.
+  Axiom wstuple_fwd : forall ws p, wstuple ws p ===> wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] * [| length ws >= 1 |]%nat.
+  Axiom wstuple_bwd : forall ws p, wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] * [| length ws >= 1 |]%nat ===> wstuple ws p.
 
   Axiom wstuple'_nil_fwd : forall p, wstuple' nil p ===> Emp.
   Axiom wstuple'_word_fwd : forall w ws' p, wstuple' (WSWord w :: ws') p ===> (p ==*> $0, w) * wstuple' ws' (p ^+ $8).
@@ -28,7 +28,7 @@ Module Type ADT.
       -> wsitem w tag sp ===> [| w = WSWord sp |].
   Axiom wsitem_bytes_fwd : forall w tag sp,
       tag <> $0
-      -> wsitem w tag sp ===> Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp.
+      -> wsitem w tag sp ===> Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp * [| tag = $1 |].
 
   Axiom wstuple'_nil_bwd : forall p, Emp ===> wstuple' nil p.
   Axiom wstuple'_word_bwd : forall w ws' p, (p ==*> $0, w) * wstuple' ws' (p ^+ $8) ===> wstuple' (WSWord w :: ws') p.
@@ -46,7 +46,7 @@ Module Import Adt : ADT.
     end.
 
   Definition wstuple (ws : WSTupl) (p : W) : HProp :=
-    wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |].
+    wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] * [| length ws >= 1 |]%nat.
 
   Definition wsitem (w : WS) (tag p : W) :=
     match w with
@@ -54,12 +54,12 @@ Module Import Adt : ADT.
     | WSBytes capacity bs => [| tag = $1 |] * bytes capacity bs p
     end.
 
-  Theorem wstuple_fwd : forall ws p, wstuple ws p ===> wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |].
+  Theorem wstuple_fwd : forall ws p, wstuple ws p ===> wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] * [| length ws >= 1 |]%nat.
   Proof.
     unfold wstuple; sepLemma.
   Qed.
 
-  Theorem wstuple_bwd : forall ws p, wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] ===> wstuple ws p.
+  Theorem wstuple_bwd : forall ws p, wstuple' ws p * [| p <> 0 |] * [| freeable p (length ws * 2) |] * [| length ws >= 1 |]%nat ===> wstuple ws p.
   Proof.
     unfold wstuple; sepLemma.
   Qed.
@@ -102,7 +102,7 @@ Module Import Adt : ADT.
 
   Theorem wsitem_bytes_fwd : forall w tag sp,
       tag <> $0
-      -> wsitem w tag sp ===> Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp.
+      -> wsitem w tag sp ===> Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp * [| tag = $1 |].
   Proof.
     destruct w; sepLemma; discriminate.
   Qed.
@@ -240,11 +240,29 @@ Proof.
   omega.
 Qed.
 
+Lemma blob_absorb2 : forall (len self : W),
+    len <> 0
+    -> (Ex v1, Ex v2, (self ^+ $8) =?> ((wordToNat len - 1) * 2) * self =*> v1 * (self ^+ $4) =*> v2)
+    ===> self =?> (wordToNat len * 2).
+Proof.
+  intros.
+  eapply Himp_trans; [ | apply allocated_join with (len' := 2) ].
+  sepLemma.
+  apply allocated_shift_base; auto.
+  change (4 * 2) with 8.
+  words.
+  case_eq (wordToNat len); intros.
+  apply (f_equal (natToWord 32)) in H0.
+  rewrite natToWord_wordToNat in H0.
+  tauto.
+  omega.
+Qed.
+
 Definition hints : TacPackage.
   prepare (wstuple_fwd, wstuple'_nil_fwd, wstuple'_word_fwd, wstuple'_bytes_fwd,
            expose_words, wstuple'_nonzero_fwd, wsitem_word_fwd, wsitem_bytes_fwd)
           (wstuple_bwd, wstuple'_nil_bwd, wstuple'_word_bwd, wstuple'_bytes_bwd,
-           zeroes_nonzero_bwd, blob_absorb).
+           zeroes_nonzero_bwd, blob_absorb, blob_absorb2).
 Defined.
 
 Definition newS := SPEC("extra_stack", "len") reserving 8
@@ -255,6 +273,13 @@ Definition deleteS := SPEC("extra_stack", "self", "len") reserving 11
   Al ws,
   PRE[V] wstuple ws (V "self") * [| wordToNat (V "len") = length ws |] * mallocHeap 0
   POST[R] [| R = $0 |] * mallocHeap 0.
+
+Definition copyS := SPEC("extra_stack", "self", "len") reserving 20
+  Al ws,
+  PRE[V] wstuple ws (V "self")
+         * [| wordToNat (V "len") = length ws |]
+         * mallocHeap 0
+  POST[R] wstuple ws R * wstuple ws (V "self") * mallocHeap 0.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ByteString"!"delete" @ [ByteString.deleteS],
@@ -279,7 +304,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "extra_stack"
     end
 
-    with*) bfunction "delete"("extra_stack", "self", "len", "tmp", "tmpl") [deleteS]
+    with bfunction "delete"("extra_stack", "self", "len", "tmp", "tmpl") [deleteS]
       "tmp" <- "self";;
       "tmpl" <- "len";;
       [Al ws,
@@ -329,6 +354,55 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
        POST[R] [| R = $0 |] ];;
       Return 0
     end
+
+    with*) bfunction "copy"("extra_stack", "self", "len", "new", "p", "tag", "data") [copyS]
+      "tag" <- "len" * 2;;
+      "new" <-- Call "malloc"!"malloc"(0, "tag")
+      [Al ws,
+       PRE[V, R] wstuple' ws (V "self") * [| wordToNat (V "len") = length ws |]
+                 * R =?> (wordToNat (V "len") * 2)
+                 * mallocHeap 0
+       POST[R'] [| R' = R |] * wstuple' ws R * wstuple' ws (V "self") * mallocHeap 0];;
+      "p" <- "new";;
+
+      [Al ws,
+       PRE[V] wstuple' ws (V "self") * [| wordToNat (V "len") = length ws |]
+              * V "p" =?> (wordToNat (V "len") * 2)
+              * mallocHeap 0
+       POST[R] [| R = V "new" |] * wstuple' ws (V "p") * wstuple' ws (V "self") * mallocHeap 0]
+      While ("len" <> 0) {
+        Assert [Al ws,
+         PRE[V] wstuple' ws (V "self") * [| wordToNat (V "len") = length ws |]
+                * V "p" =?> (wordToNat (V "len") * 2)
+                * [| nonempty ws |] * [| V "len" <> 0 |]
+                * mallocHeap 0
+         POST[R] [| R = V "new" |] * wstuple' ws (V "p") * wstuple' ws (V "self") * mallocHeap 0];;
+
+        "tag" <-* "self";;
+        "data" <-* "self"+4;;
+        If ("tag" = 0) {
+          Skip
+        } else {
+          "data" <-- Call "ByteString"!"copy"("extra_stack", "data")
+          [Al capacity, Al bs, Al ws,
+           PRE[V, R] wstuple' (WSBytes capacity bs :: ws) (V "self")
+                  * [| wordToNat (V "len") = S (length ws) |]
+                  * V "p" =?> (wordToNat (V "len") * 2)
+                  * [| V "tag" = 1 |] * bytes capacity bs R * [| V "len" <> 0 |]
+                  * mallocHeap 0
+           POST[R'] [| R' = V "new" |] * wstuple' (WSBytes capacity bs :: ws) (V "p")
+                   * wstuple' (WSBytes capacity bs :: ws) (V "self") * mallocHeap 0]
+        };;
+
+        "p" *<- "tag";;
+        "p"+4 *<- "data";;
+        "p" <- "p" + 8;;
+        "self" <- "self" + 8;;
+        "len" <- "len" - 1
+      };;
+
+      Return "new"
+    end
   }}.
 
 Lemma two_le : forall w : W,
@@ -344,7 +418,7 @@ Proof.
   assumption.
 Qed.
 
-Hint Immediate two_le.
+Hint Resolve two_le.
 
 Lemma times2 : forall w : W,
     goodSize (wordToNat w * 2)
@@ -459,8 +533,6 @@ Inductive containsAllocated : HProp -> nat -> Prop :=
 
 Hint Constructors containsAllocated.
 
-Require Import Bedrock.Platform.MoreArrays.
-
 Lemma containsAllocated_containsArray : forall P len,
     containsAllocated P len
     -> exists Q, P ===> Ex ws, Ex p, array ws p * [| length ws = len |] * Q.
@@ -513,8 +585,88 @@ Proof.
   eapply containsArray_goodSize; eauto.
 Qed.
 
+Inductive containsWstuple : HProp -> WSTupl -> Prop :=
+| CWBase : forall ws p, containsWstuple (wstuple' ws p) ws
+| CWLeft : forall P Q ws, containsWstuple P ws
+  -> containsWstuple (SEP.ST.star P Q) ws
+| CWRight : forall P Q ws, containsWstuple Q ws
+  -> containsWstuple (SEP.ST.star P Q) ws.
+
+Hint Constructors containsWstuple.
+
+Lemma wstuple'_allocated : forall ws p,
+    exists Q, wstuple' ws p ===> p =?> (length ws * 2) * Q.
+Proof.
+  induction ws; simpl; intros.
+
+  exists Emp%Sep.
+  change (0 * 2) with 0.
+  sepLemma.
+  etransitivity; [ | apply Himp_star_Emp' ].
+  apply wstuple'_nil_fwd.
+
+  replace (S (length ws) * 2) with (2 + length ws * 2) by omega.
+  simpl.
+  destruct (IHws (p ^+ $8)); clear IHws.
+  destruct a.
+  exists x.
+  eapply Himp_trans; [ apply wstuple'_word_fwd | ].
+  sepLemma.
+  etransitivity; [ apply H | ].
+  sepLemma.
+  apply allocated_shift_base; auto; words.
+  exists (x * any)%Sep.
+  eapply Himp_trans; [ apply wstuple'_bytes_fwd | ].
+  sepLemma.
+  etransitivity; [ eapply himp_star_frame; [ apply H | reflexivity ] | ].
+  sepLemma.
+  apply himp_star_frame.
+  apply any_easy.
+  apply allocated_shift_base; auto; words.
+Qed.
+
+Lemma containsWstuple_array : forall P ws,
+    containsWstuple P ws
+    -> exists Q, P ===> Ex p, Ex ws', array ws' p * [| length ws' = length ws * 2 |]%nat * Q.
+Proof.
+  induction 1.
+
+  destruct (wstuple'_allocated ws p).
+  exists x.
+  eapply Himp_trans; [ apply H | ].
+  eapply Himp_trans; [ apply Himp_star_frame; [ apply allocate_array; auto | apply Himp_refl ] | ].
+  sepLemma.
+
+  destruct IHcontainsWstuple.
+  exists (x * Q)%Sep.
+  eapply Himp_trans; [ eapply Himp_star_frame; [ apply H0 | apply Himp_refl ] | ].
+  clear H.
+  sepLemma.
+
+  destruct IHcontainsWstuple.
+  exists (x * P)%Sep.
+  eapply Himp_trans; [ eapply Himp_star_frame; [ apply Himp_refl | apply H0 ] | ].
+  clear H.
+  sepLemma.
+Qed.
+
+Theorem containsWstuple_goodSize : forall cs P stn st ws,
+    interp cs (![P] (stn, st))
+    -> containsWstuple P ws
+    -> goodSize (length ws * 2).
+Proof.
+  intros.
+  apply containsWstuple_array in H0.
+  destruct H0.
+  eapply use_Himp in H0; eauto.
+  evaluate auto_ext.
+  fold (@length W) (@length WS) in *.
+  rewrite <- H4.
+  eapply containsArray_goodSize; eauto.
+Qed.
+
 Hint Rewrite times2
-     using eapply goodSize_weaken; [ eapply containsAllocated_goodSize; [ eassumption | eauto ] | match goal with
+     using eapply goodSize_weaken; [ eapply containsAllocated_goodSize; [ eassumption | solve [ eauto ] ] | match goal with
                                                                                                   | [ H : _ = natToW 0 |- _ ] => rewrite H; change (wordToNat (natToW 0)) with 0; omega
                                                                                                   end ] : sepFormula.
 
@@ -542,7 +694,42 @@ Qed.
 
 Hint Extern 1 (himp _ (wstuple' _ _) _ ) => eapply wstuple_delete; eassumption.
 
-Ltac t := solve [ sep hints; eauto ].
+Lemma wstuple_copy : forall specs ws tmp len,
+    wordToNat len = length ws
+    -> len = natToW 0
+    -> himp specs (tmp =?> (wordToNat len * 2))%Sep (wstuple' ws tmp).
+Proof.
+  intros; subst.
+  change (wordToNat (natToW 0)) with 0 in *.
+  change (0 * 2) with 0.
+  destruct ws; simpl in *; try discriminate.
+  step hints.
+Qed.
+
+Hint Extern 1 (himp _ _ (wstuple' _ _)) => eapply wstuple_copy; eassumption.
+
+Hint Extern 1 (goodSize (wordToNat ?w * 2)) =>
+  match goal with
+  | [ H : wordToNat w = _ |- _ ] =>
+    rewrite H; eapply containsWstuple_goodSize; [ eassumption | solve [ eauto ] ]
+  end.
+
+Hint Rewrite times2
+     using eapply goodSize_weaken; [ eapply containsWstuple_goodSize; [ eassumption | solve [ eauto ] ] | fold (@length WS) in *; omega ] : sepFormula.
+
+Ltac that_tricky_case :=
+  match goal with
+  | [ |- interp _ (?P ---> ?Q)%PropX ] =>
+    match P with
+    | context[locals _ _ _ ?len1] =>
+      match Q with
+      | context[locals _ _ _ ?len2] => replace len2 with len1 by words; apply Imply_refl
+      end
+    end
+  end.
+
+Ltac t' := post; evaluate hints; descend; step hints; repeat (that_tricky_case || (descend; step hints)); eauto.
+Ltac t := solve [ enterFunction | t' ].
 
 Local Hint Extern 1 (@eq W _ _) => words.
 Local Hint Extern 1 (freeable _ _) => congruence.
@@ -555,6 +742,26 @@ Proof.
   vcgen.
 
   (*t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
   t.
   t.
   t.
