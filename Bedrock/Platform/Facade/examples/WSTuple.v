@@ -7,6 +7,16 @@ Inductive nonempty (ws : WSTupl) : Prop :=
 | Nonempty : forall len : W, len <> $0 -> wordToNat len = length ws -> nonempty ws.
 Hint Constructors nonempty.
 
+Lemma wtimes8 : forall n,
+      natToW (n * 8) = natToW n ^* $8.
+Proof.
+  intros.
+  replace (n * 8) with (8 * n) by omega.
+  simpl.
+  repeat rewrite natToW_plus.
+  words.
+Qed.
+
 Module Type ADT.
   Parameter wstuple : WSTupl -> W -> HProp.
   Parameter wstuple' : WSTupl -> W -> HProp.
@@ -29,10 +39,33 @@ Module Type ADT.
   Axiom wsitem_bytes_fwd : forall w tag sp,
       tag <> $0
       -> wsitem w tag sp ===> Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp * [| tag = $1 |].
+  Axiom wsitem_word_bwd : forall w tag sp,
+      tag = $0
+      -> [| w = WSWord sp |] ===> wsitem w tag sp.
+  Axiom wsitem_bytes_bwd : forall w tag sp,
+      tag = $1
+      -> (Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp) ===> wsitem w tag sp.
 
   Axiom wstuple'_nil_bwd : forall p, Emp ===> wstuple' nil p.
   Axiom wstuple'_word_bwd : forall w ws' p, (p ==*> $0, w) * wstuple' ws' (p ^+ $8) ===> wstuple' (WSWord w :: ws') p.
   Axiom wstuple'_bytes_bwd : forall capacity bs ws' p, Ex sp, (p ==*> $1, sp) * bytes capacity bs sp * wstuple' ws' (p ^+ $8) ===> wstuple' (WSBytes capacity bs :: ws') p.
+
+  (* Isolating one cell of a tuple *)
+  Definition wstuple'_isolating ws p (pos : W) := wstuple' ws p.
+  Axiom isolate_fwd : forall ws p pos,
+    (wordToNat pos < length ws)%nat
+    -> wstuple'_isolating ws p pos
+       ===> Ex tag, Ex sp, wstuple' (firstn (wordToNat pos) ws) p
+                           * (p ^+ pos ^* $8) =*> tag * (p ^+ pos ^* $8 ^+ $4) =*> sp
+                           * wsitem (nth_default (WSWord 0) ws (wordToNat pos)) tag sp
+                           * wstuple' (tl (skipn (wordToNat pos) ws)) (p ^+ $(S (wordToNat pos) * 8)).
+  Axiom isolate_bwd : forall ws p pos,
+    (wordToNat pos < length ws)%nat
+    -> (Ex tag, Ex sp, wstuple' (firstn (wordToNat pos) ws) p
+                       * (p ^+ pos ^* $8) =*> tag * (p ^+ pos ^* $8 ^+ $4) =*> sp
+                       * wsitem (nth_default (WSWord 0) ws (wordToNat pos)) tag sp
+                       * wstuple' (tl (skipn (wordToNat pos) ws)) (p ^+ $(S (wordToNat pos) * 8)))
+       ===> wstuple'_isolating ws p pos.
 End ADT.
 
 Module Import Adt : ADT.
@@ -107,6 +140,27 @@ Module Import Adt : ADT.
     destruct w; sepLemma; discriminate.
   Qed.
 
+  Theorem wsitem_word_bwd : forall w tag sp,
+      tag = $0
+      -> [| w = WSWord sp |] ===> wsitem w tag sp.
+  Proof.
+    destruct w; sepLemma.
+  Qed.
+
+  Theorem wsitem_bytes_bwd : forall w tag sp,
+      tag = $1
+      -> (Ex capacity, Ex bs, [| w = WSBytes capacity bs |] * bytes capacity bs sp) ===> wsitem w tag sp.
+  Proof.
+    destruct w.
+
+    sepLemma.
+
+    simpl.
+    sepLemmaLhsOnly.
+    inversion H0.
+    sepLemma.
+  Qed.
+
   Theorem wstuple'_bytes_fwd : forall capacity bs ws' p, wstuple' (WSBytes capacity bs :: ws') p ===> Ex sp, (p ==*> $1, sp) * bytes capacity bs sp * wstuple' ws' (p ^+ $8).
   Proof.
     sepLemma.
@@ -124,6 +178,154 @@ Module Import Adt : ADT.
 
   Theorem wstuple'_bytes_bwd : forall capacity bs ws' p, Ex sp, (p ==*> $1, sp) * bytes capacity bs sp * wstuple' ws' (p ^+ $8) ===> wstuple' (WSBytes capacity bs :: ws') p.
   Proof.
+    sepLemma.
+  Qed.
+
+
+  (* Isolating one cell of a tuple *)
+
+  Definition wstuple'_isolating ws p (pos : W) := wstuple' ws p.
+
+  Opaque mult.
+
+  Lemma isolate_fwd' : forall ws p pos,
+    (pos < length ws)%nat
+    -> wstuple'_isolating ws p pos
+       ===> Ex tag, Ex sp, wstuple' (firstn pos ws) p
+                           * (p ^+ $(pos) ^* $8) =*> tag * (p ^+ $(pos) ^* $8 ^+ $4) =*> sp
+                           * wsitem (nth_default (WSWord 0) ws pos) tag sp
+                           * wstuple' (tl (skipn pos ws)) (p ^+ $(S pos * 8)).
+  Proof.
+    unfold wstuple'_isolating; induction ws; simpl; intros.
+
+    omega.
+
+    destruct a; simpl.
+
+    destruct pos; simpl.
+    change ($0 ^* $8) with (natToW 0).
+    change (1 * 8)%nat with 8.
+    sepLemma.
+    eapply Himp_trans; [ eapply Himp_star_frame; [ apply Himp_refl | eapply (IHws _ pos); omega ] | ].
+    sepLemma; fold (@firstn WS) (@skipn WS); simpl.
+    change (nth_default (WSWord 0) (WSWord w :: ws) (S pos))
+           with (nth_default (WSWord 0) ws pos).
+    replace (S (S pos) * 8)%nat with (S pos * 8 + 8)%nat by omega; rewrite natToW_plus.
+    repeat rewrite wtimes8.
+    rewrite (natToW_S pos).
+    replace (p ^+ natToW 8 ^+ ($1 ^+ natToW pos) ^* $8)
+      with (p ^+ (($1 ^+ natToW pos) ^* $8 ^+ natToW 8)) by words.
+    replace (p ^+ natToW 8 ^+ natToW pos ^* natToW 8)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8) by words.
+    replace (p ^+ ($1 ^+ natToW pos) ^* natToW 8 ^+ natToW 4)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8 ^+ natToW 4) by words.
+    sepLemma.
+
+    destruct pos; simpl.
+    change ($0 ^* $8) with (natToW 0).
+    change (1 * 8)%nat with 8.
+    sepLemma.
+    apply Himp'_ex; intro sp.
+    eapply Himp_trans; [ eapply Himp_star_frame; [ apply Himp_refl | eapply (IHws _ pos); omega ] | ].
+    sepLemma; fold (@firstn WS) (@skipn WS); simpl.
+    change (nth_default (WSWord 0) (WSBytes capacity s :: ws) (S pos))
+           with (nth_default (WSWord 0) ws pos).
+    replace (S (S pos) * 8)%nat with (S pos * 8 + 8)%nat by omega; rewrite natToW_plus.
+    repeat rewrite wtimes8.
+    rewrite (natToW_S pos).
+    replace (p ^+ natToW 8 ^+ ($1 ^+ natToW pos) ^* $8)
+      with (p ^+ (($1 ^+ natToW pos) ^* $8 ^+ natToW 8)) by words.
+    replace (p ^+ natToW 8 ^+ natToW pos ^* natToW 8)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8) by words.
+    replace (p ^+ ($1 ^+ natToW pos) ^* natToW 8 ^+ natToW 4)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8 ^+ natToW 4) by words.
+    sepLemma.
+  Qed.
+
+  Theorem isolate_fwd : forall ws p pos,
+    (wordToNat pos < length ws)%nat
+    -> wstuple'_isolating ws p pos
+       ===> Ex tag, Ex sp, wstuple' (firstn (wordToNat pos) ws) p
+                           * (p ^+ pos ^* $8) =*> tag * (p ^+ pos ^* $8 ^+ $4) =*> sp
+                           * wsitem (nth_default (WSWord 0) ws (wordToNat pos)) tag sp
+                           * wstuple' (tl (skipn (wordToNat pos) ws)) (p ^+ $(S (wordToNat pos) * 8)).
+  Proof.
+    intros; eapply Himp_trans; [ apply isolate_fwd'; eauto | ].
+    sepLemma.
+    unfold natToW; rewrite natToWord_wordToNat.
+    sepLemma.
+  Qed.
+
+  Lemma isolate_bwd' : forall ws p pos,
+    (pos < length ws)%nat
+    -> (Ex tag, Ex sp, wstuple' (firstn pos ws) p
+                       * (p ^+ $(pos) ^* $8) =*> tag * (p ^+ $(pos) ^* $8 ^+ $4) =*> sp
+                       * wsitem (nth_default (WSWord 0) ws pos) tag sp
+                       * wstuple' (tl (skipn pos ws)) (p ^+ $(S pos * 8)))
+       ===> wstuple'_isolating ws p pos.
+  Proof.
+    unfold wstuple'_isolating; induction ws; simpl; intros.
+
+    omega.
+
+    destruct a; simpl.
+
+    destruct pos; simpl.
+    change ($0 ^* $8) with (natToW 0).
+    change (1 * 8)%nat with 8.
+    sepLemma.
+    eapply Himp_trans; [ | eapply Himp_star_frame; [ apply Himp_refl | eapply (IHws _ pos); omega ] ].
+    sepLemma; fold (@firstn WS) (@skipn WS); simpl.
+    change (nth_default (WSWord 0) (WSWord w :: ws) (S pos))
+           with (nth_default (WSWord 0) ws pos).
+    replace (S (S pos) * 8)%nat with (S pos * 8 + 8)%nat by omega; rewrite natToW_plus.
+    repeat rewrite wtimes8.
+    rewrite (natToW_S pos).
+    replace (p ^+ natToW 8 ^+ ($1 ^+ natToW pos) ^* $8)
+      with (p ^+ (($1 ^+ natToW pos) ^* $8 ^+ natToW 8)) by words.
+    replace (p ^+ natToW 8 ^+ natToW pos ^* natToW 8)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8) by words.
+    replace (p ^+ ($1 ^+ natToW pos) ^* natToW 8 ^+ natToW 4)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8 ^+ natToW 4) by words.
+    sepLemma.
+
+    destruct pos; simpl.
+    change ($0 ^* $8) with (natToW 0).
+    change (1 * 8)%nat with 8.
+    sepLemma.
+    apply Himp'_ex; intro tag.
+    apply Himp'_ex; intro sp.
+    repeat (eapply Himp_trans; [ apply Himp_star_assoc | ]).
+    eapply Himp_trans; [ apply Himp_ex_star | ].
+    apply Himp'_ex; intro sp'.
+    apply Himp_ex_c; exists sp'.
+    eapply Himp_trans; [ | eapply Himp_star_frame; [ apply Himp_refl | eapply (IHws _ pos); omega ] ].
+    sepLemma; fold (@firstn WS) (@skipn WS); simpl.
+    change (nth_default (WSWord 0) (WSBytes capacity s :: ws) (S pos))
+           with (nth_default (WSWord 0) ws pos).
+    replace (S (S pos) * 8)%nat with (S pos * 8 + 8)%nat by omega; rewrite natToW_plus.
+    repeat rewrite wtimes8.
+    rewrite (natToW_S pos).
+    replace (p ^+ natToW 8 ^+ ($1 ^+ natToW pos) ^* $8)
+      with (p ^+ (($1 ^+ natToW pos) ^* $8 ^+ natToW 8)) by words.
+    replace (p ^+ natToW 8 ^+ natToW pos ^* natToW 8)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8) by words.
+    replace (p ^+ ($1 ^+ natToW pos) ^* natToW 8 ^+ natToW 4)
+      with (p ^+ ($1 ^+ natToW pos) ^* $8 ^+ natToW 4) by words.
+    sepLemma.
+  Qed.
+
+  Theorem isolate_bwd : forall ws p pos,
+    (wordToNat pos < length ws)%nat
+    -> (Ex tag, Ex sp, wstuple' (firstn (wordToNat pos) ws) p
+                       * (p ^+ pos ^* $8) =*> tag * (p ^+ pos ^* $8 ^+ $4) =*> sp
+                       * wsitem (nth_default (WSWord 0) ws (wordToNat pos)) tag sp
+                       * wstuple' (tl (skipn (wordToNat pos) ws)) (p ^+ $(S (wordToNat pos) * 8)))
+       ===> wstuple'_isolating ws p pos.
+  Proof.
+    intros; eapply Himp_trans; [ | apply isolate_bwd'; eauto ].
+    sepLemma.
+    unfold natToW; rewrite natToWord_wordToNat.
     sepLemma.
   Qed.
 End Adt.
@@ -191,16 +393,6 @@ Proof.
   sepLemma.
 Qed.
 
-Lemma wtimes8 : forall n,
-      natToW (n * 8) = natToW n ^* $8.
-Proof.
-  intros.
-  replace (n * 8) with (8 * n) by omega.
-  simpl.
-  repeat rewrite natToW_plus.
-  words.
-Qed.
-
 Opaque mult.
 
 Lemma blob_absorb : forall (len tmpl self : W),
@@ -260,9 +452,11 @@ Qed.
 
 Definition hints : TacPackage.
   prepare (wstuple_fwd, wstuple'_nil_fwd, wstuple'_word_fwd, wstuple'_bytes_fwd,
-           expose_words, wstuple'_nonzero_fwd, wsitem_word_fwd, wsitem_bytes_fwd)
+           expose_words, wstuple'_nonzero_fwd, wsitem_word_fwd, wsitem_bytes_fwd,
+           isolate_fwd)
           (wstuple_bwd, wstuple'_nil_bwd, wstuple'_word_bwd, wstuple'_bytes_bwd,
-           zeroes_nonzero_bwd, blob_absorb, blob_absorb2).
+           zeroes_nonzero_bwd, blob_absorb, blob_absorb2,
+           wsitem_word_bwd, wsitem_bytes_bwd, isolate_bwd).
 Defined.
 
 Definition newS := SPEC("extra_stack", "len") reserving 8
@@ -280,6 +474,24 @@ Definition copyS := SPEC("extra_stack", "self", "len") reserving 20
          * [| wordToNat (V "len") = length ws |]
          * mallocHeap 0
   POST[R] wstuple ws R * wstuple ws (V "self") * mallocHeap 0.
+
+Definition item (w : option WS) (p : W) :=
+  match w with
+  | None => [| False |]
+  | Some (WSWord w') => [| p = w' |]
+  | Some (WSBytes capacity bs) => bytes capacity bs p
+  end%Sep.
+
+Definition getS := SPEC("extra_stack", "self", "pos") reserving 16
+  Al ws,
+  PRE[V] wstuple ws (V "self")
+         * [| wordToNat (V "pos") < length ws |]%nat
+         * mallocHeap 0
+  POST[R] item (List.nth_error ws (wordToNat (V "pos"))) R
+          * wstuple ws (V "self") * mallocHeap 0.
+
+Inductive reveal_isolation : Prop := RevealIsolation.
+Hint Constructors reveal_isolation.
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "ByteString"!"delete" @ [ByteString.deleteS],
@@ -355,7 +567,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return 0
     end
 
-    with*) bfunction "copy"("extra_stack", "self", "len", "new", "p", "tag", "data") [copyS]
+    with bfunction "copy"("extra_stack", "self", "len", "new", "p", "tag", "data") [copyS]
       "tag" <- "len" * 2;;
       "new" <-- Call "malloc"!"malloc"(0, "tag")
       [Al ws,
@@ -402,6 +614,29 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       };;
 
       Return "new"
+    end
+
+    with*) bfunction "get"("extra_stack", "self", "pos") [getS]
+      Note [reveal_isolation];;
+      Assert [Al ws,
+        PRE[V] wstuple'_isolating ws (V "self") (V "pos")
+               * [| wordToNat (V "pos") < length ws |]%nat
+               * mallocHeap 0
+        POST[R] item (List.nth_error ws (wordToNat (V "pos"))) R
+                * wstuple'_isolating ws (V "self") (V "pos") * mallocHeap 0];;
+
+      "pos" <- "pos" * 8;;
+      "self" <- "self" + "pos";;
+      "extra_stack" <-* "self";;
+      If ("extra_stack" = 0) {
+        "extra_stack" <-* "self"+4
+      } else {
+        "extra_stack" <-* "self"+4;;
+        "extra_stack" <-- Call "ByteString"!"copy"("extra_stack", "extra_stack")
+        [PRE[_, R] Emp
+         POST[R'] [| R' = R |]]
+      };;
+      Return "extra_stack"
     end
   }}.
 
@@ -717,6 +952,21 @@ Hint Extern 1 (goodSize (wordToNat ?w * 2)) =>
 Hint Rewrite times2
      using eapply goodSize_weaken; [ eapply containsWstuple_goodSize; [ eassumption | solve [ eauto ] ] | fold (@length WS) in *; omega ] : sepFormula.
 
+Lemma nth_error_Some : forall v ls pos,
+    nth_default (WSWord 0) ls pos = v
+    -> (pos < length ls)%nat
+    -> nth_error ls pos = Some v.
+Proof.
+  unfold nth_default; induction ls; destruct pos; simpl; intuition.
+  subst; auto.
+Qed.
+
+Hint Extern 1 (himp _ _ _) =>
+  match goal with
+  | [ H : nth_default _ _ _ = _ |- _ ] =>
+    rewrite H; erewrite nth_error_Some by eassumption; simpl; solve [ step hints ]
+  end.
+
 Ltac that_tricky_case :=
   match goal with
   | [ |- interp _ (?P ---> ?Q)%PropX ] =>
@@ -728,7 +978,11 @@ Ltac that_tricky_case :=
     end
   end.
 
-Ltac t' := post; evaluate hints; descend; step hints; repeat (that_tricky_case || (descend; step hints)); eauto.
+Ltac t' :=
+  try match goal with
+      | [ |- context[reveal_isolation] ] => unfold wstuple'_isolating
+      end;
+  post; evaluate hints; descend; step hints; repeat (that_tricky_case || (descend; step hints)); eauto.
 Ltac t := solve [ enterFunction | t' ].
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -773,7 +1027,7 @@ Proof.
   t.
   t.
   t.
-  t.*)
+  t.
 
   t.
   t.
@@ -793,5 +1047,52 @@ Proof.
   t.
   t.
   t.
+  t.*)
+
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
+  post.
+  evaluate hints.
+  descend.
+  step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  descend; step hints.
+  auto.
+  descend; step hints.
+  auto.
+
+  t.
+  t.
+
+  post.
+
+  evaluate hints.
+  descend.
+  step hints.
+  step hints.
+  descend; step hints.
+
+  evaluate hints.
+  descend.
+  step hints.
+  step hints.
+  descend; step hints.
+
+      
+
 Qed.
