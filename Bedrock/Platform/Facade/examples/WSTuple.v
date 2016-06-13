@@ -499,6 +499,16 @@ Definition putWS := SPEC("extra_stack", "self", "pos", "val") reserving 9
          * wstuple (PutAt ws (wordToNat (V "pos")) (WSWord (V "val"))) (V "self")
          * mallocHeap 0.
 
+Definition putStringS := SPEC("extra_stack", "self", "pos", "val") reserving 9
+  Al ws, Al capacity, Al bs,
+  PRE[V] wstuple ws (V "self")
+         * [| wordToNat (V "pos") < length ws |]%nat
+         * bytes capacity bs (V "val")
+         * mallocHeap 0
+  POST[R] [| R = 0 |]
+         * wstuple (PutAt ws (wordToNat (V "pos")) (WSBytes capacity bs)) (V "self")
+         * mallocHeap 0.
+
 Inductive reveal_isolation : Prop := RevealIsolation.
 Hint Constructors reveal_isolation.
 
@@ -648,7 +658,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "extra_stack"
     end
 
-    with*) bfunction "putW"("extra_stack", "self", "pos", "val") [putWS]
+    with bfunction "putW"("extra_stack", "self", "pos", "val") [putWS]
       Note [reveal_isolation];;
       Assert [Al ws,
               PRE[V] wstuple'_isolating ws (V "self") (V "pos")
@@ -667,6 +677,34 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       } else {
         "extra_stack" <-* "self"+4;;
         "self" *<- 0;;
+        "self"+4 *<- "val";;
+        Call "ByteString"!"delete"("extra_stack", "extra_stack")
+        [PRE[_] Emp
+         POST[R] [| R = 0 |]]
+      };;
+      Return 0
+    end
+
+    with*) bfunction "putString"("extra_stack", "self", "pos", "val") [putStringS]
+      Note [reveal_isolation];;
+      Assert [Al ws, Al capacity, Al bs,
+              PRE[V] wstuple'_isolating ws (V "self") (V "pos")
+                     * [| wordToNat (V "pos") < length ws |]%nat
+                     * [| wordToNat (V "pos") < length (PutAt ws (wordToNat (V "pos")) (WSBytes capacity bs)) |]%nat
+                     * bytes capacity bs (V "val")
+                     * mallocHeap 0
+              POST[R] [| R = 0 |]
+                      * wstuple'_isolating (PutAt ws (wordToNat (V "pos")) (WSBytes capacity bs)) (V "self") (V "pos")
+                      * mallocHeap 0];;
+
+      "pos" <- "pos" * 8;;
+      "self" <- "self" + "pos";;
+      "extra_stack" <-* "self";;
+      If ("extra_stack" = 0) {
+        "self" *<- 1;;
+        "self"+4 *<- "val"
+      } else {
+        "extra_stack" <-* "self"+4;;
         "self"+4 *<- "val";;
         Call "ByteString"!"delete"("extra_stack", "extra_stack")
         [PRE[_] Emp
@@ -1093,6 +1131,20 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
