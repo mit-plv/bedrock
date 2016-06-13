@@ -566,6 +566,5 @@ Ltac t := try solve [ enterFunction ];
 
 Theorem ok : moduleOk m.
 Proof.
-Admitted.
-(*  vcgen; abstract t.
-Qed.*)
+  vcgen; abstract t.
+Qed.
