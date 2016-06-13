@@ -490,6 +490,15 @@ Definition getS := SPEC("extra_stack", "self", "pos") reserving 16
   POST[R] item (List.nth_error ws (wordToNat (V "pos"))) R
           * wstuple ws (V "self") * mallocHeap 0.
 
+Definition putWS := SPEC("extra_stack", "self", "pos", "val") reserving 9
+  Al ws,
+  PRE[V] wstuple ws (V "self")
+         * [| wordToNat (V "pos") < length ws |]%nat
+         * mallocHeap 0
+  POST[R] [| R = 0 |]
+         * wstuple (PutAt ws (wordToNat (V "pos")) (WSWord (V "val"))) (V "self")
+         * mallocHeap 0.
+
 Inductive reveal_isolation : Prop := RevealIsolation.
 Hint Constructors reveal_isolation.
 
@@ -616,7 +625,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return "new"
     end
 
-    with*) bfunction "get"("extra_stack", "self", "pos") [getS]
+    with bfunction "get"("extra_stack", "self", "pos") [getS]
       Note [reveal_isolation];;
       Assert [Al ws,
         PRE[V] wstuple'_isolating ws (V "self") (V "pos")
@@ -637,6 +646,33 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
          POST[R'] [| R' = R |]]
       };;
       Return "extra_stack"
+    end
+
+    with*) bfunction "putW"("extra_stack", "self", "pos", "val") [putWS]
+      Note [reveal_isolation];;
+      Assert [Al ws,
+              PRE[V] wstuple'_isolating ws (V "self") (V "pos")
+                     * [| wordToNat (V "pos") < length ws |]%nat
+                     * [| wordToNat (V "pos") < length (PutAt ws (wordToNat (V "pos")) (WSWord (V "val"))) |]%nat
+                     * mallocHeap 0
+              POST[R] [| R = 0 |]
+                      * wstuple'_isolating (PutAt ws (wordToNat (V "pos")) (WSWord (V "val"))) (V "self") (V "pos")
+                      * mallocHeap 0];;
+
+      "pos" <- "pos" * 8;;
+      "self" <- "self" + "pos";;
+      "extra_stack" <-* "self";;
+      If ("extra_stack" = 0) {
+        "self"+4 *<- "val"
+      } else {
+        "extra_stack" <-* "self"+4;;
+        "self" *<- 0;;
+        "self"+4 *<- "val";;
+        Call "ByteString"!"delete"("extra_stack", "extra_stack")
+        [PRE[_] Emp
+         POST[R] [| R = 0 |]]
+      };;
+      Return 0
     end
   }}.
 
@@ -982,12 +1018,34 @@ Ltac t' :=
   try match goal with
       | [ |- context[reveal_isolation] ] => unfold wstuple'_isolating
       end;
-  post; evaluate hints; descend; step hints; repeat (that_tricky_case || (descend; step hints)); eauto.
+  post; evaluate hints; descend; step hints; repeat (that_tricky_case || (try fold (@firstn WS); descend; step hints)); (try (progress fold (@length WS); autorewrite with sepFormula); eauto).
 Ltac t := solve [ enterFunction | t' ].
 
 Local Hint Extern 1 (@eq W _ _) => words.
 Local Hint Extern 1 (freeable _ _) => congruence.
-Hint Rewrite Minus.minus_diag : sepFormula.
+Hint Rewrite Minus.minus_diag length_PutAt : sepFormula.
+
+Lemma firstn_PutAt : forall A def (ls : list A) n,
+    firstn n (PutAt ls n def) = firstn n ls.
+Proof.
+  induction ls; destruct n; simpl; auto.
+  rewrite IHls; auto.
+Qed.
+
+Lemma skipn_PutAt : forall A def (ls : list A) n,
+    tl (skipn n (PutAt ls n def)) = tl (skipn n ls).
+Proof.
+  induction ls; destruct n; simpl; auto.
+Qed.
+
+Lemma nth_default_PutAt : forall A def (ls : list A) n v,
+    (n < length ls)%nat
+    -> nth_default def (PutAt ls n v) n = v.
+Proof.
+  unfold nth_default; induction ls; destruct n; simpl; intuition.
+Qed.
+
+Hint Rewrite firstn_PutAt skipn_PutAt nth_default_PutAt using assumption : sepFormula.
 
 Transparent mult.
 
@@ -1035,6 +1093,20 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+
   t.
   t.
   t.
