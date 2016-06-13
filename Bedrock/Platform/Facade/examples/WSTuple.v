@@ -516,7 +516,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
                            "ByteString"!"delete" @ [ByteString.deleteS],
                            "ByteString"!"copy" @ [ByteString.copyS] ]]
   bmodule "WSTuple" {{
-    (*bfunction "new"("extra_stack", "len", "tmp") [newS]
+    bfunction "new"("extra_stack", "len", "tmp") [newS]
       "extra_stack" <- "len" * 2;;
       "extra_stack" <-- Call "malloc"!"malloc"(0, "extra_stack")
       [PRE[V, R] R =?> (wordToNat (V "len") * 2) * [| goodSize (wordToNat (V "len") * 2) |]
@@ -685,7 +685,7 @@ Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [fre
       Return 0
     end
 
-    with*) bfunction "putString"("extra_stack", "self", "pos", "val") [putStringS]
+    with bfunction "putString"("extra_stack", "self", "pos", "val") [putStringS]
       Note [reveal_isolation];;
       Assert [Al ws, Al capacity, Al bs,
               PRE[V] wstuple'_isolating ws (V "self") (V "pos")
@@ -750,20 +750,10 @@ Hint Rewrite length_zeroes : sepFormula.
 Lemma goodSize_minus1 : forall w : W,
     goodSize (wordToNat w * 2)
     -> w <> $0
-    -> goodSize (wordToNat (w ^- $1) * 2).
+    -> goodSize ((wordToNat w - 1) * 2).
 Proof.
   intros.
   eapply goodSize_weaken; eauto.
-  rewrite wordToNat_wminus.
-  change (wordToNat ($1)) with 1.
-  omega.
-  pre_nomega.
-  case_eq (wordToNat w); intros.
-  apply (f_equal (natToWord 32)) in H1.
-  rewrite natToWord_wordToNat in H1.
-  tauto.
-  change (wordToNat ($1)) with 1.
-  omega.
 Qed.
 
 Hint Immediate goodSize_minus1.
@@ -1056,7 +1046,7 @@ Ltac t' :=
   try match goal with
       | [ |- context[reveal_isolation] ] => unfold wstuple'_isolating
       end;
-  post; evaluate hints; descend; step hints; repeat (that_tricky_case || (try fold (@firstn WS); descend; step hints)); (try (progress fold (@length WS); autorewrite with sepFormula); eauto).
+  post; evaluate hints; descend; step hints; repeat (that_tricky_case || (try fold (@firstn WS); descend; step hints)); (try (progress fold (@length WS) in *; autorewrite with sepFormula); eauto).
 Ltac t := solve [ enterFunction | t' ].
 
 Local Hint Extern 1 (@eq W _ _) => words.
@@ -1091,26 +1081,6 @@ Theorem ok : moduleOk m.
 Proof.
   vcgen.
 
-  (*t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
-
-  t.
-  t.
-  t.
-  t.
-  t.
-  t.
   t.
   t.
   t.
@@ -1158,6 +1128,12 @@ Proof.
   t.
   t.
   t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
   t.
   t.
@@ -1171,7 +1147,21 @@ Proof.
   t.
   t.
   t.
-  t.*)
+  t.
+
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
+  t.
 
   t.
   t.
