@@ -5,7 +5,7 @@ Require Import Bedrock.Platform.Facade.examples.QsADTs.
 Import Adt.
 Require Import Bedrock.Platform.Cito.RepInv.
 
-Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString Bedrock.Platform.Facade.examples.WSTuple.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
@@ -15,12 +15,10 @@ Definition rep_inv p adtvalue : HProp :=
     | WBagOfTuples0 len ts => tuples0 len ts p
     | WBagOfTuples1 len key ts => tuples1 len key ts p
     | WBagOfTuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
-    | WSTuple _ => [| False |]
+    | WSTuple ws => wstuple ws p
     | WSTupleList _ => [| False |]
     | ByteString capacity bs => bytes capacity bs p
     | WSTrie _ _ _ => [| False |]
-    | WSBagOfTuples1 _ _ _ => [| False |]
-    | NestedWSTrieWSBagOfTuples1 _ _ _ _ => [| False |]
   end%Sep.
 
 Module Ri <: RepInv QsADTs.Adt.
@@ -53,7 +51,12 @@ Module Ri <: RepInv QsADTs.Adt.
 
     eapply Himp_trans; [ apply tuples2_fwd | sepLemma ]; apply any_easy.
 
-    sepLemma.
+    eapply Himp_trans; [ apply wstuple_fwd | ].
+    destruct t; simpl in *.
+    sepLemma; omega.
+    destruct w; sepLemma.
+    eapply Himp_trans; [ apply wstuple'_word_fwd | sepLemma ]; apply any_easy.
+    eapply Himp_trans; [ apply wstuple'_bytes_fwd | sepLemma ]; apply any_easy.
 
     sepLemma.
 
@@ -61,9 +64,8 @@ Module Ri <: RepInv QsADTs.Adt.
 
     sepLemma.
 
-    sepLemma.
-
-    sepLemma.
+    Grab Existential Variables.
+    exact 0.
   Qed.
 
 End Ri.

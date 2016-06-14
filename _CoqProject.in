@@ -364,6 +364,7 @@ Bedrock/Platform/Facade/examples/Tuples0F.v
 Bedrock/Platform/Facade/examples/Tuples1F.v
 Bedrock/Platform/Facade/examples/Tuples2F.v
 Bedrock/Platform/Facade/examples/TuplesF.v
+Bedrock/Platform/Facade/examples/WSTuple.v
 Bedrock/Platform/tests/Abort.v
 Bedrock/Platform/tests/AbortAMD64.v
 Bedrock/Platform/tests/AbortDriver.v
