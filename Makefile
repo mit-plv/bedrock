@@ -12,12 +12,12 @@ STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 ifneq (,$(wildcard .git)) # if we're in a git repo
 
 # if the submodule changed, update it
-SUBMODULE_DIFF=$(shell git diff etc/coq-scripts 2>&1)
+SUBMODULE_DIFF=$(shell git diff etc/coq-scripts 2>&1 | grep 'Subproject commit')
 SUBMODULE_DIRTY=$(shell git diff etc/coq-scripts 2>&1 | grep dirty)
 ifneq (,$(SUBMODULE_DIRTY))
 submodule-update::
-	@ echo "\[\033[0;31m\]The submodule is dirty; some scripts may fail.\[\033[0m\]"
-	@ echo "\[\033[0;31m\]Run (cd etc/coq-scripts && git clean -xfd && git reset --hard)\[\033[0m\]"
+	@ echo "\033[0;31mThe submodule is dirty; some scripts may fail.\033[0m"
+	@ echo "\033[0;31mRun (cd etc/coq-scripts && git clean -xfd && git reset --hard)\033[0m"
 else
 ifneq (,$(SUBMODULE_DIFF))
 submodule-update::
@@ -46,6 +46,8 @@ FAST_TARGETS += dist version package admit etc/coq-scripts etc/coq-scripts/Makef
 SUPER_FAST_TARGETS += submodule-update
 
 Makefile.coq: etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early
+
+ML_COMPATIBILITY_FILES = Bedrock/reification/reif_tactics.ml Bedrock/reification/reif.ml4 Bedrock/reification/extlib.mli Bedrock/reification/extlib.ml
 
 -include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early
 -include etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-ocaml
@@ -202,10 +204,11 @@ ifneq (,$(filter 8.4%,$(COQ_VERSION))) # 8.4 - this is a kludge to get around th
 EXPECTED_EXT:=.v84
 ML_DESCRIPTION := "Coq v8.4"
 else
-ifeq ($(NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL),1) # <= 8.4
-EXPECTED_EXT:=.v84
-ML_DESCRIPTION := "Coq v8.4"
+ifneq (,$(filter 8.6%,$(COQ_VERSION)))
+EXPECTED_EXT:=.v86
+ML_DESCRIPTION := "Coq v8.5"
 else
+ifneq (,$(filter 8.5%,$(COQ_VERSION)))
 ifeq ($(NOT_EXISTS_UNSAFE_TYPE_OF),1) # <= 8.5beta2
 EXPECTED_EXT:=.v85beta2
 ML_DESCRIPTION := "Coq > 8.4 && <= 8.5beta2"
@@ -213,9 +216,19 @@ else
 EXPECTED_EXT:=.v85
 ML_DESCRIPTION := "Coq > 8.5beta2"
 endif
+else
+ifeq ($(NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL),1) # <= 8.4
+EXPECTED_EXT:=.v84
+ML_DESCRIPTION := "Coq v8.4"
+else
+EXPECTED_EXT:=.trunk
+ML_DESCRIPTION := "Coq trunk"
+endif
+endif
 endif
 endif
 
+$(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/reif_tactics.ml,$(EXPECTED_EXT)))
 $(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/reif.ml4,$(EXPECTED_EXT)))
 $(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/extlib.ml,$(EXPECTED_EXT)))
 $(eval $(call SET_ML_COMPATIBILITY,Bedrock/reification/extlib.mli,$(EXPECTED_EXT)))
@@ -225,7 +238,7 @@ endif
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 $(UPDATE_COQPROJECT_TARGET):
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; (git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml"; echo 'Bedrock/reification/extlib.mli'; echo 'Bedrock/reification/extlib.ml'; echo 'Bedrock/reification/reif.ml4') | $(SORT_COQPROJECT)) > _CoqProject.in
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; ((git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml" "Bedrock/reification/*.mllib"; (echo '$(ML_COMPATIBILITY_FILES)' | tr ' ' '\n')) | $(SORT_COQPROJECT))) > _CoqProject.in
 
 time:
 	@ rm -rf timing
