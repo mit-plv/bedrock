@@ -27,12 +27,16 @@ timing/
 .coq-version
 *.cmo
 *.cmx
+*.cmxa
 *.cmxs
 *.cmi
 *.o
+*.a
 *.ml4.d
 *.ml.d
 *.mli.d
+*.mllib.d
+*.a
 
 *.html
 *.v.tex
