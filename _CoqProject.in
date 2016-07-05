@@ -432,6 +432,7 @@ Bedrock/sep/Array8.v
 Bedrock/sep/Locals.v
 Bedrock/sep/PtsTo.v
 Bedrock/ILTac.v
+Bedrock/Coq__8_4__8_5__Compat.v
 Bedrock/reification/extlib.ml
 Bedrock/reification/extlib.mli
 Bedrock/reification/reif.ml4

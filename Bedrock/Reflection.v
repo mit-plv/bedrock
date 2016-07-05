@@ -1,5 +1,6 @@
 Require Import Coq.omega.Omega.
 Require Coq.Setoids.Setoid.
+Require Export Bedrock.Coq__8_4__8_5__Compat.
 
 (** This file defines some inductives, type-classes and tactics to
 perform reflection on a small scale *)
@@ -151,6 +152,7 @@ Ltac consider f :=
 (**  Some tests *)
 Section test.
   Require Import Coq.Numbers.Natural.Peano.NPeano Coq.Bool.Bool.
+  Import NPeano.
 
   Require Import Coq.omega.Omega.
   Goal forall x y z,  (ltb x y && ltb y z) = true ->

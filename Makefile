@@ -238,7 +238,7 @@ endif
 reification: Bedrock/reification/extlib.cmi $(REIFICATION_VO)
 
 $(UPDATE_COQPROJECT_TARGET):
-	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; ((git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml" "Bedrock/reification/*.mllib"; (echo '$(ML_COMPATIBILITY_FILES)' | tr ' ' '\n')) | $(SORT_COQPROJECT))) > _CoqProject.in
+	(echo '-R Bedrock Bedrock'; echo '-I Bedrock/reification'; git ls-files "Bedrock/*.v" | grep -v '^Bedrock/ILTac.v$$' | grep -v '^$(COMPATIBILITY_FILE)$$' | $(SORT_COQPROJECT); echo 'Bedrock/ILTac.v'; echo '$(COMPATIBILITY_FILE)'; ((git ls-files "Bedrock/reification/*.mli" "Bedrock/reification/*.ml4" "Bedrock/reification/*.ml" "Bedrock/reification/*.mllib"; (echo '$(ML_COMPATIBILITY_FILES)' | tr ' ' '\n')) | $(SORT_COQPROJECT))) > _CoqProject.in
 
 time:
 	@ rm -rf timing
