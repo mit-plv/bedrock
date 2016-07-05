@@ -45,6 +45,17 @@ HASNATDYNLINK = true
 FAST_TARGETS += dist version package admit etc/coq-scripts etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early submodule-update time
 SUPER_FAST_TARGETS += submodule-update
 
+REIF_VERSION := $(patsubst ILTac%.v,%,$(shell readlink Bedrock/ILTac.v))
+
+ifneq ($(REIF_VERSION),ML)
+FAST_TARGETS += native
+SUPER_FAST_TARGETS += native
+endif
+ifneq ($(REIF_VERSION),Ltac)
+FAST_TARGETS += ltac
+SUPER_FAST_TARGETS += ltac
+endif
+
 Makefile.coq: etc/coq-scripts/Makefile.coq.common etc/coq-scripts/compatibility/Makefile.coq.compat_84_85 etc/coq-scripts/compatibility/Makefile.coq.compat_84_85-early
 
 ML_COMPATIBILITY_FILES = Bedrock/reification/reif_tactics.ml Bedrock/reification/reif.ml4 Bedrock/reification/extlib.mli Bedrock/reification/extlib.ml
@@ -247,8 +258,6 @@ time:
 	@ cp -r Bedrock/Makefile Bedrock/Makefile.coq Bedrock/reification/ timing/Bedrock
 	@ cp Bedrock/Examples/Makefile Bedrock/Examples/Makefile.coq timing/Bedrock/Examples
 	@ (cd timing; $(MAKE) all)
-
-REIF_VERSION := $(patsubst ILTac%.v,%,$(shell readlink Bedrock/ILTac.v))
 
 ifeq ($(REIF_VERSION),ML)
 native: reification
