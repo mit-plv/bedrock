@@ -2,6 +2,7 @@ Require Import Coq.FSets.FMapInterface Coq.FSets.FMapFacts.
 Require Import Coq.Lists.List.
 Require Import Bedrock.NatMap.
 Require Coq.Sorting.Permutation.
+Import Bedrock.Coq__8_4__8_5__Compat.
 
 Set Implicit Arguments.
 Set Strict Implicit.
