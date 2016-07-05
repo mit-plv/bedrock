@@ -1,5 +1,5 @@
-Require Import Eqdep_dec.
-Require Import Bool.
+Require Import Coq.Logic.Eqdep_dec.
+Require Import Coq.Bool.Bool.
 
 Module BoolDT <: DecidableType.
   Definition U := bool.
@@ -13,6 +13,6 @@ Proof.
   eapply UIP.
 Qed.
 
-Require Import Sumbool.
+Require Import Coq.Bool.Sumbool.
 
 Definition boolcase := sumbool_of_bool.

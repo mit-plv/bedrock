@@ -1,10 +1,10 @@
-Require Import SyntaxExpr.
-Require Import DFacadeFacts.
-Require Import DFacade.
-Require Import Setoid.
-Require Import StringMap.
+Require Import Bedrock.Platform.Cito.SyntaxExpr.
+Require Import Bedrock.Platform.Facade.DFacadeFacts.
+Require Import Bedrock.Platform.Facade.DFacade.
+Require Import Coq.Setoids.Setoid.
+Require Import Bedrock.Platform.Cito.StringMap.
 Import StringMap.
-Require Import StringMapFacts.
+Require Import Bedrock.Platform.Cito.StringMapFacts.
 Import FMapNotations.
 Local Open Scope fmap_scope.
 
@@ -143,7 +143,7 @@ Section ADTValue.
       eauto.
     }
     {
-      Require Import GeneralTactics3.
+      Require Import Bedrock.Platform.Cito.GeneralTactics3.
       unfold_all.
       rename H into Hcond.
       rewrite Heq1 in Hcond.

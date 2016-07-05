@@ -1,5 +1,5 @@
-Require Import Memory.
-Require Import Word.
+Require Import Bedrock.Memory.
+Require Import Bedrock.Word.
 
 Lemma weqb_complete (x y : W) : x = y -> Word.weqb x y = true.
 Proof.
