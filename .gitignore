@@ -27,6 +27,7 @@ timing/
 .coq-version
 *.cmo
 *.cmx
+*.cma
 *.cmxa
 *.cmxs
 *.cmi
