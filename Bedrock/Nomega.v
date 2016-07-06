@@ -1,6 +1,7 @@
 (* Make [omega] work for [N] *)
 
 Require Import Coq.Arith.Arith Coq.omega.Omega Coq.NArith.NArith.
+Require Export Bedrock.Coq__8_4__8_5__Compat.
 
 Local Open Scope N_scope.
 
