@@ -339,7 +339,7 @@ Section Cond.
                   repeat esplit; eauto; propxFo
             end;
         repeat apply Forall_app;
-          (eapply blocks_ok; (intros; eauto; propxFo;
+          (eapply blocks_ok; [ intros; eauto; propxFo;
             try match goal with
                   | [ H : bexpD ?b ?stn ?st = _ |- _ ] => specialize (bexpD_truth stn st b); rewrite H; tauto
                 end;
@@ -354,7 +354,7 @@ Section Cond.
                   end; auto; eapply lookup_imps in H; rewrite length_size; eauto
               | [ H : nth_error ?Blocks ?n = Some _ |- LabelMap.MapsTo (_, Local (_ + N.of_nat ?n)) _ ?m ] =>
                 apply imps_app_1; auto; eapply lookup_imps; rewrite Nat2N.id; eauto
-            end)) || eauto 15).
+            end.. ]) || eauto 15).
   Defined.
 
 End Cond.
