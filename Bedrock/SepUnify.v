@@ -88,7 +88,7 @@ Module Make (U : SynUnifier) (SH : SepHeap).
         rewrite IHe. heq_canceler.
 
         red. intros. specialize (H0 y). repeat (rewrite MM.FACTS.add_o in * || rewrite MM.FACTS.map_o in * ).
-        unfold exprs in *. rewrite H0. unfold MM.FACTS.option_map. destruct (MF.FACTS.eq_dec n y); auto.
+        unfold exprs in *. rewrite H0. unfold SepHeap.MM.FACTS.option_map. destruct (MF.FACTS.eq_dec n y); auto.
 
         intro. apply H. apply MM.FACTS.map_in_iff in H1. auto.
     Qed.
