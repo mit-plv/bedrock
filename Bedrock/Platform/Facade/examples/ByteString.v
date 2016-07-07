@@ -507,7 +507,7 @@ Lemma BtoW_WtoB : forall w b,
 Proof.
   intros; subst.
   unfold WtoB, BtoW.
-  apply split2_combine.
+  apply split1_combine.
 Qed.
 
 Lemma copy_final : forall capacity bs1 o bs2 r (u c : W),

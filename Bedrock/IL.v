@@ -389,8 +389,8 @@ Record state := {
   Mem : mem
 }.
 
-Definition WtoB : W -> B := split2 24 8.
-Definition BtoW : B -> W := combine (wzero 24) (sz2 := 8).
+Definition WtoB : W -> B := split1 8 24.
+Definition BtoW (b : B) : W := combine b (wzero 24).
 
 Section settings.
   Variable stn : settings.
