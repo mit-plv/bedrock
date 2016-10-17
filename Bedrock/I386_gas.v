@@ -154,6 +154,19 @@ Definition jmpS (j : jmp) : string :=
         | RvImm w1, RvImm w2 => if evalTest t w1 w2
           then tab ++ "jmp " ++ labelS lab1 ++ nl
           else tab ++ "jmp " ++ labelS lab2 ++ nl
+        | RvImm w, _ =>
+          let (rv2I, rv2S) := (if rvalueIsMem rv1 then rvalueSnomem else rvalueS) rv2 edx in
+          let tS :=
+              match t with
+              | Eq => "z"
+              | Ne => "nz"
+              | Lt => "a"
+              | Le => "nb"
+              end in
+          rv2I
+          ++ tab ++ "cmpl $" ++ binS w ++ "," ++ rv2S ++ nl
+          ++ tab ++ "j" ++ tS ++ " " ++ labelS lab1 ++ nl
+          ++ tab ++ "jmp " ++ labelS lab2 ++ nl
         | _, _ =>
           let (rv1I, rv1S) := rvalueS rv1 ecx in
           let (rv2I, rv2S) := (if rvalueIsMem rv1 then rvalueSnomem else rvalueS) rv2 edx in
