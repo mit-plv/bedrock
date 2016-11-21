@@ -157,13 +157,13 @@ Module AlgoPack (P : Package) (A : AlgoTypes P.SEP P.CE).
       let pf := constr:(fun ts fs ps => AllAlgos_correct_composite (algosCL ts fs ps) (algosCR ts fs ps)) in
       opaque pf ltac:(fun pf =>
       let res :=
-        constr:{|
+        constr:({|
           Types := ntypesV;
           Funcs := nfuncsV;
           Preds := npredsV;
           Algos := fun ts => AllAlgos_composite (algosL ts) (algosR ts);
           Algos_correct := pf
-        |} in
+        |}) in
         ret res)).
 **)
 

@@ -220,8 +220,8 @@ Ltac refl_app cc e :=
 (** Test whether two terms are unifiable *)
 Ltac unifies a b :=
   match goal with
-    | [ |- _ ] => let z := constr:(refl_equal _ : a = b) in constr:true
-    | [ |- _ ] => constr:false
+    | [ |- _ ] => let z := constr:(refl_equal _ : a = b) in constr:(true)
+    | [ |- _ ] => constr:(false)
   end.
 
 Ltac guard_unifies a b :=

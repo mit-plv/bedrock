@@ -1178,16 +1178,16 @@ Ltac step ext :=
 
 Ltac slotVariable E :=
   match E with
-    | 4 => constr:"0"
-    | 8 => constr:"1"
-    | 12 => constr:"2"
-    | 16 => constr:"3"
-    | 20 => constr:"4"
-    | 24 => constr:"5"
-    | 28 => constr:"6"
-    | 32 => constr:"7"
-    | 36 => constr:"8"
-    | 40 => constr:"9"
+    | 4 => constr:("0")
+    | 8 => constr:("1")
+    | 12 => constr:("2")
+    | 16 => constr:("3")
+    | 20 => constr:("4")
+    | 24 => constr:("5")
+    | 28 => constr:("6")
+    | 32 => constr:("7")
+    | 36 => constr:("8")
+    | 40 => constr:("9")
   end.
 
 Ltac slotVariables E :=
@@ -1325,7 +1325,7 @@ Ltac icall formals :=
   match goal with
     | [ H : context[locals ?ns ?vs ?avail ?p] |- exists pre', _ (Regs _ Rv) = Some pre' /\ _ ] =>
       let ns' := constr:("rp" :: formals) in
-        let avail' := constr:0 in
+        let avail' := constr:(0) in
           let offset := eval simpl in (4 * List.length ns) in
             change (locals ns vs avail p) with (locals_call ns vs avail p ns' avail' offset) in H;
               assert (ok_call ns ns' avail avail' offset)%nat
