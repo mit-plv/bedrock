@@ -217,7 +217,7 @@ ML_DESCRIPTION := "Coq v8.4"
 else
 ifneq (,$(filter 8.6%,$(COQ_VERSION)))
 EXPECTED_EXT:=.v86
-ML_DESCRIPTION := "Coq v8.5"
+ML_DESCRIPTION := "Coq v8.6"
 else
 ifneq (,$(filter 8.5%,$(COQ_VERSION)))
 ifeq ($(NOT_EXISTS_UNSAFE_TYPE_OF),1) # <= 8.5beta2
