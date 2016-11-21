@@ -3,7 +3,7 @@
     and we import several definitions from Coq's standard library.
 
     This general purpose library could be reused by other plugins.
-   
+
     Some salient points:
     - we use Caml's module system to mimic Coq's one, and avoid cluttering
     the namespace;
@@ -37,7 +37,7 @@ val cps_mk_letin : string -> Term.constr -> ( Term.constr -> Proof_type.tactic) 
 val decomp_term : Term.constr -> (Term.constr , Term.types) Term.kind_of_term
 val lapp : Term.constr lazy_t -> Term.constr array -> Term.constr
 
-type t = { body : Term.constr; 
+type t = { body : Term.constr;
 	   ty : Term.types}
 
 (** {2 Bindings with Coq' Standard Library}  *)
@@ -50,25 +50,25 @@ sig
 
   (** [of_list ty l]  *)
   val of_list:Term.constr ->Term.constr list ->Term.constr
-   
+
   (** [type_of_list ty] *)
   val type_of_list:Term.constr ->Term.constr
-    
+
   val of_constr : Term.constr -> Term.constr list * Term.types
 end
 
 module Tuple : sig
-  val of_list : (Term.constr * Term.types) list -> Term.constr * Term.types       
+  val of_list : (Term.constr * Term.types) list -> Term.constr * Term.types
 end
 
-module Logic : sig 
+module Logic : sig
   val _not : Term.constr lazy_t
   val _false : Term.constr lazy_t
   val is_not : Term.constr -> bool
   val exists : unit -> Term.constr
-  val conj : unit -> Term.constr 
-  val and_ : unit -> Term.constr 
-  val get_body_not : Term.constr -> Term.constr 
+  val conj : unit -> Term.constr
+  val and_ : unit -> Term.constr
+  val get_body_not : Term.constr -> Term.constr
 end
 
 (** Coq pairs *)
@@ -102,8 +102,8 @@ module Leibniz : sig
   val eq_refl : Term.types -> Term.constr -> Term.constr
   val _eq : Term.constr lazy_t
   val _eq_refl : Term.constr lazy_t
-  val eq : Term.types -> Term.constr -> Term.constr -> Term.constr 
-  val match_eq : Term.constr ->  (Term.constr * Term.constr) option 
+  val eq : Term.types -> Term.constr -> Term.constr -> Term.constr
+  val match_eq : Term.constr ->  (Term.constr * Term.constr) option
 end
 
 module Option : sig
@@ -114,7 +114,7 @@ module Option : sig
   val none : Term.constr -> Term.constr
   val of_option : Term.constr -> Term.constr option -> Term.constr
   val of_option' : Term.types -> Term.constr option -> t
-end   
+end
 
 (** Coq positive numbers (pos) *)
 module Pos:
@@ -128,7 +128,7 @@ module Nat:
 sig
   val typ:Term.constr lazy_t
   val of_int: int ->Term.constr
-  val _S : Term.constr lazy_t  
+  val _S : Term.constr lazy_t
   val _O : Term.constr lazy_t
 end
 
@@ -142,7 +142,7 @@ end
 module Pair2  : sig
   val pair :  Term.constr -> Term.constr -> Term.constr * Term.constr -> Term.constr
   val prod : Term.constr -> Term.constr -> Term.constr
-  
+
 end
 
 
@@ -156,11 +156,11 @@ sig
 end
 
 module Relation : sig
-  type t = {carrier : Term.constr; r : Term.constr;}	
+  type t = {carrier : Term.constr; r : Term.constr;}
   val make : Term.constr -> Term.constr -> t
   val split : t -> Term.constr * Term.constr
 end
-   
+
 module Transitive : sig
   type t =
       {
@@ -174,14 +174,14 @@ module Transitive : sig
   val cps_from_relation : Relation.t -> (t -> Proof_type.tactic) -> Proof_type.tactic
   val to_relation : t -> Relation.t
 end
-	
+
 module Equivalence : sig
   type t =
       {
 	carrier : Term.constr;
 	eq : Term.constr;
-	equivalence : Term.constr;	     
-      } 
+	equivalence : Term.constr;
+      }
   val make  : Term.constr -> Term.constr -> Term.constr -> t
   val infer  : goal_sigma -> Term.constr -> Term.constr -> t  * goal_sigma
   val from_relation : goal_sigma -> Relation.t -> t * goal_sigma
@@ -191,9 +191,9 @@ module Equivalence : sig
 end
 
 (** [match_as_equation ?context goal c] try to decompose c as a
-    relation applied to two terms. An optionnal rel_context can be
+    relation applied to two terms. An optionnal rel-context can be
     provided to ensure that the term remains typable *)
-val match_as_equation  : ?context:Context.rel_context -> goal_sigma -> Term.constr -> (Term.constr * Term.constr * Relation.t) option
+val match_as_equation  : ?context:Context.Rel.t -> goal_sigma -> Term.constr -> (Term.constr * Term.constr * Relation.t) option
 
 (** {2 Some tacticials}  *)
 
@@ -212,4 +212,3 @@ val tclPRINT : Proof_type.tactic -> Proof_type.tactic
 val anomaly : string -> 'a
 val user_error : string -> 'a
 val warning : string -> unit
-
