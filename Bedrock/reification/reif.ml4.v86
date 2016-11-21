@@ -2,6 +2,7 @@
 (*i camlp4use: "pa_extend.cmp" i*)
 
 open Reif_tactics
+open Constrarg
 
 DECLARE PLUGIN "reif"
 
