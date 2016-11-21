@@ -1,0 +1,86 @@
+(*i camlp4deps: "parsing/grammar.cma" i*)
+(*i camlp4use: "pa_extend.cmp" i*)
+
+open Reif_tactics
+
+DECLARE PLUGIN "reif"
+
+
+TACTIC EXTEND start_timer
+    | ["refl_app_cps" constr(term)  tactic(k)  ] ->
+      [
+	Proofview.V82.tactic (fun gl ->reify_application gl term k)
+      ]
+	END;;
+
+(* constr(types) constr(funcs) constr(uvars) constr(vars) tactic(k) *)
+TACTIC EXTEND plugin_
+    | ["reify_expr" constr(e)  ] ->
+      [
+	Proofview.V82.tactic
+	  begin fun gl ->
+	  let renv = Bedrock.Renv.empty in
+	  let env = Tacmach.pf_env gl in
+	  let evar = Tacmach.project gl in
+	  let _ = Format.printf "%s\n%!" (String.make 6 '*') in
+	  let renv, f = Bedrock.Expr.reify_expr env evar  renv e in
+	  Format.printf "Env\n%a\nExpr:%a\nReification:%a\n"  Bedrock.Renv.pp renv pp_constr e Bedrock.Expr.pp_expr f ;
+	  Bedrock.Renv.pose gl renv (fun types funcs preds uvars gl ->
+	    let t = Bedrock.Expr.dump_expr types f in
+	    debug_type_gl gl t "t";
+
+	    Tacticals.tclIDTAC gl
+	  )
+	  end
+      ]
+	END;;
+
+
+
+(* constr(types) constr(funcs) constr(uvars) constr(vars) tactic(k) *)
+TACTIC EXTEND plugin_2
+    | ["reify_sexpr" constr(e)  ] ->
+      [
+	Proofview.V82.tactic begin
+	fun gl ->
+	  let renv = Bedrock.Renv.empty in
+	  let env = Tacmach.pf_env gl in
+	  let evar = Tacmach.project gl in
+	  let _ = Format.printf "%s\n%!" (String.make 6 '*') in
+	  let renv, f = Bedrock.SepExpr.reify_sexpr env evar  renv e in
+	  Format.printf "Env\n%a\nSExpr:%a\nReification:%a\n" Bedrock.Renv.pp renv pp_constr e Bedrock.SepExpr.pp_sexpr f ;
+	  Bedrock.Renv.pose gl renv (fun types funcs preds uvars gl ->
+	    Tacticals.tclIDTAC gl
+	  )
+	  end
+      ]
+END;;
+
+TACTIC EXTEND plugin_3
+    | ["build_path_plugin" constr(l) constr(st)] -> [Proofview.V82.tactic (fun gl ->
+      Bedrock.SymIL.reify gl l st)						    ]
+END;;
+
+TACTIC EXTEND plugin_4
+  | ["sym_eval_nosep" constr(types) constr(funcs) constr(preds) constr(pures) constr(rp) constr(sp) constr(rv) constr(st) tactic(k)] ->
+    [Proofview.V82.tactic (fun gl ->
+      Bedrock.sym_eval_nosep gl types funcs preds pures rp sp rv st k)
+    ]
+END;;
+
+TACTIC EXTEND plugin_5
+  | ["sym_eval_sep" constr(types) constr(funcs) constr(preds) constr(pures) constr(rp) constr(sp) constr(rv) constr(st) constr(sf) tactic(k)] ->
+    [Proofview.V82.tactic (fun gl ->
+      (* ltac_apply k [carg f; carg types; carg args] *)
+      Bedrock.sym_eval_sep gl types funcs preds pures rp sp rv st sf k)
+    ]
+END;;
+
+
+TACTIC EXTEND plugin_6
+  | ["sep_canceler_plugin" constr(types) constr(funcs) constr(preds) constr(pures) constr(l) constr(r) tactic(k)] ->
+    [Proofview.V82.tactic (fun gl ->
+      (* ltac_apply k [carg f; carg types; carg args] *)
+      Bedrock.sep_canceler gl types funcs preds pures l r k)
+    ]
+END;;
