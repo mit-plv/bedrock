@@ -66,7 +66,7 @@ Section fin.
                                  | inright _, inright _ => left _ _
                                  | _, _ => right _ _
                                end
-      end); clear finEq; (subst; auto; try congruence;
+      end); clear finEq; (cbv beta in *; subst; auto; try congruence;
         match goal with
           | [ H : sigT _ |- _ ] => destruct H
         end; subst; discriminate).
