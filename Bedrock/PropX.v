@@ -865,6 +865,7 @@ Section machine.
                  | [ _ : incl _ (?P :: _), H : forall P' : propX nil, _ |- _ ] =>
                    specialize (H P); simpl in H
                  | [ _ : incl _ (?P :: _), H : forall pf (P' : propX nil), _ |- _ ] =>
+                   let witness := fresh "witness" in
                    eapply Exists_L; [ solve [ eauto ] | intro witness;
                      specialize (H witness P); simpl in H ]
                  | [ _ : incl _ (?P :: _), x : _, H : forall pf (P' : propX nil), _ |- _ ] =>
