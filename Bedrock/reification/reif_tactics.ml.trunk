@@ -65,9 +65,13 @@ let recompose_prod
     (context : Context.Rel.t) (args : Term.constr array) (c : Term.constr) return_type=
   let subst_rel_context k cstr ctx =
     let (_, ctx') =
-      List.fold_left (fun (k, ctx') (id, b, t) -> (succ k, (id, Option.map
-	(Vars.substnl [cstr] k) b, Vars.substnl [cstr] k t) :: ctx')) (k, [])
-	(List.map Context.Rel.Declaration.to_tuple ctx) in List.rev (List.map Context.Rel.Declaration.of_tuple ctx')
+      List.fold_left (fun (k, ctx') (id, b, t) -> (succ k,
+        let ty = Vars.substnl [cstr] k t in
+	(match b with
+	 | Some b' -> Context.Rel.Declaration.LocalDef (id, Vars.substnl [cstr] k b', ty)
+	 | None -> Context.Rel.Declaration.LocalAssum (id, ty)
+	 ) :: ctx')) (k, [])
+	(List.map Context.Rel.Declaration.to_tuple ctx) in List.rev ctx'
   in
   let rec depend_on k ctx =
     let open Context.Rel.Declaration in
@@ -408,8 +412,12 @@ module Bedrock = struct
 	end
       with
 	| Length n -> raise (Length n)
-	| CErrors.UserError (func, e) ->
+	| CErrors.UserError (Some func, e) ->
 	  debug "exists exception function %s has failed with message : %s\n%!" func
+	    (Pp.string_of_ppcmds e);
+	  raise (Length (List.length l))
+	| CErrors.UserError (None, e) ->
+	  debug "exists exception function %s has failed with no message\n%!"
 	    (Pp.string_of_ppcmds e);
 	  raise (Length (List.length l))
 	| e ->
