@@ -191,7 +191,7 @@ module Equivalence : sig
 end
 
 (** [match_as_equation ?context goal c] try to decompose c as a
-    relation applied to two terms. An optionnal rel_context can be
+    relation applied to two terms. An optionnal rel-context can be
     provided to ensure that the term remains typable *)
 val match_as_equation  : ?context:Context.Rel.t -> goal_sigma -> Term.constr -> (Term.constr * Term.constr * Relation.t) option
 
