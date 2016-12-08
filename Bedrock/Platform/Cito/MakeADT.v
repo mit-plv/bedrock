@@ -27,7 +27,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           (Structured.Goto_ im_g mname delegate))) fs).
 
   Notation "'ffunction' name 'reserving' n [ ffs ] := lab" :=
-    (name, ffs, n, lab%SP) (no associativity, at level 95) : ffuncs_scope.
+    (name, ffs, n, lab%SP) (no associativity, at level 95, n at level 9) : ffuncs_scope.
   Delimit Scope ffuncs_scope with ffuncs.
 
   Notation "{{ x 'with' .. 'with' y }}" := (cons x .. (cons y nil) ..) (only parsing) : ffuncs_scope.
