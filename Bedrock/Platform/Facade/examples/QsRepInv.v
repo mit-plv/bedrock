@@ -5,7 +5,7 @@ Require Import Bedrock.Platform.Facade.examples.QsADTs.
 Import Adt.
 Require Import Bedrock.Platform.Cito.RepInv.
 
-Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString Bedrock.Platform.Facade.examples.WSTuple.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString Bedrock.Platform.Facade.examples.WSTuple Bedrock.Platform.Facade.examples.WsTupleList.
 
 Definition rep_inv p adtvalue : HProp :=
   match adtvalue with
@@ -16,7 +16,7 @@ Definition rep_inv p adtvalue : HProp :=
     | WBagOfTuples1 len key ts => tuples1 len key ts p
     | WBagOfTuples2 len key1 key2 ts => tuples2 len key1 key2 ts p
     | WSTuple ws => wstuple ws p
-    | WSTupleList _ => [| False |]
+    | WSTupleList wss => wlseq wss p
     | ByteString capacity bs => bytes capacity bs p
     | WSTrie _ _ _ => [| False |]
   end%Sep.
@@ -58,7 +58,7 @@ Module Ri <: RepInv QsADTs.Adt.
     eapply Himp_trans; [ apply wstuple'_word_fwd | sepLemma ]; apply any_easy.
     eapply Himp_trans; [ apply wstuple'_bytes_fwd | sepLemma ]; apply any_easy.
 
-    sepLemma.
+    eapply Himp_trans; [ apply wlseq_fwd | sepLemma ]; apply any_easy.
 
     unfold bytes; sepLemma; apply any_easy.
 
