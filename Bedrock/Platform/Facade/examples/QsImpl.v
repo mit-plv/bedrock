@@ -10,7 +10,7 @@ Require Import Bedrock.Platform.Cito.RepInv Bedrock.Platform.Cito.MakeADT.
 
 Require Import Bedrock.Platform.AutoSep.
 
-Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString.
+Require Import Bedrock.Platform.Facade.examples.ListSeqF Bedrock.Platform.Facade.examples.ArrayTupleF Bedrock.Platform.Facade.examples.TupleListF Bedrock.Platform.Facade.examples.Tuples0F Bedrock.Platform.Facade.examples.Tuples1F Bedrock.Platform.Facade.examples.Tuples2F Bedrock.Platform.Facade.examples.ByteString Bedrock.Platform.Facade.examples.WSTuple Bedrock.Platform.Facade.examples.WsTupleList.
 Require Import Bedrock.Platform.Facade.examples.QsRepInv.
 
 Module Import Made := MakeADT.Make(QsADTs.Adt)(Ri).
@@ -79,7 +79,23 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
                             "ByteString"!"copy" @ [ByteString.copyS],
                             "ByteString"!"push" @ [ByteString.pushS],
                             "ByteString"!"put" @ [ByteString.putS],
-                            "ByteString"!"get" @ [ByteString.getS] ]]
+                            "ByteString"!"get" @ [ByteString.getS],
+
+                            "WSTuple"!"new" @ [WSTuple.newS],
+                            "WSTuple"!"delete" @ [WSTuple.deleteS],
+                            "WSTuple"!"copy" @ [WSTuple.copyS],
+                            "WSTuple"!"get" @ [WSTuple.getS],
+                            "WSTuple"!"putW" @ [WSTuple.putWS],
+                            "WSTuple"!"putString" @ [WSTuple.putStringS],
+
+                            "WsTupleList"!"new" @ [WsTupleList.newS],
+                            "WsTupleList"!"delete" @ [WsTupleList.deleteS],
+                            "WsTupleList"!"pop" @ [WsTupleList.popS],
+                            "WsTupleList"!"empty" @ [WsTupleList.emptyS],
+                            "WsTupleList"!"push" @ [WsTupleList.pushS],
+                            "WsTupleList"!"copy" @ [WsTupleList.copyS],
+                            "WsTupleList"!"rev" @ [WsTupleList.revS],
+                            "WsTupleList"!"length" @ [WsTupleList.lengthS] ]]
   fmodule "ADT" {{
     ffunction "Tuple_new" reserving 7 [WTupleADTSpec.New] := "ArrayTuple"!"new"
     with ffunction "Tuple_delete" reserving 6 [WTupleADTSpec.Delete] := "ArrayTuple"!"delete"
@@ -127,6 +143,22 @@ Definition m0 := bimport [[ "sys"!"abort" @ [abortS],
     with ffunction "ByteString_push" reserving 0 [BytesADTSpec.Push] := "ByteString"!"push"
     with ffunction "ByteString_put" reserving 0 [BytesADTSpec.Put] := "ByteString"!"put"
     with ffunction "ByteString_get" reserving 0 [BytesADTSpec.Get] := "ByteString"!"get"
+
+    with ffunction "WSTuple_new" reserving 8 [WSTupleADTSpec.New] := "WSTuple"!"new"
+    with ffunction "WSTuple_delete" reserving 11 [WSTupleADTSpec.Delete] := "WSTuple"!"delete"
+    with ffunction "WSTuple_copy" reserving 20 [WSTupleADTSpec.Copy] := "WSTuple"!"copy"
+    with ffunction "WSTuple_get" reserving 16 [WSTupleADTSpec.Get] := "WSTuple"!"get"
+    with ffunction "WSTuple_putW" reserving 9 [WSTupleADTSpec.PutW] := "WSTuple"!"putW"
+    with ffunction "WSTuple_putString" reserving 9 [WSTupleADTSpec.PutString] := "WSTuple"!"putString"
+
+    with ffunction "WsTupleList_new" reserving 8 [WSTupleListSpec.New] := "WsTupleList"!"new"
+    with ffunction "WsTupleList_delete" reserving 6 [WSTupleListSpec.Delete] := "WsTupleList"!"delete"
+    with ffunction "WsTupleList_pop" reserving 8 [WSTupleListSpec.Pop] := "WsTupleList"!"pop"
+    with ffunction "WsTupleList_empty" reserving 0 [WSTupleListSpec.Empty] := "WsTupleList"!"empty"
+    with ffunction "WsTupleList_push" reserving 8 [WSTupleListSpec.Push] := "WsTupleList"!"push"
+    with ffunction "WsTupleList_copy" reserving 27 [WSTupleListSpec.Copy] := "WsTupleList"!"copy"
+    with ffunction "WsTupleList_rev" reserving 2 [WSTupleListSpec.Rev] := "WsTupleList"!"rev"
+    with ffunction "WsTupleList_length" reserving 1 [WSTupleListSpec.Length] := "WsTupleList"!"length"
   }}.
 
 Ltac peel := repeat (apply andL || (apply injL; intro) || (apply existsL; intro)); reduce.
@@ -656,6 +688,295 @@ Proof.
   apply Properties.F.add_mapsto_iff in H5; intuition.
   apply Properties.F.empty_mapsto_iff in H6; tauto.
 Qed.
+
+Lemma tuple_big_enough : forall (len : W),
+    (len < $2 -> False)
+    -> (wordToNat len >= 1)%nat.
+Proof.
+  intros.
+  pre_nomega.
+  change (wordToNat (natToWord 32 2)) with 2 in *.
+  omega.
+Qed.
+
+Hint Immediate tuple_big_enough.
+
+Lemma readd_WSTuple : forall c rv rv',
+  wstuple rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (WSTuple rv') (heap_upd heap_empty c (WSTuple rv))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, WSTuple rv') (heap_elements (WordMap.add c (WSTuple rv') (heap_upd heap_empty c (WSTuple rv))))).
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H; intuition idtac.
+  eapply Himp_trans; [ | apply H0 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H2 in H1; intuition.
+  apply In_InA' in H4.
+  apply WordMap.elements_2 in H4.
+  apply Properties.F.add_mapsto_iff in H4; intuition.
+  apply Properties.F.add_mapsto_iff in H5; intuition.
+  apply Properties.F.empty_mapsto_iff in H6; tauto.
+Qed.
+
+Lemma readd_WSTuple' : forall c rv rv' val bs1 bs2,
+  val <> c
+  -> wstuple rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.remove val (WordMap.add c (WSTuple rv') (WordMap.add val (ByteString bs1 bs2) (WordMap.add c (WSTuple rv) (WordMap.empty _))))).                                              
+Proof.
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, WSTuple rv') (heap_elements (WordMap.remove val (WordMap.add c (WSTuple rv') (WordMap.add val (ByteString bs1 bs2) (WordMap.add c (WSTuple rv) (WordMap.empty _))))))).
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.remove_2; auto.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H0; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H0; intuition idtac.
+  eapply Himp_trans; [ | apply H1 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H3 in H2; intuition.
+  apply In_InA' in H5.
+  apply WordMap.elements_2 in H5.
+  apply Properties.F.remove_mapsto_iff in H5; intuition.
+  apply Properties.F.add_mapsto_iff in H6; intuition.
+  apply Properties.F.add_mapsto_iff in H7; intuition.
+  apply Properties.F.add_mapsto_iff in H8; intuition.
+  apply Properties.F.empty_mapsto_iff in H9; tauto.
+Qed.
+
+Lemma readd_WsTupleList : forall c rv rv',
+  wlseq rv' c * is_heap heap_empty
+  ===> is_heap (WordMap.add c (WSTupleList rv') (heap_upd heap_empty c (WSTupleList rv))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  assert (List.In (c, WSTupleList rv') (heap_elements (WordMap.add c (WSTupleList rv') (heap_upd heap_empty c (WSTupleList rv))))).
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H; intuition idtac.
+  eapply Himp_trans; [ | apply H0 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H2 in H1; intuition.
+  apply In_InA' in H4.
+  apply WordMap.elements_2 in H4.
+  apply Properties.F.add_mapsto_iff in H4; intuition.
+  apply Properties.F.add_mapsto_iff in H5; intuition.
+  apply Properties.F.empty_mapsto_iff in H6; tauto.
+Qed.
+
+Lemma readd_WsTupleList' : forall c rv rv' c' ov,
+  c <> c'
+  -> wlseq rv' c * is_heap heap_empty
+  ===> is_heap
+      (WordMap.remove c'
+         (WordMap.add c (WSTupleList rv')
+            (WordMap.add c' ov
+               (WordMap.add c (WSTupleList rv)
+                  heap_empty)))).
+Proof.
+  intros.
+  unfold is_heap at 2.
+  match goal with
+  | [ |- context[Bags.starL _ ?x] ] => assert (List.In (c, WSTupleList rv') x)
+  end.
+  apply InA_In.
+  apply WordMap.elements_1.
+  apply WordMap.remove_2; auto.
+  apply WordMap.add_1.
+  auto.
+  eapply starL_in in H0; try (apply NoDupA_NoDup; apply WordMap.elements_3w).
+  destruct H0; intuition idtac.
+  eapply Himp_trans; [ | apply H1 ].
+  simpl.
+  apply Himp_star_frame; try apply Himp_refl.
+  apply starL_permute; auto.
+  apply NoDupA_NoDup; apply WordMap.elements_3w.
+  intuition.
+  apply H3 in H2; intuition.
+  apply In_InA' in H5.
+  apply WordMap.elements_2 in H5.
+  apply Properties.F.remove_mapsto_iff in H5; intuition.
+  apply Properties.F.add_mapsto_iff in H6; intuition.
+  apply Properties.F.add_mapsto_iff in H7; intuition.
+  apply Properties.F.add_mapsto_iff in H8; intuition.
+  apply Properties.F.empty_mapsto_iff in H9; tauto.
+Qed.
+
+Definition wshints : TacPackage.
+  prepare wstuple_fwd tt.
+Defined.
+
+Lemma wstuple_in_bounds : forall specs P Q p pos ws R a b,
+    interp specs (![star P (star Q (star
+      (LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap
+         (SemanticsUtil.make_heap
+            ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+                        :: (pos, SCA pos) :: nil)))
+      R))] (a, b))
+    -> pos < natToW (length ws)
+    -> (wordToNat pos <
+        (fix length (l : list WSTupleADTSpecParams.FieldType) : nat :=
+           match l with
+           | nil => 0
+           | _ :: l' => S (length l')
+           end) ws)%nat.
+Proof.
+  fold (@length WSTupleADTSpecParams.FieldType); intros;
+    eapply copy_bound; [ eauto | ];
+      eapply wordToNat_natToWord_idempotent;
+      assert (goodSize (length ws)) by
+          (match goal with
+           | [ H : interp _ _ |- _ ] =>
+             unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap in H;
+               simpl in H
+           end;
+             evaluate wshints; eapply goodSize_weaken; [
+               eapply containsWstuple_goodSize; eauto
+             | unfold WSTupleADTSpecParams.FieldType; eauto ]); assumption.
+Qed.
+
+Hint Immediate wstuple_in_bounds.
+
+Lemma wstuple_in_bounds' : forall specs P Q p pos val ws R a b,
+    interp specs (![star P (star Q (star
+      (LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap
+         (SemanticsUtil.make_heap
+            ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+                        :: (pos, SCA pos) :: (val, SCA val) :: nil)))
+      R))] (a, b))
+    -> pos < natToW (length ws)
+    -> (wordToNat pos <
+        (fix length (l : list QsADTs.WS) : nat :=
+           match l with
+           | nil => 0
+           | _ :: l' => S (length l')
+           end) ws)%nat.
+Proof.
+  fold (@length WSTupleADTSpecParams.FieldType); intros;
+    eapply copy_bound; [ eauto | ];
+      eapply wordToNat_natToWord_idempotent;
+      assert (goodSize (length ws)) by
+          (match goal with
+           | [ H : interp _ _ |- _ ] =>
+             unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap in H;
+               simpl in H
+           end;
+             evaluate wshints; eapply goodSize_weaken; [
+               eapply containsWstuple_goodSize; eauto
+             | unfold WSTupleADTSpecParams.FieldType; eauto ]); assumption.
+Qed.
+
+Hint Immediate wstuple_in_bounds'.
+
+Definition dheap p ws pos val bs1 bs2 :=
+  LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap
+    (SemanticsUtil.make_heap
+       ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+          :: (pos, SCA pos) :: (val, ADT (ByteString bs1 bs2)) :: nil)).
+
+Lemma double_heap : forall p ws pos val bs1 bs2,
+    val <> p
+    -> dheap p ws pos val bs1 bs2
+      ===> wstuple ws p * bytes bs1 bs2 val.
+Proof.
+  intros.
+  unfold dheap, LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap.
+  simpl.
+  let E := constr:(LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.heap_elements
+                     (SemanticsUtil.make_heap
+                        ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+                           :: (pos, SCA pos) :: (val, ADT (ByteString bs1 bs2)) :: nil))) in
+  let E' := eval hnf in E in change E with E'.
+  simpl.
+  destruct (WordKey.W_as_OT.compare val p); simpl.
+  sepLemma.
+  tauto.
+  sepLemma.
+Qed.
+
+Lemma dhints : TacPackage.
+  prepare double_heap tt.
+Defined.
+
+Lemma dheap_eq : forall p ws pos val bs1 bs2,
+  LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap
+    (SemanticsUtil.store_pair
+       (SemanticsUtil.store_pair
+          (SemanticsUtil.store_pair (WordMap.empty ADTValue)
+                                    (p, ADT (WSTupleADTSpecParams.TupleConstructor ws)))
+          (pos, SCA pos)) 
+            (val, ADT (ByteString bs1 bs2)))
+  = dheap p ws pos val bs1 bs2.
+Proof.
+  reflexivity.
+Qed.
+
+Lemma wstuple_in_bounds'' : forall specs P Q p pos val ws R a b bs1 bs2,
+    interp specs (![star P (star Q (star
+                                      (LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap
+                                         (SemanticsUtil.make_heap
+                                            ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+                                               :: (pos, SCA pos) :: (val, ADT (ByteString bs1 bs2)) :: nil)))
+                                      R))] (a, b))
+    -> pos < natToW (length ws)
+    -> val <> p
+    -> (wordToNat pos <
+        (fix length (l : list QsADTs.WS) : nat :=
+           match l with
+           | nil => 0
+           | _ :: l' => S (length l')
+           end) ws)%nat.
+Proof.
+  fold (@length WSTupleADTSpecParams.FieldType); intros;
+    eapply copy_bound; [ eauto | ];
+      eapply wordToNat_natToWord_idempotent;
+      assert (goodSize (length ws)).
+  match goal with
+  | [ H : interp _ _ |- _ ] =>
+    unfold LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake2.is_heap in H;
+      simpl in H
+  end.
+
+  let E := constr:(LinkMake.StubsMake.StubMake.LinkSpecMake2.CompileFuncSpecMake.InvMake.SemanticsMake.heap_elements
+                     (SemanticsUtil.make_heap
+                        ((p, ADT (WSTupleADTSpecParams.TupleConstructor ws))
+                           :: (pos, SCA pos) :: (val, ADT (ByteString bs1 bs2)) :: nil))) in
+  let E' := eval hnf in E in change E with E' in H.
+  simpl in H.
+  destruct (WordKey.W_as_OT.compare val p); simpl in H.
+  evaluate wshints; eapply goodSize_weaken; [
+    eapply containsWstuple_goodSize; eauto 6
+  | unfold WSTupleADTSpecParams.FieldType; eauto ]; assumption.
+  congruence.
+  evaluate wshints; eapply goodSize_weaken; [
+    eapply containsWstuple_goodSize; eauto 6
+  | unfold WSTupleADTSpecParams.FieldType; eauto ]; assumption.
+  assumption.
+Qed.
+
+Hint Immediate wstuple_in_bounds''.
 
 Theorem ok0 : moduleOk m0.
 Proof.
@@ -1482,8 +1803,355 @@ Proof.
   do_delegate2 ("self" :: "index" :: nil).
 
 
+  (* WSTuple *)
+
+  (* new *)
+
+  do_abort ("len" :: nil).
+  do_abort ("len" :: nil).
+  do_abort ("len" :: nil).
+
+  do_delegate1 ("len" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  apply get_rval; intro.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("len" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  do_delegate2 ("len" :: nil).
+
+  (* delete *)
+
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+
+  do_delegate1 ("self" :: "len" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  apply get_rval'; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "len" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
+  do_delegate2 ("self" :: "len" :: nil).
+
+  (* copy *)
+
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+
+  do_delegate1 ("self" :: "len" :: nil) hints.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("self" :: "len" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WSTuple ] ].
+  do_delegate2 ("self" :: "len" :: nil).
+
+  (* get *)
+
+  do_abort ("self" :: "pos" :: nil).
+  do_abort ("self" :: "pos" :: nil).
+  do_abort ("self" :: "pos" :: nil).
+
+  do_delegate1 ("self" :: "pos" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  case_eq (@nth_error QsADTs.WS x3 (wordToNat (sel x0 "pos"))); intros.
+  destruct w.
+
+  simpl item.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  Focus 2.
+  returnSomething.
+  eauto.
+  unfold WSTupleADTSpecParams.FieldType.
+  rewrite H0.
+  instantiate (1 := w).
+  assumption.
+  unfold WSTupleADTSpecParams.FieldType.
+  rewrite H0.
+  simpl.
+  make_toArray ("self" :: "pos" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WSTuple ] ].
+  do_delegate2 ("self" :: "pos" :: nil).
+  simpl item.
+  descend; step auto_ext.
+  Focus 2.
+  returnSomething.
+  eauto.
+  unfold WSTupleADTSpecParams.FieldType.
+  rewrite H0.
+  instantiate (1 := Regs x1 Rv).
+  reflexivity.
+  unfold WSTupleADTSpecParams.FieldType.
+  rewrite H0.
+  simpl.
+  make_toArray ("self" :: "pos" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WSTuple ] ].
+  do_delegate2 ("self" :: "pos" :: nil).
+
+  apply ListFacts.nth_error_None_length in H0.
+  assert (wordToNat (sel x0 "pos") < length x3)%nat by eauto.
+  unfold WSTupleADTSpecParams.FieldType in *; omega.
+
+  (* putW *)
+
+  do_abort ("self" :: "pos" :: "val" :: nil).
+  do_abort ("self" :: "pos" :: "val" :: nil).
+  do_abort ("self" :: "pos" :: "val" :: nil).
+
+  do_delegate1 ("self" :: "pos" :: "val" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  Focus 2.
+  returnSomething.
+  eexists.
+  exists (wordToNat (sel x0 "pos")).
+  eexists.
+  split; try reflexivity.
+  repeat f_equal.
+  symmetry; apply natToWord_wordToNat.
+  instantiate (1 := Regs x1 Rv).
+  assumption.
+  unfold WSTupleADTSpecParams.FieldType.
+  simpl.
+  make_toArray ("self" :: "pos" :: "val" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WSTuple ] ].
+  do_delegate2 ("self" :: "pos" :: "val" :: nil).
+
+  (* putString *)
+
+  do_abort ("self" :: "pos" :: "val" :: nil).
+  do_abort ("self" :: "pos" :: "val" :: nil).
+  do_abort ("self" :: "pos" :: "val" :: nil).
+
+  do_delegate1 ("self" :: "pos" :: "val" :: nil) hints.
+  rewrite dheap_eq; descend.
+  change (sel x0 "val" <> sel x0 "self")%type in H12.
+  step dhints.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  Focus 2.
+  returnSomething.
+  eexists.
+  exists (wordToNat (sel x0 "pos")).
+  do 2 eexists.
+  split; try reflexivity.
+  repeat f_equal.
+  symmetry; apply natToWord_wordToNat.
+  instantiate (1 := Regs x1 Rv).
+  assumption.
+  unfold WSTupleADTSpecParams.FieldType.
+  simpl.
+  make_toArray ("self" :: "pos" :: "val" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WSTuple'; assumption ] ].
+  unfold is_heap; simpl.
+  do_delegate2 ("self" :: "pos" :: "val" :: nil).
+
+
+  (* TupleList *)
+
+  (* new *)
+
+  do_abort (@nil string).
+  do_abort (@nil string).
+  do_abort (@nil string).
+
+  do_delegate1 (@nil string) hints.
+  do 2 (descend; step auto_ext).
+  2: returnAdt.
+  simpl.
+  make_toArray (@nil string).
+  step auto_ext.
+  etransitivity; [ | apply himp_star_frame; [ apply (@is_state_in x4) | reflexivity ] ].
+  unfolder.
+  do_delegate2 (@nil string).
+
+  (* delete *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  apply get_rval'; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply is_heap_eat ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* pop *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  peel.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* empty *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  peel.
+  apply get_rval''; intro.
+  step auto_ext.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* push *)
+
+  do_abort ("self" :: "tup" :: nil).
+  do_abort ("self" :: "tup" :: nil).
+  do_abort ("self" :: "tup" :: nil).
+
+  do_delegate1 ("self" :: "tup" :: nil) hints.
+  add_side_conditions.
+  descend; step hints.
+  simpl.
+  descend; step auto_ext.
+  descend; step auto_ext.
+  simpl.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: "tup" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList' ] ].
+  do_delegate2 ("self" :: "tup" :: nil).
+  congruence.
+
+  (* copy *)
+
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+  do_abort ("self" :: "len" :: nil).
+
+  do_delegate1 ("self" :: "len" :: nil) hints.
+  descend; step auto_ext.
+  peel.
+  descend; step auto_ext.
+  2: returnAdt.
+  simpl.
+  make_toArray ("self" :: "len" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList ] ].
+  do_delegate2 ("self" :: "len" :: nil).
+
+  (* rev *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  simpl.
+  peel.
+  apply get_rval''; intro.
+  descend; step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList ] ].
+  do_delegate2 ("self" :: nil).
+
+  (* length *)
+
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+  do_abort ("self" :: nil).
+
+  do_delegate1 ("self" :: nil) hints.
+  descend; step hints.
+  peel.
+  apply get_rval''; intro.
+  step auto_ext.
+  2: returnScalar.
+  simpl.
+  make_toArray ("self" :: nil).
+  step auto_ext.
+  etransitivity; [ | apply (@is_state_in x2) ].
+  unfolder.
+  etransitivity; [ | apply himp_star_frame; [ reflexivity | apply readd_WsTupleList ] ].
+  do_delegate2 ("self" :: nil).
+
+
   (* Grabby time *)
   Grab Existential Variables.
+  exact 0.
+  exact 0.
+  exact 0.
+  exact 0.
+  exact 0.
   exact 0.
   exact 0.
   exact 0.
@@ -1508,7 +2176,9 @@ Definition m4 := link Tuples0F.m m3.
 Definition m5 := link Tuples1F.m m4.
 Definition m6 := link Tuples2F.m m5.
 Definition m7 := link ByteString.m m6.
-Definition m := link Malloc.m m7.
+Definition m8 := link WSTuple.m m7.
+Definition m9 := link WsTupleList.m m8.
+Definition m := link Malloc.m m9.
 
 Theorem ok1 : moduleOk m1.
 Proof.
@@ -1545,7 +2215,17 @@ Proof.
   link ByteString.ok ok6.
 Qed.
 
+Theorem ok8 : moduleOk m8.
+Proof.
+  link WSTuple.ok ok7.
+Qed.
+
+Theorem ok9 : moduleOk m9.
+Proof.
+  link WsTupleList.ok ok8.
+Qed.
+
 Theorem ok : moduleOk m.
 Proof.
-  link Malloc.ok ok7.
+  link Malloc.ok ok9.
 Qed.

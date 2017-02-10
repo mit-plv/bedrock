@@ -74,7 +74,8 @@ Module TupleADTSpec (Params: TupleADTSpecParams).
   Definition New : AxiomaticSpec ADTValue.
     refine {|
         PreCond := fun args => exists len, args = [SCA _ len]
-                                           /\ len >= $2;
+                                           /\ len >= $2
+                                           /\ goodSize (wordToNat len * 2);
         PostCond := fun args ret => exists len ls, args = [(SCA _ len, None)]
                                                    /\ ret = ADT (TupleConstructor ls)
                                                    /\ length ls = wordToNat len

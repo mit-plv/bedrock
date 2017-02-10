@@ -165,7 +165,7 @@ Definition lengthS := SPEC("extra_stack", "self") reserving 1
 
 Definition m := bimport [[ "malloc"!"malloc" @ [mallocS], "malloc"!"free" @ [freeS],
                            "WSTuple"!"copy" @ [WSTuple.copyS] ]]
-  bmodule "TupleList" {{
+  bmodule "WsTupleList" {{
     bfunction "new"("extra_stack", "x") [newS]
       "x" <-- Call "malloc"!"malloc"(0, 2)
       [PRE[_, R] R =?> 2 * [| R <> 0 |] * [| freeable R 2 |] * mallocHeap 0

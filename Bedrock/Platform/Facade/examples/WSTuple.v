@@ -461,7 +461,7 @@ Defined.
 
 Definition newS := SPEC("extra_stack", "len") reserving 8
   PRE[V] [| wordToNat (V "len") >= 1 |]%nat * [| goodSize (wordToNat (V "len") * 2) |] * mallocHeap 0
-  POST[R] wstuple (zeroes (wordToNat (V "len"))) R * mallocHeap 0.
+  POST[R] Ex ls, wstuple ls R * [| length ls = wordToNat (V "len") |] * mallocHeap 0.
 
 Definition deleteS := SPEC("extra_stack", "self", "len") reserving 11
   Al ws,
