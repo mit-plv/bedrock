@@ -572,11 +572,11 @@ Module Extension.
         set (types_rV := types_r) ;
         let funcs_r := HINTS_REIFY.lift_signatures_over_repr funcs types_rV in
         let funcs_r := eval cbv beta iota zeta delta [ Env.listToRepr map ] in
-          (fun ts => Env.listToRepr (funcs_r ts) (Expr.Default_signature (Env.repr types_rV ts))) in
+          (fun ts' => Env.listToRepr (funcs_r ts') (Expr.Default_signature (Env.repr types_rV ts'))) in
         set (funcs_rV := funcs_r) ;
         let preds_r := HINTS_REIFY.lift_ssignatures_over_repr preds types_rV pcT stateT in
         let preds_r := eval cbv beta iota zeta delta [ Env.listToRepr map ] in
-          (fun ts => Env.listToRepr (preds_r ts) (SEP.Default_predicate (Env.repr types_rV ts) pcT stateT)) in
+          (fun ts' => Env.listToRepr (preds_r ts') (SEP.Default_predicate (Env.repr types_rV ts') pcT stateT)) in
         set (preds_rV := preds_r) ;
     (*TIME stop_timer "extend:lifting" ; *)
     (*TIME start_timer "extend:combining" ; *)
@@ -588,11 +588,11 @@ Module Extension.
         let nprover :=
           match prover with
             | tt => match pack with
-                      | tt => constr:(fun ts => @None (Prover.ProverT (Env.repr types_rV ts)))
-                      | _ => red_pack (fun ts => ILAlgoTypes.Prover (ILAlgoTypes.Algos pack (Env.repr types_rV ts)))
+                      | tt => constr:(fun ts' => @None (Prover.ProverT (Env.repr types_rV ts')))
+                      | _ => red_pack (fun ts' => ILAlgoTypes.Prover (ILAlgoTypes.Algos pack (Env.repr types_rV ts')))
                     end
             | _ => match pack with
-                     | tt => constr:(fun ts => Some (Prover.Prover (Env.repr types_rV ts)))
+                     | tt => constr:(fun ts' => Some (Prover.Prover (Env.repr types_rV ts')))
                      | _ => fail 1000 "we don't support combining provers yet!" prover pack
                    end
           end
@@ -600,26 +600,26 @@ Module Extension.
         let nmevals :=
           match mevals with
             | tt => match pack with
-                      | tt => constr:(fun ts => @None (MEVAL.MemEvaluator (Env.repr types_rV ts) pcT stateT))
-                      | _ => red_pack (fun ts => ILAlgoTypes.MemEval (ILAlgoTypes.Algos pack (Env.repr types_rV ts)))
+                      | tt => constr:(fun ts' => @None (MEVAL.MemEvaluator (Env.repr types_rV ts') pcT stateT))
+                      | _ => red_pack (fun ts' => ILAlgoTypes.MemEval (ILAlgoTypes.Algos pack (Env.repr types_rV ts')))
                     end
             | _ => match pack with
-                     | tt => constr:(fun ts => Some (MEVAL.MemEval mevals (Env.repr types_rV ts)))
+                     | tt => constr:(fun ts' => Some (MEVAL.MemEval mevals (Env.repr types_rV ts')))
                      | _ => fail 1000 "not sure"
                    end
           end
         in
         let nhints :=
           let res := match pack with
-            | tt => constr:(fun ts => @extend_opt_hints _ _ _ None (fwd' ts) (bwd' ts))
-            | _ => red_pack (fun ts => @extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts))) (fwd' ts) (bwd' ts))
+            | tt => constr:(fun ts' => @extend_opt_hints _ _ _ None (fwd' ts') (bwd' ts'))
+            | _ => red_pack (fun ts' => @extend_opt_hints _ _ _ (ILAlgoTypes.Hints (ILAlgoTypes.Algos pack (Env.repr types_rV ts'))) (fwd' ts') (bwd' ts'))
 (*
-constr:(fun ts => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (Env.repr types_rV ts)) pcT stateT)) *)
+constr:(fun ts' => @None (UNF.hintsPayload (Env.repr ILEnv.BedrockCoreEnv.core (Env.repr types_rV ts')) pcT stateT)) *)
           end in
           eval simpl extend_opt_hints in res
         in
         let algos := eval cbv beta in
-          (fun ts => @ILAlgoTypes.Build_AllAlgos (ILAlgoTypes.PACK.applyTypes env ts) (nprover ts) (nhints ts) (nmevals ts)) in
+          (fun ts' => @ILAlgoTypes.Build_AllAlgos (ILAlgoTypes.PACK.applyTypes env ts') (nprover ts') (nhints ts') (nmevals ts')) in
         set (algos_V := algos) ;
         refine ({| ILAlgoTypes.Env := env
                  ; ILAlgoTypes.Algos := algos_V
