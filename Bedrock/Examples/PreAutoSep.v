@@ -784,6 +784,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          EquivDec_SemiDec
          Compare_dec.nat_compare
          NPeano.leb NPeano.ltb
+         (* we fully qualify these names to work around the fact that they are new to 8.5 *)
+         Coq.Init.Peano.f_equal_nat Coq.Init.Peano.f_equal_pred Coq.Init.Peano.f_equal2_plus Coq.Init.Peano.f_equal2_nat Coq.Init.Peano.f_equal2_mult
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation
