@@ -218,6 +218,20 @@ Notation "'bfunctionNoRet' name ( x1 , .. , xN ) [ p ] b 'end'" :=
       FReserved := Reserved p' |})
   (no associativity, at level 95, name at level 0, p at level 0, only parsing) : SPfuncs_scope.
 
+Module Import Coq8485_workaround_nat_dec_uses_f_equal_nat.
+  Module Coq.
+    Module Init.
+      Module Peano.
+        Definition f_equal_nat := f_equal (A:=nat).
+        Definition f_equal_pred := f_equal pred.
+        Definition f_equal2_plus := f_equal2 plus.
+        Definition f_equal2_nat := f_equal2 (A1:=nat) (A2:=nat).
+        Definition f_equal2_mult := f_equal2 mult.
+      End Peano.
+    End Init.
+  End Coq.
+End Coq8485_workaround_nat_dec_uses_f_equal_nat.
+
 (* added Conditional *)
 Require Import Bedrock.Platform.Conditional.
 Export Conditional.
@@ -566,6 +580,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          EquivDec_SemiDec
          Compare_dec.nat_compare
          NPeano.leb NPeano.ltb
+         (* we fully qualify these names to work around the fact that they are new to 8.5 *)
+         Coq.Init.Peano.f_equal_nat Coq.Init.Peano.f_equal_pred Coq.Init.Peano.f_equal2_plus Coq.Init.Peano.f_equal2_nat Coq.Init.Peano.f_equal2_mult
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation
@@ -954,6 +970,8 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          EquivDec_SemiDec
          Compare_dec.nat_compare
          NPeano.leb NPeano.ltb
+         (* we fully qualify these names to work around the fact that they are new to 8.5 *)
+         Coq.Init.Peano.f_equal_nat Coq.Init.Peano.f_equal_pred Coq.Init.Peano.f_equal2_plus Coq.Init.Peano.f_equal2_nat Coq.Init.Peano.f_equal2_mult
 
          (** SepExpr **)
          SEP.SDomain SEP.SDenotation
