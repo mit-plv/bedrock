@@ -4,6 +4,7 @@
 open Reif_tactics
 open Stdarg
 open Tacarg
+open Ltac_plugin
 
 DECLARE PLUGIN "reif"
 
