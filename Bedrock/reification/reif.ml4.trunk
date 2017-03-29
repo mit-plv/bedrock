@@ -1,10 +1,10 @@
 (*i camlp4deps: "parsing/grammar.cma" i*)
 (*i camlp4use: "pa_extend.cmp" i*)
 
+open Ltac_plugin
 open Reif_tactics
 open Stdarg
 open Tacarg
-open Ltac_plugin
 
 DECLARE PLUGIN "reif"
 
