@@ -1,3 +1,5 @@
+open Ltac_plugin
+
 let debug = false
 
 let pp_constr fmt x = Pp.pp_with fmt (Printer.pr_constr x)
