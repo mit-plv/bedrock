@@ -1,7 +1,8 @@
 (** Interface with Coq *)
-type constr = Term.constr
+type constr = EConstr.constr
 
 open Term
+open EConstr
 open Names
 open Coqlib
 open Sigma.Notations
@@ -60,7 +61,7 @@ let resolve_one_typeclass goal ty : constr*goal_sigma=
 let general_error =
   "Cannot resolve a typeclass : please report"
 
-let cps_resolve_one_typeclass ?error : Term.types -> (Term.constr  -> Proof_type.tactic) -> Proof_type.tactic = fun t k  goal  ->
+let cps_resolve_one_typeclass ?error : EConstr.types -> (EConstr.constr  -> Proof_type.tactic) -> Proof_type.tactic = fun t k  goal  ->
   Tacmach.pf_apply
     (fun env em -> let em ,c =
 		  try Typeclasses.resolve_one_typeclass env em t
@@ -74,7 +75,7 @@ let cps_resolve_one_typeclass ?error : Term.types -> (Term.constr  -> Proof_type
     )	goal
 
 
-let nf_evar goal c : Term.constr=
+let nf_evar goal c : EConstr.constr=
   let evar_map = Tacmach.project goal in
     Evarutil.nf_evar evar_map c
 
@@ -114,12 +115,12 @@ let cps_evar_relation (x: constr) k = fun goal ->
       Tacticals.tclTHENLIST [Refiner.tclEVARS em; k r] goal
     )	goal
 
-(* decomp_term :  constr -> (constr, types) kind_of_term *)
-let decomp_term c = kind_of_term (Termops.strip_outer_cast c)
+(* decomp_term :  constr -> (constr, types, Sorts.t, Univ.Instance.t) kind_of_term *)
+let decomp_term c = kind_of_term (EConstr.Unsafe.to_constr (Termops.strip_outer_cast Evd.empty c))
 
 let lapp c v  = mkApp (Lazy.force c, v)
 
-type t = { body : Term.constr;
+type t = { body : EConstr.constr;
 	   ty : Term.types
 	 }
 
@@ -199,7 +200,7 @@ module Leibniz = struct
   let _eq_refl = lazy (init_constant path "eq_refl")
   let eq_refl ty x = lapp _eq_refl [| ty;x|]
   let _eq = lazy (init_constant path "eq")
-  let match_eq (t : Term.constr) =
+  let match_eq (t : EConstr.constr) =
     begin  match decomp_term t with
       | Term.App (hd, args) when (hd = Lazy.force _eq) -> Some (args.(1),args.(2))
       | _ -> None
