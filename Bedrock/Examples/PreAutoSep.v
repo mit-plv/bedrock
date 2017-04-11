@@ -82,7 +82,7 @@ Ltac vcgen_simp := cbv beta iota zeta delta [map app imps
   Int.Z_as_Int.gt_le_dec Int.Z_as_Int.ge_lt_dec LabelMap.Raw.create
   ZArith_dec.Z_gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.max LabelMap.Raw.height
   ZArith_dec.Z_gt_dec Int.Z_as_Int._1 BinInt.Z.add Int.Z_as_Int._0 Int.Z_as_Int._2 BinInt.Z.max
-  ZArith_dec.Zcompare_rec ZArith_dec.Z_ge_lt_dec BinInt.Z.compare ZArith_dec.Zcompare_rect
+  ZArith_dec.Zcompare_rec ZArith_dec.Z_ge_lt_dec BinInt.Z.compare BinInt.Z.ltb ZArith_dec.Zcompare_rect
   ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect
   COperand1 CTest COperand2 Pos.succ
   makeVcs
@@ -311,6 +311,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
 
          BinInt.Z.compare
+         BinInt.Z.ltb
 
          BinPos.Pos.add BinPos.Pos.compare
          BinPos.Pos.succ BinPos.Pos.compare_cont
@@ -692,6 +693,7 @@ Ltac hints_ext_simplifier hints := fun s1 s2 s3 H =>
          BinInt.Z.double BinInt.Z.succ_double BinInt.Z.pred_double
 
          BinInt.Z.compare
+         BinInt.Z.ltb
 
          BinPos.Pos.add BinPos.Pos.compare
          BinPos.Pos.succ BinPos.Pos.compare_cont

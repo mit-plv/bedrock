@@ -196,7 +196,7 @@ Section Delete.
         ZArith_dec.Z_gt_le_dec Int.Z_as_Int.plus Int.Z_as_Int.max
         ZArith_dec.Z_gt_dec Int.Z_as_Int._1 BinInt.Z.add
         Int.Z_as_Int._0 Int.Z_as_Int._2 BinInt.Z.max ZArith_dec.Zcompare_rec
-        ZArith_dec.Z_ge_lt_dec BinInt.Z.compare ZArith_dec.Zcompare_rect
+        ZArith_dec.Z_ge_lt_dec BinInt.Z.compare BinInt.Z.ltb ZArith_dec.Zcompare_rect
         ZArith_dec.Z_ge_dec label'_eq label'_rec label'_rect COperand1 CTest
         COperand2 Pos.succ makeVcs Note_ Note__ IGotoStar_ IGotoStar
         AssertStar_ AssertStar Cond_ Cond

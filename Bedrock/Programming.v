@@ -457,7 +457,7 @@ Ltac link_simp := simpl Imports; simpl Exports;
     ZArith_dec.Z_gt_le_dec Int.Z_as_Int._0
     BinInt.Z.add Int.Z_as_Int._1 Int.Z_as_Int._2
     ZArith_dec.Z_gt_dec ZArith_dec.Z_ge_lt_dec Int.Z_as_Int.max
-    BinInt.Z.max BinInt.Z.compare union ZArith_dec.Z_ge_dec
+    BinInt.Z.max BinInt.Z.compare BinInt.Z.ltb union ZArith_dec.Z_ge_dec
     diff LabelMap.mem LabelMap.Raw.mem LabelMap.is_empty
     LabelMap.Raw.is_empty Pos.succ].
 
