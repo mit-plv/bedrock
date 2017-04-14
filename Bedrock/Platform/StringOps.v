@@ -89,7 +89,7 @@ Section Params.
   Lemma goodSize_length : forall a s,
     goodSize (String.length (String a s))
     -> goodSize (String.length s).
-    intros; eapply goodSize_weaken; (cbv beta; simpl; eauto).
+    intros; eapply goodSize_weaken; [ (cbv beta; simpl; eauto).. ].
   Qed.
 
   Hint Immediate goodSize_length.
