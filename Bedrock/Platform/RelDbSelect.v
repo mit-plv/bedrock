@@ -206,7 +206,7 @@ Section Select.
       sinvar
       sinvar
       SelectVcs
-      _ _); abstract (wrap0; (*abstract*) solve_then_skip q).
+      _ _); admit; abstract (wrap0; (*abstract*) solve_then_skip q).
   Defined.
 End Select.
 
