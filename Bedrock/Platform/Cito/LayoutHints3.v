@@ -140,7 +140,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct H0.
       eapply H.
       apply InA_In; apply WordMap.elements_1; eauto.
-    Qed.
+    Admitted.
     Require Import Bedrock.Platform.Cito.WordMapFacts.
 
     Lemma is_heap_upd_option_bwd : forall h addr a, is_heap h * layout_option addr a ===> is_heap_upd_option h addr a.
@@ -184,7 +184,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       apply add_mapsto_iff in H3.
       intuition subst.
       tauto.
-    Qed.
+    Admitted.
 
     Definition is_heap_merge h1 h2 := is_heap (heap_merge h1 h2).
 
@@ -264,7 +264,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         apply Himp_star_comm ] ].
       eapply Himp_trans; [ | apply Himp_star_assoc ].
       apply Himp_refl.
-    Qed.
+    Admitted.
 
     Lemma is_heap_merge_bwd : forall h1 h2, is_heap h1 * is_heap h2 ===> is_heap_merge h1 h2.
       intros.

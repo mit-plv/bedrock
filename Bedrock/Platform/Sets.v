@@ -115,12 +115,12 @@ Module Make(M : S).
   Lemma exists_starL_fwd : forall A (P : A -> _) Q,
     (Ex x, P x) * Q ===> Ex x, P x * Q.
     sepLemma.
-  Qed.
+  Admitted.
 
   Lemma exists_starR_bwd : forall P A (Q : A -> _),
     Ex x, P * Q x ===> P * (Ex x, Q x).
     sepLemma.
-  Qed.
+  Admitted.
 
   Definition setify (ls : list A) : set :=
     fold_left add ls empty.
@@ -172,7 +172,7 @@ Module Make(M : S).
 
     Theorem starS_empty_bwd : Emp ===> starS P empty.
       to_himp; apply existsR with nil; from_himp; sepLemma.
-    Qed.
+    Admitted.
 
     Lemma setify_cong : forall ls b1 b2,
       b1 %= b2
@@ -219,7 +219,7 @@ Module Make(M : S).
       unfold setify in *; simpl.
       apply equiv_symm; eapply equiv_trans; [ apply add_something | ]; auto.
       eauto.
-    Qed.
+    Admitted.
 
     Fixpoint nuke (p : A) (ls : list A) : list A :=
       match ls with
@@ -236,7 +236,7 @@ Module Make(M : S).
       eapply Himp_trans.
       apply Himp_star_frame; [ apply Himp_refl | apply H ].
       generalize (starL P (nuke v ls)); generalize (P a); generalize (P v); sepLemma.
-    Qed.
+    Admitted.
 
     Lemma In_nuke : forall v x ls,
       In x (nuke v ls)
@@ -330,13 +330,13 @@ Module Make(M : S).
       apply setify_nuke; eauto.
       transitivity (h0 * h)%Sep; eauto.
       sepLemma.
-    Qed.
+    Admitted.
 
     Lemma fun_fun_fun : forall A P Q R,
       P * (Ex ls : A, Q ls * R ls)
       ===> (Ex ls : A, Q ls * (P * R ls)).
       sepLemma.
-    Qed.
+    Admitted.
 
     Lemma del_to_add : forall b b' v,
       v %in b
@@ -372,7 +372,7 @@ Module Make(M : S).
       intro.
       eapply setify_include in H2; eauto.
       sets.
-    Qed.
+    Admitted.
 
     Lemma star_cancel_right : forall a b c, b ===> c -> b * a ===> c * a.
       sepLemma.
@@ -380,7 +380,7 @@ Module Make(M : S).
 
     Lemma starS_equiv : forall P a b, a %= b -> starS P a ===> starS P b.
       intros; unfold starS; to_himp; apply existsL; intros; apply existsR with x; from_himp; eapply star_cancel_right; sepLemma.
-    Qed.
+    Admitted.
 
     Variable P' : predS nil.
 
@@ -397,7 +397,7 @@ Module Make(M : S).
       apply Forall_forall; intros.
       apply H.
       eapply setify_include; eauto.
-    Qed.
+    Admitted.
 
     Section starS_weak.
       Hypothesis HP' : forall x, P x ===>* P' x.

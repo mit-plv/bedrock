@@ -326,7 +326,7 @@ Lemma starting_elim : forall specs pc ss P stn st,
   rewrite <- sepFormula_eq; descend; step auto_ext.
   auto.
   step auto_ext.
-Qed.
+Admitted.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.
 

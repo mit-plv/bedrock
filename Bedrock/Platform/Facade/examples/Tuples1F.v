@@ -137,13 +137,13 @@ Module Adt : ADT.
     -> stack len key tss p ===> [| tss = nil |].
   Proof.
     destruct tss as [ ? | [ ] ]; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem stack_nil_bwd : forall len key tss (p : W), p = 0
     -> [| tss = nil |] ===> stack len key tss p.
   Proof.
     destruct tss as [ ? | [ ] ]; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem stack_cons_fwd : forall len key tss (p : W), p <> 0
     -> stack len key tss p ===> Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |]
@@ -151,7 +151,7 @@ Module Adt : ADT.
       * Ex sk, Ex p', (p ==*> tp, p') * tree len key sk ts tp * stack len key tss' p'.
   Proof.
     destruct tss as [ ? | [ ] ]; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem stack_cons_bwd : forall len key tss (p : W), p <> 0
     -> (Ex ts, Ex tp, Ex tss', [| tss = (ts, tp) :: tss' |] * [| freeable p 2 |] * [| functional ts |]
@@ -161,14 +161,14 @@ Module Adt : ADT.
     destruct tss as [ ? | [ ] ]; sepLemma.
     injection H0; sepLemma; auto.
     injection H0; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tuples1_fwd : forall len key ts c, tuples1 len key ts c
     ===> [| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
     * Ex p, Ex sk, (c ==*> len, key, p) * tree len key sk ts p * [| key < len |].
   Proof.
     unfold tuples1; sepLemma; eauto.
-  Qed.
+  Admitted.
 
   Theorem tuples1_bwd : forall len key ts (c : W),
     ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
@@ -176,7 +176,7 @@ Module Adt : ADT.
     ===> tuples1 len key ts c.
   Proof.
     unfold tuples1; sepLemma; eauto.
-  Qed.
+  Admitted.
 
   Theorem tuples1_eq : forall len key ts c, tuples1 len key ts c
     = ([| c <> 0 |] * [| freeable c 3 |] * [| $2 <= len |]
@@ -195,7 +195,7 @@ Module Adt : ADT.
 
     repeat apply himp_star_frame; eauto.
     eapply tuples0_Equiv; eauto.
-  Qed.
+  Admitted.
 
   Theorem tuples1_Equiv : forall len key ts1 ts2 p,
     Equiv ts1 ts2
@@ -203,19 +203,19 @@ Module Adt : ADT.
   Proof.
     unfold tuples1; sepLemma.
     eapply tree_Equiv; eauto.
-  Qed.
+  Admitted.
 
   Theorem tree_leaf_fwd : forall len key sk ts (p : W), p = 0
     -> tree len key sk ts p ===> [| sk = Leaf |] * [| empty ts |].
   Proof.
     destruct sk; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree_leaf_bwd : forall len key sk ts (p : W), p = 0
     -> [| sk = Leaf |] * [| empty ts |] ===> tree len key sk ts p.
   Proof.
     destruct sk; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree_node_fwd : forall len key sk ts (p : W), p <> 0
     -> tree len key sk ts p ===> Ex sk1, Ex sk2, Ex p1, Ex k, Ex t0, Ex p2, [| sk = Node sk1 sk2 |]
@@ -225,7 +225,7 @@ Module Adt : ADT.
         * tree len key sk2 (keepGt ts key k) p2.
   Proof.
     destruct sk; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree_node_bwd : forall len key sk ts (p : W), p <> 0
     -> (Ex sk1, Ex sk2, Ex p1, Ex k, Ex t0, Ex p2, [| sk = Node sk1 sk2 |]
@@ -236,7 +236,7 @@ Module Adt : ADT.
   Proof.
     destruct sk; sepLemma.
     injection H0; sepLemma.
-  Qed.
+  Admitted.
 End Adt.
 
 Import Adt.

@@ -21,7 +21,7 @@ Proof.
   unfold tuples0; sepLemma.
   firstorder idtac.
   firstorder idtac.
-Qed.
+Admitted.
 
 Definition Empty : tuples := fun _ => False.
 
@@ -237,4 +237,4 @@ Hint Immediate allTuplesLen_setwise.
 Theorem ok : moduleOk m.
 Proof.
   vcgen; abstract (unfold tuples0; sep_auto; eauto).
-Qed.
+Admitted.

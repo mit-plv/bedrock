@@ -61,11 +61,11 @@ Module Tree : TREE.
 
   Theorem tree_fwd : forall b p, tree b p ===> Ex t, Ex p', Ex junk, (p ==*> p', junk) * tree' b t p'.
     unfold tree; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree_bwd : forall b p, (Ex t, Ex p', Ex junk, (p ==*> p', junk) * tree' b t p') ===> tree b p.
     unfold tree; sepLemma.
-  Qed.
+  Admitted.
 
   Ltac normalize :=
     match goal with
@@ -81,18 +81,18 @@ Module Tree : TREE.
   Theorem tree'_nil_fwd : forall b t (p : W), p = 0
     -> tree' b t p ===> [| t = Leaf |].
     destruct t; simpl; intros; try normalize; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree'_nil_bwd : forall b t (p : W), p = 0
     -> [| t = Leaf |] ===> tree' b t p.
     destruct t; simpl; intros; try normalize; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree'_cons_fwd : forall b t (p : W), p <> 0
     -> tree' b t p ===> Ex t1, Ex t2, Ex i, Ex c, Ex p1, Ex p2, [| t = Node t1 t2 |] * (p ==*> i, c, p1, p2)
         * tree'' b t1 p1 c * tree' b t2 p2.
     destruct t; simpl; intros; try normalize; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree'_cons_bwd : forall b t (p : W), p <> 0
     -> (Ex t1, Ex t2, Ex i, Ex c, Ex p1, Ex p2, [| t = Node t1 t2 |] * (p ==*> i, c, p1, p2)
@@ -101,36 +101,36 @@ Module Tree : TREE.
       match goal with
         | [ H : Node _ _ = Node _ _ |- _ ] => injection H0; intros; subst; sepLemma
       end.
-  Qed.
+  Admitted.
 
   Theorem tree'_weaken : forall b b', b %<= b'
     -> forall t p, tree' b t p ===> tree' b' t p.
     induction t; simpl; intros; repeat normalize; sepLemma;
       apply himp_star_frame; auto;
         unfold tree''; destruct (weq x1 $0); auto; sepLemma; eauto using incl_mem.
-  Qed.
+  Admitted.
 
   Transparent natToWord.
 
   Theorem tree''_zero_fwd : forall b t p (c : W), c = 0
     -> tree'' b t p c ===> [| p %in b |] * [| t = Leaf |].
     unfold tree''; intros; subst; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree''_zero_bwd : forall b t p (c : W), c = 0
     -> [| p %in b |] * [| t = Leaf |] ===> tree'' b t p c.
     unfold tree''; intros; subst; sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree''_nonzero_fwd : forall b t p (c : W), c <> 0
     -> tree'' b t p c ===> tree' b t p.
     unfold tree''; intros; destruct (weq c $0); sepLemma.
-  Qed.
+  Admitted.
 
   Theorem tree''_nonzero_bwd : forall b t p (c : W), c <> 0
     -> tree' b t p ===> tree'' b t p c.
     unfold tree''; intros; destruct (weq c $0); sepLemma.
-  Qed.
+  Admitted.
 
 End Tree.
 

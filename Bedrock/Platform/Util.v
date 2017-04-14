@@ -249,7 +249,7 @@ Theorem localsInvariant_in : forall ns' pre post ns res ns'' res' stn_st specs,
   intro; subst.
   apply H15.
   apply in_or_app; tauto.
-Qed.
+Admitted.
 
 Theorem localsInvariant_inEx : forall specs A p q p',
   (forall x, interp specs (Ex st' : state,

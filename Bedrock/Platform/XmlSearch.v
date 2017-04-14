@@ -945,7 +945,7 @@ Section Pat.
           -> interp specs (inv cdatas true (fun x => x) ns res st))
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
     induction p; abstract PatR.
-  Qed.
+  Admitted.
 
   Notation PatVcs p onSuccess := (fun im ns res =>
     (~In "rp" ns) :: incl baseVars ns

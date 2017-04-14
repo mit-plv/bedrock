@@ -122,7 +122,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Opaque evalInstrs.
       unfold from_bedrock_label_map in *.
       hiding ltac:(evaluate auto_ext).
-    Qed.
+    Admitted.
 
     Lemma verifCond_ok_assign :
       forall x e k (pre : assert),
@@ -182,7 +182,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
       Opaque evalInstrs.
       hiding ltac:(evaluate auto_ext).
-    Qed.
+    Admitted.
 
   End TopSection.
 

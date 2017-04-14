@@ -28,7 +28,7 @@ Theorem t4 : forall A (R : A -> A -> Prop),
   sepLemma.
   apply H.
   eassumption.
-Qed.
+Admitted.
 
 (** Unification **)
 Theorem t5 : forall p1 P2 V, exists p2, exists v,

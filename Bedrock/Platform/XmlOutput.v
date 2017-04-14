@@ -1454,7 +1454,7 @@ Section Out.
     clear; sepLemma; apply himp_star_frame.
     apply weaken_cursors; auto.
     auto.
-  Qed.
+  Admitted.
 
   Ltac bash :=
     try match goal with

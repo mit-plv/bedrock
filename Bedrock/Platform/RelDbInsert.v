@@ -198,7 +198,7 @@ Section Insert.
       v.
       v.
       v.
-    Qed.
+    Admitted.
 
     Lemma writeExp_correct_post : forall e col pre,
       wfExp ns e
@@ -214,7 +214,7 @@ Section Insert.
       v.
       v.
       v.
-    Qed.
+    Admitted.
 
     Hypothesis length_es : length es = length sch.
     Hypothesis goodSize_sch : goodSize (length sch).
@@ -318,7 +318,7 @@ Section Insert.
       awe.
       awe.
       awe.
-    Qed.
+    Admitted.
   End writeExps_correct.
 
   Notation InsertVcs := (fun im ns res =>

@@ -1517,7 +1517,7 @@ Section ExprComp.
         (eval vs expr1)) (S base) x5)); eauto.
     generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
     (* Sorry for all that copying and pasting. ;-) *)
-  Qed.
+  Admitted.
   Opaque evalInstrs.
 
   Lemma verifCondOk : forall expr base pre,
@@ -1849,7 +1849,7 @@ Section ExprComp.
     discriminate.
     discriminate.
     Opaque evalInstrs.
-  Qed.
+  Admitted.
 
   Definition compile (expr : Expr) (base : nat) : cmd imports modName.
     refine (Wrap imports imports_global modName (body expr base) (post expr base) (verifCond expr base) _ _).
