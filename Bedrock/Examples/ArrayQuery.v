@@ -951,7 +951,7 @@ Section Query.
               nonempty wPost;
               match goal with
                 | [ H : context[v] |- _ ] => generalize v H
-              end; locals_rewrite; rewrite sel_middle by eauto; intro v'; intros; repeat eexists;
+              end; locals_rewrite; rewrite sel_middle by eauto; let v' := fresh "v'" in intro v'; intros; repeat eexists;
               apply simplify_fwd'; unfold Substs; apply subst_qspecOut_bwd; apply qspecOut_bwd with v'
 
             | [ Hf : bexpFalse (conditionOut c) _ _, _ : evalInstrs _ _ (Binop _ _ Plus _ :: nil) = Some _,

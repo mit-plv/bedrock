@@ -106,7 +106,11 @@ Import FreeList.
 Export FreeList.
 Hint Immediate freeList_extensional mallocHeap_extensional.
 
-Ltac expose := intros w ?; case_eq (wordToNat w); [ intro Heq;
+Ltac expose :=
+  let w := fresh "w" in
+  let n := fresh "n" in
+  let Heq := fresh "Heq" in
+  intros w ?; case_eq (wordToNat w); [ intro Heq;
   apply (f_equal (natToWord 32)) in Heq; rewrite natToWord_wordToNat in Heq;
     subst; elimtype False; auto
   | intros n Heq; repeat (destruct n; [
