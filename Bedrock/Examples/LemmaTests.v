@@ -57,6 +57,6 @@ Qed.
 
 Theorem t_err : forall a b c d, a =*> c * b =*> d ===> a =*> b * c =*> d.
   intros.
-  progress sep_canceller ltac:ILTacCommon.isConst auto_ext ltac:(hints_ext_simplifier auto_ext).
-  (progress sep_canceller ltac:ILTacCommon.isConst auto_ext ltac:(hints_ext_simplifier auto_ext); fail 3) || idtac.
+  progress sep_canceller ltac:(ILTacCommon.isConst) auto_ext ltac:(hints_ext_simplifier auto_ext).
+  (progress sep_canceller ltac:(ILTacCommon.isConst) auto_ext ltac:(hints_ext_simplifier auto_ext); fail 3) || idtac.
 Abort.
