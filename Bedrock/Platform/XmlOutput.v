@@ -1454,6 +1454,7 @@ Section Out.
     clear; sepLemma; apply himp_star_frame.
     apply weaken_cursors; auto.
     auto.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Ltac bash :=

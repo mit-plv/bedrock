@@ -249,6 +249,7 @@ Theorem localsInvariant_in : forall ns' pre post ns res ns'' res' stn_st specs,
   intro; subst.
   apply H15.
   apply in_or_app; tauto.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Theorem localsInvariant_inEx : forall specs A p q p',

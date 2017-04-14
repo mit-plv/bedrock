@@ -173,6 +173,7 @@ Section Condition.
 
     v.
     v.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Hypothesis equal : "array8"!"equal" ~~ im ~~> ArrayOps.equalS.
@@ -345,6 +346,7 @@ Section Condition.
       v.
       v.
       v.
+      Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Fixpoint compileEqualities (es : condition) : chunk :=
@@ -389,6 +391,7 @@ Section Condition.
                   | [ IH : forall pre : _ -> _, _, H : interp _ (Postcondition _ _) |- _ ] =>
                     apply IH in H
                 end; eauto; pre); t).
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Lemma compileEqualities_vcs : forall es pre,
@@ -408,5 +411,6 @@ Section Condition.
                | [ IH : forall pre : _ -> _, _ |- vcs _ ] =>
                  apply IH
              end; eauto; pre); t).
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 End Condition.

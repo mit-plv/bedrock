@@ -28,6 +28,7 @@ Theorem t4 : forall A (R : A -> A -> Prop),
   sepLemma.
   apply H.
   eassumption.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 (** Unification **)

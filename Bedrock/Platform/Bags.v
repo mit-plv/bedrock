@@ -172,11 +172,13 @@ Module Make(M : S).
   Lemma exists_starL_fwd : forall A (P : A -> _) Q,
     (Ex x, P x) * Q ===> Ex x, P x * Q.
     sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Lemma exists_starR_bwd : forall P A (Q : A -> _),
     Ex x, P * Q x ===> P * (Ex x, Q x).
     sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Definition bagify (ls : list A) : bag :=
@@ -227,6 +229,7 @@ Module Make(M : S).
 
     Theorem starB_empty_bwd : Emp ===> starB P empty.
       to_himp; apply existsR with nil; from_himp; sepLemma.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma bagify_cong : forall ls b1 b2,
@@ -248,6 +251,7 @@ Module Make(M : S).
       simpl; generalize (starL P ls); generalize (P v); sepLemma.
       unfold bagify in *; simpl.
       apply equiv_symm; eapply equiv_trans; [ apply add_something | ]; auto.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Fixpoint nuke (p : A) (ls : list A) : list A :=
@@ -265,6 +269,7 @@ Module Make(M : S).
       eapply Himp_trans.
       apply Himp_star_frame; [ apply Himp_refl | apply H ].
       generalize (starL P (nuke v ls)); generalize (P a); generalize (P v); sepLemma.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma del_something : forall v ls b,
@@ -328,12 +333,14 @@ Module Make(M : S).
       eauto.
       transitivity (h0 * h)%Sep; eauto.
       sepLemma.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma fun_fun_fun : forall A P Q R,
       P * (Ex ls : A, Q ls * R ls)
       ===> (Ex ls : A, Q ls * (P * R ls)).
       sepLemma.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma undel_something' : forall v b x b',

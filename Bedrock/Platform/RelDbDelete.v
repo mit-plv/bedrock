@@ -406,6 +406,7 @@ Section Delete.
     -> interp specs (Postcondition (toCmd Delete' mn H ns res pre) st)
     -> interp specs (dinvar true (fun x : W => x) ns res st).
     simpl; wrap0; t.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem Delete_vcs : forall im mn (H : importsGlobal im) ns res pre,

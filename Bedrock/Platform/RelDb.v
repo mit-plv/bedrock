@@ -181,6 +181,7 @@ Lemma starL_app_end : forall A (P : A -> HProp) x ls,
   simpl.
   eapply Himp_trans; [ apply Himp_star_assoc | ].
   apply Himp_star_frame; auto; apply Himp_refl.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Lemma rows_app_end : forall sch x ls y,

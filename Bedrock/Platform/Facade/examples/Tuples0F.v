@@ -21,6 +21,7 @@ Proof.
   unfold tuples0; sepLemma.
   firstorder idtac.
   firstorder idtac.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Definition Empty : tuples := fun _ => False.
@@ -237,4 +238,5 @@ Hint Immediate allTuplesLen_setwise.
 Theorem ok : moduleOk m.
 Proof.
   vcgen; abstract (unfold tuples0; sep_auto; eauto).
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.

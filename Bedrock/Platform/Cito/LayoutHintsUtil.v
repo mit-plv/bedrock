@@ -39,6 +39,7 @@ Lemma starL_in : forall A P x (ls : list A),
   subst; simpl; tauto.
   right; apply H5.
   auto.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Lemma starL_out : forall A P x (ls : list A),
@@ -76,6 +77,7 @@ Lemma starL_out : forall A P x (ls : list A),
   subst; simpl; tauto.
   right; apply H5.
   auto.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Lemma starL_permute : forall A P (ls1 : list A),

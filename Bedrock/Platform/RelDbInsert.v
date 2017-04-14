@@ -198,6 +198,7 @@ Section Insert.
       v.
       v.
       v.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma writeExp_correct_post : forall e col pre,
@@ -214,6 +215,7 @@ Section Insert.
       v.
       v.
       v.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Hypothesis length_es : length es = length sch.
@@ -318,6 +320,7 @@ Section Insert.
       awe.
       awe.
       awe.
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
   End writeExps_correct.
 

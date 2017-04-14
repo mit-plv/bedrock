@@ -326,6 +326,7 @@ Lemma starting_elim : forall specs pc ss P stn st,
   rewrite <- sepFormula_eq; descend; step auto_ext.
   auto.
   step auto_ext.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Local Hint Resolve split_a_semp_a semp_smem_emp.

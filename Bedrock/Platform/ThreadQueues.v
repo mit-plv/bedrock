@@ -197,6 +197,7 @@ Lemma starting_elim : forall specs ts w pc ss P stn st,
   eauto.
   eauto.
   step auto_ext.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 

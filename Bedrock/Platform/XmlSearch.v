@@ -945,6 +945,7 @@ Section Pat.
           -> interp specs (inv cdatas true (fun x => x) ns res st))
         /\ vcs ((toCmd (Pat' p level cdatas onSuccess) (im := im) mn H ns res pre).(VerifCond)).
     induction p; abstract PatR.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Notation PatVcs p onSuccess := (fun im ns res =>

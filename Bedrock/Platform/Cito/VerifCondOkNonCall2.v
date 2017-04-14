@@ -122,6 +122,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       Opaque evalInstrs.
       unfold from_bedrock_label_map in *.
       hiding ltac:(evaluate auto_ext).
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
     Lemma verifCond_ok_assign :
@@ -182,6 +183,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eauto.
       Opaque evalInstrs.
       hiding ltac:(evaluate auto_ext).
+      Fail pose Set as there_should_be_no_goal_left.
     Admitted.
 
   End TopSection.

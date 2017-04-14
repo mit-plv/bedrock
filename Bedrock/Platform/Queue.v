@@ -112,36 +112,42 @@ Module Queue : QUEUE.
     b %= b'
     -> lseg b n fr ba ===> lseg b' n fr ba.
     induction n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_extensional' : forall ba n b b' fr,
     b %= b'
     -> llist b n fr ba ===> llist b' n fr ba.
     induction n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem queue_fwd : forall b p,
     queue b p
     ===> Ex fr, Ex ba, Ex n, [| freeable p 2 |] * (p ==*> fr, ba) * llist b n fr ba.
     unfold queue; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem queue_bwd : forall b p,
     (Ex fr, Ex ba, Ex n, [| freeable p 2 |] * (p ==*> fr, ba) * llist b n fr ba)
     ===> queue b p.
     unfold queue; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_empty_fwd : forall b n (fr : W) ba,
     fr = 0
     -> llist b n fr ba ===> [| b %= empty |] * [| n = O |].
     destruct n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_empty_bwd : forall b n (fr : W) ba,
     fr = 0
     -> [| b %= empty |] * [| n = O |] ===> llist b n fr ba.
     destruct n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_nonempty_fwd : forall ba n (fr : W) b,
@@ -149,6 +155,7 @@ Module Queue : QUEUE.
     -> focusOnFront
     -> llist b n fr ba ===> Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |] * [| freeable fr 3 |] * (fr ==*> v1, v2, p) * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
     destruct n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_end_fwd : forall ba n (fr : W) b,
@@ -177,6 +184,7 @@ Module Queue : QUEUE.
     sepLemma.
     injection H4; clear H4; intros; subst.
     apply lseg_extensional'; bags.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_nonempty_fwd_b : forall b n (fr : W) ba,
@@ -185,6 +193,7 @@ Module Queue : QUEUE.
     -> llist b n fr ba ===> [| fr <> 0 |] * Ex n', Ex v1, Ex v2, Ex p, [| n = S n' |] * [| (v1, v2) %in b |]
       * (fr ==*> v1, v2, p) * [| freeable fr 3 |] * [| ifZero n' fr ba |] * llist (b %- (v1, v2)) n' p ba.
     destruct n; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_nonempty_bwd : forall b n (fr ba : W),
@@ -195,6 +204,7 @@ Module Queue : QUEUE.
     destruct n; sepLemma; match goal with
                             | [ H : S _ = S _ |- _ ] => injection H; intros; subst
                           end; auto; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Lemma llist_end_bwd' : forall (ba : W) n (fr : W) b,
@@ -227,6 +237,7 @@ Module Queue : QUEUE.
     etransitivity; try apply IHn.
     sepLemma.
     apply lseg_extensional'; bags.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem llist_end_bwd : forall (ba : W) n (fr : W) b,

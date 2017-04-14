@@ -1517,6 +1517,7 @@ Section ExprComp.
         (eval vs expr1)) (S base) x5)); eauto.
     generalize (Max.le_max_r (depth expr1) (S (depth expr2))); omega.
     (* Sorry for all that copying and pasting. ;-) *)
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
   Opaque evalInstrs.
 
@@ -1849,6 +1850,7 @@ Section ExprComp.
     discriminate.
     discriminate.
     Opaque evalInstrs.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Definition compile (expr : Expr) (base : nat) : cmd imports modName.

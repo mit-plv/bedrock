@@ -165,12 +165,14 @@ Module Tq : TQ.
     * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps w b sc.
     unfold tq; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem tq_bwd : forall w sc, (Ex b, Ex p, Ex sp, Ex vs, (sc ==*> p, sp) * (sc ^+ $8) =?> 2
     * locals ("rp" :: "sc" :: "ss" :: "curPc" :: "curSp" :: "newPc" :: "newSp" :: nil) vs 14 sp
     * queue b p * susps w b sc) ===> tq w sc.
     unfold tq; sepLemma.
+    Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
   Theorem into_ex : forall A (P P' : A -> _),
@@ -304,6 +306,7 @@ Lemma susp_convert : forall specs w sc pc sp P stn st pc_tq,
   descend; step auto_ext.
   eauto.
   step auto_ext.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Lemma susp'_intro : forall specs w sc pc sp P stn st,
@@ -318,6 +321,7 @@ Lemma susp'_intro : forall specs w sc pc sp P stn st,
   descend; step auto_ext.
   eauto.
   descend; step auto_ext.
+  Fail pose Set as there_should_be_no_goal_left.
 Admitted.
 
 Definition initS : spec := SPEC reserving 12
