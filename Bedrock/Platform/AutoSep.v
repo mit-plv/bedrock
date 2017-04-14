@@ -256,8 +256,8 @@ Theorem eatEasy_simpl : forall pc state (P Q : PropX pc state) specs,
     interp specs (andify easy1 ---> andify hard1 ---> andify easy2 /\ andify hard2)%PropX)
   -> interp specs (P ---> Q)%PropX.
   intros.
-  specialize (eatEasy_left1' P); specialize (eatEasy_left2' P); destruct (eatEasy P); intros.
-  specialize (eatEasy_right' Q); destruct (eatEasy Q); intros.
+  specialize (eatEasy_left1' P); specialize (eatEasy_left2' P); cbv beta iota; destruct (eatEasy P); intros.
+  specialize (eatEasy_right' Q); cbv beta iota; destruct (eatEasy Q); intros.
   apply Imply_trans with (andify l0 /\ andify l)%PropX.
   apply andR; auto.
   eapply Imply_trans; try apply H2.
