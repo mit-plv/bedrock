@@ -63,14 +63,14 @@ let carg c = Tacinterp.Value.of_constr c
 
 
 (** [recompose_prod C args f t] assumes that [f : C,t] and [args : C] *)
-let recompose_prod
-    (context : Context.Rel.t) (args : EConstr.constr array) (c : EConstr.constr) return_type=
+let recompose_prod sigma
+    (context : EConstr.rel_context) (args : EConstr.constr array) (c : EConstr.constr) return_type=
   let subst_rel_context k cstr ctx =
     let (_, ctx') =
       List.fold_left (fun (k, ctx') (id, b, t) -> (succ k,
-        let ty = Vars.substnl [cstr] k t in
+        let ty = EConstr.Vars.substnl [cstr] k t in
 	(match b with
-	 | Some b' -> Context.Rel.Declaration.LocalDef (id, Vars.substnl [cstr] k b', ty)
+	 | Some b' -> Context.Rel.Declaration.LocalDef (id, EConstr.Vars.substnl [cstr] k b', ty)
 	 | None -> Context.Rel.Declaration.LocalAssum (id, ty)
 	 ) :: ctx')) (k, [])
 	(List.map Context.Rel.Declaration.to_tuple ctx) in List.rev ctx'
@@ -78,11 +78,11 @@ let recompose_prod
   let rec depend_on k ctx =
     let open Context.Rel.Declaration in
     match ctx with
-      | [] -> not (Vars.noccurn k return_type)
+      | [] -> not (EConstr.Vars.noccurn sigma k return_type)
       | LocalDef (id,b,t) :: ctx ->
-	not (Vars.noccurn k b)	|| not (Vars.noccurn k t) || depend_on (succ k) ctx
+	not (EConstr.Vars.noccurn sigma k b)	|| not (EConstr.Vars.noccurn sigma k t) || depend_on (succ k) ctx
       | LocalAssum (id,t) :: ctx ->
-	not (Vars.noccurn k t) || depend_on (succ k) ctx
+	not (EConstr.Vars.noccurn sigma k t) || depend_on (succ k) ctx
   in
   let len = List.length context in
   let args = Array.to_list args in
@@ -122,7 +122,7 @@ let recompose_prod
   in
 
   let app,ctxt,rest = aux context len 0 [] [] [] args in
-  EConstr.it_mkLambda_or_LetIn (EConstr.applistc c (app) ) (ctxt), rest
+  EConstr.it_mkLambda_or_LetIn (EConstr.applist (c, app) ) (ctxt), rest
 
 
 let reify_application env evar term  =
@@ -130,21 +130,21 @@ let reify_application env evar term  =
   let refl_app env evar  term f args =
     let (evar, ty) = Typing.type_of env evar f in
     let (rel_context, return_type) = EConstr.decompose_prod_assum evar ty in
-    let f, args = recompose_prod rel_context args f return_type in
+    let f, args = recompose_prod evar rel_context args f return_type in
     (* This extra bit of typing is a bit painful... *)
     let (evar, ty) = Typing.type_of env evar f in
-    let (rel_context, return_type) = EConstr.decompose_prod_assum ty in
+    let (rel_context, return_type) = EConstr.decompose_prod_assum evar ty in
     let types = List.fold_left (fun acc decl -> Context.Rel.Declaration.get_type decl :: acc ) [] rel_context in
     Some (f, types , args, return_type )
   in
 
-  begin match Extlib.decomp_term term with
-    | EConstr.App (f,args) ->
+  begin match Extlib.decomp_term evar term with
+    | Term.App (f,args) ->
       refl_app env evar  term f args
-    | EConstr.Lambda (name, typ, body) ->
-      let env = Environ.push_rel (Context.Rel.Declaration.LocalAssum (name, typ)) env in
-      begin match Extlib.decomp_term body with
-	| EConstr.App (f,args) ->
+    | Term.Lambda (name, typ, body) ->
+      let env = EConstr.push_rel (Context.Rel.Declaration.LocalAssum (name, typ)) env in
+      begin match Extlib.decomp_term evar body with
+	| Term.App (f,args) ->
 	  begin match refl_app env evar  body f args  with
 	    | Some (f, types, args, ret) ->
 	      let args = List.map (fun x -> EConstr.mkLambda  (name,typ,x) ) args in
@@ -160,15 +160,15 @@ let reify_application2 env evar term  =
   debug "reify_application:%a\n" pp_constr term;
   let refl_app env evar  term f args =
     let (evar, ty) = Typing.type_of env evar f in
-    let (rel_context, return_type) = EConstr.decompose_prod_assum ty in
-    let f, args = recompose_prod rel_context args f return_type in
+    let (rel_context, return_type) = EConstr.decompose_prod_assum evar ty in
+    let f, args = recompose_prod evar rel_context args f return_type in
     (* This extra bit of typing is a bit painful... *)
     let types = List.map (Typing.unsafe_type_of env evar) args in
     Some (f, types , args )
   in
 
-  begin match Extlib.decomp_term term with
-    | EConstr.App (f,args) ->
+  begin match Extlib.decomp_term evar term with
+    | Term.App (f,args) ->
       refl_app env evar  term f args
     | _ -> Some (term, [], [])
   end
@@ -193,19 +193,19 @@ let (@@) f l = Extlib.lapp f l
 	try List.assoc x env
 	with Not_found -> Format.printf "Could not find %s\n%!" x; raise Not_found
 
-      let rec eval p t env : env option =
+      let rec eval sigma p t env : env option =
 	match p with
-	  | Const x -> if EConstr.eq_constr x t then Some env else None
+	  | Const x -> if EConstr.eq_constr sigma x t then Some env else None
 	  | Var s -> Some ((s,t) :: env)
 	  | Hole -> Some env
 	  | App (hd, args) ->
-	    begin match Extlib.decomp_term t with
-	      | EConstr.App (hd', args') ->
+	    begin match Extlib.decomp_term sigma t with
+	      | Term.App (hd', args') ->
 		if Array.length args = Array.length args' then
 		  let rec aux i env =
 		    if i = Array.length args then Some env
 		    else
-		      match eval args.(i) args'.(i) env with
+		      match eval sigma args.(i) args'.(i) env with
 			| None -> None
 			| Some env -> aux (i+1) env
 		  in
@@ -214,28 +214,28 @@ let (@@) f l = Extlib.lapp f l
 	      | _ -> None
 	    end
 
-      let rec matcho t l =
+      let rec matcho sigma t l =
 	match l with
 	  | [] -> None
 	  | (p,k)::q ->
-	    begin match eval p t [] with
-	      | None -> matcho t q
+	    begin match eval sigma p t [] with
+	      | None -> matcho sigma t q
 	      | Some env -> Some  (k env)
 	    end
 
-      let matchf t l =
-	match matcho t l with
+      let matchf sigma t l =
+	match matcho sigma t l with
 	  | Some x -> x
 	  | None -> Format.printf "Anomaly matching %a\n%!" pp_constr t; assert false
 
-      let rec shallow_match (t: EConstr.constr) (l : (EConstr.constr * int * (EConstr.constr array -> 'a)) list):
+      let rec shallow_match sigma (t: EConstr.constr) (l : (EConstr.constr * int * (EConstr.constr array -> 'a)) list):
 	  'a =
-	match Extlib.decomp_term t, l with
-	  | EConstr.App (hd, args), (hd',ar,k) :: q when EConstr.eq_constr hd hd' ->
+	match Extlib.decomp_term sigma t, l with
+	  | Term.App (hd, args), (hd',ar,k) :: q when EConstr.eq_constr sigma hd hd' ->
 	    if not (Array.length args = ar)
 	    then CErrors.anomaly (Pp.str "Incorrect arity of an application in reification");
 	    k args
-	  | _ , _ :: q -> shallow_match t q
+	  | _ , _ :: q -> shallow_match sigma t q
 	  | _ ,[] ->
 	    Format.printf "Unable to reify %a" pp_constr t;
 	    CErrors.anomaly (Pp.str "Unable to reify")
@@ -408,7 +408,7 @@ module Bedrock = struct
 	  | [] -> raise (Length n)
 	  | t :: q -> if eq (f t) x  then n else aux eq (n+1) q
 	      in
-	      try aux EConstr.eq_constr 0 l
+	      try aux (EConstr.eq_constr evar) 0 l
 	      with
       		| Length _ -> aux (Reductionops.is_conv env evar) 0 l
 	end
@@ -431,14 +431,14 @@ module Bedrock = struct
 	| [] -> raise (Length n)
 	| t :: q -> if eq (f t) x  then n else aux eq (n+1) q
       in
-      aux EConstr.eq_constr 0 l
+      aux (EConstr.eq_constr evar) 0 l
 
       (* aux EConstr.eq_constr 0 l *)
 
     (* add a bedrock [type] to the environment *)
     let add_type env evar (renv : t) ty : t * tvar =
       debug "call add_type %a\n" pp_constr ty;
-      if EConstr.is_Prop ty then renv, None
+      if Termops.is_Prop evar ty then renv, None
       else
 	try renv, Some (exists env evar fst ty renv.types)
 	with Length n ->
@@ -483,7 +483,7 @@ module Bedrock = struct
 
 
     (* to detect "constants" *)
-    let is_const e =
+    let is_const sigma e =
       let init p x = Extlib.init_constant  p x in
       let f x = init ["Bedrock"; "IL"] x in
 
@@ -500,17 +500,17 @@ module Bedrock = struct
       let string = (init ["Coq"; "Strings"; "String"] "String") in
       let ascii = (init ["Coq"; "Strings"; "Ascii"] "Ascii") in
     let rec is_const e =
-	List.exists (EConstr.eq_constr e) constants
+	List.exists (EConstr.eq_constr sigma e) constants
 	||
-	  match Extlib.decomp_term e with
-	    | EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force Extlib.Nat._S) ->
+	  match Extlib.decomp_term sigma e with
+	    | Term.App (hd, args) when EConstr.eq_constr sigma hd (Lazy.force Extlib.Nat._S) ->
 	      is_const args.(0)
-	    | EConstr.App (hd, args) when
-		EConstr.eq_constr hd string ->
+	    | Term.App (hd, args) when
+		EConstr.eq_constr sigma hd string ->
 	       is_const args.(0) && is_const args.(1)
-	    | EConstr.App (hd, args) when
-		EConstr.eq_constr hd ascii ->
-	      Array.fold_left (fun acc x -> acc && List.exists (EConstr.eq_constr x) bool_constants) true args
+	    | Term.App (hd, args) when
+		EConstr.eq_constr sigma hd ascii ->
+	      Array.fold_left (fun acc x -> acc && List.exists (EConstr.eq_constr sigma x) bool_constants) true args
 	    | _ -> false
       in
       let r = is_const e in
@@ -598,36 +598,36 @@ module Bedrock = struct
     let reify_expr env evar renv e =
       let rec reify_expr renv e =
 	debug "reify_expr %a\n%!" pp_constr e;
-	match Extlib.decomp_term e with
-	  | EConstr.Rel i ->
+	match Extlib.decomp_term evar e with
+	  | Term.Rel i ->
 	    if renv.Renv.level - i >= 0 then
 	      renv, Var (i - 1)
 	    else assert false
-	  | EConstr.Evar _ ->
+	  | Term.Evar _ ->
 	    let evar, ty = Typing.type_of env evar e in
 	    let renv, nty = Renv.add_type env evar renv ty in
 	    let renv, v = Renv.add_var env evar renv e (ty,nty) in
 	    renv, UVar v
-	  | EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force Extlib.Leibniz._eq) ->
+	  | Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force Extlib.Leibniz._eq) ->
 	    let renv, tn = Renv.add_type env evar renv (args.(0)) in
 	    let renv, l = reify_expr renv (args.(1)) in
 	    let renv, r = reify_expr renv (args.(2)) in
 	    renv, Equal (tn,l,r)
-	  | EConstr.App (hd, args') when EConstr.eq_constr hd (Lazy.force Extlib.Logic._not) ->
+	  | Term.App (hd, args') when EConstr.eq_constr evar hd (Lazy.force Extlib.Logic._not) ->
 	    let renv, e = reify_expr renv args'.(0) in
 	    renv, Not e
-	  | EConstr.Prod (_,s,t) when EConstr.eq_constr t (Lazy.force Extlib.Logic._false) ->
+	  | Term.Prod (_,s,t) when EConstr.eq_constr evar t (Lazy.force Extlib.Logic._false) ->
 	    let renv, e = reify_expr renv s in
 	    renv, Not e
 	  (* special case to add a constant. May fail later. *)
-	  | EConstr.App (hd,_) when EConstr.eq_constr hd (Extlib.Logic.exists ()) ->
+	  | Term.App (hd,_) when EConstr.eq_constr evar hd (Extlib.Logic.exists ()) ->
 	    let renv, f = Renv.add_func env evar renv e [] (Typing.unsafe_type_of env evar e) in
 	    renv, Func (f,[])
-	  | _ when Renv.is_const e ->
+	  | _ when Renv.is_const evar e ->
 	    let evar, ty = Typing.type_of env evar e in
 	    let renv, nty = Renv.add_type env evar renv ty in
 	    renv, Const (nty,e)
-	  | EConstr.App (hd, args) ->
+	  | Term.App (hd, args) ->
 	    debug "Call reify_application with %a in reify_expr\n" pp_constr e;
 	    begin match reify_application env evar e with
 	      | Some (f,types, args, return) ->
@@ -640,11 +640,11 @@ module Bedrock = struct
 	      | None -> assert false
 	    end
 	  | _ ->
-	    let s = Termops.free_rels e in
+	    let s = Termops.free_rels evar e in
 	    if Int.Set.cardinal s <> 0 then
 	      (* the term is not closed (like [if ?1 then x else ?2]) *)
 	      let s =
-		List.map (fun x -> x, Context.Rel.lookup x (Environ.rel_context env))
+		List.map (fun x -> x, EConstr.lookup_rel x env)
 		  (Int.Set.elements s) in
 	      (* [findi i l] returns [n,x] if x is associated to i in [l] at position n *)
 	      let findi i l =
@@ -655,16 +655,16 @@ module Bedrock = struct
 		findi i 1 l
 	      in
 	      let rec fold k e =
-		match Extlib.decomp_term e with
-		  | EConstr.Rel i ->
+		match Extlib.decomp_term evar e with
+		  | Term.Rel i ->
 		    begin
 		      try let (n,x) = findi (i - k) s in
 			  EConstr.mkRel (n+k)
 		      with _ -> e
 		    end
-		  | _ -> EConstr.map_constr_with_binders succ fold k e
+		  | _ -> EConstr.map_with_binders evar succ fold k e
 	      in
-	      let e = Termops.it_mkLambda_or_LetIn (fold 0 e) (List.map snd s) in
+	      let e = EConstr.it_mkLambda_or_LetIn (fold 0 e) (List.map snd s) in
 	      let renv, f = reify_expr renv e in
 	      let args = (List.fold_left (fun acc x -> EConstr.mkRel x:: acc) [] (List.map fst s)) in
 	      let args, renv = List.fold_right (fun x (args,renv) ->
@@ -678,7 +678,7 @@ module Bedrock = struct
 	    else  			(* The term is closed *)
 	      (
 		let (evar, ty) = Typing.type_of env evar e in
-		let (rel_context, return) = EConstr.decompose_prod_assum ty in
+		let (rel_context, return) = EConstr.decompose_prod_assum evar ty in
 		let types = List.fold_left (fun acc decl -> Context.Rel.Declaration.get_type decl:: acc) [] rel_context in
 		(* let f, args = recompose_prod rel_context [||] e return in  *)
 		(* let types = List.map (Typing.unsafe_type_of env evar) args in   *)
@@ -694,7 +694,7 @@ module Bedrock = struct
       let tt =  Extlib.init_constant ["Coq"; "Init"; "Datatypes";]  "tt" in
       let pair =  Extlib.init_constant ["Coq"; "Init"; "Datatypes";]  "pair" in
       let rec aux t =
-	Pattern.matchf t
+	Pattern.matchf evar t
 	  [
 	    const tt,
 	    (fun _ -> renv, []);
@@ -704,8 +704,8 @@ module Bedrock = struct
 	      let renv, q = aux (get e "b") in
 	      let a = get e "a"  in
 	      debug "reifying the pure %a\n" pp_constr a;
-	      let at = match Extlib.decomp_term (get e "a")  with
-		| EConstr.Var v -> Environ.named_type v env
+	      let at = match Extlib.decomp_term evar (get e "a")  with
+		| Term.Var v -> Context.Named.Declaration.get_type (EConstr.lookup_named v env)
 		| _ -> assert false
 	      in
 	      let renv, t = reify_expr env evar renv at in
@@ -789,19 +789,19 @@ module Bedrock = struct
 
     let rec reify_sexpr env evar renv e =
       debug "reify_sexpr %a\n%!" pp_constr e;
-      match Extlib.decomp_term e with
+      match Extlib.decomp_term evar e with
 	(* | EConstr.Lambda (name,ty,body) ->  *)
 	(*   let env = Environ.push_rel (name, None, ty) env in *)
 	(*   let renv = Renv.push renv in  *)
 	(*   let renv, e = reify_sexpr env evar renv body in  *)
 	(*   Renv.pop renv, e *)
-	| EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force emp) ->
+	| Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force emp) ->
 	  renv, Emp
-	| EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force inj) ->
+	| Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force inj) ->
 	  begin
 	    let p = args.(3) in
-	    begin match Extlib.decomp_term p with
-	      | EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force PropX.inj) ->
+	    begin match Extlib.decomp_term evar p with
+	      | Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force PropX.inj) ->
 		let renv, p = Expr.reify_expr env evar renv args.(3) in
 		renv, Inj p
 	      | _ ->
@@ -809,15 +809,15 @@ module Bedrock = struct
 		renv, Const p
 	    end
 	  end
-	| EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force star) ->
+	| Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force star) ->
 	  let renv, l = reify_sexpr env evar renv (args.(3)) in
 	  let renv, r = reify_sexpr env evar renv (args.(4)) in
 	  renv, Star (l,r)
-	| EConstr.App (hd, args) when EConstr.eq_constr hd (Lazy.force ex) ->
+	| Term.App (hd, args) when EConstr.eq_constr evar hd (Lazy.force ex) ->
 	  let body = args.(4) in
-	  let renv, body = begin match Extlib.decomp_term body with
-	    | EConstr.Lambda (name,ty,body) ->
-	      let env = Environ.push_rel (Context.Rel.Declaration.LocalAssum (name, ty)) env in
+	  let renv, body = begin match Extlib.decomp_term evar body with
+	    | Term.Lambda (name,ty,body) ->
+	      let env = EConstr.push_rel (Context.Rel.Declaration.LocalAssum (name, ty)) env in
 	      let renv = Renv.push renv in
 	      let renv, e = reify_sexpr env evar renv body in
 	      Renv.pop renv, e
@@ -827,7 +827,7 @@ module Bedrock = struct
 	  (* let renv, body = reify_sexpr env evar renv args.(4) in   *)
 	  let renv, ty = Renv.add_type env evar renv args.(3) in
 	  renv, Exists (ty, body)
-	| EConstr.App (hd, _) ->
+	| Term.App (hd, _) ->
 	  debug ":hd %a\n" pp_constr hd;
 	  begin match reify_application env evar e with
 	    | Some (f, types, args, return) ->
@@ -1017,7 +1017,7 @@ module Bedrock = struct
 
     let reify_loc env evar renv l =
       let f x = Extlib.init_constant ["Bedrock"; "IL"] x in
-      Pattern.shallow_match l
+      Pattern.shallow_match evar l
 	[f "Reg", 1, (fun args -> renv, Reg args.(0));
 	 f "Imm", 1, (fun args -> let renv, i = Expr.reify_expr env evar renv args.(0) in
 				  renv, Imm i);
@@ -1027,7 +1027,7 @@ module Bedrock = struct
 
     let reify_lvalue env evar renv l =
       let f x = Extlib.init_constant ["Bedrock"; "IL"] x in
-      Pattern.shallow_match l
+      Pattern.shallow_match evar l
 	[
 	  f "LvReg", 1, (fun args -> renv, LvReg args.(0));
 	  f "LvMem", 1, (fun args -> let renv, l = reify_loc env evar renv args.(0) in
@@ -1038,7 +1038,7 @@ module Bedrock = struct
 
     let reify_rvalue env evar renv r =
       let f x = Extlib.init_constant ["Bedrock"; "IL"] x in
-      Pattern.shallow_match r
+      Pattern.shallow_match evar r
 	[
 	  f "RvLval", 1, (fun args -> let renv, l = reify_lvalue env evar renv args.(0) in
 				      renv, RvLval l	  );
@@ -1049,7 +1049,7 @@ module Bedrock = struct
 
     let reify_instr env evar renv i =
       let f x = Extlib.init_constant ["Bedrock"; "IL"] x in
-      Pattern.shallow_match i
+      Pattern.shallow_match evar i
 	[
 	  f "Assign", 2, (fun args -> let renv, l = reify_lvalue env evar renv args.(0) in
 				      let renv, r = reify_rvalue env evar renv args.(1) in
@@ -1066,7 +1066,7 @@ module Bedrock = struct
       let nil = Lazy.force Extlib.List._nil in
       let cons = Lazy.force Extlib.List._cons in
       let rec aux renv is =
-	Pattern.matchf is
+	Pattern.matchf evar is
 	  [
 	    app nil [| __ |], (fun _ -> renv, []);
 	    app cons [| __ ; var "h" ; var "t"|],
@@ -1090,7 +1090,7 @@ module Bedrock = struct
 	  | [] -> renv, Some st, [], ([], Some st)
 	  | (h,_)::q when List.mem h used -> aux renv st q used
 	  | (h,ty):: q ->
-	    Pattern.matchf ty
+	    Pattern.matchf evar ty
 	      (* EVAL COND *)
 	      [app eq [| __ ;
 			 app eval_cond [|  var "l" ; var "t" ; var "r" ; __ ; const st |];
@@ -1098,7 +1098,7 @@ module Bedrock = struct
      	       (fun e ->
 		 let renv,l = reify_rvalue env evar renv (get e "l") in
 		 let renv,r = reify_rvalue env evar renv (get e "r") in
-		 Pattern.matchf (get e "st'")
+		 Pattern.matchf evar (get e "st'")
 		   [
 		     app none [| __ |],
 		     (fun _ ->
@@ -1119,7 +1119,7 @@ module Bedrock = struct
 	     	      |],
 	       (fun e ->
 		 let renv,sis = reify_instrs env evar renv (get e "i") in
-		 Pattern.matchf (get e "st'")
+		 Pattern.matchf evar (get e "st'")
 	     	   [
 	     	     app none [| __ |], (fun _ -> renv,None,[Inl (sis, None)] , ([h,ty], None));
 	     	     app some [| __ ; var "st2"|],
@@ -1148,7 +1148,7 @@ module Bedrock = struct
       let cons = Lazy.force Extlib.List._cons in
       let impl = Extlib.init_constant ["Bedrock"; "Expr"] "Impl" in
       let rec aux renv l =
-	Pattern.matchf l
+	Pattern.matchf evar l
 	  [
 	    app nil [| __ |], (fun _ -> renv);
 	    app cons [| __ ; var "h" ; var "t"|],
@@ -1160,8 +1160,8 @@ module Bedrock = struct
 	    )
 	  ]
       in
-      let l = match Extlib.decomp_term l with
-	| EConstr.Const (c,u) -> fst (Environ.constant_value env (c,u))
+      let l = match Extlib.decomp_term evar l with
+	| Term.Const (c,u) -> EConstr.of_constr (fst (Environ.constant_value env (c,EConstr.EInstance.kind evar u)))
 	| _ -> l
       in
       let renv = aux renv l in
@@ -1171,9 +1171,9 @@ module Bedrock = struct
   end
 
 
-    let parse_types (types : EConstr.constr) =
+    let parse_types sigma (types : EConstr.constr) =
       let impl = Extlib.init_constant ["Bedrock"; "Expr"] "Impl" in
-      let types,_ = Extlib.List.of_constr types in
+      let types,_ = Extlib.List.of_constr sigma types in
       List.map (fun x ->
 		let t = EConstr.mkApp (impl, [|x|]) in
 		(* Reduction.whd_betaiota
@@ -1183,7 +1183,7 @@ module Bedrock = struct
     let parse_funcs env evar renv types (funcs : EConstr.constr) =
       try
 	let denotation = Extlib.init_constant ["Bedrock"; "Expr"] "Denotation" in
-	let funcs,_ = Extlib.List.of_constr funcs in
+	let funcs,_ = Extlib.List.of_constr evar funcs in
 	let funcs = List.rev funcs in
 	let funcs = List.map (fun x ->
 	  Tacred.simpl env evar (EConstr.mkApp (denotation, [|types; x|]))
@@ -1192,7 +1192,7 @@ module Bedrock = struct
 	  debug "%a\n%!" pp_constr f;
 	  let (evar, ty) = Typing.type_of env evar f in
 	  (* let ty = Tacred.hnf_constr env evar ty in  *)
-	  let (rel_context, return) = EConstr.decompose_prod_assum ty in
+	  let (rel_context, return) = EConstr.decompose_prod_assum evar ty in
 	  let types = List.fold_left (fun acc decl -> Context.Rel.Declaration.get_type decl :: acc) [] rel_context in
 	  let renv, _ = Renv.add_func env evar renv f types return in
 	  renv
@@ -1205,7 +1205,7 @@ module Bedrock = struct
       let stT = mk_tvar (Some 1) in
       try
 	let denotation = Extlib.init_constant ["Bedrock"; "SepIL"; "SEP" ] "SDenotation" in
-	let preds , _ = Extlib.List.of_constr preds in
+	let preds , _ = Extlib.List.of_constr evar preds in
 	let preds = List.rev preds in
 	let preds = List.map (fun x ->
 	  Tacred.simpl env evar (EConstr.mkApp (denotation, [|types; pcT; stT; x|]))
@@ -1213,7 +1213,7 @@ module Bedrock = struct
 	let renv = List.fold_right (fun f (renv : Renv.t) ->
 	  let (evar, ty) = Typing.type_of env evar f in
 	  (* let ty = Tacred.hnf_constr env evar ty in  *)
-	  let (rel_context, return) = EConstr.decompose_prod_assum ty in
+	  let (rel_context, return) = EConstr.decompose_prod_assum evar ty in
 	  let types = List.fold_left (fun acc decl -> Context.Rel.Declaration.get_type decl :: acc) [] rel_context in
 	  let renv,types = List.fold_right (fun ty (renv,acc) ->
 	    let renv, t = Renv.add_type env evar renv ty in
@@ -1232,7 +1232,7 @@ module Bedrock = struct
       let hyps = Tacmach.pf_hyps_types gl in
       let env = Tacmach.pf_env gl in
       let evar = Tacmach.project gl in
-      let renv = Renv.init (parse_types types) in
+      let renv = Renv.init (parse_types evar types) in
       debug "Initialisation done ! \n%!";
       let renv = parse_funcs env evar renv types funcs in
       let renv = parse_preds env evar renv types preds in
@@ -1270,7 +1270,7 @@ module Bedrock = struct
       let hyps = Tacmach.pf_hyps_types gl in
       let env = Tacmach.pf_env gl in
       let evar = Tacmach.project gl in
-      let renv = Renv.init (parse_types types) in
+      let renv = Renv.init (parse_types evar types) in
       debug "Initialisation done ! \n%!";
       let renv = parse_funcs env evar renv types funcs in
       let renv = parse_preds env evar renv types preds in
@@ -1315,7 +1315,7 @@ module Bedrock = struct
       let hyps = Tacmach.pf_hyps_types gl in
       let env = Tacmach.pf_env gl in
       let evar = Tacmach.project gl in
-      let renv = Renv.init (parse_types types) in
+      let renv = Renv.init (parse_types evar types) in
       debug "===> Initialisation done ! \n%!";
       let renv = parse_funcs env evar renv types funcs in
       let renv = parse_preds env evar renv types preds in
@@ -1350,7 +1350,7 @@ let reify_application gl term k =
       let evar,t  = Evd.new_sort_variable Evd.univ_rigid evar in
       let t = EConstr.mkSort t in
       let gl = { gl with Evd.sigma = evar } in
-      let types = List.map (fun x -> (EConstr.mkCast (x, EConstr.DEFAULTcast, t)))  types   in
+      let types = List.map (fun x -> (EConstr.mkCast (x, Term.DEFAULTcast, t)))  types   in
       let args =  fst (Extlib.Tuple.of_list (List.combine args types)) in
       let types = Extlib.List.of_list t types in
       begin

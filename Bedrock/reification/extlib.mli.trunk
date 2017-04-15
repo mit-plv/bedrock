@@ -34,7 +34,7 @@ val cps_evar_relation : EConstr.constr -> (EConstr.constr -> Proof_type.tactic) 
 val cps_mk_letin : string -> EConstr.constr -> ( EConstr.constr -> Proof_type.tactic) -> Proof_type.tactic
 
 
-val decomp_term : EConstr.constr -> (Term.constr , Term.types, Sorts.t, Univ.Instance.t) Term.kind_of_term
+val decomp_term : Evd.evar_map -> EConstr.constr -> (EConstr.constr, EConstr.types, EConstr.ESorts.t, EConstr.EInstance.t) Term.kind_of_term
 val lapp : EConstr.constr lazy_t -> EConstr.constr array -> EConstr.constr
 
 type t = { body : EConstr.constr;
@@ -54,7 +54,7 @@ sig
   (** [type_of_list ty] *)
   val type_of_list:EConstr.constr ->EConstr.constr
 
-  val of_constr : EConstr.constr -> EConstr.constr list * EConstr.types
+  val of_constr : Evd.evar_map -> EConstr.constr -> EConstr.constr list * EConstr.types
 end
 
 module Tuple : sig
@@ -64,11 +64,11 @@ end
 module Logic : sig
   val _not : EConstr.constr lazy_t
   val _false : EConstr.constr lazy_t
-  val is_not : EConstr.constr -> bool
+  val is_not : Evd.evar_map -> EConstr.constr -> bool
   val exists : unit -> EConstr.constr
   val conj : unit -> EConstr.constr
   val and_ : unit -> EConstr.constr
-  val get_body_not : EConstr.constr -> EConstr.constr
+  val get_body_not : Evd.evar_map -> EConstr.constr -> EConstr.constr
 end
 
 (** Coq pairs *)
@@ -103,7 +103,7 @@ module Leibniz : sig
   val _eq : EConstr.constr lazy_t
   val _eq_refl : EConstr.constr lazy_t
   val eq : EConstr.types -> EConstr.constr -> EConstr.constr -> EConstr.constr
-  val match_eq : EConstr.constr ->  (EConstr.constr * EConstr.constr) option
+  val match_eq : Evd.evar_map -> EConstr.constr ->  (EConstr.constr * EConstr.constr) option
 end
 
 module Option : sig

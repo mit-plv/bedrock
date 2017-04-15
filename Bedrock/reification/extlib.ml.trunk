@@ -16,7 +16,7 @@ let contrib_name = "bedrock"
 let find_constant contrib dir s =
   Universes.constr_of_global (Coqlib.find_reference contrib dir s)
 
-let init_constant dir s = find_constant contrib_name dir s
+let init_constant dir s = EConstr.of_constr (find_constant contrib_name dir s)
 
 (* A clause specifying that the [let] should not try to fold anything
    in the goal *)
@@ -116,12 +116,12 @@ let cps_evar_relation (x: constr) k = fun goal ->
     )	goal
 
 (* decomp_term :  constr -> (constr, types, Sorts.t, Univ.Instance.t) kind_of_term *)
-let decomp_term c = kind_of_term (EConstr.Unsafe.to_constr (Termops.strip_outer_cast Evd.empty c))
+let decomp_term sigma c = EConstr.kind sigma (Termops.strip_outer_cast sigma c)
 
 let lapp c v  = mkApp (Lazy.force c, v)
 
 type t = { body : EConstr.constr;
-	   ty : Term.types
+	   ty : EConstr.types
 	 }
 
 (** {2 Bindings with Coq' Standard Library}  *)
@@ -181,7 +181,7 @@ end
 module Sum = struct
   let path = ["Coq"; "Init"; "Datatypes"]
   let init x = init_constant path x
-  let (@@) x l = Term.mkApp (x, Array.of_list l)
+  let (@@) x l = mkApp (x, Array.of_list l)
   let sum a b = (init "sum") @@ [a;b]
   let inl a b x = (init "inl") @@ [a ; b ; x]
   let inr a b x = (init "inr") @@ [a ; b ; x]
@@ -190,7 +190,7 @@ end
 module Pair2 = struct
   let path = ["Coq"; "Init"; "Datatypes"]
   let init x = init_constant path x
-  let (@@) x l = Term.mkApp (x, Array.of_list l)
+  let (@@) x l = mkApp (x, Array.of_list l)
   let pair a b (x,y) = (init "pair") @@ [a;b;x;y]
   let prod a b = (init "prod") @@ [a;b]
 end
@@ -200,9 +200,9 @@ module Leibniz = struct
   let _eq_refl = lazy (init_constant path "eq_refl")
   let eq_refl ty x = lapp _eq_refl [| ty;x|]
   let _eq = lazy (init_constant path "eq")
-  let match_eq (t : EConstr.constr) =
-    begin  match decomp_term t with
-      | Term.App (hd, args) when (hd = Lazy.force _eq) -> Some (args.(1),args.(2))
+  let match_eq sigma (t : EConstr.constr) =
+    begin  match decomp_term sigma t with
+      | Term.App (hd, args) when (EConstr.eq_constr sigma hd (Lazy.force _eq)) -> Some (args.(1),args.(2))
       | _ -> None
     end
   let eq ty x y = lapp _eq [|ty ; x ; y|]
@@ -218,14 +218,14 @@ module Logic = struct
   let and_ () = (init_constant path "and")
 
   let exists () = (init_constant path "ex")
-  let is_not t = match decomp_term t with
+  let is_not sigma t = match decomp_term sigma t with
     | Term.App (hd, args) ->
-      Term.eq_constr hd (Lazy.force _not)
+      EConstr.eq_constr sigma hd (Lazy.force _not)
     | Term.Prod (_,arg,body) ->
-      Term.eq_constr body (Lazy.force _false)
+      EConstr.eq_constr sigma body (Lazy.force _false)
     | _ -> false
 
-  let get_body_not t = match decomp_term t with
+  let get_body_not sigma t = match decomp_term sigma t with
     | Term.App (hd, args) ->
       args.(0)
     | Term.Prod (_,arg,body) ->
@@ -312,16 +312,16 @@ module List = struct
     | t::q -> cons ty t (of_list  ty q)
   let type_of_list ty =
     mkApp (Lazy.force typ, [|ty|])
-  let of_constr e =
+  let of_constr sigma e =
     let rec aux e =
-      match decomp_term e with
-	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _cons) ->
+      match decomp_term sigma e with
+	| Term.App (hd, args) when EConstr.eq_constr sigma hd (Lazy.force _cons) ->
 	  args.(1) :: aux args.(2)
-	| Term.App (hd, args) when Term.eq_constr hd (Lazy.force _nil) ->
+	| Term.App (hd, args) when EConstr.eq_constr sigma hd (Lazy.force _nil) ->
 	  []
 	| _ -> CErrors.anomaly (Pp.str "parsing an ill-formed list ")
     in
-    let ty = match decomp_term e with
+    let ty = match decomp_term sigma e with
 	Term.App (_, args) -> args.(0)
       | _ -> CErrors.anomaly (Pp.str "parsing an ill-formed list ")
     in
@@ -424,7 +424,7 @@ let match_as_equation ?(context = Context.Rel.empty) goal equation : (constr*con
   let env =  Environ.push_rel_context context env in
   let evar_map = Tacmach.project goal in
   begin
-    match decomp_term equation with
+    match decomp_term evar_map equation with
       | App(c,ca) when Array.length ca >= 2 ->
 	let n = Array.length ca  in
 	let left  =  ca.(n-2) in
@@ -451,7 +451,7 @@ let tclDEBUG msg tac = fun gl ->
     tac gl
 
 let tclPRINT  tac = fun gl ->
-  let _ = Feedback.msg_notice (Printer.pr_constr (Tacmach.pf_concl gl)) in
+  let _ = Feedback.msg_notice (Printer.pr_econstr (Tacmach.pf_concl gl)) in
     tac gl
 
 
