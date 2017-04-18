@@ -237,6 +237,6 @@ Hint Immediate allTuplesLen_setwise.
 
 Theorem ok : moduleOk m.
 Proof.
-  vcgen; abstract (unfold tuples0; sep_auto; eauto).
+  vcgen; (*abstract*) (unfold tuples0; sep_auto; eauto).
   Fail pose Set as there_should_be_no_goal_left.
 Admitted.

@@ -169,6 +169,8 @@ Section Insert.
 
     Hypothesis copy : "array8"!"copy" ~~ im ~~> ArrayOps.copyS.
 
+    Ltac v ::= solve [ t ].
+
     Lemma writeExp_correct_vcs : forall e col pre,
       wfExp ns e
       -> In e es
@@ -283,7 +285,7 @@ Section Insert.
 
     Ltac we := repeat use_IH; t; my_descend.
     Ltac swe := solve [ we ].
-    Ltac awe := abstract we.
+    Ltac awe := (*abstract*) swe.
 
     Lemma writeExps_correct : forall es0 pre,
       wfExps ns es0

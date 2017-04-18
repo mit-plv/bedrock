@@ -154,6 +154,8 @@ Section Condition.
 
   Hypothesis matched_data : "matched" <> data.
 
+  Ltac v ::= solve [ t ].
+
   Lemma compileEquality_post : forall e pre,
     wfEquality ns sch e
     -> (forall specs st,
