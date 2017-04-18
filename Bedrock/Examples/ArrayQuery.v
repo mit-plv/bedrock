@@ -1009,6 +1009,9 @@ Section Query.
 
   Ltac t := begin; finish.
 
+  Local Ltac solve_then_skip tac :=
+    try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
   Definition Query : cmd imports modName.
     refine (Wrap _ H _ Query_
       (fun _ st => Ex qs, Ex ws, ExX, Ex V, qspecOut (invPre qs ws ws (sel V)) (fun PR =>
@@ -1071,7 +1074,7 @@ Section Query.
 
         (* Conditions of body are satisfied. *)
         :: VerifCond (Body bodyPre))
-      _ _); abstract (unfold Query_; case_eq (indexEquals c); [ | case_eq (indexGe c) ]; intros;
+      _ _); (*abstract*) solve_then_skip ltac:(unfold Query_; case_eq (indexEquals c); [ | case_eq (indexGe c) ]; intros;
         wrap; try enrich; t).
   Defined.
 

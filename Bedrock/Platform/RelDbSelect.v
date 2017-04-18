@@ -198,12 +198,15 @@ Section Select.
                invoke1; unfold inv in *
            end; t.
 
+  Local Ltac solve_then_skip tac :=
+    try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
   Definition Select : chunk.
     refine (WrapC Select'
       sinvar
       sinvar
       SelectVcs
-      _ _); abstract (wrap0; abstract q).
+      _ _); abstract (wrap0; (*abstract*) solve_then_skip q).
   Defined.
 End Select.
 

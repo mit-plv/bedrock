@@ -27,6 +27,9 @@ Definition Empty_adt : ADTEntry :=
     RepInvGood := fun _ a => match a with end
   |}.
 
+Local Ltac solve_then_skip tac :=
+  try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
 Definition product_adt (a b : ADTEntry) : ADTEntry.
   refine (
       {|
@@ -38,11 +41,12 @@ Definition product_adt (a b : ADTEntry) : ADTEntry.
   intros.
   destruct a0; simpl in *.
   unfold any.
-  sepLemma.
-  unfold himp.
-  intros.
-  step auto_ext.
-  eauto.
+  solve_then_skip ltac:(
+  sepLemma;
+  unfold himp;
+  intros;
+  step auto_ext;
+  eauto ).
 Defined.
 
 Section TableSection.

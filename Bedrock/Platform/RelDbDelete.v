@@ -409,6 +409,11 @@ Section Delete.
     Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
+  Local Ltac solve_then_skip tac :=
+    try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
+  Local Ltac v ::= (*abstract*) solve_then_skip RelDb.t.
+
   Theorem Delete_vcs : forall im mn (H : importsGlobal im) ns res pre,
     (forall (specs : codeSpec W (settings * state)) (st : settings * state),
       interp specs (pre st)

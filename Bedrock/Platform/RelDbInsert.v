@@ -408,7 +408,10 @@ Section Insert.
 
   Hint Immediate prove_freeable8.
 
-  Ltac i := abstract (try writeExps; t).
+  Local Ltac solve_then_skip tac :=
+    try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
+  Ltac i := (*abstract*) solve_then_skip ltac:(try writeExps; t).
 
   Definition Insert : chunk.
     refine (WrapC Insert'

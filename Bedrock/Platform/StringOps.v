@@ -7,6 +7,9 @@ Definition W_of_ascii (ch : ascii) : W := N_of_ascii ch.
 Coercion W_of_ascii : ascii >-> W.
 
 
+Local Ltac solve_then_skip tac :=
+  try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
 Section Params.
   Variables str len pos output : string.
   Variable const : string.
@@ -136,7 +139,7 @@ Section Params.
         (StringEqSpec' const offset)
         (StringEqSpec' const offset)
         StringEqVcs
-        _ _); [ abstract (wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
+        _ _); [ (*abstract*) solve_then_skip ltac:(wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
           induction const; propxFo;
             match goal with
               | [ _ : interp _ (Postcondition _ _) |- _ ] =>
@@ -145,7 +148,7 @@ Section Params.
                   | post; t ]
               | _ => t
             end)
-          | abstract (generalize dependent offset; induction const; wrap0;
+          | (*abstract*) solve_then_skip ltac:(generalize dependent offset; induction const; wrap0;
             try match goal with
                   | [ H : _ |- vcs _ ] => apply H; wrap0; post
                 end; t) ].
@@ -168,7 +171,7 @@ Section Params.
       StringEqSpec
       StringEqSpec
       StringEqVcs
-      _ _); abstract (wrap0;
+      _ _); (*abstract*) solve_then_skip ltac:(wrap0;
         (try app; simp;
           match goal with
             | [ H : evalInstrs _ _ _ = _ |- _ ] => evalu
@@ -220,7 +223,7 @@ Section Params.
         (StringWriteSpec' const offset)
         (StringWriteSpec' const offset)
         StringWriteVcs
-        _ _); [ abstract (wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
+        _ _); [ (*abstract*) solve_then_skip ltac:(wrap0; generalize dependent offset; generalize dependent st; generalize dependent pre;
           induction const; propxFo;
             match goal with
               | [ _ : interp _ (Postcondition _ _) |- _ ] =>
@@ -229,7 +232,7 @@ Section Params.
                   | post; t ]
               | _ => t
             end)
-          | abstract (generalize dependent offset; induction const; wrap0;
+          | (*abstract*) solve_then_skip ltac:(generalize dependent offset; induction const; wrap0;
             try match goal with
                   | [ H : _ |- vcs _ ] => apply H; wrap0; post
                 end; t) ].
@@ -268,7 +271,7 @@ Section Params.
       StringWriteSpec
       StringWriteSpec
       StringWriteVcs
-      _ _); abstract (wrap0;
+      _ _); (*abstract*) solve_then_skip ltac:(wrap0;
         (try app; simp;
           match goal with
             | [ H : evalInstrs _ _ _ = _ |- _ ] => evalu

@@ -977,12 +977,15 @@ Section Pat.
   Hint Extern 1 (noConflict _ nil) => constructor.
   Hint Extern 1 (inBounds nil _) => constructor.
 
+  Local Ltac solve_then_skip tac :=
+    try (solve [ tac; fail 2 "did not solve" | fail 2 "tac failed" ]; []); admit.
+
   Definition Pat (p : pat) (onSuccess : chunk) : chunk.
     refine (WrapC (Pat' p 1 nil onSuccess)
       invar
       invar
       (PatVcs p onSuccess)
-      _ _); abstract (wrap0;
+      _ _); (*abstract*) solve_then_skip ltac:(wrap0;
         match goal with
           | [ H : wf _ |- _ ] => eapply PatR_correct in H;
             match goal with
