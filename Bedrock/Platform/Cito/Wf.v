@@ -336,7 +336,7 @@ Section ADTValue.
     eauto 10.
 
     hammer.
-    eapply prove_NoUninitializedRunsTo' in H3; eauto.
+    eapply prove_NoUninitializedRunsTo' in H3; [ | eauto | ].
     destruct H3; intuition idtac.
     repeat esplit; eauto.
     intros.
@@ -352,7 +352,7 @@ Section ADTValue.
     irrel.
     left; intuition idtac.
     eauto 10.
-    eapply prove_NoUninitializedRunsTo' in H2; eauto.
+    eapply prove_NoUninitializedRunsTo' in H2; [ | eauto | ].
     destruct H2; intuition idtac.
     apply H10 in H4.
     do 2 esplit.
