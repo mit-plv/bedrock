@@ -31,5 +31,4 @@ before_install:
 before_script:
   - uname -a
 
-# could add travis_wait
-script: make $TARGETS TIMED=1 -j2
+script: travis_wait make $TARGETS TIMED=1 -j2
