@@ -108,7 +108,7 @@ Hint Extern 1 (@eq W _ _) =>
 Hint Extern 1 (interp ?specs (?U ?x ?y)) =>
   match goal with
     | [ H : interp ?specs (?f (?x, ?y)) |- _ ] =>
-      equate U (fun x y => f (x, y)); exact H
+      equate U (fun x' y' => f (x', y')); exact H
   end.
 
 Lemma goodMemo_elim : forall specs f pc P st,
