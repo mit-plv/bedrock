@@ -255,6 +255,13 @@ Module SepExprFacts (SE : SepExpr).
     Qed.
 
     Global Add Parametric Morphism : (SE.himp funcs preds U G cs) with
+      signature (SE.heq funcs preds U G cs ==> SE.heq funcs preds U G cs ==> Basics.flip Basics.impl)
+      as himp_heq_mor'.
+    Proof.
+      unfold SE.heq; simpl; intros. eapply SEP_FACTS.himp_heq_mor'; eauto.
+    Qed.
+
+    Global Add Parametric Morphism : (SE.himp funcs preds U G cs) with
       signature (SE.himp funcs preds U G cs --> SE.himp funcs preds U G cs ==> Basics.impl)
       as himp_himp_mor.
     Proof.
