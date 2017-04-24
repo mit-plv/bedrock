@@ -214,7 +214,6 @@ Module SepTheoryX_Rewrites (Import ST : SepTheoryX).
       etransitivity. eassumption. eapply heq_defn in H0. intuition.
     Qed.
 
-(*
     Global Add Parametric Morphism : (himp cs) with
       signature (heq cs ==> heq cs ==> Basics.flip Basics.impl)
     as himp_heq_mor'.
@@ -222,7 +221,6 @@ Module SepTheoryX_Rewrites (Import ST : SepTheoryX).
       symmetry in H. eapply heq_defn in H. eapply (proj2 H).
       etransitivity. eassumption. eapply heq_defn in H0. intuition.
     Qed.
-*)
 
     Global Add Parametric Morphism : (himp cs) with
       signature (himp cs --> himp cs ++> Basics.impl)
