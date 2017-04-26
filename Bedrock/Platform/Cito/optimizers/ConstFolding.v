@@ -40,7 +40,7 @@ Ltac openhyp' :=
            | |- context [const_zero_dec ?E] => destruct (const_zero_dec E)
            | H : context [option_dec ?E] |- _ => destruct (option_dec E)
            | |- context [option_dec ?E] => destruct (option_dec E)
-           | H : context [ { _ | _ } ] |- _ => destruct H
+           | H : { _ | _ } |- _ => destruct H
          end.
 
 Ltac descend :=
