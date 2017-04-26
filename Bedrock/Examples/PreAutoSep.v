@@ -1164,7 +1164,7 @@ Ltac step ext :=
                   | avail => fail 1
                   | _ =>
                     match vs' with
-                      | vs => fail 1
+                      | vs => constr_eq vs' vs; fail 1
                       | _ => let ns'' := peelPrefix ns ns' in
                         rewrite (create_locals_out ns'' ns' avail' ns avail);
                           assert (ok_out ns avail ns'' ns' avail')%nat by (split; [
