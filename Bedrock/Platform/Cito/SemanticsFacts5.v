@@ -37,7 +37,24 @@ Section ADTValue.
     erewrite <- find_m; eauto.
   Qed.
 
-  Hint Constructors Semantics.RunsTo.
+  (* grumble, grumble*, [eapply] is broken in 8.5/8.6 with respect to
+     universes, so we can't just use [Hint Constructors] *)
+  (*Hint Constructors Semantics.RunsTo.*)
+  Local Ltac RunsTo_econstructor_then tac :=
+    match goal with
+    | [ |- RunsTo _ Syntax.Skip _ _ ] => refine (RunsToSkip _ _); tac
+    | [ |- RunsTo _ (Syntax.Seq _ _) _ _ ] => refine (RunsToSeq _ _); tac
+    | [ |- RunsTo _ (Syntax.Assign _ _) _ _ ] => refine (RunsToAssign _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.While _ _) _ _ ] => refine (RunsToWhileTrue _ _ _); tac
+    | [ |- RunsTo _ (Syntax.While _ _) _ _ ] => refine (RunsToWhileFalse _ _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.Label _ _) _ _ ] => refine (RunsToLabel _ _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.If _ _ _) _ _ ] => refine (RunsToIfTrue _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.If _ _ _) _ _ ] => refine (RunsToIfFalse _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.Call _ _ _) _ _ ] => refine (RunsToCallInternal _ _ _ _ _ _ _); tac
+    | [ |- RunsTo _ (Syntax.Call _ _ _) _ _ ] => refine (RunsToCallForeign _ _ _ _ _ _ _ _ _ _ _ _ _ _ _); tac
+    end.
+  Hint Extern 1 (RunsTo _ _ _ _)
+  => RunsTo_econstructor_then ltac:(solve [ eauto ]).
 
   Lemma store_out_Equal : forall triples h1 h2,
     WordMap.Equal h1 h2
@@ -86,32 +103,18 @@ Section ADTValue.
     t.
     t.
     t.
-
     t.
-    simpl in *.
-    descend; eauto.
-    change (fst v) with (fst (fst v, h)) at 2.
-    eapply RunsToCallInternal; eauto.
 
     t.
     descend; eauto.
     change (fst v) with (fst (fst v, h)) at 2.
-    eapply RunsToCallForeign; eauto.
+    refine (RunsToCallForeign _ _ _ _ _ _ _ _ _ _ _ _ _ _ _); eauto.
     simpl; eapply good_inputs_Equal; eauto.
     simpl; eapply separated_Equal; eauto.
     apply store_out_Equal; auto.
     simpl.
     apply heap_upd_option_Equal.
     apply store_out_Equal; auto.
-
-    simpl.
-    descend; eauto.
-    change h with (snd (fst v, h)) at 2.
-    change (fst v) with (fst (fst v, h)) at 2.
-    eauto.
-
-    t.
-    descend; eauto; econstructor.
   Qed.
 
   Lemma Safe_Equal : forall env s vs h h',
@@ -163,7 +166,8 @@ Section ADTValue.
     inversion_clear H3; simpl in *.
     subst vs0 heap fs.
     subst; simpl in *.
-    eauto 10.
+    left; repeat (eapply ex_intro || apply conj || eassumption || intros);
+      match goal with H : _ |- _ => refine (H _ _) end; assumption. (* work around bug in [apply] with universes *)
     subst vs0 heap fs.
     subst; simpl in *.
     right; descend; eauto.
