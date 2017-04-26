@@ -137,24 +137,57 @@ Theorem EnsembleIndexedListEquivalence_insert : forall ts t ls ts',
 Proof.
   unfold insert, EnsembleIndexedListEquivalence, UnIndexedEnsembleListEquivalence, UnConstrFreshIdx, EnsembleInsert, Ensembles.In; simpl; firstorder subst.
 
-  exists (S (max x x1)); unfold EnsembleInsert; intuition (subst; simpl in * ).
-  apply H2 in H1; intuition (subst; simpl in * ).
-  generalize (Max.max_spec x x1); intuition.
+  match goal with
+  | [ H0 : forall a, _ -> (_ < ?x)%nat, H1 : forall b, _ -> (_ < ?x1)%nat |- _ ]
+    => exists (S (max x x1))
+  end; unfold EnsembleInsert; intuition (subst; simpl in * ).
+  match goal with
+  | [ H2 : Equiv ?ts' _, H1 : ?ts' _ |- _ ]
+    => apply H2 in H1
+  end; intuition (subst; simpl in * ).
+  match goal with
+  | [ |- (_ < S (?max ?x ?x1))%nat ]
+    => generalize (Max.max_spec x x1); intuition
+  end.
   apply H in H5.
-  generalize (Max.max_spec x x1); intuition.
-  exists ({| elementIndex := x; indexedElement := t |} :: x0); simpl; intuition.
-  apply H2 in H1; intuition (subst; simpl in * ).
+  match goal with
+  | [ |- (_ < S (?max ?x ?x1))%nat ]
+    => generalize (Max.max_spec x x1); intuition
+  end.
+  match goal with
+  | [ H2 : Equiv _ (fun a' => _ = ?v \/ _), x0 : list _ |- _ ]
+    => exists (v :: x0)
+  end; simpl; intuition.
+  match goal with
+  | [ H2 : Equiv ?ts' _, H1 : ?ts' _ |- _ ]
+    => apply H2 in H1
+  end; intuition (subst; simpl in * ).
   tauto.
   firstorder idtac.
   firstorder idtac.
   subst.
-  apply H2; tauto.
-  apply H2.
-  apply H3 in H5; tauto.
+  match goal with
+  | [ H2 : Equiv ?ts' _ |- ?ts' _ ]
+    => apply H2
+  end; tauto.
+  match goal with
+  | [ H2 : Equiv ?ts' _ |- ?ts' _ ]
+    => apply H2
+  end.
+  match goal with
+  | [ H3 : forall x, ?ts x <-> In x ?ls, H5 : In _ ?ls |- _ ]
+    => apply H3 in H5
+  end; tauto.
   constructor; intuition.
   apply in_map_iff in H1; destruct H1; intuition subst.
-  apply H3 in H6.
-  apply H0 in H6.
+  match goal with
+  | [ H3 : forall x, ?ts x <-> In x ?ls, H6 : In _ ?ls |- _ ]
+    => apply H3 in H6
+  end.
+  match goal with
+  | [ H0 : forall x, ?ts x -> (_ < _)%nat, H6 : ?ts _ |- False ]
+    => apply H0 in H6
+  end.
   omega.
 Qed.
 
