@@ -1,25 +1,31 @@
 Set Implicit Arguments.
 
 Require Import Bedrock.Platform.Cito.ADT.
+Require Bedrock.Platform.Cito.Inv.
+Require Bedrock.Platform.Cito.WordMap.
+Require Coq.FSets.FMapFacts.
+Require Bedrock.Platform.Cito.RepInv.
+Require Bedrock.Platform.Cito.LayoutHintsUtil.
+Require Bedrock.Platform.Cito.SemanticsFacts5.
 
 Module Make (Import E : ADT).
 
-  Require Import Bedrock.Platform.Cito.Inv.
+  Import Bedrock.Platform.Cito.Inv.
   Module Import InvMake := Make E.
   Import Semantics.
   Import SemanticsMake.
-  Require Import Bedrock.Platform.Cito.WordMap.
-  Require Import Coq.FSets.FMapFacts.
+  Import Bedrock.Platform.Cito.WordMap.
+  Import Coq.FSets.FMapFacts.
   Module Properties := Properties WordMap.
   Module Facts := Facts WordMap.
 
-  Require Import Bedrock.Platform.Cito.RepInv.
+  Import Bedrock.Platform.Cito.RepInv.
 
   Module Make(R : RepInv E).
     Module Import Inner := InvMake.Make(R).
 
-    Require Import Bedrock.Platform.Cito.LayoutHintsUtil.
-    Require Import Bedrock.Platform.Cito.SemanticsFacts5.
+    Import Bedrock.Platform.Cito.LayoutHintsUtil.
+    Import Bedrock.Platform.Cito.SemanticsFacts5.
 
     Lemma is_heap_Equal : forall h h',
       WordMap.Equal h h'
