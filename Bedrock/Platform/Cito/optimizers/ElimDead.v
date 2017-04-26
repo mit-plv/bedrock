@@ -156,9 +156,13 @@ Section TopSection.
       let used' := snd result in
       used' <= used + used_vars_stmt s.
   Proof.
-    induction s; simpl; intros; openhyp'; intuition eauto using subset_trans.
-    Grab Existential Variables.
-    eapply empty.
+    induction s; simpl; intros; openhyp';
+      lazymatch goal with
+      | [ |- ?x <= ?y ]
+        => intuition eauto using (@subset_trans _ (y - empty + x) _), subset_trans
+      | _
+        => intuition eauto using subset_trans
+      end.
   Qed.
 
   Hint Resolve elim_dead_upper_bound.
