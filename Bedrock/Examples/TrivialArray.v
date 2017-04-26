@@ -167,6 +167,6 @@ Hint Extern 1 (_ < _)%nat => apply lt_goodSize'; [ assumption | | ].
 
 Theorem arraysOk : moduleOk arrays.
 (*TIME  Clear Timing Profile. *)
-  vcgen; abstract (sep_auto; pure).
+  vcgen; abstract (sep_auto; [ pure.. ]).
 (*TIME  Print Timing Profile. *)
 Qed.
