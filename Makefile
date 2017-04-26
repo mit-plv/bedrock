@@ -1,12 +1,12 @@
 COMPATIBILITY_FILE=Bedrock/Coq__8_4__8_5__Compat.v
 STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
-.PHONY: examples platform cito facade facade-all facade-allv src reification \
-	examples-quick platform-quick cito-quick facade-quick facade-all-quick facade-allv-quick src-quick reification-quick \
-	examples-vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo src-vio2vo reification-vio2vo \
-	examples-checkproofs platform-checkproofs cito-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs src-checkproofs reification-checkproofs \
-	install install-platform install-cito install-facade install-facade-all install-facade-allv install-src install-examples install-reification \
-	clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-src clean-unmade-for-reification \
+.PHONY: examples platform cito facade facade-all facade-allv qsfacade qsfacade-impl qsfacade-compiler src reification \
+	examples-quick platform-quick cito-quick facade-quick facade-all-quick facade-allv-quick qsfacade-quick qsfacade-impl-quick qsfacade-compiler-quick src-quick reification-quick \
+	examples-vio2vo platform-vio2vo cito-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo qsfacade-vio2vo qsfacade-impl-vio2vo qsfacade-compiler-vio2vo src-vio2vo reification-vio2vo \
+	examples-checkproofs platform-checkproofs cito-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs qsfacade-checkproofs qsfacade-impl-checkproofs qsfacade-compiler-checkproofs src-checkproofs reification-checkproofs \
+	install install-platform install-cito install-facade install-facade-all install-facade-allv install-qsfacade install-qsfacade-impl install-qsfacade-compiler install-src install-examples install-reification \
+	clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-qsfacade clean-unmade-for-qsfacade-impl clean-unmade-for-qsfacade-compiler clean-unmade-for-src clean-unmade-for-reification \
 	native ltac version dist time
 
 ifneq (,$(wildcard .git)) # if we're in a git repo
@@ -148,10 +148,10 @@ examples-quick facade-quick facade-all-quick facade-allv-quick cito-quick platfo
 examples: $(EXAMPLES_VO)
 facade: $(FACADE_VO)
 facade-all: $(FACADE_ALL_VO)
+facade-allv: $(FACADE_ALLVO)
 qsfacade: $(QSFACADE_VO)
 qsfacade-impl: $(QSFACADE_IMPL_VO)
 qsfacade-compiler: $(QSFACADE_COMPILER_VO)
-facade-allv: $(FACADE_ALLVO)
 cito: $(CITO_VO)
 platform: $(PLATFORM_VO)
 src: $(SRC_VO)
@@ -159,6 +159,9 @@ examples-quick: $(addsuffix .vio,$(basename $(EXAMPLES_VO)))
 facade-quick: $(addsuffix .vio,$(basename $(FACADE_VO)))
 facade-all-quick: $(addsuffix .vio,$(basename $(FACADE_ALL_VO)))
 facade-allv-quick: $(addsuffix .vio,$(basename $(FACADE_ALLVO)))
+qsfacade-quick: $(addsuffix .vio,$(basename $(QSFACADE_VO)))
+qsfacade-impl-quick: $(addsuffix .vio,$(basename $(QSFACADE_IMPL_VO)))
+qsfacade-compiler-quick: $(addsuffix .vio,$(basename $(QSFACADE_COMPILER_VO)))
 cito-quick: $(addsuffix .vio,$(basename $(CITO_VO)))
 platform-quick: $(addsuffix .vio,$(basename $(PLATFORM_VO)))
 src-quick: $(addsuffix .vio,$(basename $(SRC_VO)))
@@ -178,6 +181,15 @@ endif
 ifneq ($(filter-out facade-allv-vio2vo facade-allv-checkproofs clean-unmade-for-facade-allv,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(FACADE_ALLVO)
 endif
+ifneq ($(filter-out qsfacade-vio2vo qsfacade-checkproofs clean-unmade-for-qsfacade,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(QSFACADE_VO)
+endif
+ifneq ($(filter-out qsfacade-impl-vio2vo qsfacade-impl-checkproofs clean-unmade-for-qsfacade-impl,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(QSFACADE_IMPL_VO)
+endif
+ifneq ($(filter-out qsfacade-compiler-vio2vo qsfacade-compiler-checkproofs clean-unmade-for-qsfacade-compiler,$(MAKECMDGOALS)),$(MAKECMDGOALS))
+    T += $(QSFACADE_COMPILER_VO)
+endif
 ifneq ($(filter-out cito-vio2vo cito-checkproofs clean-unmade-for-cito,$(MAKECMDGOALS)),$(MAKECMDGOALS))
     T += $(CITO_VO)
 endif
@@ -188,20 +200,23 @@ ifneq ($(filter-out src-vio2vo src-checkproofs clean-unmade-for-src,$(MAKECMDGOA
     T += $(SRC_VO)
 endif
 
-examples-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo cito-vio2vo platform-vio2vo src-vio2vo: selective-vio2vo
-examples-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs cito-checkproofs platform-checkproofs src-checkproofs: selective-checkproofs
-clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-src clean-unmade-for-reification: selective-clean-unmade
+examples-vio2vo facade-vio2vo facade-all-vio2vo facade-allv-vio2vo qsfacade-vio2vo qsfacade-impl-vio2vo qsfacade-compiler-vio2vo cito-vio2vo platform-vio2vo src-vio2vo: selective-vio2vo
+examples-checkproofs facade-checkproofs facade-all-checkproofs facade-allv-checkproofs qsfacade-checkproofs qsfacade-impl-checkproofs qsfacade-compiler-checkproofs cito-checkproofs platform-checkproofs src-checkproofs: selective-checkproofs
+clean-unmade-for-examples clean-unmade-for-platform clean-unmade-for-cito clean-unmade-for-facade clean-unmade-for-facade-all clean-unmade-for-facade-allv clean-unmade-for-qsfacade clean-unmade-for-qsfacade-impl clean-unmade-for-qsfacade-compiler clean-unmade-for-src clean-unmade-for-reification: selective-clean-unmade
 
 install-examples: T = $(EXAMPLES_VO)
 install-facade: T = $(FACADE_VO)
 install-facade-all: T = $(FACADE_ALL_VO)
 install-facade-allv: T = $(FACADE_ALLVO)
+install-qsfacade: T = $(QSFACADE_VO)
+install-qsfacade-impl: T = $(QSFACADE_IMPL_VO)
+install-qsfacade-compiler: T = $(QSFACADE_COMPILER_VO)
 install-cito: T = $(CITO_VO)
 install-platform: T = $(PLATFORM_VO)
 install-examples: T = $(EXAMPLES_VO)
 install-src: T = $(SRC_VO)
 
-install-examples install-facade install-facade-all install-facade-allv install-cito install-platform install-src:
+install-examples install-facade install-facade-all install-facade-allv install-qsfacade install-qsfacade-impl install-qsfacade-compiler install-cito install-platform install-src:
 	$(VECHO) "MAKE -f Makefile.coq INSTALL"
 	$(Q)$(MAKE) -f Makefile.coq VFILES="$(call vo_to_installv,$(T))" install
 
