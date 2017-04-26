@@ -294,10 +294,11 @@ Module Make(M : S).
       -> ~v %in b'
       -> b %= fold_left add ls b'
       -> b %- v %= fold_left add (nuke v ls) b'.
-      induction 1; simpl; intuition subst;
-        match goal with
-          | [ |- context[if ?E then _ else _] ] => destruct E; subst; intuition
-        end.
+      (induction 1; simpl; intuition subst;
+       match goal with
+       | [ |- context[if ?E then _ else _] ] => destruct E; subst
+       end);
+        [ intuition | intuition | intuition | ].
       assert (b %= fold_left add l b' %+ v) by (eapply equiv_trans; [ eassumption | apply add_something ]); auto.
 
       apply add_to_del; auto.
