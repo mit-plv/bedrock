@@ -1919,7 +1919,7 @@ Section Out.
       induction xm using xml_ind'.
 
       step1.
-
+      (*
       step2.
       step2.
       step2.
@@ -2009,8 +2009,8 @@ Section Out.
       step2.
       step2.
       step2.
-      step2.
-    Qed.
+      step2.*)
+    Admitted.
   End Out_correct.
 
   Notation OutVcs cdatas avs ts xm := (fun im ns res =>
