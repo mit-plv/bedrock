@@ -336,6 +336,8 @@ Section ADTValue.
 
   Arguments word_scalar_match {ADTValue} _.
 
+  Require Bedrock.Platform.Cito.Inv. (* for preventing bad universe unification *)
+
   Lemma DisjointPtrs_good_scalars_forall_word_adt_match : forall pairs h, DisjointPtrs pairs -> List.Forall word_scalar_match pairs -> List.Forall (word_adt_match (fold_left store_pair pairs h)) pairs.
   Proof.
     induction pairs; simpl; try solve [intuition].
@@ -345,7 +347,7 @@ Section ADTValue.
     destruct a as [w v]; simpl in *.
     econstructor.
     {
-      rewrite fold_left_store_pair_comm; try reflexivity; trivial.
+      rewrite fold_left_store_pair_comm; try reflexivity; trivial. (* this [rewrite] will incorrectly unify universes in >= 8.5 without the [Require Bedrock.Platform.Cito.Inv.] *)
       unfold word_adt_match.
       unfold Semantics.word_adt_match.
       unfold word_scalar_match in *.
