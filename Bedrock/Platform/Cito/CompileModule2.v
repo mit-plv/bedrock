@@ -910,6 +910,8 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
         gd Hvcs; gd Hegu; gd Hpre; gd Hewi.
         gd Hstr; gd Hogok.
+        pose proof @safe_intro as safe_intro. (* depends on import_module_names_ok, so we pose proof it here *)
+        pose proof @runsto_TransitTo as runsto_TransitTo. (* idem *)
         clear Hewi.
         (* cause of universe inconsistency *)
         rename H1 into Haugment.
@@ -1279,7 +1281,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       - eapply make_module_exports_submap.
     Qed.
 
-    Theorem make_module_exports x ax : 
+    Theorem make_module_exports x ax :
       StringMap.find x exports = Some ax ->
       LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
     Proof.
@@ -1295,7 +1297,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply map_aug_mod_name_intro; eauto.
     Qed.
 
-    Theorem make_module_exports2 x spec : 
+    Theorem make_module_exports2 x spec :
       LabelMap.find (ax_mod_name, Global x) (Exports make_module) = Some spec ->
       exists ax,
         StringMap.find x exports = Some ax /\
