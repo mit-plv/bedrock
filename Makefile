@@ -223,13 +223,7 @@ install-examples install-facade install-facade-all install-facade-allv install-q
 ifeq ($(IS_FAST),0)
 # > 8.5beta2 if it exists
 NOT_EXISTS_UNSAFE_TYPE_OF := $(call test_exists_ml_function,Typing.unsafe_type_of)
-# > 8.4 if it exists
-NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL := $(call test_exists_ml_function,Universes.constr_of_global)
 
-ifneq (,$(filter 8.4%,$(COQ_VERSION))) # 8.4 - this is a kludge to get around the fact that reinstalling 8.4 doesn't remove the 8.5 files, like universes.cmo
-EXPECTED_EXT:=.v84
-ML_DESCRIPTION := "Coq v8.4"
-else
 ifneq (,$(filter 8.6%,$(COQ_VERSION)))
 EXPECTED_EXT:=.v86
 ML_DESCRIPTION := "Coq v8.6"
@@ -243,13 +237,12 @@ EXPECTED_EXT:=.v85
 ML_DESCRIPTION := "Coq > 8.5beta2"
 endif
 else
-ifeq ($(NOT_EXISTS_UNIVERSES_CONSTR_OF_GLOBAL),1) # <= 8.4
+ifneq (,$(filter 8.4%,$(COQ_VERSION))) # 8.4
 EXPECTED_EXT:=.v84
 ML_DESCRIPTION := "Coq v8.4"
 else
 EXPECTED_EXT:=.trunk
 ML_DESCRIPTION := "Coq trunk"
-endif
 endif
 endif
 endif
