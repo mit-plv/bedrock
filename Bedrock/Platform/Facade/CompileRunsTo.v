@@ -920,6 +920,8 @@ Section ADTValue.
     discriminate.
   Qed.
 
+  Require Bedrock.Platform.Cito.Inv. (* for preventing bad universe unification when eapplying constructors of [RunsTo]; see Bedrock/Platform/Cito/SemanticsFacts5.v for a less heavy-handed approach *)
+
   Theorem compile_runsto :
     forall t t_env t_st t_st',
       CitoRunsTo t_env t t_st t_st' ->
@@ -2040,9 +2042,7 @@ Section ADTValue.
       split.
       eauto.
       split.
-      intros; openhyp; intuition.
-      rewrite H0 in H5.
-      discriminate.
+      intros; openhyp; intuition (auto; try congruence).
       eapply related_Equal; pick_related; eauto.
       solve [rewrite diff_submap_cancel; eauto].
     }
