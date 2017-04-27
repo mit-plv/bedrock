@@ -85,7 +85,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Import Made.
 
-    Arguments CM2.make_module_ok : clear implicits. 
+    Arguments CM2.make_module_ok : clear implicits.
 
     Definition cito_module := compile_to_cmodule module.
 
@@ -172,7 +172,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import FMapNotations.
 
     Require Import CompileUnit2.
-  
+
     Definition whole_env := get_env op_mod_name exports module.
     Hypothesis Hrefine : ops_refines_axs whole_env (StringMap.map Core (Funs module)) exports.
 
@@ -181,7 +181,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
 
     Notation compile_spec s := (CompileRunsTo.compile_spec (@CompileDFacadeCorrect.compile_spec ADTValue s)).
 
-    Lemma whole_env_whole_specs k v : 
+    Lemma whole_env_whole_specs k v :
       find k whole_env = Some v -> find k whole_specs = Some (compile_spec v).
     Proof.
       intros H.
@@ -352,7 +352,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Lemma in_whole_env_in_whole_specs k : 
+    Lemma in_whole_env_in_whole_specs k :
       In k whole_env -> In k whole_specs.
     Proof.
       intros H.
@@ -362,7 +362,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply whole_env_whole_specs; eauto.
     Qed.
 
-    Lemma env_ok ax_cenv : 
+    Lemma env_ok ax_cenv :
       specs_env_agree whole_specs ax_cenv ->
       cenv_impls_env ax_cenv whole_env.
     Proof.
@@ -459,7 +459,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           | ADT _ =>
             if is_ret_adt && weqb w ret_w then
               None
-            else                                      
+            else
               heap_sel h w
         end.
       Definition outputs_gen is_ret_adt ret_w words inputs h :=
@@ -546,19 +546,19 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           {
             subst words_inputs.
             rewrite map_fst_combine; eauto.
-          }            
+          }
           {
             subst words_inputs.
             rewrite map_snd_combine; eauto.
-          }            
+          }
         }
         {
           eapply env_ok; eauto.
         }
-        { 
+        {
           eauto.
         }
-        { 
+        {
           eauto.
         }
       }
@@ -669,7 +669,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   related st (vs, h) ->
                   h <= h' ->
                   (forall k a, List.In (k, ADT a) args_inputs ->
-                               find (Locals.sel vs k) h = None -> 
+                               find (Locals.sel vs k) h = None ->
                                find (Locals.sel vs k) h' = None) ->
                   disjoint_ptrs (combine words inputs) ->
                   no_adt_leak' inputs args rvar st vs ->
@@ -818,7 +818,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
                   eapply Forall_forall_1 with (x := (Locals.sel vs x', ADT ai')) in Hnc; simpl in *.
                   {
                     intuition.
-                  }                    
+                  }
                   eapply nth_error_In.
                   eapply nth_error_combine; eauto.
                   erewrite map_nth_error; eauto.
@@ -1289,7 +1289,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
             }
           }
         }
-        { 
+        {
           eauto.
         }
         {
@@ -1309,11 +1309,11 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           {
             subst words_inputs.
             rewrite map_fst_combine; try rewrite map_length in *; eauto.
-          }            
+          }
           {
             subst words_inputs.
             rewrite map_snd_combine; try rewrite map_length in *; eauto.
-          }            
+          }
         }
         {
           Require Import Bedrock.Platform.Cito.StringMap.
@@ -1336,7 +1336,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Qed.
 
-    Definition output_module : XCAP.module := 
+    Definition output_module : XCAP.module :=
       CM2.make_module cito_module imports exports ax_mod_name op_mod_name op_mod_name_ok.
 
     Definition output_module_ok : moduleOk output_module.
@@ -1349,7 +1349,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       }
     Defined.
 
-    Theorem output_module_exports x ax : 
+    Theorem output_module_exports x ax :
       find x exports = Some ax ->
       LabelMap.find (ax_mod_name, Global x) (Exports output_module) = Some (foreign_func_spec (ax_mod_name, x) ax).
     Proof.
@@ -1368,7 +1368,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
     Import MakeWrapperMake.LinkMake.
     Import MakeWrapperMake.LinkMake.LinkModuleImplsMake.
 
-    Lemma import_module_names_good : 
+    Lemma import_module_names_good :
       let imported_module_names := List.map (fun x => fst (fst x)) (GLabelMap.elements imports) in
       forallb Cito.NameDecoration.is_good_module_name imported_module_names = true.
     Proof.

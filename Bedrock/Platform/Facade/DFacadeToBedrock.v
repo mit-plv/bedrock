@@ -62,7 +62,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       destruct Himn as [? Himn].
       eauto.
     Defined.
-    
+
     Require Import Bedrock.Platform.Cito.ListFacts3.
 
     Notation specs := (GLabelMap.map (@Axiomatic _) imports).
