@@ -45,6 +45,8 @@ Section ADTValue.
 
   Hint Constructors NoDup.
 
+  Require Bedrock.Platform.Cito.Inv. (* for preventing bad universe unification when eapplying constructors of [RunsTo]; see Bedrock/Platform/Cito/SemanticsFacts5.v for a less heavy-handed approach *)
+
   Lemma mapM_good_inputs args :
     forall words cinput input h h2 (st : State) vs,
       mapM (sel st) args = Some input ->
@@ -318,9 +320,9 @@ Section ADTValue.
       inversion Hsf; unfold_all; subst.
       rename H1 into Hlbl2.
       eapply Henv in Hlbl2.
-      intuition.
-      rewrite H in Hlbl2.
-      discriminate.
+      intuition;
+        rewrite H in Hlbl2;
+        discriminate.
     }
 
   Qed.
