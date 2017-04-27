@@ -91,6 +91,7 @@ Lemma eval_irrel : forall unwritten vs vs' e,
   auto.
 Qed.
 
+Require Bedrock.Platform.Cito.Inv. (* for preventing bad universe unification when eapplying constructors of [RunsTo]; see Bedrock/Platform/Cito/SemanticsFacts5.v for a less heavy-handed approach *)
 Local Hint Constructors RunsTo.
 
 Ltac irr E vs vs' :=
