@@ -912,6 +912,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
         gd Hstr; gd Hogok.
         pose proof @safe_intro as safe_intro. (* depends on import_module_names_ok, so we pose proof it here *)
         pose proof @runsto_TransitTo as runsto_TransitTo. (* idem *)
+        pose proof @runsto_elim as runsto_elim. (* idem *)
         clear Hewi.
         (* cause of universe inconsistency *)
         rename H1 into Haugment.
