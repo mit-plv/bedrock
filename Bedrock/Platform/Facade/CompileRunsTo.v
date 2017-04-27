@@ -323,6 +323,7 @@ Section ADTValue.
     eapply find_Some_make_map_iff; eauto.
     rewrite <- Hl; solve [eapply map_eq_length_eq; eauto].
     intros x2' [Hvs Hfx2'].
+    Remove Hints StringSetFacts.M.X'.eq_trans. (* lazy, local workaround for https://coq.inria.fr/bugs/show_bug.cgi?id=5493 *)
     eapply find_Some_make_map_iff in Hfx2'; eauto.
     destruct Hfx2' as [i' [Hx'2 Hi']].
     assert (Heqi : i = i').
