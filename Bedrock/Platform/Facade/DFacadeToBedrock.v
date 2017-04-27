@@ -827,7 +827,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       sep_auto.
 
       post.
-      call_cito (extra_stack) (argvars).
+      call_cito constr:(extra_stack) constr:(argvars).
       hiding ltac:(evaluate auto_ext).
       unfold name_marker.
       hiding ltac:(step auto_ext).
