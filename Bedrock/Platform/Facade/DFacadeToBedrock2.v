@@ -413,6 +413,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
       eapply map_aug_mod_name_elim in Hfind.
       destruct Hfind as [k [? Hfind] ].
       subst; simpl in *.
+      pose proof @env_ok as env_ok. (* depends on exports_in_domain, so we pose proof it here *)
       eapply is_sub_domain_sound in exports_in_domain.
       unfold sub_domain in *.
       copy_as Hfind Hin.
