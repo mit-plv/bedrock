@@ -147,6 +147,7 @@ Section ADTValue.
     destruct ret_a; simpl; eauto.
   Qed.
   Require Import Bedrock.Platform.Cito.SemanticsFacts6.
+  Require Bedrock.Platform.Cito.Inv. (* for preventing bad universe unification when eapplying constructors of [RunsTo]; see Bedrock/Platform/Cito/SemanticsFacts5.v for a less heavy-handed approach *)
 
   Lemma TransitTo_RunsTo lhs f args env spec v v' : let f_w := eval (fst v) f in snd env f_w = Some (Foreign spec) -> forall inputs outputs ret_w ret_a, TransitTo spec (List.map (eval (fst v)) args) inputs outputs ret_w ret_a (snd v) (snd v') -> fst v' = upd_option (fst v) lhs ret_w -> RunsTo env (Syntax.Call lhs f args) v v'.
   Proof.
