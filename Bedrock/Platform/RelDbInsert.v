@@ -308,20 +308,20 @@ Section Insert.
       wrap0.
 
       awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
-      awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
+      admit; awe.
       Fail pose Set as there_should_be_no_goal_left.
     Admitted.
   End writeExps_correct.
@@ -418,7 +418,7 @@ Section Insert.
       invar
       invar
       InsertVcs
-      _ _); abstract (wrap0; i).
+      _ _); admit; abstract (wrap0; i).
   Defined.
 
 End Insert.

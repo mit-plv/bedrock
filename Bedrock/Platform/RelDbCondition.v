@@ -298,14 +298,14 @@ Section Condition.
       v.
       v.
       v.
+      admit; v. (* 151 s *)
+      v.
+      v.
+      admit; v. (* ? *)
       v.
       v.
       v.
-      v.
-      v.
-      v.
-      v.
-      v.
+      admit; v. (* > 30 s *)
 
       destruct e as [ ? [ ] ]; simpl in *; intuition idtac.
 
@@ -315,7 +315,7 @@ Section Condition.
 
       v.
       v.
-      v.
+      admit; v. (* > 30 s *)
       v.
       v.
       v.
@@ -342,12 +342,12 @@ Section Condition.
                | [ H : simplify _ (Ex x, _) _ |- _ ] => destruct H
              end.
       apply simplify_bwd in H25.
-      v.
+      admit; v. (* > 30 s *)
 
-      v.
-      v.
-      v.
-      v.
+      admit; v. (* > 30 s *)
+      admit; v. (* > 30 s *)
+      admit; v. (* > 30 s *)
+      admit; v. (* > 30 s *)
       Fail pose Set as there_should_be_no_goal_left.
   Admitted.
 
