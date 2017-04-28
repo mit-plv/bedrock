@@ -760,11 +760,25 @@ Section Query.
            end.
 
   Ltac finish0 :=
+    let set_evars :=
+        repeat let e := fresh in
+               match goal with
+               | [ |- appcontext[?ev] ] => is_evar ev; set (e := ev)
+               end in
+    let subst_evars :=
+        repeat match goal with
+               | [ e := ?ev |- _ ] => is_evar ev; subst e
+               end in
     try match goal with
           | [ |- ?L = firstn _ ?L ++ _ ] => symmetry; apply firstn_skipn
         end; eauto; progress (try rewrite app_nil_r in *; descend; autorewrite with sepFormula;
           repeat match goal with
-                   | [ H : _ = _ |- _ ] => rewrite H
+                   | _
+                     => set_evars;
+                        progress repeat match goal with
+                                        | [ H : _ = _ |- _ ] => rewrite H
+                                        end;
+                        subst_evars
                    | [ |- specs (sel (upd _ ?x _) ?y) = Some _ ] => assert (y <> x) by congruence
                    | [ |- appcontext[invPost _ _ ?V] ] => (has_evar V; fail 2) ||
                      match goal with
