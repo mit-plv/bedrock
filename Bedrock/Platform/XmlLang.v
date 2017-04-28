@@ -1023,7 +1023,7 @@ Section compileProgram.
 
   Ltac und := solve [ intuition congruence
     | eauto 2
-    | intro Ho; apply underscore_mid_discrim in Ho; auto; discriminate
+    | let Ho := fresh in intro Ho; apply underscore_mid_discrim in Ho; auto; discriminate
     | intro; eapply underscore_discrim; try eassumption; solve [ eauto ]
     | intro; eapply underscore_discrim; try (symmetry; eassumption); solve [ eauto ]
     | apply underscore_free_bindsRowVar; solve [ auto ] ].
