@@ -2005,14 +2005,16 @@ Section compileProgram.
 
     Lemma cdataify_pat : forall p,
       XmlSearch.allCdatas (compilePat p) = cdataify (allCdatas p).
-      clear; induction p; simpl; intuition;
+      pose proof @cdataify_app as cdataify_app;
+        clear -cdataify_app; induction p; simpl; intuition;
         rewrite cdataify_app; congruence.
     Qed.
 
     Lemma allCdatas_cdataify : forall x p,
       In x (XmlSearch.allCdatas (compilePat p))
       -> In x (cdataify (allCdatas p)).
-      clear; induction p; simpl; intuition; rewrite cdataify_app;
+      pose proof @cdataify_app as cdataify_app;
+        clear - cdataify_app; induction p; simpl; intuition; rewrite cdataify_app;
         apply in_app_or in H; intuition.
     Qed.
 
