@@ -2830,7 +2830,7 @@ Section compileProgram.
     Lemma no_clash_both' : forall pr0,
       In s (cdatasOf pr0 ++ cursorsOf pr0)
       -> False.
-      clear; intros; apply in_app_or in H; destruct H; eauto.
+      clear -httpq bufSize Hs; intros; apply in_app_or in H; destruct H; eauto.
     Qed.
   End no_clash.
 
