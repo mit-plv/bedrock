@@ -526,7 +526,7 @@ Module Make (Import E : ADT) (Import M : RepInv E).
   Ltac returnAdt1 :=
     match goal with
       | [ |- Regs ?a ?b = fst (decide_ret ?X ?Y) ] =>
-        let a := fresh "a" in evar (a : ADTValue); let a' := eval unfold a in a in clear a;
+        let A := fresh "a" in evar (A : ADTValue); let a' := eval unfold A in A in clear A;
           equate X (Regs a b); equate Y (ADT a'); reflexivity
     end.
 
