@@ -1702,6 +1702,8 @@ Section compileProgram.
       -> exists text, xfreeVar xm text
         /\ start = (text ++ "_start")%string
         /\ len = (text ++ "_len")%string.
+      pose proof @In_ExistsR as In_ExistsR. (* work around bug #5503 *)
+      pose proof @Exists_impl as Exists_impl.
       induction xm using xml_ind'; simpl; intuition;
         try match goal with
               | [ H : (_, _) = (_, _) |- _ ] => injection H; clear H; intros; subst
@@ -2798,6 +2800,7 @@ Section compileProgram.
     Lemma no_clash_allCursors_both : forall a,
       In s (allCursors_both a)
       -> False.
+      pose proof @no_clash_allCursors_both' as no_clash_allCursors_both'. (* work around bug #5503 *)
       induction a; try solve [ simpl; intuition (try match goal with
                                                        | [ H : _ |- _ ] =>
                                                          apply In_addTo_or in H; intuition idtac
@@ -2817,6 +2820,7 @@ Section compileProgram.
     Lemma no_clash_cursorsOf : forall pr0,
       In s (cursorsOf pr0)
       -> False.
+      pose proof @no_clash_allCursors_both as no_clash_allCursors_both. (* work around bug #5503 *)
       induction pr0; simpl; intuition eauto.
       apply In_addTo_or in H; destruct H; eauto.
     Qed.
