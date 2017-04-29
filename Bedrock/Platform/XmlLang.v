@@ -1881,7 +1881,7 @@ Section compileProgram.
     Ltac t'' :=
       post; repeat invoke1; prep; my_evaluate; my_descend;
         try (match_locals;
-          repeat rewrite sel_upd_ne by (intro Ho; eapply underscore_discrim; [ symmetry; apply Ho
+          repeat rewrite sel_upd_ne by (let Ho := fresh in intro Ho; eapply underscore_discrim; [ symmetry; apply Ho
             | intro; eapply underscore_free_app_contra; eassumption
             | simpl; intuition discriminate ]); cbv beta; descend);
         repeat (my_step; my_descend); eauto.
