@@ -1304,6 +1304,7 @@ Section compileProgram.
   Hint Immediate output_wf.
 
   Ltac discrim :=
+    idtac;
     match goal with
       | _ => eapply underscore_discrim; solve [ eauto ]
       | _ => eapply underscore_discrim; try symmetry; solve [ eauto ]
