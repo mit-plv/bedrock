@@ -530,13 +530,13 @@ Module Make (Import E : ADT) (Import M : RepInv E).
           equate X (Regs a b); equate Y (ADT a'); reflexivity
     end.
 
-  Ltac returnSomething := intuition; (cbv beta; simpl;
+  Ltac returnSomething := intuition; [ (cbv beta; simpl;
     repeat match goal with
              | [ |- @length ?A ?ls = O ] => equate ls (@nil A); reflexivity
              | [ |- @length ?A ?ls = S _ ] =>
                let x := fresh in let y := fresh in evar (x : A); evar (y : list A);
                  equate ls (x :: y); subst x y; simpl; f_equal
-           end).
+           end).. ].
 
   Ltac returnScalar := returnSomething; (cbv beta; returnScalar1 || eauto).
   Ltac returnAdt := returnSomething; (cbv beta; returnAdt1 || eauto).
