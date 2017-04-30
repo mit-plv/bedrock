@@ -314,7 +314,8 @@ Ltac sep_firstorder := sep_easy;
            | [ |- _ = _ ] => reflexivity
            | [ |- himp _ _ _ ] => reflexivity
              || (apply frame_reflexivity; try match goal with
-                                                | [ |- _ = ?X ] => instantiate (1 := X)
+                                                | [ |- ?e = ?X ] => is_evar e; unify e X
+                                                | [ |- ?e = ?X ] => first [ is_evar e; fail 1 | instantiate (1 := X) ]
                                               end; apply refl_equal)
          end; sep_easy; autorewrite with sepFormula; rereg; try subst.
 
