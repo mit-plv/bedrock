@@ -5,7 +5,6 @@ open Term
 open EConstr
 open Names
 open Coqlib
-open Sigma.Notations
 open Context.Rel.Declaration
 
 (* The contrib name is used to locate errors when loading constrs *)
@@ -47,9 +46,7 @@ let goal_update (goal : goal_sigma) evar_map : goal_sigma=
 let fresh_evar goal ty : constr * goal_sigma =
   let env = Tacmach.pf_env goal in
   let evar_map = Tacmach.project goal in
-  let evar_map = Sigma.Unsafe.of_evar_map evar_map in
-  let Sigma (x,em,_) = Evarutil.new_evar env evar_map ty in
-  let em = Sigma.to_evar_map em in
+  let (em,x) = Evarutil.new_evar env evar_map ty in
     x,( goal_update goal em)
 
 let resolve_one_typeclass goal ty : constr*goal_sigma=
@@ -82,36 +79,28 @@ let nf_evar goal c : EConstr.constr=
 let evar_unit (gl : goal_sigma) (x : constr) : constr * goal_sigma =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
-  let evar_map = Sigma.Unsafe.of_evar_map evar_map in
-  let Sigma (x,em,_) = Evarutil.new_evar env evar_map x in
-  let em = Sigma.to_evar_map em in
+  let (em,x) = Evarutil.new_evar env evar_map x in
     x,(goal_update gl em)
 
 let evar_binary (gl: goal_sigma) (x : constr) =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
   let ty = mkArrow x (mkArrow x x) in
-  let evar_map = Sigma.Unsafe.of_evar_map evar_map in
-  let Sigma (x,em,_) = Evarutil.new_evar env evar_map ty in
-  let em = Sigma.to_evar_map em in
+  let (em,x) = Evarutil.new_evar env evar_map ty in
     x,( goal_update gl em)
 
 let evar_relation (gl: goal_sigma) (x: constr) =
   let env = Tacmach.pf_env gl in
   let evar_map = Tacmach.project gl in
   let ty = mkArrow x (mkArrow x (mkSort prop_sort)) in
-  let evar_map = Sigma.Unsafe.of_evar_map evar_map in
-  let Sigma (r, em, _) = Evarutil.new_evar env evar_map ty in
-  let em = Sigma.to_evar_map em in
+  let (em,r) = Evarutil.new_evar env evar_map ty in
     r,( goal_update gl em)
 
 let cps_evar_relation (x: constr) k = fun goal ->
   Tacmach.pf_apply
     (fun env em ->
       let ty = mkArrow x (mkArrow x (mkSort prop_sort)) in
-      let em = Sigma.Unsafe.of_evar_map em in
-      let Sigma (r, em, _) = Evarutil.new_evar env em ty in
-      let em = Sigma.to_evar_map em in
+      let (em, r) = Evarutil.new_evar env em ty in
       Tacticals.tclTHENLIST [Refiner.tclEVARS em; k r] goal
     )	goal
 
