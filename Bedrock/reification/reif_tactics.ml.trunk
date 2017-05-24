@@ -29,17 +29,16 @@ let debug s = if debug then Format.printf s else Format.ifprintf (Format.std_for
 let unifies gl a b = Tacmach.pf_conv_x gl a b
 
 (** Building tactics that accept other tactics as arguments  *)
-let dummy_loc = Loc.ghost
 (* Calling a global tactic *)
 let ltac_call tac (args:Tacexpr.glob_tactic_arg list) =
-  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Misctypes.ArgArg(dummy_loc, Lazy.force tac),args))
+  Tacexpr.TacArg(Loc.tag @@ Tacexpr.TacCall(Loc.tag @@ (Misctypes.ArgArg(Loc.tag @@ Lazy.force tac),args)))
 
 (* Calling a locally bound tactic *)
 let ltac_lcall tac args =
-  Tacexpr.TacArg(dummy_loc,Tacexpr.TacCall(dummy_loc, Misctypes.ArgVar(dummy_loc, Names.id_of_string tac),args))
+  Tacexpr.TacArg(Loc.tag @@ Tacexpr.TacCall(Loc.tag @@ (Misctypes.ArgVar(Loc.tag @@ Names.id_of_string tac),args)))
 
 let ltac_letin (x, e1) e2 =
-  Tacexpr.TacLetIn(false,[(dummy_loc,Names.id_of_string x),e1],e2)
+  Tacexpr.TacLetIn(false,[(Loc.tag @@ Names.id_of_string x),e1],e2)
 
 (* [ltac_apply] : Run a tactic with arguments... *)
 let ltac_apply (f: Tacinterp.Value.t) (args:Tacinterp.Value.t list) =
@@ -54,7 +53,7 @@ let ltac_apply (f: Tacinterp.Value.t) (args:Tacinterp.Value.t list) =
   let idf = Id.of_string "F" in
   let ist = List.fold_right (fun (_, f) ist -> f ist) ids_istfs ist in
   let ist = { ist with Tacinterp.lfun = Id.Map.add idf f ist.lfun } in
-  let args = List.map (fun (id, _) -> Tacexpr.Reference (Misctypes.ArgVar (Loc.ghost, id))) ids_istfs in
+  let args = List.map (fun (id, _) -> Tacexpr.Reference (Misctypes.ArgVar (Loc.tag id))) ids_istfs in
   Tacinterp.eval_tactic_ist ist
     (ltac_lcall "F" args)
 
