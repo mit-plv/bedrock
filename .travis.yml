@@ -10,9 +10,9 @@ matrix:
     - dist: trusty
       env: COQ_VERSION="v8.6"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.6-daily"             TARGETS="src facade"
     - dist: trusty
-      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="src"
+      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5 ocaml-native-compilers"            PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="src"
     - dist: trusty
-      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="facade"
+      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5 ocaml-native-compilers"            PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="facade"
     - dist: trusty
       env: COQ_VERSION="8.6"      COQ_PACKAGE="coq-8.6 libcoq-8.6-ocaml-dev ocaml camlp5"                           PPA="ppa:jgross-h/many-coq-versions"         TARGETS="src facade"
     - dist: trusty
@@ -22,8 +22,8 @@ matrix:
     - dist: precise
       env: COQ_VERSION="8.4pl6"   COQ_PACKAGE="coq-8.4pl6 libcoq-ocaml-8.4pl6 libcoq-ocaml-dev-8.4pl6 ocaml camlp5" PPA="ppa:jgross-h/many-coq-versions-ocaml-3" TARGETS="src facade"
   allow_failures:
-    - env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="src"
-    - env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="facade"
+      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5 ocaml-native-compilers"            PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="src"
+      env: COQ_VERSION="v8.5"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5 ocaml-native-compilers"            PPA="ppa:jgross-h/coq-8.5-daily"             TARGETS="facade"
     - env: COQ_VERSION="v8.6"     COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-8.6-daily"             TARGETS="src facade"
     - env: COQ_VERSION="trunk"    COQ_PACKAGE="coq libcoq-ocaml-dev ocaml camlp5"                                   PPA="ppa:jgross-h/coq-trunk-daily"           TARGETS="src facade"
 
