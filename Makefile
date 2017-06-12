@@ -1,4 +1,5 @@
 COMPATIBILITY_FILE=Bedrock/Coq__8_4__8_5__Compat.v
+USE_BYPASS_API=1
 STDTIME?=/usr/bin/time -f "$* (real: %e, user: %U, sys: %S, mem: %M ko)"
 
 .PHONY: examples platform cito facade facade-all facade-allv qsfacade qsfacade-impl qsfacade-compiler src reification \
