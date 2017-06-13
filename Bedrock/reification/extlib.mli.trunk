@@ -20,9 +20,9 @@ val init_constant : string list -> string -> EConstr.constr
 
 (** {2 General purpose functions} *)
 
-type goal_sigma =  Proof_type.goal Tacmach.sigma
+type goal_sigma =  Proof_type.goal Evd.sigma
 val goal_update : goal_sigma -> Evd.evar_map -> goal_sigma
-val resolve_one_typeclass : Proof_type.goal Tacmach.sigma -> EConstr.types -> EConstr.constr * goal_sigma
+val resolve_one_typeclass : Proof_type.goal Evd.sigma -> EConstr.types -> EConstr.constr * goal_sigma
 val cps_resolve_one_typeclass: ?error:string -> EConstr.types -> (EConstr.constr  -> Proof_type.tactic) -> Proof_type.tactic
 val nf_evar : goal_sigma -> EConstr.constr -> EConstr.constr
 val fresh_evar :goal_sigma -> EConstr.types ->  EConstr.constr* goal_sigma
