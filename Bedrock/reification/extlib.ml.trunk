@@ -65,7 +65,7 @@ let cps_resolve_one_typeclass ?error : EConstr.types -> (EConstr.constr  -> Proo
 		  with Not_found ->
 		    begin match error with
 		      | None -> CErrors.anomaly (Pp.str "Cannot resolve a typeclass : please report")
-		      | Some x -> CErrors.user_err x
+		      | Some x -> CErrors.user_err (Pp.str x)
 		    end
 		in
 		Tacticals.tclTHENLIST [Refiner.tclEVARS em; k c] goal
