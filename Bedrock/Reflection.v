@@ -2,6 +2,8 @@ Require Import Coq.omega.Omega.
 Require Coq.Setoids.Setoid.
 Require Export Bedrock.Coq__8_4__8_5__Compat.
 
+Global Set Asymmetric Patterns.
+
 (** This file defines some inductives, type-classes and tactics to
 perform reflection on a small scale *)
 

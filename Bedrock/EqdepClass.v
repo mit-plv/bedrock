@@ -1,6 +1,8 @@
 Require Import Coq.Logic.Eqdep_dec.
 Require Import Coq.Classes.EquivDec.
 
+Global Set Asymmetric Patterns.
+
 Section Classes.
   Context {A : Type}.
   Context {dec : EqDec A (@eq A)}.

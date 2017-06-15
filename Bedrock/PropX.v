@@ -3,6 +3,7 @@
 Require Import Coq.Lists.List.
 
 Set Implicit Arguments.
+Global Set Asymmetric Patterns.
 
 
 Section machine.
